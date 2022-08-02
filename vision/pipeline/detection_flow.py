@@ -3,11 +3,11 @@ import sys
 import torch
 
 cwd = os.getcwd()
-sys.path.append(os.path.join(cwd, 'vision', 'Detector', 'YOLOX'))
+sys.path.append(os.path.join(cwd, 'vision', 'Detector', 'YoloX'))
 
-from vision.detector.YOLOX.yolox.exp import get_exp
+from vision.detector.YoloX.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
-from vision.detector.YOLOX.yolox.utils.boxes import postprocess
+from vision.detector.YoloX.yolox.utils.boxes import postprocess
 #from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
 
 
