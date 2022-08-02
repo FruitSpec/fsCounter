@@ -4,15 +4,27 @@ import torch
 
 cwd = os.getcwd()
 sys.path.append(os.path.join(cwd, 'vision', 'Detector', 'YOLOX'))
-from vision.Detector.YOLOX.yolox.exp import get_exp
-from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
+
+from vision.detector.YOLOX.yolox.exp import get_exp
+from vision.detector.preprocess import Preprocess
+from vision.detector.YOLOX.yolox.utils.boxes import postprocess
+#from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
+
 
 class counter_detection():
 
     def __init__(self, cfg):
 
+        self.preprocess = Preprocess(cfg.input_size)
+
         self.detector = self.init_detector(cfg)
-        self.tracker = self.init_tracker(cfg)
+        self.confidence_threshold = cfg.detector.confidence
+        self.nms_threshold = cfg.detector.nms
+        self.num_of_classes = cfg.num_of_classes
+
+        #self.tracker = self.init_tracker(cfg)
+
+        self.device = cfg.device
 
 
     def init_detector(self, cfg):
@@ -35,9 +47,12 @@ class counter_detection():
         self.orig_height = cfg.tracker.orig_height
         self.img_size = cfg.input_size
 
-    def detect(self, batch):
+    def detect(self, frame):
+        preprc_frame = self.preprocess(frame)
+        input_ = preprc_frame.to(self.device)
+        output = self.detector(input_)
 
-        output = self.detector(batch)
+        output = postprocess(output, self.num_of_classes)
 
         return output
 
@@ -48,5 +63,7 @@ class counter_detection():
     def get_imgs_info(self, frame_id):
 
         return (self.orig_height, self.orig_width, frame_id)
+
+
 
 

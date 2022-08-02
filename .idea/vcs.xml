@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/vision/YOLOX" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/vision/detector/YOLOX" vcs="Git" />
   </component>
 </project>
