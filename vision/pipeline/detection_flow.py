@@ -3,11 +3,11 @@ import sys
 import torch
 
 cwd = os.getcwd()
-sys.path.append(os.path.join(cwd, 'vision', 'Detector', 'YoloX'))
+sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 
-from vision.detector.YoloX.yolox.exp import get_exp
+from vision.detector.yolo_x.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
-from vision.detector.YoloX.yolox.utils.boxes import postprocess
+from vision.detector.yolo_x.yolox.utils.boxes import postprocess
 #from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
 
 
@@ -42,7 +42,7 @@ class counter_detection():
         return model
 
     def init_tracker(self, cfg):
-        self.tracker = BYTETracker(cfg)
+        #self.tracker = BYTETracker(cfg)
         self.orig_width = cfg.tracker.orig_width
         self.orig_height = cfg.tracker.orig_height
         self.img_size = cfg.input_size

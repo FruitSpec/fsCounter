@@ -1,3 +1,5 @@
+import os
+
 import torch
 import cv2
 from omegaconf import OmegaConf
@@ -42,8 +44,10 @@ def run(cfg, args):
 
 if __name__ == "__main__":
 
-    config_file = r"/vision/pipeline/edge\config\pipeline_config.yaml"
-    cfg = OmegaConf.load(config_file)
+    cwd = os.getcwd()
+    config_file = "/vision/pipeline/config/pipeline_config.yaml"
+    cfg = OmegaConf.load(cwd + config_file)
+
 
     args = make_parser().parse_args()
 
