@@ -4,7 +4,8 @@ import numpy as np
 from torchvision import transforms
 from torchvision.transforms import ToTensor
 
-BILINEAR = Image.Resampling.BILINEAR
+#BILINEAR = Image.Resampling.BILINEAR
+BILINEAR = Image.BILINEAR
 
 
 class Preprocess():
