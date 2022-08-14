@@ -8,7 +8,7 @@ device: cuda
 input_size: [414, 414]
 
 detector:
-  confidence: 0.8
+  confidence: 0.1
   nms: 0.65
   num_of_classes: 3
   fp16: true
@@ -16,9 +16,12 @@ detector:
   trt: false
 
 tracker:
-  track_thresh: 0.6
+  frame_rate: 30
+  track_thresh: 0.2
   track_buffer: 30
   match_threshold: 0.9
-  min-box-area: 100
+  min_box_area: 100
+  orig_width: 2048
+  orig_height: 1536
   mot20: false
 

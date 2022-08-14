@@ -1,6 +1,5 @@
 import os
 
-import torch
 import cv2
 from omegaconf import OmegaConf
 
@@ -17,18 +16,21 @@ def run(cfg, args):
         print("Error opening video stream or file")
 
     # Read until video is completed
+    f_id = 0
     while (cap.isOpened()):
         # Capture frame-by-frame
         ret, frame = cap.read()
         if ret == True:
 
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # Display the resulting frame
-            cv2.imshow('Frame', frame)
 
-            # Press Q on keyboard to  exit
-            if cv2.waitKey(25) & 0xFF == ord('q'):
-                break
+            # detect:
+            det_outputs = detector.detect(frame)
+
+            # track:
+            trk_outputs = detector.track(det_outputs, f_id)
+
+            f_id += 1
 
         # Break the loop
         else:

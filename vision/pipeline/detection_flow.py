@@ -8,21 +8,21 @@ sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 from vision.detector.yolo_x.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
 from vision.detector.yolo_x.yolox.utils.boxes import postprocess
-#from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
+from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
 
 
 class counter_detection():
 
     def __init__(self, cfg):
 
-        self.preprocess = Preprocess(cfg.input_size)
+        self.preprocess = Preprocess(cfg.device, cfg.input_size)
 
         self.detector = self.init_detector(cfg)
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
-        self.num_of_classes = cfg.num_of_classes
+        self.num_of_classes = cfg.detector.num_of_classes
 
-        #self.tracker = self.init_tracker(cfg)
+        self.tracker = self.init_tracker(cfg)
 
         self.device = cfg.device
 
@@ -42,11 +42,14 @@ class counter_detection():
         return model
 
     def init_tracker(self, cfg):
-        #self.tracker = BYTETracker(cfg)
+
+        self.frame_rate = cfg.tracker.frame_rate
         self.orig_width = cfg.tracker.orig_width
         self.orig_height = cfg.tracker.orig_height
-        self.img_size = cfg.input_size
-        self.min_box_area = cfg.min_box_area
+        self.min_box_area = cfg.tracker.min_box_area
+        self.input_size = cfg.input_size
+
+        return BYTETracker(cfg.tracker, self.frame_rate)
 
     def detect(self, frame):
         preprc_frame = self.preprocess(frame)
@@ -56,16 +59,16 @@ class counter_detection():
             output = self.detector(input_)
 
         # Filter results below confidence threshold and nms threshold
-        output = postprocess(output, self.num_of_classes)
+        output = postprocess(output, self.num_of_classes, self.confidence_threshold)
 
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
     def track(self, outputs, frame_id):
 
-        if outputs[0] is not None:
+        if outputs is not None and outputs[0] is not None:
             info_imgs = self.get_imgs_info(frame_id)
-            online_targets = self.tracker.update(outputs, info_imgs, self.input_size)
+            online_targets = self.tracker.update(outputs[0], info_imgs, self.input_size)
             tracking_results = self.targets_to_results(online_targets, frame_id, self.min_box_area)
 
             # frame_id, tlwhs, ids, scores

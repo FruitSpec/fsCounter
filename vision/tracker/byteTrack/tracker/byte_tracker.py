@@ -207,7 +207,7 @@ class BYTETracker(object):
         dists = matching.iou_distance(strack_pool, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
-        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_thresh)
+        matches, u_track, u_detection = matching.linear_assignment(dists, thresh=self.args.match_threshold)
 
         for itracked, idet in matches:
             track = strack_pool[itracked]
