@@ -68,10 +68,10 @@ class counter_detection():
 
         if outputs is not None and outputs[0] is not None:
             info_imgs = self.get_imgs_info(frame_id)
-            online_targets = self.tracker.update(outputs[0], info_imgs, self.input_size)
-            tracking_results = self.targets_to_results(online_targets, frame_id, self.min_box_area)
+            online_targets, t2d_mapping = self.tracker.update(outputs[0], info_imgs, self.input_size)
+            tracking_results = self.targets_to_results(online_targets, frame_id, self.min_box_area, t2d_mapping)
 
-            # frame_id, tlwhs, ids, scores
+            # frame_id, tlwhs, ids, scores, det id
             return tracking_results
 
 
@@ -80,11 +80,12 @@ class counter_detection():
         return (self.orig_height, self.orig_width, frame_id)
 
     @staticmethod
-    def targets_to_results(online_targets, frame_id, min_box_area):
+    def targets_to_results(online_targets, frame_id, min_box_area, t2d_mapping):
 
         online_tlwhs = []
         online_ids = []
         online_scores = []
+        detection_ids = []
         for t in online_targets:
             tlwh = t.tlwh
             tid = t.track_id
@@ -93,8 +94,9 @@ class counter_detection():
                 online_tlwhs.append(tlwh)
                 online_ids.append(tid)
                 online_scores.append(t.score)
+                detection_ids.append(t2d_mapping[tid])
 
-        return frame_id, online_tlwhs, online_ids, online_scores
+        return frame_id, online_tlwhs, online_ids, online_scores, detection_ids
 
 
 

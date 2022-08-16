@@ -12,7 +12,7 @@ class Preprocess():
 
     def __init__(self, device, size=[414, 414], platform="torch"):
         if platform == "torch":
-            self.transform = transforms.Compose([Resize(size=(size[0], size[1])), ToTensor()])
+            self.transform = transforms.Compose([Resize_(size=(size[0], size[1])), ToTensor()])
             self.device = device
         else:
             raise ValueError(f'Not implemented for platform: {platform}')
@@ -26,7 +26,7 @@ class Preprocess():
         return preprc_frame
 
 
-class Resize:
+class Resize_:
 
     def __init__(self, size=(414, 414), swap=(2, 0, 1), method=BILINEAR, dtype=np.uint8):
         self.size = size
@@ -49,7 +49,7 @@ class Resize:
         ).astype(np.uint8)
         padded_img[: int(input_.shape[0] * r), : int(input_.shape[1] * r)] = resized_img
 
-        padded_img = padded_img.transpose(self.swap)
+        #padded_img = padded_img.transpose(self.swap)
         padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
         return padded_img
 

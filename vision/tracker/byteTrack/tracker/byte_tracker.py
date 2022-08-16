@@ -184,6 +184,11 @@ class BYTETracker(object):
         scores_keep = scores[remain_inds]
         scores_second = scores[inds_second]
 
+        ind_r = [i for i, bool_ in enumerate(remain_inds) if bool_ == True]
+        ind_s = [i for i, bool_ in enumerate(inds_second) if bool_ == True]
+        orig_id_remain = []
+        orig_id_second = []
+
         if len(dets) > 0:
             '''Detections'''
             detections = [STrack(STrack.tlbr_to_tlwh(tlbr), s) for
@@ -215,6 +220,7 @@ class BYTETracker(object):
             if track.state == TrackState.Tracked:
                 track.update(detections[idet], self.frame_id)
                 activated_starcks.append(track)
+                orig_id_remain.append(ind_r[idet])
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
@@ -236,6 +242,7 @@ class BYTETracker(object):
             if track.state == TrackState.Tracked:
                 track.update(det, self.frame_id)
                 activated_starcks.append(track)
+                orig_id_second.append(ind_s[idet])
             else:
                 track.re_activate(det, self.frame_id, new_id=False)
                 refind_stracks.append(track)
@@ -247,7 +254,9 @@ class BYTETracker(object):
                 lost_stracks.append(track)
 
         '''Deal with unconfirmed tracks, usually tracks with only one beginning frame'''
+        orig_id_u = []
         detections = [detections[i] for i in u_detection]
+        ind_u = [ind_r[i] for i in u_detection]
         dists = matching.iou_distance(unconfirmed, detections)
         if not self.args.mot20:
             dists = matching.fuse_score(dists, detections)
@@ -255,6 +264,8 @@ class BYTETracker(object):
         for itracked, idet in matches:
             unconfirmed[itracked].update(detections[idet], self.frame_id)
             activated_starcks.append(unconfirmed[itracked])
+            orig_id_u.append(ind_u[idet])
+
         for it in u_unconfirmed:
             track = unconfirmed[it]
             track.mark_removed()
@@ -267,6 +278,7 @@ class BYTETracker(object):
                 continue
             track.activate(self.kalman_filter, self.frame_id)
             activated_starcks.append(track)
+            orig_id_u.append(ind_u[inew])
         """ Step 5: Update state"""
         for track in self.lost_stracks:
             if self.frame_id - track.end_frame > self.max_time_lost:
@@ -274,10 +286,12 @@ class BYTETracker(object):
                 removed_stracks.append(track)
 
         # print('Ramained match {} s'.format(t4-t3))
+        orig_ids = orig_id_remain + orig_id_second + orig_id_u
+        dummy_ids = [1 for _ in refind_stracks]
 
         self.tracked_stracks = [t for t in self.tracked_stracks if t.state == TrackState.Tracked]
-        self.tracked_stracks = joint_stracks(self.tracked_stracks, activated_starcks)
-        self.tracked_stracks = joint_stracks(self.tracked_stracks, refind_stracks)
+        self.tracked_stracks, t2d_mapping = joint_stracks(self.tracked_stracks, activated_starcks, orig_ids)
+        self.tracked_stracks, _ = joint_stracks(self.tracked_stracks, refind_stracks, dummy_ids)
         self.lost_stracks = sub_stracks(self.lost_stracks, self.tracked_stracks)
         self.lost_stracks.extend(lost_stracks)
         self.lost_stracks = sub_stracks(self.lost_stracks, self.removed_stracks)
@@ -286,21 +300,23 @@ class BYTETracker(object):
         # get scores of lost tracks
         output_stracks = [track for track in self.tracked_stracks if track.is_activated]
 
-        return output_stracks
+        return output_stracks, t2d_mapping
 
 
-def joint_stracks(tlista, tlistb):
+def joint_stracks(tlista, tlistb, orig_ids):
     exists = {}
+    t2d_mapping = {}
     res = []
     for t in tlista:
         exists[t.track_id] = 1
         res.append(t)
-    for t in tlistb:
+    for t, id_ in zip(tlistb, orig_ids):
         tid = t.track_id
         if not exists.get(tid, 0):
             exists[tid] = 1
+            t2d_mapping[tid] = id_
             res.append(t)
-    return res
+    return res, t2d_mapping
 
 
 def sub_stracks(tlista, tlistb):

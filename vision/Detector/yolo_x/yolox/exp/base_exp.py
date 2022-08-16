@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 # Copyright (c) Megvii Inc. All rights reserved.
+import os
+import sys
 
 import ast
 import pprint
@@ -11,7 +13,10 @@ from tabulate import tabulate
 import torch
 from torch.nn import Module
 
-from yolox.utils import LRScheduler
+cwd = os.getcwd()
+sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
+
+from vision.detector.yolo_x.yolox.utils import LRScheduler
 
 
 class BaseExp(metaclass=ABCMeta):
