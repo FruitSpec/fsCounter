@@ -1,5 +1,4 @@
 import os
-import asyncio
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,15 +6,21 @@ from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
 
-def get_frames_overlap(frames_folder, resize_=640):
-
+def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
+    """
+    method can be: 1. 'at' for affine transform
+                   2. 'hm' for homography
+    """
     file_list = get_fsi_files(frames_folder)
 
-    kp, des, heights, widths, rs = extract_keypoints(file_list, resize_)
-    M, _ = extract_homography_matrix(kp, des)
+    kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
-    masks = list(map(translation_based, M, heights, widths, rs))
+    M, _ = extract_matrix(kp, des, method, max_workers)
 
+    if method == 'at':
+        masks = list(map(translation_based, M, heights, widths, rs))
+    elif method == 'hm':
+        masks = list(map(find_overlapping, M, heights, widths))
     return masks
 
 
@@ -58,7 +63,8 @@ def results_to_lists(results):
 
     return kp, des, heights, widths, rs
 
-def extract_homography_matrix(kp, des, max_workers=8):
+
+def extract_matrix(kp, des, method='hm', max_workers=8):
 
     des1 = [d for d in des[:-1]]
     des2 = [d for d in des[1:]]
@@ -66,8 +72,13 @@ def extract_homography_matrix(kp, des, max_workers=8):
     kp1 = [k for k in kp[:-1]]
     kp2 = [k for k in kp[1:]]
 
+    if method == 'hm':
+        func_ = features_to_homography
+    elif method == 'at':
+        func_ = features_to_translation
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(features_to_homography, kp1, kp2, des1, des2))
+        results = list(executor.map(func_, kp1, kp2, des1, des2))
 
     M = []
     status = []
@@ -82,6 +93,13 @@ def extract_homography_matrix(kp, des, max_workers=8):
 def features_to_homography(kp1, kp2, des1, des2):
     good = match_descriptors(des1, des2)
     M, status = calc_homography(kp1, kp2, good)
+
+    return M, status
+
+
+def features_to_translation(kp1, kp2, des1, des2):
+    good = match_descriptors(des1, des2)
+    M, status = calc_affine_transform(kp1, kp2, good)
 
     return M, status
 
@@ -100,20 +118,29 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(des1, des2, k=2)
     # store all the good matches as per Lowe's ratio test.
-    good = []
+    match = []
     for m, n in matches:
         if m.distance < threshold * n.distance:
-            good.append(m)
+            match.append(m)
 
-    if good.__len__() < min_matches:
-        raise f'number of matching descriptors is too low'
+    if match.__len__() < min_matches:
+        print(f'number of matching descriptors is too low')
 
-    return good
+    return match
 
 
-def calc_homography(kp1, kp2, good):
-    dst_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    src_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+def calc_affine_transform(kp1, kp2, match):
+    dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+    src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+
+    M, status = cv2.estimateAffine2D(src_pts, dst_pts)
+
+    return M, status
+
+
+def calc_homography(kp1, kp2, match):
+    dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+    src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
     M, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
@@ -232,20 +259,17 @@ def get_overlapping(folder_path):
 
     return res
 
-def find_overlapping(im1, im2, M):
-    dst = warp(im1, im2, M)
+def find_overlapping(M, h, w):
+    dummy = np.ones((h, w))
+
+    dst = warp(dummy, dummy, M)
 
     dstMask = np.zeros((dst.shape[0], dst.shape[1]))
-    boolMask = dst[:, :, 2] == 0  # use blue channel - no zeros values
-    dstMask[boolMask] = 1  # where black background from homography
-
-    h, w, _ = im1.shape
     dstMask[:h, :w] = 1
 
     boolMask = dstMask == 0
     dstMask[np.logical_not(boolMask)] = 1
 
-    h, w, _ = im2.shape
     src = warp_back(dstMask, M, cols=w, rows=h)
     src = np.round(src).astype(np.uint8)
 
@@ -291,8 +315,8 @@ def translation_based(M, height, width, r):
     if r is None:
         r = 1
 
-    tx = int(M[0, 2] / r)
-    ty = int(M[1, 2] / r)
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
 
     mask = np.zeros((height, width))
     if tx < 0:
@@ -322,8 +346,8 @@ def resize_img(input_, size):
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'
     fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\from Roi\RA_3_A_2\RA_3_A_2'
-    res = get_frames_overlap(fp)
+    res = get_frames_overlap(fp, max_workers=1)
 
-    if res is not None:
-        plt.imshow(res)
-        plt.show()
+    # if res is not None:
+    #     plt.imshow(res)
+    #     plt.show()

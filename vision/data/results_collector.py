@@ -1,17 +1,12 @@
 import csv
 
 
-class ResultsManager():
+class ResultsCollector():
 
     def __init__(self):
 
         self.detections = []
         self.tracks = []
-
-    def collect_outputs(self, detection_results, tracking_results, t2d_mapping, img_id):
-
-        trckr_output = self.collect_tracks(tracking_results, t2d_mapping)
-        self.collect_detections(detection_results, trckr_output, img_id)
 
 
     def collect_detections(self, detection_results, t2d_mapping, img_id):
@@ -74,7 +69,7 @@ class ResultsManager():
     def single_tracking_to_list(frame_ids, track_id, tracker_score, bbox, t2d):
 
         if t2d[0] != track_id:
-            print('Results_Manager: tracker id and detction id mismatch')
+            print('Results_Manager: tracker id and detection id mismatch')
             det_id = None
         else:
             det_id = t2d[1]

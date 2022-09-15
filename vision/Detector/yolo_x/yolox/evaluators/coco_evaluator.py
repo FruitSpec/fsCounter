@@ -17,7 +17,15 @@ import numpy as np
 
 import torch
 
-from yolox.data.datasets import COCO_CLASSES
+import os
+import sys
+cwd = os.getcwd()
+splited = cwd.split('/')
+
+sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
+
+#from yolox.data.datasets import COCO_CLASSES
+from vision.yolox.data.datasets import COCO_CLASSES
 from yolox.utils import (
     gather,
     is_main_process,

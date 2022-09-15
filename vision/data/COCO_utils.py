@@ -1,56 +1,41 @@
-from collections import defaultdict
 import json
 
-def convert_to_coco_format(outputs, info_imgs, ids, img_size, class_ids, data_label=None, return_outputs=False):
+def convert_to_coco_format(outputs, info_imgs, img_size, class_ids, type_='dets', data_label=None):
     data_list = []
-    image_wise_data = defaultdict(dict)
-    for (output, img_h, img_w, img_id) in zip(
-            outputs, info_imgs[0], info_imgs[1], ids
-    ):
+
+    # preprocessing: resize
+    scale = min(
+        img_size[0] / float(info_imgs[0]), img_size[1] / float(info_imgs[1])
+    )
+
+    for output in outputs():
         if output is None:
             continue
-        output = output.cpu()
-
-        bboxes = output[:, 0:4]
-
-        # preprocessing: resize
-        scale = min(
-            img_size[0] / float(img_h), img_size[1] / float(img_w)
-        )
+        bboxes = output[0:4]
         bboxes /= scale
-        cls = output[:, 6]
-        scores = output[:, 4] * output[:, 5]
-        tracks = output[:, 7]
+        scores = output[4] * output[5]
+        cls = output[6]
+        ids = output[7]
+        track_id = output[8]
 
-        image_wise_data.update({
-            int(img_id): {
-                "bboxes": [box.numpy().tolist() for box in bboxes],
-                "scores": [score.numpy().item() for score in scores],
-                "categories": [
-                    class_ids[int(cls[ind])]
-                    for ind in range(bboxes.shape[0])
-                ],
-            }
-        })
+        if type_ == 'tracks' and track_id == -1:
+            continue
 
         bboxes = xyxy2xywh(bboxes)
 
-        for ind in range(bboxes.shape[0]):
-            label = class_ids[int(cls[ind])]
-            pred_data = {
-                "image_id": int(img_id),
-                "category_id": label,
-                "bbox": bboxes[ind].numpy().tolist(),
-                "score": scores[ind].numpy().item(),
-                "segmentation": [],
-                "track_id": tracks[ind]
-            }  # COCO json format
-            if data_label is not None:
-                pred_data["label"] = data_label
-            data_list.append(pred_data)
+        label = class_ids[int(cls)]
+        pred_data = {
+            "image_id": int(ids),
+            "category_id": label,
+            "bbox": bboxes.numpy().tolist(),
+            "score": scores.numpy().item(),
+            "segmentation": [],
+            "track_id": track_id
+        }  # COCO json format
+        if data_label is not None:
+            pred_data["label"] = data_label
+        data_list.append(pred_data)
 
-    if return_outputs:
-        return data_list, image_wise_data
     return data_list
 
 
@@ -83,14 +68,14 @@ def xyxy2xywh(bboxes):
     return bboxes
 
 def generate_coco_format(outputs, info_imgs, ids, img_size,
-                         class_ids, category_list, file_list, data_label=None):
+                         class_ids, category_list, file_list, type_="dets", data_label=None):
 
     coco = dict()
 
     coco["categories"] = create_category_dict(category_list)
     coco["images"] = create_images_dict(file_list, ids, info_imgs[0], info_imgs[1])
-    coco["annotations"] = convert_to_coco_format(outputs, info_imgs, ids,
-                                                 img_size, class_ids, data_label)
+    coco["annotations"] = convert_to_coco_format(outputs, info_imgs,
+                                                 img_size, class_ids, type_, data_label)
 
     return coco
 

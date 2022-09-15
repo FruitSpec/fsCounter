@@ -72,7 +72,7 @@ class counter_detection():
             tracking_results = self.targets_to_results(online_targets, frame_id, self.min_box_area, t2d_mapping)
 
             # frame_id, tlwhs, ids, scores, det id
-            return tracking_results
+            return tracking_results, t2d_mapping
 
 
     def get_imgs_info(self, frame_id):
