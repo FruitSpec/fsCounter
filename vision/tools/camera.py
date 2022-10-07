@@ -161,7 +161,7 @@ def calculate_2dft(input):
 
 
 def stretch_img(img, gain, offset):
-
+    print(img.max() - img.min())
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
 
     stretched_img = normalized_img * gain + offset
@@ -174,18 +174,24 @@ def stretch_img(img, gain, offset):
     return stretched_img.astype(type_)
 
 if __name__ == "__main__":
-    fp = r'C:\Users\Matan\Documents\Projects\Data\wetransfer_jai_samples_2022-08-11_0745\JAI_Samples\S4'
-    r_ch = np.array(Image.open(os.path.join(fp, 'Stream1_1089.tiff')))
-    g_ch = np.array(Image.open(os.path.join(fp, 'Stream2_1089.tiff')))
-    rgb = np.array(Image.open(os.path.join(fp, 'Stream0_1089.tiff')))
+    #fp = r'C:\Users\Matan\Documents\Projects\Data\wetransfer_jai_samples_2022-08-11_0745\JAI_Samples\S4'
+    #r_ch = np.array(Image.open(os.path.join(fp, 'Stream1_1089.tiff')))
+    #g_ch = np.array(Image.open(os.path.join(fp, 'Stream2_1089.tiff')))
+    #rgb = np.array(Image.open(os.path.join(fp, 'Stream0_1089.tiff')))
+    fp = '/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6_COCO/val2017'
+    img_list = os.listdir(fp)
+    img = cv2.imread(os.path.join(fp,img_list[0]))
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    r_ch = rgb[:,:,0].copy()
+    g_ch = rgb[:, :, 1].copy()
 
-    g_ch = reduce_outliers(g_ch, 0, 0.005)
-    r_ch = reduce_outliers(r_ch, 0, 0.005)
+    #g_ch = reduce_outliers(g_ch, 0, 0.005)
+    #r_ch = reduce_outliers(r_ch, 0, 0.005)
 
-    diff = r_ch.astype(np.int32) - g_ch.astype(np.int32)
-    sum_ = r_ch.astype(np.int32) + g_ch.astype(np.int32)
+    diff = r_ch.astype(np.float32) - g_ch.astype(np.float32)
+    sum_ = r_ch.astype(np.float32) + g_ch.astype(np.float32)
 
-    g_ch = stretch_img(g_ch, r_ch.max() - r_ch.min(), r_ch.min())
+    g_ch = stretch_img(g_ch, r_ch.max() - r_ch.min(), 10)
     ndri = diff / g_ch
 
     ndri_ch = stretch_img(ndri, 255, 0)
@@ -198,3 +204,5 @@ if __name__ == "__main__":
 
     plt.imshow(res)
     plt.show()
+
+    a=1

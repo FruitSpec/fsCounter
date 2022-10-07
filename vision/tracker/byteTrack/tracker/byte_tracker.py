@@ -150,8 +150,8 @@ class BYTETracker(object):
 
         self.frame_id = 0
         self.args = args
-        #self.det_thresh = args.track_thresh
-        self.det_thresh = args.track_thresh + 0.1
+        self.det_thresh = args.track_thresh
+        #self.det_thresh = args.track_thresh + 0.1
         self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
@@ -206,7 +206,8 @@ class BYTETracker(object):
                 tracked_stracks.append(track)
 
         ''' Step 2: First association, with high score detection boxes'''
-        strack_pool = joint_stracks(tracked_stracks, self.lost_stracks)
+        dummy_ids = [1 for _ in tracked_stracks]
+        strack_pool, _ = joint_stracks(tracked_stracks, self.lost_stracks, dummy_ids)
         # Predict the current location with KF
         STrack.multi_predict(strack_pool)
         dists = matching.iou_distance(strack_pool, detections)
@@ -303,7 +304,7 @@ class BYTETracker(object):
         return output_stracks, t2d_mapping
 
 
-def joint_stracks(tlista, tlistb, orig_ids):
+def joint_stracks(tlista, tlistb, orig_ids=None):
     exists = {}
     t2d_mapping = {}
     res = []
@@ -314,7 +315,8 @@ def joint_stracks(tlista, tlistb, orig_ids):
         tid = t.track_id
         if not exists.get(tid, 0):
             exists[tid] = 1
-            t2d_mapping[tid] = id_
+            if orig_ids is not None:
+                t2d_mapping[tid] = id_
             res.append(t)
     return res, t2d_mapping
 

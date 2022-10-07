@@ -10,6 +10,8 @@ from loguru import logger
 
 import cv2
 import numpy as np
+import pandas as pd
+import sklearn.utils as sklearn_utils
 
 import torch
 
@@ -130,7 +132,7 @@ class WandbLogger(object):
                  save_dir=None,
                  config=None,
                  val_dataset=None,
-                 num_eval_images=100,
+                 num_eval_images=0,  # 100,
                  log_checkpoints=False,
                  **kwargs):
         """
@@ -178,6 +180,7 @@ class WandbLogger(object):
         self.entity = entity
         self._run = None
         self.val_artifact = None
+        self.num_eval_images = num_eval_images
         if num_eval_images == -1:
             self.num_log_images = len(val_dataset)
         else:
@@ -382,3 +385,61 @@ class WandbLogger(object):
                     wandb_params.update({k[len(prefix):]: v})
 
         return cls(config=vars(exp), val_dataset=val_dataset, **wandb_params)
+
+    @staticmethod
+    def eval_to_df(eval, iou=0.5):
+        params = eval['params']
+        iou_thrs = list(params.iouThrs)
+        recall_list = list(params.recThrs)
+        cat_ids = list(params.catIds)
+        iou_ind = iou_thrs.index(iou)
+
+        res_len = len(recall_list)
+        data_list = []
+        for cat_id in cat_ids:
+            if -1 in eval['precision'][iou_ind, :, cat_id, 0, 2]:
+                continue
+            else:
+                for i in range(res_len):
+                    precision = eval['precision'][iou_ind, i, cat_id, 0, 2]
+                    score = eval['scores'][iou_ind, i, cat_id, 0, 2]
+                    recall = recall_list[i]
+
+                    data_list.append({'precision': precision, "recall": recall, "score": score, 'class': cat_id})
+
+        return pd.DataFrame(data=data_list, columns=['precision', 'recall', 'score', 'class'])
+
+
+    def eval_to_table(self, eval, iou=0.5):
+
+        df = self.eval_to_df(eval, iou)
+        df = df.round(3)
+
+        if len(df) > self.wandb.Table.MAX_ROWS:
+            self.wandb.termwarn(
+                "wandb uses only %d data points to create the plots." % self.wandb.Table.MAX_ROWS
+            )
+            # different sampling could be applied, possibly to ensure endpoints are kept
+            df = sklearn_utils.resample(
+                df,
+                replace=False,
+                n_samples=self.wandb.Table.MAX_ROWS,
+                random_state=42,
+                stratify=df["class"],
+            ).sort_values(["precision", "recall", "score", "class"])
+
+        return self.wandb.Table(dataframe=df)
+
+    def log_pr_table(self, eval, iou=0.5):
+
+        pr_table = self.eval_to_table(eval, iou)
+        self.run.log({"pr_table": pr_table})
+
+
+    def log_train_artifact(self, artifact_name, weights_file_path, exp_path, run_log_path):
+        artifact = self.wandb.Artifact(artifact_name, type='model')
+        artifact.add_file(weights_file_path)
+        artifact.add_file(exp_path)
+        artifact.add_file(run_log_path)
+
+        self.run.log_artifact(artifact, aliases=['latest'])

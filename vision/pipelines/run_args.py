@@ -10,6 +10,7 @@ def make_parser():
     parser.add_argument("-gt", "--coco_gt", type=str, default=None)
     parser.add_argument("-name", "--ds_name", type=str, default="val")
     parser.add_argument("-eb", "--eval_batch", type=int, default=8)
+    parser.add_argument("-op", "--output_path", type=int, default=8)
 
 
     return parser

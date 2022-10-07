@@ -173,7 +173,11 @@ class Trainer:
         self.model = model
 
         self.evaluator = self.exp.get_evaluator(
-            batch_size=self.args.batch_size, is_distributed=self.is_distributed
+            batch_size=1, is_distributed=self.is_distributed, json_file=self.exp.val_ann, name='val2017'
+        )
+
+        self.train_evaluator = self.exp.get_evaluator(
+            batch_size=1, is_distributed=self.is_distributed, json_file=self.exp.train_ann, name='train2017'
         )
         # Tensorboard and Wandb loggers
         if self.rank == 0:
@@ -192,6 +196,17 @@ class Trainer:
         logger.info("\n{}".format(model))
 
     def after_train(self):
+        model = self.load_best_model()
+        with adjust_status(model, training=False):
+            eval, _ = self.exp.eval(
+                model, self.evaluator, self.is_distributed, output_eval=True
+            )
+        self.wandb_logger.log_pr_table(eval)
+        self.wandb_logger.log_train_artifact(self.args.name,
+                                             weights_file_path=self.get_best_ckpt(),
+                                             exp_path=self.args.exp_file,
+                                             run_log_path=os.path.join(self.file_name, "train_log.txt"))
+
         logger.info(
             "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
         )
@@ -220,6 +235,9 @@ class Trainer:
         if (self.epoch + 1) % self.exp.eval_interval == 0:
             all_reduce_norm(self.model)
             self.evaluate_and_save_model()
+        if (self.epoch + 1) % self.exp.train_interval == 0:
+            all_reduce_norm(self.model)
+            self.evaluate_train()
 
     def before_iter(self):
         pass
@@ -323,12 +341,16 @@ class Trainer:
             evalmodel = self.model
             if is_parallel(evalmodel):
                 evalmodel = evalmodel.module
-
-        with adjust_status(evalmodel, training=False):
-            (ap50_95, ap50, summary), predictions = self.exp.eval(
-                evalmodel, self.evaluator, self.is_distributed, return_outputs=True
-            )
-
+        if self.wandb_logger.num_eval_images == 0:
+            with adjust_status(evalmodel, training=False):
+                (ap50_95, ap50, summary) = self.exp.eval(
+                    evalmodel, self.evaluator, self.is_distributed, return_outputs=False
+                )
+        else:
+            with adjust_status(evalmodel, training=False):
+                (ap50_95, ap50, summary), predictions = self.exp.eval(
+                    evalmodel, self.evaluator, self.is_distributed, return_outputs=True
+                )
         update_best_ckpt = ap50_95 > self.best_ap
         self.best_ap = max(self.best_ap, ap50_95)
 
@@ -338,17 +360,45 @@ class Trainer:
                 self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
             if self.args.logger == "wandb":
                 self.wandb_logger.log_metrics({
-                    "val/COCOAP50": ap50,
-                    "val/COCOAP50_95": ap50_95,
+                    "val/AP50": ap50,
+                    "val/AP50_95": ap50_95,
                     "train/epoch": self.epoch + 1,
                 })
-                self.wandb_logger.log_images(predictions)
+                if self.wandb_logger.num_eval_images != 0:
+                    self.wandb_logger.log_images(predictions)
             logger.info("\n" + summary)
         synchronize()
 
         self.save_ckpt("last_epoch", update_best_ckpt, ap=ap50_95)
         if self.save_history_ckpt:
             self.save_ckpt(f"epoch_{self.epoch + 1}", ap=ap50_95)
+
+    def evaluate_train(self):
+
+        if self.use_model_ema:
+            evalmodel = self.ema_model.ema
+        else:
+            evalmodel = self.model
+            if is_parallel(evalmodel):
+                evalmodel = evalmodel.module
+
+        with adjust_status(evalmodel, training=False):
+            (ap50_95, ap50, summary)  = self.exp.eval(
+                evalmodel, self.train_evaluator, self.is_distributed
+            )
+
+        if self.rank == 0:
+            if self.args.logger == "tensorboard":
+                self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
+                self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
+            if self.args.logger == "wandb":
+                self.wandb_logger.log_metrics({
+                    "train/AP50": ap50,
+                    "train/AP50_95": ap50_95,
+                    "train/epoch": self.epoch + 1,
+                })
+                logger.info("\n" + summary)
+        synchronize()
 
     def save_ckpt(self, ckpt_name, update_best_ckpt=False, ap=None):
         if self.rank == 0:
@@ -380,3 +430,21 @@ class Trainer:
                         "curr_ap": ap
                     }
                 )
+
+
+    def load_best_model(self):
+        ckpt_file = self.get_best_ckpt()
+        ckpt = torch.load(ckpt_file, map_location=self.device)["model"]
+        model = load_ckpt(self.model, ckpt)
+        return model
+
+    def get_best_ckpt(self):
+
+        exp_dir = self.file_name
+        file_list = os.listdir(exp_dir)
+        for file in file_list:
+            if "best_ckpt.pth" in file:
+                break
+        ckpt_file = os.path.join(exp_dir, file)
+
+        return ckpt_file

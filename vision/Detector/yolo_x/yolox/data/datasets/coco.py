@@ -45,6 +45,7 @@ class COCODataset(Dataset):
         img_size=(416, 416),
         preproc=None,
         cache=False,
+        batch_size=8,
     ):
         """
         COCO dataset initialization. Annotation data are read into memory by COCO API.
@@ -72,6 +73,7 @@ class COCODataset(Dataset):
         self.img_size = img_size
         self.preproc = preproc
         self.annotations = self._load_coco_annotations()
+        self.batch_size = batch_size
         if cache:
             self._cache_images()
 
@@ -231,4 +233,5 @@ class COCODataset(Dataset):
 
         if self.preproc is not None:
             img, target = self.preproc(img, target, self.input_dim)
+            #img = self.preproc(img)
         return img, target, img_info, img_id

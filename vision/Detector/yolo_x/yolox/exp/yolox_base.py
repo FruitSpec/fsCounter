@@ -270,13 +270,15 @@ class Exp(BaseExp):
         )
         return scheduler
 
-    def get_eval_loader(self, batch_size, is_distributed, testdev=False, legacy=False):
+    def get_eval_loader(self, batch_size, is_distributed, json_file, name=None, testdev=False, legacy=False):
         from yolox.data import COCODataset, ValTransform
+        if name is None:
+            name = "val2017" if not testdev else "test2017"
 
         valdataset = COCODataset(
             data_dir=self.data_dir,
-            json_file=self.val_ann if not testdev else self.test_ann,
-            name="val2017" if not testdev else "test2017",
+            json_file=json_file,
+            name=name,
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
         )
@@ -299,10 +301,10 @@ class Exp(BaseExp):
 
         return val_loader
 
-    def get_evaluator(self, batch_size, is_distributed, testdev=False, legacy=False):
+    def get_evaluator(self, batch_size, is_distributed,json_file, name=None, testdev=False, legacy=False):
         from yolox.evaluators import COCOEvaluator
 
-        val_loader = self.get_eval_loader(batch_size, is_distributed, testdev, legacy)
+        val_loader = self.get_eval_loader(batch_size, is_distributed, json_file, name, testdev, legacy)
         evaluator = COCOEvaluator(
             dataloader=val_loader,
             img_size=self.test_size,
@@ -319,5 +321,5 @@ class Exp(BaseExp):
         # NOTE: trainer shouldn't be an attribute of exp object
         return trainer
 
-    def eval(self, model, evaluator, is_distributed, half=False, return_outputs=False):
-        return evaluator.evaluate(model, is_distributed, half, return_outputs=return_outputs)
+    def eval(self, model, evaluator, is_distributed, half=False, return_outputs=False, output_eval=False):
+        return evaluator.evaluate(model, is_distributed, half, return_outputs=return_outputs, output_eval=output_eval)

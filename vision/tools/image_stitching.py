@@ -333,6 +333,14 @@ def translation_based(M, height, width, r):
     return mask
 
 
+def find_translation(kp1, des1, kp2, des2, r):
+    M, status = features_to_translation(kp1, kp2, des1, des2)
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
+
+    return tx, ty
+
+
 def resize_img(input_, size):
     r = min(size / input_.shape[0], size / input_.shape[1])
     resized_img = cv2.resize(

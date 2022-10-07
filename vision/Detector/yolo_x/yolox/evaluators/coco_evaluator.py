@@ -24,8 +24,8 @@ splited = cwd.split('/')
 
 sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 
-#from yolox.data.datasets import COCO_CLASSES
-from vision.yolox.data.datasets import COCO_CLASSES
+from yolox.data.datasets import COCO_CLASSES
+#from vision.yolox.data.datasets import COCO_CLASSES
 from yolox.utils import (
     gather,
     is_main_process,
@@ -123,7 +123,7 @@ class COCOEvaluator:
 
     def evaluate(
         self, model, distributed=False, half=False, trt_file=None,
-        decoder=None, test_size=None, return_outputs=False
+        decoder=None, test_size=None, return_outputs=False, output_eval = False
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -202,10 +202,15 @@ class COCOEvaluator:
             output_data = dict(ChainMap(*output_data))
             torch.distributed.reduce(statistics, dst=0)
 
-        eval_results = self.evaluate_prediction(data_list, statistics)
+        if output_eval:
+            coco_eval = self.evaluate_prediction(data_list, statistics, output_eval)
+        else:
+            eval_results = self.evaluate_prediction(data_list, statistics, output_eval)
         synchronize()
 
-        if return_outputs:
+        if output_eval:
+            return coco_eval, data_list
+        elif return_outputs:
             return eval_results, output_data
         return eval_results
 
@@ -213,7 +218,7 @@ class COCOEvaluator:
         data_list = []
         image_wise_data = defaultdict(dict)
         for (output, img_h, img_w, img_id) in zip(
-            outputs, info_imgs[0], info_imgs[1], ids
+            outputs, [info_imgs[0]], [info_imgs[1]], ids
         ):
             if output is None:
                 continue
@@ -229,21 +234,27 @@ class COCOEvaluator:
             cls = output[:, 6]
             scores = output[:, 4] * output[:, 5]
 
+
+            if True: #  not isinstance(self.dataloader, DataLoader):  # using Mosiac dataloader
+                categories = [self.dataloader.dataset.class_ids[int(cls[ind])] for ind in range(bboxes.shape[0])]
+            else:
+                categories = [self.dataloader.class_ids[int(cls[ind])] for ind in range(bboxes.shape[0])]
+
             image_wise_data.update({
                 int(img_id): {
                     "bboxes": [box.numpy().tolist() for box in bboxes],
                     "scores": [score.numpy().item() for score in scores],
-                    "categories": [
-                        self.dataloader.dataset.class_ids[int(cls[ind])]
-                        for ind in range(bboxes.shape[0])
-                    ],
+                    "categories": categories,
                 }
             })
 
             bboxes = xyxy2xywh(bboxes)
 
             for ind in range(bboxes.shape[0]):
-                label = self.dataloader.dataset.class_ids[int(cls[ind])]
+                if True: # not isinstance(self.dataloader, DataLoader):  # using Mosiac dataloader
+                    label = self.dataloader.dataset.class_ids[int(cls[ind])]
+                else:
+                    label = self.dataloader.class_ids[int(cls[ind])]
                 pred_data = {
                     "image_id": int(img_id),
                     "category_id": label,
@@ -257,7 +268,7 @@ class COCOEvaluator:
             return data_list, image_wise_data
         return data_list
 
-    def evaluate_prediction(self, data_dict, statistics):
+    def evaluate_prediction(self, data_dict, statistics, output_eval=False):
         if not is_main_process():
             return 0, 0, None
 
@@ -286,7 +297,10 @@ class COCOEvaluator:
 
         # Evaluate the Dt (detection) json comparing with the ground truth
         if len(data_dict) > 0:
-            cocoGt = self.dataloader.dataset.coco
+            if True: # not isinstance(self.dataloader, DataLoader):  # using Mosiac dataloader
+                cocoGt = self.dataloader.dataset.coco
+            else:
+                cocoGt = self.dataloader.coco
             # TODO: since pycocotools can't process dict in py36, write data to json file.
             if self.testdev:
                 json.dump(data_dict, open("./yolox_testdev_2017.json", "w"))
@@ -305,6 +319,9 @@ class COCOEvaluator:
             cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
             cocoEval.evaluate()
             cocoEval.accumulate()
+
+            if output_eval:
+                return cocoEval.eval
             redirect_string = io.StringIO()
             with contextlib.redirect_stdout(redirect_string):
                 cocoEval.summarize()

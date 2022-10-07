@@ -4,12 +4,14 @@ import sys
 import cv2
 from omegaconf import OmegaConf
 
-cwd = os.getcwd()
-sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
+from vision.misc.help_func import get_repo_dir
+
+repo_dir = get_repo_dir()
+sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
-from vision.data.results_collector import ResultsCollector
+from vision.data.results_collector import ResultsCollector, scale
 from vision.data import COCO_utils
 
 def run(cfg, args):
@@ -21,28 +23,32 @@ def run(cfg, args):
     # Check if camera opened successfully
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
     # Read until video is completed
+    print(f'Inferencing on {args.movie_path}')
     f_id = 0
     ids = []
     while (cap.isOpened()):
 
-        width = cap.get(cv2.cv.CV_CAP_PROP_FRAME_WIDTH)
-        height = cap.get(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT)
+
         # Capture frame-by-frame
         ret, frame = cap.read()
         if ret == True:
 
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             # detect:
             det_outputs = detector.detect(frame)
 
             # track:
-            trk_outputs, t2d_mapping = detector.track(det_outputs, f_id)
+            trk_outputs = detector.track(det_outputs, f_id)
 
             # collect results:
-            results_collector.collect_detections(det_outputs, t2d_mapping, f_id)
+            scale_ = scale(detector.input_size, frame.shape)
+            results_collector.collect_detections(det_outputs, f_id, scale_)
+            results_collector.collect_tracks(trk_outputs)
 
 
             ids.append(f_id)
@@ -56,20 +62,22 @@ def run(cfg, args):
     cap.release()
 
     # Closes all the frames
-    cv2.destroyAllWindows()
+    #cv2.destroyAllWindows()
 
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
 
-    categories, class_ids = get_id_and_categories(cfg)
-    coco_data = COCO_utils.generate_coco_format(results_collector.detections,
-                                                (height, width),
-                                                ids,
-                                                cfg.input_size,
-                                                class_ids,
-                                                categories,
-                                                ids)
-    COCO_utils.write_coco_file(coco_data, os.path.join(args.output_folder, 'results_coco.json'))
+    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=False, write_frames=True)
+
+    #categories, class_ids = get_id_and_categories(cfg)
+    #coco_data = COCO_utils.generate_coco_format(results_collector.detections,
+    #                                            (height, width),
+    #                                            ids,
+    #                                            cfg.input_size,
+    #                                            class_ids,
+    #                                            categories,
+    #                                            ids)
+    #COCO_utils.write_coco_file(coco_data, os.path.join(args.output_folder, 'results_coco.json'))
 
 
 
@@ -86,15 +94,15 @@ def get_id_and_categories(cfg):
 
 if __name__ == "__main__":
 
-    cwd = os.getcwd()
+    repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
     #config_file = "/config/pipeline_config.yaml"
-    cfg = OmegaConf.load(cwd + config_file)
+    cfg = OmegaConf.load(repo_dir + config_file)
 
 
     args = make_parser()
 
-    args.movie_path = '/home/yotam/Documents/FruitSpec/Data/JAI/Result_FSI_2_rot.mp4'
-    args.output_folder = '/home/yotam/Documents/FruitSpec/Sandbox/sanity'
+    args.movie_path = '/home/fruitspec-lab/FruitSpec/Data/syngenta/1/Result_FSI_1.mkv'
+    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/1'
 
     run(cfg, args)
