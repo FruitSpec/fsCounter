@@ -130,8 +130,8 @@ if __name__ == "__main__":
     args = make_parser().parse_args()
 
     args.exp_file = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py"
-    args.batch_size = 8
-    args.experiment_name = 'Run_1_7_oct_2022'
+    args.batch_size = 16
+    args.experiment_name = 'Run_1_8_oct_2022'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
     args.ckpt = '/home/fruitspec-lab/FruitSpec/weights/pre_trained/yolox_tiny.pth'

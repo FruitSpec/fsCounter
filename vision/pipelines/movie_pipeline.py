@@ -3,8 +3,9 @@ import sys
 
 import cv2
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir
+from vision.misc.help_func import get_repo_dir, scale_dets
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -16,7 +17,7 @@ from vision.data import COCO_utils
 
 def run(cfg, args):
     detector = counter_detection(cfg)
-    results_collector = ResultsCollector()
+    results_collector = ResultsCollector(rotate=args.rotate)
 
     cap = cv2.VideoCapture(args.movie_path)
 
@@ -25,29 +26,33 @@ def run(cfg, args):
         print("Error opening video stream or file")
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
     # Read until video is completed
     print(f'Inferencing on {args.movie_path}')
     f_id = 0
     ids = []
+    pbar = tqdm(total=tot_frames)
     while (cap.isOpened()):
 
 
         # Capture frame-by-frame
         ret, frame = cap.read()
         if ret == True:
-
-            #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            pbar.update(1)
+            if args.rotate:
+                frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             # detect:
             det_outputs = detector.detect(frame)
+            scale_ = scale(detector.input_size, frame.shape)
+            det_outputs = scale_dets(det_outputs, scale_)
 
             # track:
-            trk_outputs = detector.track(det_outputs, f_id)
+            trk_outputs = detector.track(det_outputs, f_id, frame)
 
             # collect results:
-            scale_ = scale(detector.input_size, frame.shape)
-            results_collector.collect_detections(det_outputs, f_id, scale_)
+            results_collector.collect_detections(det_outputs, f_id)
             results_collector.collect_tracks(trk_outputs)
 
 
@@ -67,7 +72,7 @@ def run(cfg, args):
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
 
-    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=False, write_frames=True)
+    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
 
     #categories, class_ids = get_id_and_categories(cfg)
     #coco_data = COCO_utils.generate_coco_format(results_collector.detections,
@@ -103,6 +108,7 @@ if __name__ == "__main__":
     args = make_parser()
 
     args.movie_path = '/home/fruitspec-lab/FruitSpec/Data/syngenta/1/Result_FSI_1.mkv'
-    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/1'
+    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/4'
+    args.rotate = True
 
     run(cfg, args)

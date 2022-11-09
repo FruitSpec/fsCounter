@@ -12,5 +12,7 @@ def make_parser():
     parser.add_argument("-eb", "--eval_batch", type=int, default=8)
     parser.add_argument("-op", "--output_path", type=int, default=8)
 
+    parser.add_argument("-r", "--rotate", type=bool, default=False)
+
 
     return parser

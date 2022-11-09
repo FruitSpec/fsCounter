@@ -5,6 +5,32 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from skimage.exposure import adjust_gamma
 
+def stretch(img, lower, upper, min_int, max_int):
+
+    normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
+    h, b = np.histogram(diff.flatten())
+    total = np.sum(h)
+    accumulated = np.cumsum(h).astype(np.float32) / total
+
+    for i, h_ in enumerate(accumulated):
+        if h_ >= lower:
+            break
+    lower_threshold = b[i]
+
+    for i in range(len(accumulated) - 1, 0, -1):
+        if accumulated[i] <= upper:
+            break
+    upper_threshold = b[i]
+
+
+def jai_to_channels(jai_frame):
+
+    rgb = cv2.demosaicing(jai_frame[:,:,0], cv2.COLOR_BAYER_BG2RGB)
+    channel_1 = jai_frame[:,:,1].copy()
+    channel_2 = jai_frame[:, :, 2].copy()
+
+    return rgb, channel_1, channel_2
+
 def old_fsi(rgb, r_ch, g_ch):
     r_ch = stretch_img(r_ch, 255, 0)
     g_ch = stretch_img(g_ch, 255, 0)
@@ -36,23 +62,29 @@ def generate_fsi(rgb, r_ch, g_ch):
     return res.astype(np.uint8)
 
 
-def generate_fsi_2(rgb, r_ch, g_ch):
+def generate_fsi_2(rgb, r_ch, g_ch, gamma=4/5):
 
-    g_ch = reduce_outliers(g_ch, 0, 0.005)
-    r_ch = reduce_outliers(r_ch, 0, 0.005)
+    lower_target_intensity = 20
+    upper_target_intensity = 235
+    #g_ch = reduce_outliers(g_ch, 0, 0.005)
+    #r_ch = reduce_outliers(r_ch, 0, 0.005)
 
     diff = r_ch.astype(np.int32) - g_ch.astype(np.int32)
 
+    g_upper, g_lower = find_gl_by_percentile(g_ch, 0.95, 0.05)
+
+    gain = (upper_target_intensity - lower_target_intensity) / (g_upper - g_lower)
+    #offset =
     g_ch = stretch_img(g_ch, r_ch.max() - r_ch.min(), r_ch.min())
-    ndri = diff / g_ch
+    ndri = diff / (g_ch +  1E-5)
 
     ndri_ch = stretch_img(ndri, 255, 0)
-    ndri_ch = adjust_gamma(ndri_ch, 1 / 2)
-    g_ch = stretch_img(g_ch, 255, 0)
+    r_ch = adjust_gamma(r_ch, gamma)
+    r_ch = stretch_img(r_ch, 255, 0)
 
     res = rgb.copy()
     res[:, :, 0] = ndri_ch
-    res[:, :, 1] = g_ch
+    res[:, :, 1] = r_ch
 
     return res.astype(np.uint8)
 
@@ -110,25 +142,31 @@ def preprocess(img, threshold=10):
 
 
 def remove_outliers(diff, lower_percentile=0.05, upper_percentile=0.0005):
-    h, b = np.histogram(diff.flatten(), 256)
-    total = np.sum(h)
-    accumulated = np.cumsum(h).astype(np.float32) / total
-
-    for i, h_ in enumerate(accumulated):
-        if h_ >= lower_percentile:
-            break
-    lower_threshold = b[i]
-
-    for i in range(len(accumulated) - 1, 0, -1):
-        if accumulated[i] <= 1 - upper_percentile:
-            break
-    upper_threshold = b[i]
+    upper_threshold, lower_threshold = find_gl_by_percentile(diff, lower_percentile, upper_percentile)
 
     res = diff.copy()
     res[res >= upper_threshold] = 0
     res[res <= lower_threshold] = 0
 
     return res
+
+
+def find_gl_by_percentile(channel, upper, lower):
+    h, b = np.histogram(channel.flatten(), 256)
+    total = np.sum(h)
+    accumulated = np.cumsum(h).astype(np.float32) / total
+
+    for i, h_ in enumerate(accumulated):
+        if h_ >= lower:
+            break
+    lower_intensity = b[i]
+
+    for i in range(len(accumulated) - 1, 0, -1):
+        if accumulated[i] <= 1 - upper:
+            break
+    upper_intensity = b[i]
+
+    return upper_intensity, lower_intensity
 
 
 def reduce_outliers(diff, lower_percentile=0.05, upper_percentile=0.0005):

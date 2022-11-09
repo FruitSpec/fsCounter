@@ -2,21 +2,22 @@ import os
 import csv
 import cv2
 
-from vision.vizualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
+from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 
 
 class ResultsCollector():
 
-    def __init__(self):
+    def __init__(self, rotate=False):
 
         self.detections = []
         self.tracks = []
         self.file_names = []
         self.file_ids = []
+        self.rotate = rotate
 
 
 
-    def collect_detections(self, detection_results, img_id, scale_):
+    def collect_detections(self, detection_results, img_id):
         if detection_results is not None:
             output = []
             for det in detection_results:
@@ -99,7 +100,7 @@ class ResultsCollector():
                       "image_id", "class_pred"]
             rows = self.detections
         else:
-            fields = ["bbox", "tracker_score", "frame_ids", "track_id"]
+            fields = ["x1", "y1", "x2", "y2",  "obj_conf", "class_conf", "", "track_id"]
             rows = self.tracks
 
         with open(output_file_path, 'w') as f:
@@ -137,6 +138,8 @@ class ResultsCollector():
             ret, frame = cap.read()
             if ret == True:
                 dets = hash[f_id]
+                if self.rotate:
+                    frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
                 if write_frames:

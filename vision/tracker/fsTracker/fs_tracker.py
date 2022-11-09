@@ -7,11 +7,11 @@ from vision.tools.image_stitching import find_keypoints, find_translation, resiz
 
 class FsTracker():
 
-    def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, max_ranges=20, translation_size=640):
+    def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, max_ranges=20, translation_size=640, max_distance=20):
         self.tracklets = []
         self.track_id = track_id
         self.frame_id = frame_id
-        self.max_distance = 0
+        self.max_distance = max_distance
         self.max_ranges = max_ranges
         self.x_distance = 0
 
