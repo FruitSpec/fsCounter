@@ -7,13 +7,15 @@ from vision.tools.image_stitching import find_keypoints, find_translation, resiz
 
 class FsTracker():
 
-    def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, max_ranges=20, translation_size=640, max_distance=20):
+    def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, minimal_max_distance=10, max_ranges=20, translation_size=640):
         self.tracklets = []
         self.track_id = track_id
         self.frame_id = frame_id
-        self.max_distance = max_distance
+        self.max_distance = minimal_max_distance
+        self.minimal_max_distance = minimal_max_distance
         self.max_ranges = max_ranges
         self.x_distance = 0
+        self.y_distance = 0
 
         self.score_weights = [0.5, 1, 0.5]
         self.frame_size = frame_size
@@ -31,6 +33,7 @@ class FsTracker():
         search_window = self.get_search_ranges(detections, frame, r)
         self.update_max_distance()
 
+        self.is_extreme_shift()
         self.deactivate_tracks()
         """ find dets that match tracks"""
         track_windows = self.get_track_search_window_by_id(search_window)
@@ -46,7 +49,7 @@ class FsTracker():
 
         online_track = [t.output() for t in self.tracklets if t.is_activated]
 
-        return online_track
+        return online_track, track_windows
 
 
 
@@ -54,6 +57,8 @@ class FsTracker():
         kp, des = find_keypoints(frame)
         if self.last_kp is not None:
             tx, ty = find_translation(self.last_kp, self.last_des, kp, des, r)
+            if tx is None:
+                tx, ty = self.x_distance, self.y_distance
         else:
             tx, ty = 0, 0
         self.last_kp = kp
@@ -64,6 +69,7 @@ class FsTracker():
         #     self.x_distance = new_x_dist
 
         self.x_distance = tx
+        self.y_distance = ty
 
         #n_dets = len(detections)
         #index = int(np.round(n_dets * percentile / 100))
@@ -98,10 +104,42 @@ class FsTracker():
 
         return det_centers
 
-    def match_detections_to_windows(self, windows, detections):
+    def match_detections_to_windows(self, windows, detections, match_type='inter'):
+        """ match_type can be:
+                1. inter to match by intersection
+                2. center to match if center is in window"""
+        if match_type == 'center':
+            matches = self.match_by_center(windows, detections)
+        elif match_type == 'inter':
+            matches = self.match_by_intersection(windows, detections)
+        else:
+            print(f'unknown matching type: {match_type}')
+            matches = []
+
+        return matches
+
+    def match_by_intersection(self, bboxes1, bboxes2):
+
+        matches = {}
+
+        if len(bboxes1) > 0 and len(bboxes2) > 0:
+            x11, y11, x12, y12 = np.split(np.array(bboxes1), 4, axis=1)
+            x21, y21, x22, y22 = np.split(np.array(bboxes2)[:, :4], 4, axis=1)
+            xA = np.maximum(x11, np.transpose(x21))
+            yA = np.maximum(y11, np.transpose(y21))
+            xB = np.minimum(x12, np.transpose(x22))
+            yB = np.minimum(y12, np.transpose(y22))
+            inetr_area = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+            intersections = inetr_area > 0
+
+            for i in range(intersections.shape[1]):
+                matches[i] = list(intersections[:, i])
+
+        return matches
+
+    def match_by_center(self, windows, detections):
         centers = self.get_detections_center(detections)
 
-        n_centers = len(centers)
         ids_list = []
         dets_list = []
         for det_id, center in enumerate(centers):
@@ -144,7 +182,7 @@ class FsTracker():
             matches_bbox = [[track[0], track[1], track[2], track[3]] for track in matched_tracks]
             ratio_score = compute_ratios(det[:4], matches_bbox)
 
-            dist_score = np.array(dist(det[:4], matches_bbox, matched_tracks_acc_dist, self.max_distance))
+            dist_score = np.array(dist(det[:4], matches_bbox, matched_tracks_acc_dist, np.abs(self.max_distance)))
             conf_score = np.array(confidence_score(det[4] * det[5], matched_tracks))
 
             weigthed_iou = ratio_score * self.score_weights[0]
@@ -210,13 +248,16 @@ class FsTracker():
         for track in self.tracklets:
             if track.is_activated is False:  # not found in current frame
                 valid = False
-                if len(track.accumulated_dist) == 0:
+                if len(track.accumulated_dist) == 0:  # object found once
+                    track.bbox[0] -= self.x_distance
+                    track.bbox[2] -= self.x_distance
+                else:
                     track.bbox[0] -= self.x_distance
                     track.bbox[2] -= self.x_distance
                     track.accumulated_dist.append(self.x_distance)
-                else:
-                    track.bbox[0] -= track.accumulated_dist[-1]
-                    track.bbox[2] -= track.accumulated_dist[-1]
+                track.bbox[1] -= self.y_distance
+                track.bbox[3] -= self.y_distance
+
                 if track.bbox[0] >= 0 & track.bbox[2] >= 0 & track.bbox[0] <= self.frame_size[1] & track.bbox[0] <= self.frame_size[1]:
                     valid = True
                 if np.sum(track.accumulated_dist) <= self.max_distance and valid:
@@ -228,8 +269,18 @@ class FsTracker():
 
     def update_max_distance(self, mag=2):
 
-        self.max_distance = mag * np.mean(self.x_distance)
+        self.max_distance = mag * self.x_distance
+        if np.abs(self.max_distance) < self.minimal_max_distance:
+            self.max_distance = self.minimal_max_distance
 
+    def is_extreme_shift(self):
+
+        """in case of extreme shift all tracks
+           will be deleted to prevenet extreme windows"""
+        if np.abs(self.x_distance) > self.frame_size[1] // 3 or np.abs(self.y_distance) > self.frame_size[1] // 3:
+            self.x_distance = 0
+            self.y_distance = 0
+            self.tracklets = []
 
 
 def test_func(f_list):

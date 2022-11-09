@@ -45,13 +45,13 @@ class Track:
             # positive ty - objects are moving up
             if ty > 0:
                 x1 = max(self.bbox[0] - margin, 0)  # bbox[0] is x1
-                x2 = min(self.bbox[2] - tx, self.frame_size[0])  # bbox[2] is x2
+                x2 = min(self.bbox[2] - tx, self.frame_size[1])  # bbox[2] is x2
                 y1 = max(self.bbox[1] - ty, 0)  # bbox[1] is y1
                 y2 = min(self.bbox[3] + margin, self.frame_size[0])  # bbox[3] is y2
             # negative ty - objects are moving down
             else:
-                x1 = max(self.bbox[0] - tx, 0)  # bbox[0] is x1
-                x2 = min(self.bbox[2] + margin, self.frame_size[1])  # bbox[2] is x2
+                x1 = max(self.bbox[0] - margin, 0)  # bbox[0] is x1
+                x2 = min(self.bbox[2] - tx, self.frame_size[1])  # bbox[2] is x2
                 y1 = max(self.bbox[1] - margin, 0)  # bbox[1] is y1
                 y2 = min(self.bbox[3] - ty, self.frame_size[0])  # bbox[3] is y2
 
