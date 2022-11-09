@@ -74,13 +74,13 @@ class counter_detection():
     def track(self, outputs, frame_id, frame):
 
         if outputs is not None:
-            online_targets = self.tracker.update(outputs, frame)
+            online_targets, trk_windows = self.tracker.update(outputs, frame)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)
                 tracking_results.append(target)
 
-            return tracking_results
+            return tracking_results, trk_windows
 
 
     def get_imgs_info(self, frame_id):

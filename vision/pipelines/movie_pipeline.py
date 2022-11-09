@@ -4,6 +4,7 @@ import sys
 import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
+import numpy as np
 
 from vision.misc.help_func import get_repo_dir, scale_dets
 
@@ -13,7 +14,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
 from vision.data.results_collector import ResultsCollector, scale
-from vision.data import COCO_utils
+
 
 def run(cfg, args):
     detector = counter_detection(cfg)
@@ -49,7 +50,7 @@ def run(cfg, args):
             det_outputs = scale_dets(det_outputs, scale_)
 
             # track:
-            trk_outputs = detector.track(det_outputs, f_id, frame)
+            trk_outputs, trk_windows = detector.track(det_outputs, f_id, frame)
 
             # collect results:
             results_collector.collect_detections(det_outputs, f_id)
@@ -57,8 +58,24 @@ def run(cfg, args):
 
 
             ids.append(f_id)
-            f_id += 1
 
+
+            canvas = np.zeros((2048, 1536, 3)).astype(np.uint8)
+            for w in trk_windows:
+                canvas = cv2.rectangle(canvas, (int(w[0]), int(w[1])), (int(w[2]), int(w[3])), (255, 0, 0),
+                                       thickness=-1)
+            for t in trk_outputs:
+                canvas = cv2.rectangle(canvas, (int(t[0]), int(t[1])), (int(t[2]), int(t[3])), (0, 0, 255),
+                                       thickness=-1)
+            canvas = cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR)
+            if not os.path.exists(os.path.join(args.output_folder, 'windows')):
+                os.mkdir(os.path.join(args.output_folder, 'windows'))
+            cv2.imwrite(os.path.join(args.output_folder, 'windows', f"windows_frame_{f_id}.jpg"), canvas)
+            if not os.path.exists(os.path.join(args.output_folder, 'frames')):
+                os.mkdir(os.path.join(args.output_folder, 'frames'))
+            cv2.imwrite(os.path.join(args.output_folder, 'frames', f"frame_{f_id}.jpg"), frame)
+
+            f_id += 1
         # Break the loop
         else:
             break
@@ -73,17 +90,6 @@ def run(cfg, args):
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
 
     results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
-
-    #categories, class_ids = get_id_and_categories(cfg)
-    #coco_data = COCO_utils.generate_coco_format(results_collector.detections,
-    #                                            (height, width),
-    #                                            ids,
-    #                                            cfg.input_size,
-    #                                            class_ids,
-    #                                            categories,
-    #                                            ids)
-    #COCO_utils.write_coco_file(coco_data, os.path.join(args.output_folder, 'results_coco.json'))
-
 
 
 def get_id_and_categories(cfg):
@@ -107,8 +113,8 @@ if __name__ == "__main__":
 
     args = make_parser()
 
-    args.movie_path = '/home/fruitspec-lab/FruitSpec/Data/syngenta/1/Result_FSI_1.mkv'
-    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/4'
+    args.movie_path = '/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/Result_FSI_1_20_FHD15.mkv'
+    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/tracker_optimization/Result_FSI_1_20_FHD15'
     args.rotate = True
 
     run(cfg, args)

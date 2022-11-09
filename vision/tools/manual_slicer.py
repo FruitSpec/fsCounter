@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import pandas as pd
 
-from vision.vizualization.drawer import draw_highlighted_test
+from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import find_keypoints, get_fine_keypoints, find_translation, resize_img, get_fine_translation
 
 

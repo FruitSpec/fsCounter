@@ -44,13 +44,19 @@ def old_fsi(rgb, r_ch, g_ch):
 
 def generate_fsi(rgb, r_ch, g_ch):
 
-    g_ch = reduce_outliers(g_ch, 0, 0.005)
-    r_ch = reduce_outliers(r_ch, 0, 0.005)
+    g_ch_clean = reduce_outliers(g_ch, 0, 0.005)
+    r_ch_clean = reduce_outliers(r_ch, 0, 0.005)
 
-    diff = r_ch.astype(np.int32) - g_ch.astype(np.int32)
+    diff = r_ch_clean.astype(np.int32) - g_ch_clean.astype(np.int32)
 
-    g_ch = stretch_img(g_ch, r_ch.max() - r_ch.min(), r_ch.min())
-    ndri = diff / g_ch
+    g = diff.max() - diff.min()
+    o = diff.min()
+
+    normalized_g_ch = (g_ch_clean.astype(np.float32) - g_ch_clean.min()) / (g_ch_clean.max() - g_ch_clean.min())
+    g_ch_divider = normalized_g_ch * g + o
+
+    #g_ch = stretch_img(g_ch, r_ch.max() - r_ch.min(), r_ch.min())
+    ndri = diff / (g_ch + 1E-6)
 
     ndri_ch = stretch_img(ndri, 255, 0)
     g_ch = stretch_img(g_ch, 255, 0)
@@ -199,7 +205,7 @@ def calculate_2dft(input):
 
 
 def stretch_img(img, gain, offset):
-    print(img.max() - img.min())
+
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
 
     stretched_img = normalized_img * gain + offset

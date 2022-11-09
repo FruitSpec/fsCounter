@@ -42,7 +42,7 @@ def write_results_on_movie(frame_path, output_path, range=[0,500]):
 
 if __name__ == "__main__":
 
-    frame_path = "/home/yotam/FruitSpec/Data/MIC_03112022/res"
-    output_path = "/home/yotam/FruitSpec/Data/MIC_03112022/res"
-    range = [363, 513]
+    frame_path = "/home/fruitspec-lab/FruitSpec/Sandbox/tracker_optimization/Side_A/res"
+    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/tracker_optimization/Side_A/res"
+    range = [0, 2000]
     write_results_on_movie(frame_path, output_path, range)

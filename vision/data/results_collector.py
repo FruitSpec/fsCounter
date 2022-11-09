@@ -1,6 +1,7 @@
 import os
 import csv
 import cv2
+from tqdm import tqdm
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 
@@ -47,14 +48,6 @@ class ResultsCollector():
 
     def collect_tracks(self, tracking_results):
 
-        #output_len = len(tracking_results[2])
-
-        #frame_ids = [tracking_results[0] for _ in range(output_len)]
-        #bboxes = tracking_results[1]
-        #tracker_ids = tracking_results[2]
-        #tracker_score = tracking_results[3]
-
-        #output = list(map(self.single_tracking_to_list, frame_ids, tracker_ids, tracker_score, bboxes))
         self.tracks += tracking_results
 
         return tracking_results
@@ -110,7 +103,6 @@ class ResultsCollector():
             write.writerows(rows)
         print(f'Done writing results to csv')
 
-
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
             the function draw results on each frame
@@ -123,6 +115,7 @@ class ResultsCollector():
             hash = self.create_hash(self.detections)
 
         cap = cv2.VideoCapture(movie_path)
+        tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
         if not write_frames:
             width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -132,12 +125,19 @@ class ResultsCollector():
             output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
                                      fps, (width, height))
         # Read until video is completed
+        print("writing results")
+        ids_in_hash = list(hash.keys())
         f_id = 0
+        pbar = tqdm(total=tot_frames)
         while (cap.isOpened()):
 
             ret, frame = cap.read()
             if ret == True:
-                dets = hash[f_id]
+                pbar.update(1)
+                if f_id in ids_in_hash:
+                    dets = hash[f_id]
+                else:
+                    dets = []
                 if self.rotate:
                     frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
