@@ -47,6 +47,47 @@ def extract_keypoints(file_list, resize_=640, max_workers=8):
 
     return results_to_lists(results)
 
+def get_fine_keypoints(img, max_workers=5):
+    windows = get_windows(img)
+
+    cr = []
+    for w in windows:
+        cr.append(img[w[1]: w[3], w[0]: w[2]].copy())
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(find_keypoints, cr))
+
+    return results
+
+def get_fine_translation(key_des1, key_des2, max_workers=5):
+
+    r = [1 for _ in key_des1]
+
+    kp1 = [kp_des[0] for kp_des in key_des1]
+    des1 = [kp_des[1] for kp_des in key_des1]
+    kp2 = [kp_des[0] for kp_des in key_des2]
+    des2 = [kp_des[1] for kp_des in key_des2]
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(find_translation, kp1, des1, kp2, des2, r))
+
+    return results
+def  get_translation(img1, img2):
+
+    kp1, des1 = find_keypoints(img1)
+    kp2, des2 = find_keypoints(img2)
+
+    tx, ty = find_translation(kp1, des1, kp2, des2, 1)
+
+    return tx, ty
+def get_windows(img1):
+    h, w = img1.shape
+    set1 = [int(w * 0.2), int(h * 0.2), int(w * 0.5), int(h * 0.4)]
+    set2 = [int(w * 0.2), int(h * 0.6), int(w * 0.5), int(h * 0.8)]
+    set3 = [int(w * 0.5), int(h * 0.2), int(w * 0.8), int(h * 0.4)]
+    set4 = [int(w * 0.5), int(h * 0.6), int(w * 0.8), int(h * 0.8)]
+    set5 = [int(w * 0.35), int(h * 0.35), int(w * 0.7), int(h * 0.7)]
+
+    return [set1, set2, set3, set4, set5]
 
 def results_to_lists(results):
     kp = []
