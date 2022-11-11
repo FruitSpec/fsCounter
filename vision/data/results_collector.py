@@ -1,6 +1,7 @@
 import os
 import csv
 import cv2
+from tqdm import tqdm
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 
@@ -132,12 +133,19 @@ class ResultsCollector():
             output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
                                      fps, (width, height))
         # Read until video is completed
+        print("writing results")
+        ids_in_hash = list(hash.keys())
         f_id = 0
+        pbar = tqdm(total=tot_frames)
         while (cap.isOpened()):
 
             ret, frame = cap.read()
             if ret == True:
-                dets = hash[f_id]
+                pbar.update(1)
+                if f_id in ids_in_hash:
+                    dets = hash[f_id]
+                else:
+                    dets = []
                 if self.rotate:
                     frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

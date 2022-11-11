@@ -71,17 +71,6 @@ class FsTracker():
         self.x_distance = tx
         self.y_distance = ty
 
-        #n_dets = len(detections)
-        #index = int(np.round(n_dets * percentile / 100))
-        #center_x = []
-        #for det in detections[:index+1]:
-        #    center_x.append((det[0] + det[2]) / 2)
-        #det_center = np.mean(center_x)
-        #if self.last_center_x is None:
-        #    self.last_center_x = det_center
-        #tx = self.last_center_x - det_center
-
-
         return tx, ty
 
     def get_track_search_window_by_id(self, search_window):
@@ -104,7 +93,7 @@ class FsTracker():
 
         return det_centers
 
-    def match_detections_to_windows(self, windows, detections, match_type='inter'):
+    def match_detections_to_windows(self, windows, detections, match_type='center'):
         """ match_type can be:
                 1. inter to match by intersection
                 2. center to match if center is in window"""
@@ -248,19 +237,16 @@ class FsTracker():
         for track in self.tracklets:
             if track.is_activated is False:  # not found in current frame
                 valid = False
-                if len(track.accumulated_dist) == 0:  # object found once
-                    track.bbox[0] -= self.x_distance
-                    track.bbox[2] -= self.x_distance
-                else:
-                    track.bbox[0] -= self.x_distance
-                    track.bbox[2] -= self.x_distance
+                if len(track.accumulated_dist) > 0:  # object found once
                     track.accumulated_dist.append(self.x_distance)
+                track.bbox[0] -= self.x_distance
+                track.bbox[2] -= self.x_distance
                 track.bbox[1] -= self.y_distance
                 track.bbox[3] -= self.y_distance
 
                 if track.bbox[0] >= 0 & track.bbox[2] >= 0 & track.bbox[0] <= self.frame_size[1] & track.bbox[0] <= self.frame_size[1]:
                     valid = True
-                if np.sum(track.accumulated_dist) <= self.max_distance and valid:
+                if np.abs(np.sum(track.accumulated_dist)) <= self.max_distance and valid:
                     new_tracklets_list.append(track)
             else:
                 new_tracklets_list.append(track)
@@ -269,9 +255,10 @@ class FsTracker():
 
     def update_max_distance(self, mag=2):
 
-        self.max_distance = mag * self.x_distance
-        if np.abs(self.max_distance) < self.minimal_max_distance:
-            self.max_distance = self.minimal_max_distance
+        self.max_distance = self.frame_size[1]
+        # self.max_distance = mag * self.x_distance
+        # if np.abs(self.max_distance) < self.minimal_max_distance:
+        #     self.max_distance = self.minimal_max_distance
 
     def is_extreme_shift(self):
 

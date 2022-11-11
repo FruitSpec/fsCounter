@@ -4,6 +4,7 @@ import sys
 import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
+import numpy as np
 
 from vision.misc.help_func import get_repo_dir, scale_dets
 
@@ -13,7 +14,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
 from vision.data.results_collector import ResultsCollector, scale
-from vision.data import COCO_utils
+
 
 def run(cfg, args):
     detector = counter_detection(cfg)
@@ -73,17 +74,6 @@ def run(cfg, args):
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
 
     results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
-
-    #categories, class_ids = get_id_and_categories(cfg)
-    #coco_data = COCO_utils.generate_coco_format(results_collector.detections,
-    #                                            (height, width),
-    #                                            ids,
-    #                                            cfg.input_size,
-    #                                            class_ids,
-    #                                            categories,
-    #                                            ids)
-    #COCO_utils.write_coco_file(coco_data, os.path.join(args.output_folder, 'results_coco.json'))
-
 
 
 def get_id_and_categories(cfg):

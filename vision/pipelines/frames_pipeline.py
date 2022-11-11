@@ -5,6 +5,7 @@ import torch
 import collections
 from omegaconf import OmegaConf
 import cv2
+import numpy as np
 import json
 from tqdm import tqdm
 
@@ -16,11 +17,6 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector, scale
 from vision.pipelines.run_args import make_parser
-#from vision.detector.yolo_x.yolox.evaluators.coco_evaluator import COCOEvaluator
-from vision.detector.yolo_x.yolox.data import COCODataset
-#from vision.detector.yolo_x.yolox.data.data_augment import ValTransform
-from vision.detector.yolo_x.yolox.utils import xyxy2xywh
-from vision.data import COCO_utils
 
 
 def run(cfg, args):
@@ -58,11 +54,12 @@ def run(cfg, args):
         trk_outputs = detector.track(det_outputs, id_, frame)
 
         # collect results:
-        results_collector.collect_detections(det_outputs, id_, scale_)
+        results_collector.collect_detections(det_outputs, id_)
         results_collector.collect_tracks(trk_outputs)
 
 
-    results_collector.draw_and_save_dir(args.data_dir, args.output_path, True)
+    results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
+
     return results_collector.detections, results_collector.tracks
 
 
@@ -84,7 +81,7 @@ if __name__ == "__main__":
 
         args.data_dir = os.path.join(folder_path, folder)
 
-        args.output_path = os.path.join(parent_folder, folder)
+        args.output_folder = os.path.join(parent_folder, folder)
         if not os.path.isdir(args.output_path):
             os.mkdir(args.output_path)
 

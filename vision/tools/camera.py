@@ -199,7 +199,7 @@ def calculate_2dft(input):
 
 
 def stretch_img(img, gain, offset):
-    print(img.max() - img.min())
+
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
 
     stretched_img = normalized_img * gain + offset

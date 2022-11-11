@@ -74,7 +74,7 @@ class counter_detection():
     def track(self, outputs, frame_id, frame):
 
         if outputs is not None:
-            online_targets = self.tracker.update(outputs, frame)
+            online_targets, _ = self.tracker.update(outputs, frame)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)
