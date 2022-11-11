@@ -106,7 +106,10 @@ def mkv_to_fsi_and_rgb(folder, output_path):
     cap_800 = cv2.VideoCapture(channel_800_p)
     cap_975 = cv2.VideoCapture(channel_975_p)
 
-    number_of_frames = cap_800.get(cv2.CAP_PROP_FRAME_COUNT)
+    print('rgb:',cap_rgb.get(cv2.CAP_PROP_FRAME_COUNT))
+    print('800: ',cap_800.get(cv2.CAP_PROP_FRAME_COUNT))
+    print('975: ',cap_975.get(cv2.CAP_PROP_FRAME_COUNT))
+
     width = int(cap_800.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap_800.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap_800.get(cv2.CAP_PROP_FPS))
@@ -140,9 +143,9 @@ def mkv_to_fsi_and_rgb(folder, output_path):
         fsi.write(frame_fsi)
         rgb.write(frame_rgb)
 
-        i += 1
-        if i == 400:
-            break
+        # i += 1
+        # if i == 400:
+        #     break
 
     fsi.release()
     rgb.release()
@@ -159,12 +162,19 @@ def get_frame_by_index(cap, index_):
     return frame
 
 if __name__ == "__main__":
-    movie_path = "/home/fruitspec-lab/FruitSpec/Data/Peppers_sample/"
-    output_path = "/home/fruitspec-lab/FruitSpec/Data/Peppers_sample"
-    range_ = None # [250, 300]
-    #run(movie_path, output_path, range=range_)
-    #slice_to_frames(movie_path, output_path)
-    mkv_to_fsi_and_rgb(movie_path, output_path)
+
+    p = r'/media/fruitspec-lab/Extreme SSD/081122/PRE-HARVEST-PEPPER'
+    i = 0
+    for folder in os.listdir(p):
+        movie_path = os.path.join(p, folder)
+        output_path = os.path.join(p, folder)
+        range_ = None # [250, 300]
+        #run(movie_path, output_path, range=range_)
+        #slice_to_frames(movie_path, output_path)
+        try:
+            mkv_to_fsi_and_rgb(movie_path, output_path)
+        except:
+            pass
 
 
 
