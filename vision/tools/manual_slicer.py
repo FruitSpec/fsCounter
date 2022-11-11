@@ -1,6 +1,7 @@
+import os
 import numpy as np
 import cv2
-import pandas as pd
+import json
 
 from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import find_keypoints, get_fine_keypoints, find_translation, resize_img, get_fine_translation
@@ -93,13 +94,14 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=3):
     """
     this is where the magic happens, palys the video
     """
     if data is None:
         data = {}
     params = {"filepath": filepath,
+              "output_path": output_path,
               "data": data,
               "rotate": rotate,
               "index": index,
@@ -146,9 +148,10 @@ def manual_slicer(filepath, data=None, rotate=False, index=0, draw_start=None, d
             k = cv2.waitKey()
             # Press Q on keyboard to  exit
             if cv2.waitKey(k) & 0xFF == ord('q'):
+                write_json(params)
                 break
             params = update_index(k, params)
-
+            write_json(params)
         # Break the loop
         else:
             break
@@ -204,6 +207,15 @@ def init_data_index(params):
     return params
 
 
+def write_json(params):
+
+    temp_str = params['filepath']
+    temp_str = temp_str.split('.')[0]
+    clip_name = temp_str('/')[-1]
+
+    output_file_name = os.path.join(params['output_path'], f'{clip_name}_silces_data.json')
+    with open(output_file_name, 'w') as fp:
+        json.dump(params['data'], fp)
 
 
 if __name__ == "__main__":
