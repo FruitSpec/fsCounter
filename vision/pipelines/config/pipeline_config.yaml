@@ -1,8 +1,8 @@
 # config.yaml
-exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py
 
-ckpt_file: /home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022/best_ckpt.pth
+ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_2_13_nov_2022/best_ckpt.pth
 #ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth
 
 device: cuda
@@ -10,23 +10,20 @@ device: cuda
 input_size: [1024, 1024]
 
 detector:
-  confidence: 0.315
+  confidence: 0.3
   nms: 0.65
-  num_of_classes: 1
+  num_of_classes: 2
   fp16: true
   fuse: false
   trt: false
 
 classes:
-  fruit: 0
+  full: 0
+  partial: 1
 
 tracker:
-  frame_rate: 10
-  track_thresh: 0.35
-  track_buffer: 10
-  match_threshold: 0.99
-  min_box_area: 20
-  orig_width: 2048
-  orig_height: 1536
-  mot20: true
+  minimal_max_distance: 10
+  score_weights: [0.5, 1, 0.5]
+  match_type: inter
+  translation_size: 640
 

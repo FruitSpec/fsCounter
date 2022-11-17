@@ -14,7 +14,7 @@ from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 class counter_detection():
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, args):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
 
@@ -23,8 +23,9 @@ class counter_detection():
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
+        self.input_size = cfg.input_size
 
-        self.tracker = self.init_tracker(cfg)
+        self.tracker = self.init_tracker(cfg, args)
 
         self.device = cfg.device
 
@@ -45,15 +46,14 @@ class counter_detection():
 
         return model
 
-    def init_tracker(self, cfg):
+    @staticmethod
+    def init_tracker(cfg, args):
 
-        self.frame_rate = cfg.tracker.frame_rate
-        self.orig_width = cfg.tracker.orig_width
-        self.orig_height = cfg.tracker.orig_height
-        self.min_box_area = cfg.tracker.min_box_area
-        self.input_size = cfg.input_size
-
-        return FsTracker()
+        return FsTracker(frame_size=args.frame_size,
+                         minimal_max_distance=cfg.tracker.minimal_max_distance,
+                         score_weights=cfg.tracker.score_weights,
+                         match_type=cfg.tracker.match_type,
+                         translation_size=cfg.tracker.translation_size)
 
     def detect(self, frame):
         preprc_frame = self.preprocess(frame)
@@ -74,13 +74,13 @@ class counter_detection():
     def track(self, outputs, frame_id, frame):
 
         if outputs is not None:
-            online_targets, _ = self.tracker.update(outputs, frame)
+            online_targets, track_windows = self.tracker.update(outputs, frame)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)
                 tracking_results.append(target)
 
-            return tracking_results
+            return tracking_results, track_windows
 
 
     def get_imgs_info(self, frame_id):

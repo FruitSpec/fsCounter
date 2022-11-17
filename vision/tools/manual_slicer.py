@@ -148,10 +148,10 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
             k = cv2.waitKey()
             # Press Q on keyboard to  exit
             if cv2.waitKey(k) & 0xFF == ord('q'):
-                write_json(params)
+                #write_json(params)
                 break
             params = update_index(k, params)
-            write_json(params)
+            #write_json(params)
         # Break the loop
         else:
             break
@@ -220,5 +220,5 @@ def write_json(params):
 
 if __name__ == "__main__":
     fp = '/home/yotam/FruitSpec/Data/MIC_03112022/Result_FSI_3.mkv' #frame 105, middle
-    manual_slicer(fp, rotate=True)
+    manual_slicer(fp, "", rotate=True)
 

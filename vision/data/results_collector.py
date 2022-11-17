@@ -157,6 +157,8 @@ class ResultsCollector():
                     output_video.write(frame)
 
                 f_id += 1
+            else:
+                break
 
         if not write_frames:
             output_video.release()
@@ -169,7 +171,7 @@ class ResultsCollector():
         else:
             hash_ = self.create_hash(self.detections)
         img_with_dets = list(hash_.keys())
-        for i, id_ in enumerate(self.file_ids):
+        for i, id_ in tqdm(enumerate(self.file_ids)):
             if id_ in img_with_dets:
                 dets = hash_[id_]
             else:
@@ -182,9 +184,10 @@ class ResultsCollector():
 
     def draw_and_save(self, frame, dets, f_id, output_path):
 
+       #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
        frame = self.draw_dets(frame, dets)
        output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
-       frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+       #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
        cv2.imwrite(output_file_name, frame)
 
 

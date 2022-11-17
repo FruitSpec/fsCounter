@@ -45,6 +45,8 @@ def run(cfg, args):
         results_collector.collect_id(id_)
 
         frame = cv2.imread(os.path.join(args.data_dir, img_name))
+        if args.rotate:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
         det_outputs = detector.detect(frame)
 
@@ -71,29 +73,33 @@ if __name__ == "__main__":
 
     args = make_parser()
     args.eval_batch = 1
-    #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
-    folder_path = "/media/fruitspec-lab/262/JAI-test/300322"
-    folder_list = os.listdir(folder_path)
-    parent_folder = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/count"
+    args.rotate = False
+    args.data_dir = "/home/yotam/FruitSpec/Data/VEG_RGB_v3i_coco/val2017"
+    args.output_folder = "/home/yotam/FruitSpec/Sandbox/Syngenta/val_results_fine_model"
 
-    res = []
-    for folder in folder_list:
-
-        args.data_dir = os.path.join(folder_path, folder)
-
-        args.output_folder = os.path.join(parent_folder, folder)
-        if not os.path.isdir(args.output_path):
-            os.mkdir(args.output_path)
-
-        dets, tracks = run(cfg, args)
-        tot_tracks = []
-        for t in tracks:
-            tid = t[-2]
-            if tid not in tot_tracks:
-                tot_tracks.append(tid)
-        res.append({'row': folder, 'tot_tracks': len(tot_tracks)})
-
-    with open(os.path.join(parent_folder, 'res.json'), 'w') as f:
-        json.dump(res, f)
+    dets, tracks = run(cfg, args)
+    # folder_path = "/home/yotam/FruitSpec/Data/VEG_RGB_v3i_coco/val2017"
+    # folder_list = os.listdir(folder_path)
+    # parent_folder = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/count"
+    #
+    # res = []
+    # for folder in folder_list:
+    #
+    #     args.data_dir = os.path.join(folder_path, folder)
+    #
+    #     args.output_folder = os.path.join(parent_folder, folder)
+    #     if not os.path.isdir(args.output_path):
+    #         os.mkdir(args.output_path)
+    #
+    #     dets, tracks = run(cfg, args)
+    #     tot_tracks = []
+    #     for t in tracks:
+    #         tid = t[-2]
+    #         if tid not in tot_tracks:
+    #             tot_tracks.append(tid)
+    #     res.append({'row': folder, 'tot_tracks': len(tot_tracks)})
+    #
+    # with open(os.path.join(parent_folder, 'res.json'), 'w') as f:
+    #     json.dump(res, f)
 
 
