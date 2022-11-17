@@ -2,8 +2,9 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
-
+from skimage import exposure
 from vision.tools.camera import jai_to_channels
+
 
 def run(movie_path, output_path,  range=None, rotate=True):
     if not os.path.exists(output_path):
@@ -51,7 +52,9 @@ def run(movie_path, output_path,  range=None, rotate=True):
                 cv2.imwrite(os.path.join(output_path, f'channel_2_{f_id}.jpg'), channel_2)
                 cv2.imwrite(os.path.join(output_path, f'frame_{f_id}.jpg'), frame)
 
-        f_id += 1
+            f_id += 1
+        else:
+            break
 
     cap.release()
 
@@ -85,10 +88,14 @@ def slice_to_frames(movie_path, output_path, rotate=True):
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
             cv2.imwrite(os.path.join(output_path, f"channel_{channel_id}_frame_{f_id}.jpg"), frame)
-        f_id += 1
 
-def mkv_to_fsi_and_rgb(folder, output_path):
+            f_id += 1
+        else:
+            break
 
+
+
+def mkv_to_fsi_and_rgb(folder, output_path, suffix="", write_images=False):
     file_list = os.listdir(folder)
     for file in file_list:
         if 'mkv' in file:
@@ -98,9 +105,6 @@ def mkv_to_fsi_and_rgb(folder, output_path):
                 channel_800_p = os.path.join(folder, file)
             elif '975' in file:
                 channel_975_p = os.path.join(folder, file)
-
-
-
 
     cap_rgb = cv2.VideoCapture(channel_rgb_p)
     cap_800 = cv2.VideoCapture(channel_800_p)
@@ -114,15 +118,17 @@ def mkv_to_fsi_and_rgb(folder, output_path):
     height = int(cap_800.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap_800.get(cv2.CAP_PROP_FPS))
 
-    fsi_video_name = os.path.join(output_path, 'FSI.mkv')
-    rgb_video_name = os.path.join(output_path, 'rgb.mkv')
+    fsi_video_name = os.path.join(output_path, f'FSI{suffix}.mkv')
+    rgb_video_name = os.path.join(output_path, f'rgb{suffix}.mkv')
     fsi = cv2.VideoWriter(fsi_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
                                    fps, (width, height))
     rgb = cv2.VideoWriter(rgb_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
                           fps, (width, height))
 
     i = 0
+    n = cap_rgb.get(cv2.CAP_PROP_FRAME_COUNT)
     while cap_rgb.isOpened():
+        print(f"\r{i}/{n - 1} ({i / (n - 1) * 100: .2f}%) frames", end="")
         #frame_rgb = get_frame_by_index(cap_rgb, i)
         #frame_800 = get_frame_by_index(cap_800, i)
         #frame_975 = get_frame_by_index(cap_975, i)
@@ -130,7 +136,8 @@ def mkv_to_fsi_and_rgb(folder, output_path):
         _, frame_rgb = cap_rgb.read()
         _, frame_800 = cap_800.read()
         _, frame_975 = cap_975.read()
-
+        if isinstance(frame_rgb, type(None)):
+            break
         frame_rgb = cv2.cvtColor(frame_rgb, cv2.COLOR_BGR2RGB)
 
         frame_fsi = frame_rgb.copy()
@@ -143,7 +150,13 @@ def mkv_to_fsi_and_rgb(folder, output_path):
         fsi.write(frame_fsi)
         rgb.write(frame_rgb)
 
-        # i += 1
+        if write_images:
+            frame_fsi = cv2.rotate(frame_fsi, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            frame_rgb = cv2.rotate(frame_rgb, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            cv2.imwrite(os.path.join(output_path, f"FSI{suffix}_frame_{i}.jpg"), frame_fsi)
+            cv2.imwrite(os.path.join(output_path, f"RGB{suffix}_frame_{i}.jpg"), frame_rgb)
+
+        i += 1
         # if i == 400:
         #     break
 
@@ -162,6 +175,12 @@ def get_frame_by_index(cap, index_):
     return frame
 
 if __name__ == "__main__":
+    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4",
+                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4", write_images=True)
+    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3",
+                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3", write_images=True)
+    #mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3","/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/preocessed")
+    #slice_to_frames(movie_path, output_path, rotate=True)
     movie_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/Result_FSI_2_30_720_30.mkv"
     output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30"
     range_ = None # [250, 300]

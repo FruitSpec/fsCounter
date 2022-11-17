@@ -99,7 +99,7 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
     this is where the magic happens, palys the video
     """
     if data is None:
-        data = {}
+        data = load_json(filepath, output_path)
     params = {"filepath": filepath,
               "output_path": output_path,
               "data": data,
@@ -202,7 +202,7 @@ def get_updated_location_in_index(frame, params):
 def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
-        params['data'][params['index']] = {'start': None, 'end': None}\
+        params['data'][params['index']] = {'start': None, 'end': None}
 
     return params
 
@@ -211,14 +211,38 @@ def write_json(params):
 
     temp_str = params['filepath']
     temp_str = temp_str.split('.')[0]
-    clip_name = temp_str('/')[-1]
+    clip_name = temp_str.split('/')[-1]
 
-    output_file_name = os.path.join(params['output_path'], f'{clip_name}_silces_data.json')
-    with open(output_file_name, 'w') as fp:
-        json.dump(params['data'], fp)
+    output_file_name = os.path.join(params['output_path'], f'{clip_name}_slice_data.json')
+    with open(output_file_name, 'w') as f:
+        json.dump(params['data'], f)
+
+def load_json(filepath, output_path):
+    temp_str = filepath
+    temp_str = temp_str.split('.')[0]
+    clip_name = temp_str.split('/')[-1]
+
+    input_file_name = os.path.join(output_path, f'{clip_name}_slice_data.json')
+    if os.path.exists(input_file_name):
+        with open(input_file_name, 'r') as f:
+            loaded_data = json.load(f)
+        data = {}
+        for k, v in loaded_data.items():
+            data[int(k)] = v
+
+    else:
+        data = {}
+    return data
+
+
+def slice_to_trees(data_file, output_path, jai_video_path, zed_video_path):
+
+    with(data_file, 'r') as fp:
+        json.l
 
 
 if __name__ == "__main__":
-    fp = '/home/yotam/FruitSpec/Data/MIC_03112022/Result_FSI_3.mkv' #frame 105, middle
-    manual_slicer(fp, rotate=True)
+    fp = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_2.mkv' #frame 105, middle
+    output_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122"
+    manual_slicer(fp, output_path, rotate=True)
 
