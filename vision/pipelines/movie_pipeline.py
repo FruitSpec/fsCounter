@@ -97,8 +97,8 @@ if __name__ == "__main__":
 
     args = make_parser()
 
-    args.movie_path = '/home/fruitspec-lab/FruitSpec/Data/syngenta/1/Result_FSI_1.mkv'
-    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/4'
+    args.movie_path = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_1.mkv'
+    args.output_folder = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_1'
     args.rotate = True
 
     run(cfg, args)

@@ -1,5 +1,10 @@
+import os
+
 import cv2
 import numpy as np
+import pandas as pd
+
+import matplotlib.pyplot as plt
 
 from vision.tools.image_stitching import resize_img, find_keypoints, match_descriptors
 from vision.tools.image_stitching import calc_affine_transform, calc_homography
@@ -12,8 +17,8 @@ def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62]):
     zed_mid_h = grey_zed.shape[0] // 2
     #zed_mid_w = grey_zed.shape[1] // 2
     zed_half_height = int(zed_mid_h / (zed_angles[0] / 2) * (jai_angles[0] / 2))
-    y_s = zed_mid_h - zed_half_height
-    y_e = zed_mid_h + zed_half_height
+    y_s = zed_mid_h - zed_half_height-100
+    y_e = zed_mid_h + zed_half_height+100
     cropped_zed = grey_zed[y_s: y_e]
 
     im_zed, r_zed = resize_img(cropped_zed, 960)
@@ -67,27 +72,73 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
             y1 = ty
             x2 = tx + jai_in_zed_width
             y2 = ty + jai_in_zed_height
+            x1 = tx
+            x2 = x1 + jai_in_zed_width
+            y1 = z_h + ty - jai_in_zed_height# r
+            y2 = z_h + ty # r
         else:
-            x1 = z_w - tx - jai_in_zed_width
-            y1 = z_h - ty - jai_in_zed_height
-            x2 = z_w - tx
-            y2 = z_h - ty
+            # x1 = z_w - tx - jai_in_zed_width
+            # y1 = z_h - ty - jai_in_zed_height
+            # x2 = tx + jai_in_zed_width
+            # y2 = z_h - ty
+            x1 = tx # r
+            x2 = tx + jai_in_zed_width # r
+            y1 = z_h + ty - jai_in_zed_height# r
+            y2 = z_h + ty # r
+
     else:
         if ty > 0:
-            x1 = z_w - tx - jai_in_zed_width
-            y1 = z_h - ty - jai_in_zed_height
-            x2 = tx + jai_in_zed_width
-            y2 = ty + jai_in_zed_height
+            # x1 = z_w - tx - jai_in_zed_width
+            # y1 = z_h - ty - jai_in_zed_height
+            # x2 = tx + jai_in_zed_width
+            # y2 = ty + jai_in_zed_height
+            x2 = z_w + tx  # r
+            x1 = x2 - jai_in_zed_width # r
+            y1 = z_h + ty - jai_in_zed_height# r
+            y2 = z_h + ty# r
         else:
             x1 = z_w - tx - jai_in_zed_width
             y1 = z_h - ty - jai_in_zed_height
             x2 = z_w - tx
             y2 = z_h - ty
+            x2 = z_w + tx  # r
+            x1 = x2 - jai_in_zed_width # r
+            y1 = z_h + ty - jai_in_zed_height# r
+            y2 = z_h + ty# r
 
     return x1, y1, x2, y2
 
 
+def align_folder(folder_path, result_folder="", plot_res=True):
+    if result_folder == "":
+        result_folder = folder_path
+    frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
+    df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [], "frame": []})
+    for frame in frames:
+        zed_path = os.path.join(folder_path, f"frame_{int(frame)+3}.jpg")
+        rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
+        rgb_jai = cv2.imread(rgb_path)
+        rgb_jai = cv2.cvtColor(rgb_jai, cv2.COLOR_BGR2RGB)
+        zed = cv2.imread(zed_path)
+        zed = cv2.cvtColor(zed, cv2.COLOR_BGR2RGB)
+        corr = align_sensors(zed, rgb_jai)
+        x1, y1, x2, y2 = corr
+        df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "frame": frame}, ignore_index=True)
+        if plot_res:
+            img1 = rgb_jai
+            img2 = zed
+            img2 = cv2.rectangle(img2, (int(x1), int(y1)), (int(x2), int(y2)), color=(255, 0, 0), thickness=3)
+            jai_in_zed = img2[int(y1): min(int(y2), zed.shape[0]), max(int(x1),0): min(int(x2), zed.shape[1])]
+            fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+            ax1.imshow(cv2.resize(img1,jai_in_zed.shape[:2][::-1]))
+            ax2.imshow(jai_in_zed)
+            plt.show()
+    df_out.to_csv(os.path.join(result_folder, "jain_cors_in_zed.csv"))
+
+
+
 if __name__ == "__main__":
+    align_folder("/home/fruitspec-lab/PycharmProjects/foliage/counter/T_32")
     zed_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/frame_548.jpg"
     depth_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/depth_frame_548.jpg"
     jai_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30/frame_539.jpg"

@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 from skimage import exposure
 from vision.tools.camera import jai_to_channels
-
+from vision.depth.zed.svo_utils import svo_to_frames
 
 def run(movie_path, output_path,  range=None, rotate=True):
     if not os.path.exists(output_path):
@@ -59,7 +59,7 @@ def run(movie_path, output_path,  range=None, rotate=True):
     cap.release()
 
 
-def slice_to_frames(movie_path, output_path, rotate=True):
+def slice_to_frames(movie_path, output_path, rotate=True, flip_channels=False):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
@@ -87,11 +87,14 @@ def slice_to_frames(movie_path, output_path, rotate=True):
             pbar.update(1)
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            if flip_channels:
+                frame = frame[:, :, ::-1]
             cv2.imwrite(os.path.join(output_path, f"channel_{channel_id}_frame_{f_id}.jpg"), frame)
 
             f_id += 1
         else:
             break
+    pbar.close()
 
 
 
@@ -174,11 +177,46 @@ def get_frame_by_index(cap, index_):
         raise ValueError
     return frame
 
+
+def vid_to_folders(movies_path, output_path):
+    """
+    breaks the plot's folder into rows for each movie
+    :param movies_path: path to where the movies sit
+    :param output_path: path to where you want the procees rows to go
+    :return:
+    """
+    movies = os.listdir(movies_path)
+    movies = [movie for movie in movies if "mkv" in movie or "svo" in movie]
+    for movie in tqdm(movies):
+        row = int(movie.split('.')[0].split('_')[-1])
+        row_path = os.path.join(output_path, f"R_{row}")
+        if not os.path.exists(row_path):
+            os.mkdir(row_path)
+        os.rename(os.path.join(movies_path, movie), os.path.join(row_path, movie))
+
+
+def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True):
+    """
+    breaks all of the videos of the row to frames
+    :param folder_path: path to a plots row
+    :param flip_channels: which pictures needs flipping
+    :param rotate: do the pictures need rotation?
+    :return:
+    """
+    output_path = os.path.join(folder_path, "frames")
+    for movie_path in os.listdir(folder_path):
+        if "mkv" in movie_path:
+            flip_chan = movie_path.split('.')[0].split('_')[1].lower() in flip_channels
+            slice_to_frames(os.path.join(movies_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan)
+        if "svo" in movie_path:
+            svo_to_frames(os.path.join(movies_path, movie_path), output_path, max_frame=None, rotate=rotate)
+
+
 if __name__ == "__main__":
-    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4",
-                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4", write_images=True)
-    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3",
-                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3", write_images=True)
+    movies_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_2"
+    output_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/frames"
+    vid_to_folders("/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122","/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122")
+    folder_to_frames(movies_path)
     #mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3","/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/preocessed")
     #slice_to_frames(movie_path, output_path, rotate=True)
     movie_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/Result_FSI_2_30_720_30.mkv"

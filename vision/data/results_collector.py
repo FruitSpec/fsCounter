@@ -97,11 +97,10 @@ class ResultsCollector():
     def dump_to_csv(self, output_file_path, detections=True):
 
         if detections:
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf",
-                      "image_id", "class_pred"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
             rows = self.detections
         else:
-            fields = ["x1", "y1", "x2", "y2",  "obj_conf", "class_conf", "", "track_id"]
+            fields = ["x1", "y1", "x2", "y2",  "obj_conf", "class_conf", "track_id", "image_id"]
             rows = self.tracks
 
         with open(output_file_path, 'w') as f:

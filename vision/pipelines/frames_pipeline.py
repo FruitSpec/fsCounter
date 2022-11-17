@@ -31,9 +31,10 @@ def run(cfg, args):
     files_dict = {}
     for img in img_list:
         if 'png' in img or 'jpg' in img:
-            if 'frame' in img or 'FSI' in img:
+            #if 'frame' in img or 'FSI' in img:
+            if 'FSI' in img:
                 full_name = img.split('.')[0]
-                id_ = int(full_name.split('_')[1])
+                id_ = int(full_name.split('_')[-1])
                 files_dict[id_] = img
 
     # sort by ids
@@ -59,6 +60,8 @@ def run(cfg, args):
 
 
     results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
+    results_collector.dump_to_csv(os.path.join(args.output_folder, "det.csv"))
+    results_collector.dump_to_csv(os.path.join(args.output_folder, "tracker.csv"), False)
 
     return results_collector.detections, results_collector.tracks
 
@@ -72,18 +75,18 @@ if __name__ == "__main__":
     args = make_parser()
     args.eval_batch = 1
     #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
-    folder_path = "/media/fruitspec-lab/262/JAI-test/300322"
-    folder_list = os.listdir(folder_path)
-    parent_folder = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/count"
+    folder_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/trees"
+    folder_list = [folder for folder in os.listdir(folder_path) if "." not in folder]
+    parent_folder = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/trees"
 
     res = []
     for folder in folder_list:
 
         args.data_dir = os.path.join(folder_path, folder)
 
-        args.output_folder = os.path.join(parent_folder, folder)
-        if not os.path.isdir(args.output_path):
-            os.mkdir(args.output_path)
+        args.output_folder = os.path.join(parent_folder, folder,"det")
+        if not os.path.isdir(args.output_folder):
+            os.mkdir(args.output_folder)
 
         dets, tracks = run(cfg, args)
         tot_tracks = []
