@@ -1,7 +1,7 @@
 import numpy as np
 
 from vision.tracker.fsTracker.base_track import Track
-from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, compute_dist_on_vec
+from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, get_intersection
 from vision.tools.image_stitching import find_keypoints, find_translation, resize_img
 from vision.tools.image_stitching import get_fine_translation, get_fine_keypoints
 from vision.tracker.fsTracker.base_track import TrackState
@@ -10,7 +10,7 @@ from vision.tracker.fsTracker.base_track import TrackState
 class FsTracker():
 
     def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, minimal_max_distance=10,
-                 score_weights=[0.5, 1, 0.5], match_type='center', translation_size=640):
+                 score_weights=[0.5, 1, 0.5], match_type='center', translation_size=640, max_losses=10):
 
         self.tracklets = []
         self.track_id = track_id
@@ -20,6 +20,7 @@ class FsTracker():
         self.x_distance = 0
         self.y_distance = 0
         self.match_type = match_type
+        self.max_losses = max_losses
 
         self.score_weights = score_weights
         self.frame_size = frame_size
@@ -176,23 +177,14 @@ class FsTracker():
 
     def match_by_intersection(self, bboxes1, bboxes2):
 
-        #matches = {}
         intersections = []
 
-        if len(bboxes1) > 0 and len(bboxes2) > 0:
-            x11, y11, x12, y12 = np.split(np.array(bboxes1), 4, axis=1)
-            x21, y21, x22, y22 = np.split(np.array(bboxes2)[:, :4], 4, axis=1)
-            xA = np.maximum(x11, np.transpose(x21))
-            yA = np.maximum(y11, np.transpose(y21))
-            xB = np.minimum(x12, np.transpose(x22))
-            yB = np.minimum(y12, np.transpose(y22))
-            inetr_area = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+        inetr_area = get_intersection(bboxes1, bboxes2)
+        if len(inetr_area) > 0:
             intersections = inetr_area > 0
 
-            # for i in range(intersections.shape[1]):
-            #     matches[i] = list(intersections[:, i])
+        return intersections
 
-        return intersections  # matches
 
     def match_by_center(self, windows, detections):
         centers = self.get_detections_center(detections)
@@ -365,16 +357,17 @@ class FsTracker():
             if track.is_activated is False:  # not found in current frame
                 valid = False
                 if track.state == TrackState.Lost:  # object found once
-                    track.accumulated_dist.append(self.x_distance)
+                    track.accumulated_dist.append(-self.x_distance)
                 track.bbox[0] -= self.x_distance
                 track.bbox[2] -= self.x_distance
                 track.bbox[1] -= self.y_distance
                 track.bbox[3] -= self.y_distance
                 track.state = TrackState.Lost
+                track.lost_counter += 1
 
                 if int(track.bbox[0]) >= 0 & int(track.bbox[2]) >= 0 & int(track.bbox[0]) <= self.frame_size[1] & int(track.bbox[0]) <= self.frame_size[1]:
                     valid = True
-                if np.abs(np.sum(track.accumulated_dist)) <= self.max_distance and valid:
+                if track.lost_counter < self.max_losses and valid:
                     new_tracklets_list.append(track)
             else:
                 new_tracklets_list.append(track)

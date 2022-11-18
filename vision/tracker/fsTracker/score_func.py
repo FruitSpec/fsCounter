@@ -110,3 +110,17 @@ def confidence_score(trk_score, dets_score):
     #     score.append(1 - np.abs(aconf - det_conf))
     #
     # return score
+
+def get_intersection(bboxes1, bboxes2):  # matches
+    inter_aera = []
+
+    if len(bboxes1) > 0 and len(bboxes2) > 0:
+        x11, y11, x12, y12 = np.split(np.array(bboxes1), 4, axis=1)
+        x21, y21, x22, y22 = np.split(np.array(bboxes2)[:, :4], 4, axis=1)
+        xA = np.maximum(x11, np.transpose(x21))
+        yA = np.maximum(y11, np.transpose(y21))
+        xB = np.minimum(x12, np.transpose(x22))
+        yB = np.minimum(y12, np.transpose(y22))
+        inter_aera = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+
+    return inter_aera

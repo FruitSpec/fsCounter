@@ -20,6 +20,7 @@ class Track:
         self.cls = None
         self.frame_size = []
         self.accumulated_dist = deque()
+        self.lost_counter = 0
 
 
     def get_track_search_window(self, search_window, margin=15, multiply=1.25):
@@ -81,6 +82,6 @@ class Track:
         self.cls = det[6]
         self._count += 1
         self.state = TrackState.Tracked
-
+        self.lost_counter = 0
     def output(self):
         return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]

@@ -12,9 +12,9 @@ repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.run_args import make_parser
 from vision.data.results_collector import ResultsCollector, scale
 from vision.depth.zed.clip_depth_viewer import init_cam
+from vision.tracker.fsTracker.score_func import get_intersection
 
 def run(cfg, args):
     detector = counter_detection(cfg, args)
@@ -53,10 +53,15 @@ def run(cfg, args):
             scale_ = scale(detector.input_size, frame.shape)
             det_outputs = scale_dets(det_outputs, scale_)
 
-            #filter by distance
-            if f_id == 60:
-                a = 1
+
+
+            #filter
             filtered_outputs = filter_by_distance(det_outputs, depth)
+            filtered_outputs = filter_by_height(filtered_outputs, depth)
+            filtered_outputs = filter_by_size(filtered_outputs)
+            filtered_outputs = filter_by_duplicates(filtered_outputs)
+
+
 
             # track:
             trk_outputs, trk_windows = detector.track(filtered_outputs, f_id, frame)
@@ -119,7 +124,7 @@ def get_point_cloud(point_cloud_mat, cam):
 
     return point_cloud
 
-def filter_by_distance(dets, depth, percentile=0.4, factor=2.5):
+def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
     filtered_dets = []
     range_ = []
     for det in dets:
@@ -130,19 +135,98 @@ def filter_by_distance(dets, depth, percentile=0.4, factor=2.5):
         else:
             range_.append(np.nanmean(crop))
 
-    if range_:  # not empty
-        det_range = range_.copy()
-        range_.sort(reverse=True)
-        threshold = np.round(len(range_) * percentile).astype(np.int32)
-        mean = np.mean(range_[:threshold])
-        std = np.std(range_[:threshold])
 
-        bool_vec = det_range >= mean - (factor * std)
+
+    if range_:  # not empty
+        bool_vec = np.array(range_) > threshold
+        #keep_index = [i for i, tf in enumerate(tf_vec) if tf is True]
+
+
+        #det_range = range_.copy()
+        #range_.sort(reverse=True)
+        #threshold = np.round(len(range_) * percentile).astype(np.int32)
+        #mean = np.mean(range_[:threshold])
+        #std = np.std(range_[:threshold])
+
+        #bool_vec = det_range >= mean - (factor * std)
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
                 filtered_dets.append(dets[d_id])
 
     return filtered_dets
+
+
+def filter_by_duplicates(dets_outputs, iou_threshold=0.9):
+
+    dets = np.array(dets_outputs)
+    scores = dets[:, 4] * dets[:, 5]
+    dets = dets[:, :4]
+
+    inter = get_intersection(dets, dets)
+
+    area = (dets[:, 3] - dets[:, 1]) * (dets[:, 2] - dets[:, 0])
+
+    area = np.expand_dims(area, axis=0)
+    mat_area = area.T + area
+
+    union = mat_area - inter
+
+    iou_mat = inter / union
+
+    tot_duplicants = []
+    for i in range(iou_mat.shape[1]):
+        vec = iou_mat[:, i]
+        vec[i] = 0  # remove the i bbox from vector
+        dup = vec > iou_threshold
+
+
+        if np.sum(dup) > 0:
+            dup_index = []
+
+            for j, tf in enumerate(dup):
+                if tf:
+                    dup_index.append(j)
+            tot_duplicants += dup_index
+
+    filtered = [det for i, det in enumerate(dets_outputs) if i not in tot_duplicants]
+    return filtered
+
+def filter_by_size(det_outputs, size_threshold=1000):
+    filtered = []
+    if len(det_outputs) > 0:
+        dets = np.array(det_outputs)[:, :4]
+        area = (dets[:, 3] - dets[:, 1]) * (dets[:, 2] - dets[:, 0])
+
+        tf_vec = area > size_threshold
+        for det, tf in zip(det_outputs, tf_vec):
+            if tf:
+                filtered.append(det)
+
+    return filtered
+
+def filter_by_height(det_outputs, depth, bias=0, y_crop=200):
+    filtered = []
+
+    if len(det_outputs) > 0:
+        grad_y = cv2.Sobel(depth[y_crop:-y_crop, :], cv2.CV_16S, 0, 1, ksize=3, scale=1, delta=0, borderType=cv2.BORDER_DEFAULT)
+        grad_y[grad_y >= -300] = 0
+        grad_y[grad_y < -300] = 1
+
+        y_loc = np.argmax(grad_y, axis=0)
+        y_threshold = np.mean(y_loc[y_loc > 0]) + y_crop - bias
+
+        for det in det_outputs:
+            if det[1] > y_threshold:
+                filtered.append(det)
+
+    return filtered
+
+
+
+
+
+
+
 
 
 
