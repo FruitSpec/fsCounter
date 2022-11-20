@@ -6,10 +6,16 @@ import pandas as pd
 
 import matplotlib.pyplot as plt
 
-from vision.tools.image_stitching import resize_img, find_keypoints, match_descriptors
+from vision.tools.image_stitching import (resize_img, find_keypoints,get_affine_homography,
+                                          get_fine_keypoints, get_fine_translation, get_affine_matrix)
 from vision.tools.image_stitching import calc_affine_transform, calc_homography
 
-def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62]):
+
+zed_angles = (84.1, 53.8)
+
+
+def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62],
+                  use_fine=True):
 
     grey_zed = cv2.cvtColor(zed_rgb, cv2.COLOR_RGB2GRAY)
     grey_jai = cv2.cvtColor(jai_rgb, cv2.COLOR_RGB2GRAY)
@@ -24,16 +30,49 @@ def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62]):
     im_zed, r_zed = resize_img(cropped_zed, 960)
     im_jai, r_jai = resize_img(grey_jai, 960)
 
-    kp_zed, des_zed = find_keypoints(im_zed)
-    kp_jai, des_jai = find_keypoints(im_jai)
+    if not use_fine:
+        kp_zed, des_zed = find_keypoints(im_zed)
+        kp_jai, des_jai = find_keypoints(im_jai)
 
-    M, st = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai)
-    tx, ty, sx, sy = affine_to_values(M)
+        M, st = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai)
+        tx, ty, sx, sy = affine_to_values(M)
+
+        M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
+
+        zed_rgb_kp = resize_img(zed_rgb[y_s: y_e], 960)[0].astype(np.uint8)
+        for curKey in kp_zed:
+            x = np.int(curKey.pt[0])
+            y = np.int(curKey.pt[1])
+            size = np.int(curKey.size)
+            cv2.circle(zed_rgb_kp, (x, y), size, (0, 255, 0), thickness=5, lineType=8, shift=0)
+
+        jai_rgb_kp = resize_img(jai_rgb, 960)[0].astype(np.uint8)
+        for curKey in kp_jai:
+            x = np.int(curKey.pt[0])
+            y = np.int(curKey.pt[1])
+            size = np.int(curKey.size)
+            cv2.circle(jai_rgb_kp, (x, y), size, (0, 255, 0), thickness=5, lineType=8, shift=0)
+
+        fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+        ax1.imshow(jai_rgb_kp)
+        ax2.imshow(zed_rgb_kp)
+        plt.show()
+
+        plt.imshow(cv2.warpPerspective(zed_rgb, M_homography, zed_rgb.shape[:2][::-1]))
+        plt.show()
+        print(M_homography)
+    else:
+        kp_des_zed = get_fine_keypoints(im_zed)
+        kp_des_jai = get_fine_keypoints(im_jai)
+        translation_res = get_fine_translation(kp_des_zed, kp_des_jai, max_workers=5)
+        translation_res = np.array([list(affine_to_values(M)) for tx, ty, M in translation_res])
+        tx, ty, sx, sy = np.nanmedian(translation_res, axis = 0)
 
     x1, y1, x2, y2 = get_coordinates_in_zed(im_zed, im_jai, tx, ty, sx, sy)
     coordinates = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed)
 
-    return coordinates
+    return coordinates, tx, ty, sx, sy
+
 
 def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
 
@@ -45,13 +84,12 @@ def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
 
     return arr
 
-def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
-    match = match_descriptors(des_zed, des_jai)
-    M, st = calc_affine_transform(kp_zed, kp_jai, match)
-
-    return M, st
 
 def affine_to_values(M):
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, np.nan, np.nan
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+        return np.nan, np.nan, np.nan, np.nan
     sx = np.sqrt(M[0, 0] ** 2 + M[0, 1] ** 2)
     sy = np.sqrt(M[1, 0] ** 2 + M[1, 1] ** 2)
 
@@ -59,6 +97,7 @@ def affine_to_values(M):
     ty = np.round(M[1, 2]).astype(np.int)
 
     return tx, ty, sx, sy
+
 
 def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     jai_in_zed_height = np.round(grey_jai.shape[0] * sy).astype(np.int)
@@ -109,11 +148,12 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     return x1, y1, x2, y2
 
 
-def align_folder(folder_path, result_folder="", plot_res=True):
+def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True):
     if result_folder == "":
         result_folder = folder_path
     frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
-    df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [], "frame": []})
+    df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
+                           "tx": [], "ty": [], "sx": [], "sy": [], "frame": []})
     for frame in frames:
         zed_path = os.path.join(folder_path, f"frame_{int(frame)+3}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
@@ -121,9 +161,10 @@ def align_folder(folder_path, result_folder="", plot_res=True):
         rgb_jai = cv2.cvtColor(rgb_jai, cv2.COLOR_BGR2RGB)
         zed = cv2.imread(zed_path)
         zed = cv2.cvtColor(zed, cv2.COLOR_BGR2RGB)
-        corr = align_sensors(zed, rgb_jai)
+        corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine)
         x1, y1, x2, y2 = corr
-        df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2, "frame": frame}, ignore_index=True)
+        df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame}, ignore_index=True)
         if plot_res:
             img1 = rgb_jai
             img2 = zed
@@ -133,12 +174,12 @@ def align_folder(folder_path, result_folder="", plot_res=True):
             ax1.imshow(cv2.resize(img1,jai_in_zed.shape[:2][::-1]))
             ax2.imshow(jai_in_zed)
             plt.show()
-    df_out.to_csv(os.path.join(result_folder, "jain_cors_in_zed.csv"))
+    df_out.to_csv(os.path.join(result_folder, "jain_cors_in_zed_wtx.csv"))
 
 
 
 if __name__ == "__main__":
-    align_folder("/home/fruitspec-lab/PycharmProjects/foliage/counter/T_32")
+    align_folder("/home/fruitspec-lab/PycharmProjects/foliage/counter/T_32", use_fine=False)
     zed_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/frame_548.jpg"
     depth_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/depth_frame_548.jpg"
     jai_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30/frame_539.jpg"

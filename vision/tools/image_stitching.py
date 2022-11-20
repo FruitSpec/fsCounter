@@ -59,6 +59,7 @@ def get_fine_keypoints(img, max_workers=5):
 
     return results
 
+
 def get_fine_translation(key_des1, key_des2, max_workers=5):
 
     r = [1 for _ in key_des1]
@@ -71,12 +72,14 @@ def get_fine_translation(key_des1, key_des2, max_workers=5):
         results = list(executor.map(find_translation, kp1, des1, kp2, des2, r))
 
     return results
+
+
 def  get_translation(img1, img2):
 
     kp1, des1 = find_keypoints(img1)
     kp2, des2 = find_keypoints(img2)
 
-    tx, ty = find_translation(kp1, des1, kp2, des2, 1)
+    tx, ty, _ = find_translation(kp1, des1, kp2, des2, 1)
 
     return tx, ty
 def get_windows(img1):
@@ -179,6 +182,14 @@ def calc_affine_transform(kp1, kp2, match):
     return M, status
 
 
+
+def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
+    match = match_descriptors(des_zed, des_jai)
+    M, st = calc_affine_transform(kp_zed, kp_jai, match)
+
+    return M, st
+
+
 def calc_homography(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
@@ -186,6 +197,13 @@ def calc_homography(kp1, kp2, match):
     M, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
     return M, status
+
+
+def get_affine_homography(kp1, kp2, des1, des2):
+    match = match_descriptors(des1, des2)
+    M, st = calc_homography(kp1, kp2, match)
+
+    return M, st
 
 
 def trim(frame):
@@ -376,10 +394,14 @@ def translation_based(M, height, width, r):
 
 def find_translation(kp1, des1, kp2, des2, r):
     M, status = features_to_translation(kp1, kp2, des1, des2)
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, M
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+        return np.nan, np.nan, M
     tx = int(np.round(M[0, 2] / r))
     ty = int(np.round(M[1, 2] / r))
 
-    return tx, ty
+    return tx, ty, M
 
 
 def resize_img(input_, size):

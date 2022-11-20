@@ -73,7 +73,7 @@ def run(cfg, args):
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
 
-    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
+    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=False)
 
 
 def get_id_and_categories(cfg):
@@ -97,8 +97,8 @@ if __name__ == "__main__":
 
     args = make_parser()
 
-    args.movie_path = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_1.mkv'
-    args.output_folder = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_1'
-    args.rotate = True
+    args.movie_path = '/media/fruitspec-lab/Extreme Pro/JAIPromotion/orange/rgb_fsi_mix.mkv'
+    args.output_folder = '/media/fruitspec-lab/Extreme Pro/JAIPromotion/orange'
+    args.rotate = False
 
     run(cfg, args)

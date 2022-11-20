@@ -80,6 +80,9 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
 
 
 if __name__ == "__main__":
-    fp ="/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/HD720_SN39577186_M_11-06-35.svo"
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED2"
+    fp ="/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/ZED_1.svo"
+    cam, runtime = init_cam(fp)
+    left_cam_params = cam.get_camera_information().camera_configuration.calibration_parameters.left_cam
+    k1, k2, k3, p1, p2 = left_cam_params.disto
+    output_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1"
     svo_to_frames(fp, output_path, 600, True)
