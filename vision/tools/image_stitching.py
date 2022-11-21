@@ -74,6 +74,18 @@ def get_fine_translation(key_des1, key_des2, max_workers=5):
     return results
 
 
+def find_homography(kp1, des1, kp2, des2, r):
+    M, status = features_to_homography(kp1, kp2, des1, des2)
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, M
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+        return np.nan, np.nan, M
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
+
+    return tx, ty, M
+
+
 def  get_translation(img1, img2):
 
     kp1, des1 = find_keypoints(img1)
@@ -82,6 +94,8 @@ def  get_translation(img1, img2):
     tx, ty, _ = find_translation(kp1, des1, kp2, des2, 1)
 
     return tx, ty
+
+
 def get_windows(img1):
     h, w = img1.shape
     set1 = [int(w * 0.2), int(h * 0.2), int(w * 0.5), int(h * 0.4)]
@@ -176,7 +190,8 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
 def calc_affine_transform(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-
+    if len(dst_pts) == 0:
+        return np.full((2, 3), np.nan), False
     M, status = cv2.estimateAffine2D(src_pts, dst_pts)
 
     return M, status
@@ -396,7 +411,7 @@ def find_translation(kp1, des1, kp2, des2, r):
     M, status = features_to_translation(kp1, kp2, des1, des2)
     if isinstance(M, type(None)):
         return np.nan, np.nan, M
-    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+    if not np.isfinite(M[0, 2]) or not np.isfinite(M[1, 2]) :
         return np.nan, np.nan, M
     tx = int(np.round(M[0, 2] / r))
     ty = int(np.round(M[1, 2] / r))
