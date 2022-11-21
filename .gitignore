@@ -1,5 +1,4 @@
-.idea/*
 .idea/vcs.xml
 .idea/deployment.xml
-.idea/aws.xml
+.idea/fsCounter.iml
 .idea/misc.xml
