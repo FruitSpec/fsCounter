@@ -3,6 +3,8 @@ import numpy as np
 import cv2
 import json
 import collections
+import pandas as pd
+from tqdm import tqdm
 
 from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import find_keypoints, get_fine_keypoints, find_translation, resize_img, get_fine_translation
@@ -236,7 +238,7 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file): #, output_path, jai_video_path, zed_video_path):
+def slice_to_trees(data_file, file_path, output_path): #, , jai_video_path, zed_video_path):
 
     with open(data_file, 'r') as f:
         loaded_data = json.load(f)
@@ -246,6 +248,42 @@ def slice_to_trees(data_file): #, output_path, jai_video_path, zed_video_path):
     data = collections.OrderedDict(sorted(data.items()))
 
     trees_data = parse_data_to_trees(data)
+    hash = {}
+    for tree_id, frames in trees_data.items():
+        for frame in frames:
+            if frame['frame_id'] in list(hash.keys()):
+                hash[frame['frame_id']].append(frame)
+            else:
+                hash[frame['frame_id']] = [frame]
+    a=1
+    cap = cv2.VideoCapture(file_path)
+    if (cap.isOpened() == False):
+        print("Error opening video stream or file")
+    # Read until video is completed
+    f_id = 0
+    hash_ids = list(hash.keys())
+    pbar = tqdm(total=len(hash_ids))
+    while (cap.isOpened()):
+
+        ret, frame = cap.read()
+        if ret == True:
+            pbar.update(1)
+            if f_id in hash_ids:
+                for frame_data in hash[f_id]:
+                    if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+                        os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+                    cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+            f_id += 1
+        # Break the loop
+        else:
+            break
+    # When everything done, release the video capture object
+    cap.release()
+
+    for tree_id, tree in trees_data.items():
+        df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
+        df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
+
 
 
 
@@ -259,7 +297,7 @@ def parse_data_to_trees(data):
     last_state = 0
     trees_data = {}
     for frame_id, loc in data.items():
-        if frame_id == 205:
+        if frame_id == 950:
             a = 1
 
         trees = list(trees_data.keys())
@@ -278,7 +316,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
             elif state == 2:
                 if tree_id == trees[-1]:
-                    trees_data[tree_id] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': ['end']}]
+                    trees_data[tree_id] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']}]
                 else:
                     raise ValueError("Got tree closing before tree opening")
             elif state == 3:
@@ -286,7 +324,7 @@ def parse_data_to_trees(data):
             elif state == 4:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # start new tree
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']}]
             elif state == 5:
                 tree_id += 1
                 trees_data[tree_id] = [
@@ -305,17 +343,17 @@ def parse_data_to_trees(data):
             elif state == 3:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # start new tree
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']}]
 
             elif state == 4:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # start new tree
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
             elif state == 6:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
 
         elif last_state == 2:
             if state == 0:
@@ -333,15 +371,14 @@ def parse_data_to_trees(data):
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # start new tree
                 trees_data[tree_id + 1] = [
-                    {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                    {'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
             elif state == 5:
                 tree_id += 1
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                tree_id += 1
-                trees_data[tree_id] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
 
         # start - end
         elif last_state == 3:
@@ -359,7 +396,7 @@ def parse_data_to_trees(data):
             elif state == 3:  # start - end
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # add to next tree
-                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']})
             elif state == 4:  # end - start
                 raise ValueError("Got wrong state 4 after state 3")
             elif state == 5:
@@ -382,20 +419,21 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    raise ValueError("Got tree closing before tree opening")
+                    tree_id += 1
+                    trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:  # start - end
                 raise ValueError("Got tree closing before tree opening")
             elif state == 4:  # end - start
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
                 trees_data[tree_id + 1].append(
-                    {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                    {'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1})
             elif state == 5:
                 tree_id += 1
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
             elif state == 6:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1})
 
         # whole tree
         elif last_state == 5:
@@ -422,13 +460,13 @@ def parse_data_to_trees(data):
             elif state == 6:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                tree_id += 1
-                trees_data[tree_id] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
 
         elif last_state == 6:
             if state == 0:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': -1})
             elif state == 1:
+                tree_id += 1
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
             elif state == 2:
                 if tree_id == trees[-1]:
@@ -448,7 +486,7 @@ def parse_data_to_trees(data):
             elif state == 6:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1})
         last_state = state
 
     return trees_data
@@ -477,10 +515,11 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = '/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/Result_FSI_1.mkv' #frame 105, middle
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/slicer_testing"
+    fp = '/home/yotam/FruitSpec/Sandbox/slicer_test/Result_FSI_1.mkv' #frame 105, middle
+    output_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/R1"
     #manual_slicer(fp, output_path, rotate=True)
 
-    data_file = "/home/fruitspec-lab/FruitSpec/Sandbox/slicer_testing/Result_FSI_1_slice_data.json"
-    slice_to_trees(data_file)
+    data_file = "/home/yotam/FruitSpec/Sandbox/slicer_test/Result_FSI_1_slice_data.json"
+    slice_to_trees(data_file, fp, output_path)
+
 
