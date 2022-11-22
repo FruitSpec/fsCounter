@@ -1,9 +1,11 @@
 # config.yaml
-exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
+#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py
+exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py
 
-ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_2_13_nov_2022/best_ckpt.pth
+#ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_2_13_nov_2022/best_ckpt.pth
 #ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth
+ckpt_file: /home/yotam/FruitSpec/weights/pepper/Run_3_22_oct_2022/best_ckpt.pth
 
 device: cuda
 

@@ -168,15 +168,16 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
+    try:
+        matches = flann.knnMatch(des1, des2, k=2)
+    except:
+        Warning('flann.knnMatch collapes, return empty matches')
+        matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []
     for m, n in matches:
         if m.distance < threshold * n.distance:
             match.append(m)
-
-    # if match.__len__() < min_matches:
-    #     print(f'number of matching descriptors is too low')
 
     return match
 

@@ -94,7 +94,7 @@ def init_cam(filepath, depth_minimum=0.5, depth_maximum=10):
     init_params.depth_stabilization = True
     runtime = sl.RuntimeParameters()
     runtime.confidence_threshold = 100
-    #runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+    # runtime.sensing_mode = sl.SENSING_MODE.STANDARD
     runtime.sensing_mode = sl.SENSING_MODE.FILL
     cam = sl.Camera()
     status = cam.open(init_params)

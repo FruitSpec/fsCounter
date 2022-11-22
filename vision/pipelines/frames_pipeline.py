@@ -53,7 +53,7 @@ def run(cfg, args):
         scale_ = scale(detector.input_size, frame.shape)
         det_outputs = scale_dets(det_outputs, scale_)
         # track:
-        trk_outputs = detector.track(det_outputs, id_, frame)
+        trk_outputs, _ = detector.track(det_outputs, id_, frame)
 
         # collect results:
         results_collector.collect_detections(det_outputs, id_)

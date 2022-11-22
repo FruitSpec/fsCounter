@@ -129,14 +129,14 @@ if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
 
-    args.exp_file = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py"
-    args.batch_size = 16
-    args.experiment_name = 'Run_1_8_oct_2022'
+    args.exp_file = "/home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py"
+    args.batch_size = 8
+    args.experiment_name = 'Run_3_22_oct_2022'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
-    args.ckpt = '/home/fruitspec-lab/FruitSpec/weights/pre_trained/yolox_tiny.pth'
+    args.ckpt = '/home/yotam/FruitSpec/weights/Run_2_7_oct/best_ckpt.pth'
     args.logger = 'wandb'
-    args.opts = ['wandb-project', 'Counter_detector', 'wandb-name', args.experiment_name]
+    args.opts = ['wandb-project', 'pepper_jai', 'wandb-name', args.experiment_name]
 
 
 
