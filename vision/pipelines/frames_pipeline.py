@@ -58,8 +58,8 @@ def run(cfg, args):
         results_collector.collect_detections(det_outputs, id_)
         results_collector.collect_tracks(trk_outputs)
 
-
-    results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
+    if args.draw_on_img:
+        results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
     results_collector.dump_to_csv(os.path.join(args.output_folder, "det.csv"))
     results_collector.dump_to_csv(os.path.join(args.output_folder, "tracker.csv"), False)
 
@@ -74,6 +74,7 @@ if __name__ == "__main__":
 
     args = make_parser()
     args.eval_batch = 1
+    args.draw_on_img = False
     #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
     folder_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/trees"
     folder_list = [folder for folder in os.listdir(folder_path) if "." not in folder]

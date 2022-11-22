@@ -207,9 +207,9 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True):
     for movie_path in os.listdir(folder_path):
         if "mkv" in movie_path:
             flip_chan = movie_path.split('.')[0].split('_')[1].lower() in flip_channels
-            slice_to_frames(os.path.join(movies_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan)
+            slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan)
         if "svo" in movie_path:
-            svo_to_frames(os.path.join(movies_path, movie_path), output_path, max_frame=None, rotate=rotate)
+            svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None, rotate=rotate)
 
 
 if __name__ == "__main__":
