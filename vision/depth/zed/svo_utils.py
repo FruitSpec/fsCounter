@@ -9,22 +9,49 @@ import string
 from vision.depth.zed.clip_depth_viewer import init_cam
 
 def slice_image(filepath, output_path_name, per_svo_sample):
-    counter = 0
-    cam, runtime = init_cam(filepath)
-
+    per_svo_sample = int(per_svo_sample)
+    input_type = sl.InputType()
+    input_type.set_from_svo_file(filepath)
+    init = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
+    cam = sl.Camera()
+    status = cam.open(init)
+    if status != sl.ERROR_CODE.SUCCESS:
+        print(repr(status))
+        print(f'file: {filepath}')
+        return
+    number_of_frames = cam.get_svo_number_of_frames()
+    random_ids = get_random_frame_ids(number_of_frames, per_svo_sample)
+    runtime = sl.RuntimeParameters()
     mat = sl.Mat()
-    key = ''
-    while counter < per_svo_sample:  # for 'q' key
+
+    f_id = 0
+    pbar = tqdm(total=per_svo_sample)
+    while True:  # for 'q' key
         err = cam.grab(runtime)
-        if err == sl.ERROR_CODE.SUCCESS and np.random.randint(0,30) == 0:
-            cam.retrieve_image(mat,  sl.VIEW.LEFT)
-            generated_name = filepath.split("/")[-1].replace(".svo", "_") + ''.join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=12)) + '.jpg'
-            generated_path = os.path.join(output_path_name, generated_name)
-            image = mat.get_data()
-            cv2.imwrite(generated_path, image[:,:,:3])
-            counter+=1
+        if err == sl.ERROR_CODE.SUCCESS:
+            if f_id in random_ids:
+                pbar.update(1)
+                cam.retrieve_image(mat)
+                generated_name = filepath.split("/")[-1].replace(".svo", "_") + ''.join(random.choices(string.ascii_uppercase + string.ascii_lowercase + string.digits, k=12)) + '.jpg'
+                generated_path = os.path.join(output_path_name, generated_name)
+                image = mat.get_data()
+                cv2.imwrite(generated_path, image[:,:,:3])
+            f_id += 1
+        else:
+            break
     cam.close()
 
+def get_random_frame_ids(number_of_frames, per_svo_sample):
+    random_ids = []
+    for i in range(per_svo_sample):
+        not_found = True
+        while not_found:
+            id_ = np.random.randint(0, number_of_frames)
+            if id_ not in random_ids:
+                random_ids.append(id_)
+                not_found = False
+
+    return random_ids
 
 def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
 
