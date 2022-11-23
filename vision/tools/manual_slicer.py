@@ -238,7 +238,9 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path): #, , jai_video_path, zed_video_path):
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536):
+    size = int(h // resize_factor)
+    r = min(size / h, size / w)
 
     with open(data_file, 'r') as f:
         loaded_data = json.load(f)
@@ -255,7 +257,7 @@ def slice_to_trees(data_file, file_path, output_path): #, , jai_video_path, zed_
                 hash[frame['frame_id']].append(frame)
             else:
                 hash[frame['frame_id']] = [frame]
-    a=1
+
     cap = cv2.VideoCapture(file_path)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
@@ -268,11 +270,11 @@ def slice_to_trees(data_file, file_path, output_path): #, , jai_video_path, zed_
         ret, frame = cap.read()
         if ret == True:
             pbar.update(1)
-            if f_id in hash_ids:
-                for frame_data in hash[f_id]:
-                    if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
-                        os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
-                    cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+            #if f_id in hash_ids:
+                #for frame_data in hash[f_id]:
+                #    if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+                #        os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+               #     cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
             f_id += 1
         # Break the loop
         else:
@@ -282,6 +284,8 @@ def slice_to_trees(data_file, file_path, output_path): #, , jai_video_path, zed_
 
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
+        df.loc[df['start'] != -1, 'start'] = df.loc[df['start'] != -1, 'start'] // r
+        df.loc[df['end'] != -1, 'end'] = df.loc[df['end'] != -1, 'end'] // r
         df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
 
 
