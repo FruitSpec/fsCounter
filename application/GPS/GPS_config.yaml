@@ -1,0 +1,3 @@
+kml path: "./Blocks.kml"
+global polygon: "global"
+led blink sleep time: 1.5
