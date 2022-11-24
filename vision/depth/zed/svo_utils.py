@@ -54,7 +54,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
             cam.retrieve_measure(depth, sl.MEASURE.DEPTH)
             cam.retrieve_measure(xyz, sl.MEASURE.XYZRGBA)
             depth_img = depth.get_data()
-            xyz_img = xyz.get_data()[:, :, :3]
+            xyz_img = xyz.get_data()[:, :, :3].astype(np.float16)
             depth_img = (cam_run_p.depth_maximum_distance - np.clip(depth_img, 0,
                                                                     cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
             bool_mask = np.where(np.isnan(depth_img), True, False)

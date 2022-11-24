@@ -75,8 +75,8 @@ def track_row(folder_path):
 def preprocess_videos_to_trees(folder_path):
     # print("breaking videos to frames")
     # folder_to_frames(folder_path)
-    print("aggtregating tree fframes to folders")
-    slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
+    print("aggtregating tree frames to folders")
+    slices = pd.read_json(os.path.join(folder_path, "all_slices.json"))
     frames_path = os.path.join(folder_path, "frames")
     agg_to_trees(frames_path, slices)
     print("detecting and tracking for each tree")
@@ -85,6 +85,13 @@ def preprocess_videos_to_trees(folder_path):
     align_folder(folder_path)
 
 
+def preprocess_rows_to_trees(plot_path):
+    for row in os.listdir(plot_path):
+        row_path = os.path.join(plot_path, row_path)
+        if os.path.isdir(row_path):
+            preprocess_videos_to_trees(row_path)
+
+
 if __name__ == "__main__":
-    movies_path = "/media/fruitspec-lab/262/R1"
+    movies_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1"
     preprocess_videos_to_trees(movies_path)
