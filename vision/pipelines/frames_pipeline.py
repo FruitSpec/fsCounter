@@ -40,7 +40,7 @@ def run(cfg, args):
     # sort by ids
     files_dict = collections.OrderedDict(sorted(files_dict.items()))
 
-    for id_, img_name in tqdm(files_dict.items()):
+    for id_, img_name in files_dict.items():
 
         results_collector.collect_file_name(img_name)
         results_collector.collect_id(id_)

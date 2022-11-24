@@ -13,12 +13,75 @@ from vision.tools.sensors_alignment import align_folder
 from vision.misc.help_func import get_repo_dir, scale_dets
 from omegaconf import OmegaConf
 from vision.pipelines.run_args import make_parser
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 # flow:
 # break video to frames
 # order frames in tree folders
 # track folder
 # align folder
+
+
+def update_index(k, index):
+    """
+    :param k: current key value
+    :param index: current index
+    :return: next index
+    """
+    cont = False
+    if k == 83 or k ==100:
+        index = max(index - 1, 0)
+        cont = True
+    if k == 81 or k ==97:
+        index = max(index + 1, 0)
+        cont = True
+    if k == 82 or k == 119:
+        index = max(index + 100, 0)
+        cont = True
+    if k == 84 or k == 115:
+        index = max(index - 100, 0)
+        cont = True
+    if k == 32:
+        global x_0, y_0, x_1, y_1
+        x_0, y_0, x_1, y_1 = None, None, None, None
+    return index, cont
+
+
+def make_one_image(depth_img, img, size):
+    """
+    combines depth image and rgb image
+    :param depth_img: depth_img
+    :param img: rgb image
+    :param size: size rgb/depth image
+    :return: a combined image of rgb and depth side by side
+    """
+    img_display = np.zeros((int(size[1]), size[0] * 2, 3), dtype='uint8')
+    im_depth_display = cv2.resize(depth_img, size)
+    im_left_display = cv2.resize(img, size)
+    img_display[:, :size[0]] = im_left_display
+    img_display[:, size[0]:] = im_depth_display
+    return img_display
+
+
+def dual_frame_viewer(master_frames_folder="/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/frames"):
+    all_frames = os.listdir(master_frames_folder)
+    fsi_imgs = [img for img in all_frames if "FSI" in img]
+    zed_imgs = [img for img in all_frames if img.startswith("frame")]
+    fsi_imgs.sort(key=lambda x: int(x.split(".")[0].split("_")[-1]))
+    zed_imgs.sort(key=lambda x: int(x.split(".")[0].split("_")[-1]))
+    max_frame = max(len(fsi_imgs), len(zed_imgs))
+    index = 0
+    cv2.namedWindow('img')
+    while index < max_frame:
+        fsi = cv2.imread(os.path.join(master_frames_folder, fsi_imgs[index]))
+        zed = cv2.imread(os.path.join(master_frames_folder, zed_imgs[index]))
+        zed = cv2.resize(zed, (400, 600))
+        fsi = cv2.resize(fsi, (400, 600))
+        one_img = make_one_image(zed, fsi, (800, 600))
+        cv2.imshow('img', one_img)
+        k = cv2.waitKey()
+        index, cont = update_index(k, index)
+
 
 
 def all_slices_aggregation(main_folder):
@@ -35,18 +98,37 @@ def all_slices_aggregation(main_folder):
     df.to_csv(os.path.join(main_folder, "all_slices.csv"))
 
 
-def agg_to_trees(frames_path, slices):
+def copy_frames(frame, tree_folder, frames_path, zed_shift=0):
+    frame_imgs = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg",
+                  f"frame_{int(frame) + zed_shift}.jpg", f"xyz_frame_{int(frame) + zed_shift}.npy"]
+    if not np.all([os.path.exists(os.path.join(frames_path, img)) for img in frame_imgs]):
+        pass
+    [shutil.copyfile(os.path.join(frames_path, img), os.path.join(tree_folder, img)) for img in frame_imgs
+     if os.path.exists(os.path.join(frames_path, img))]
+
+
+def agg_to_trees(frames_path, slices, zed_shift=0,
+                 m_threds=16, m_procs=0):
+    trees_path = os.path.join(os.path.dirname(frames_path), "trees")
+    if not os.path.exists(trees_path):
+        os.mkdir(trees_path)
     tree_ids = slices["tree_id"].unique()
     for id in tqdm(tree_ids):
-        tree_folder = os.path.join(frames_path, f"T{id}")
+        tree_folder = os.path.join(trees_path, f"T{id}")
         if not os.path.exists(tree_folder):
             os.mkdir(tree_folder)
         subslice = slices[slices["tree_id"] == id]
         frame_ids = subslice["frame_id"]
-        for frame in frame_ids:
-            frame_imgs = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg", f"channel_800_frame_{frame}.jpg",
-            f"channel_975_frame_{frame}.jpg", f"frame_{frame}.jpg", f"depth_frame_{frame}.jpg", f"xyz_frame_{frame}.npy"]
-            [shutil.copyfile(os.path.join(frames_path, img), os.path.join(tree_folder, img)) for img in frame_imgs]
+        n_frames = len(frame_ids)
+        if m_threds > 1:
+            with ThreadPoolExecutor(max_workers=m_threds) as executor:
+                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames, [frames_path]*n_frames, [zed_shift]*n_frames))
+        elif m_procs > 1:
+            with ProcessPoolExecutor(max_workers=m_procs) as executor:
+                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames, [frames_path]*n_frames, [zed_shift]*n_frames))
+        else:
+            for frame in frame_ids:
+                copy_frames(frame, tree_folder, frames_path, zed_shift)
         subslice.to_csv(os.path.join(tree_folder, "slices.csv"))
 
 
@@ -72,26 +154,33 @@ def track_row(folder_path):
         dets, tracks = frames_pipeline_run(cfg, args)
 
 
-def preprocess_videos_to_trees(folder_path):
-    # print("breaking videos to frames")
-    # folder_to_frames(folder_path)
+def preprocess_videos_to_trees(folder_path, zed_shift=0):
+    print("breaking videos to frames")
+    folder_to_frames(folder_path)
     print("aggtregating tree frames to folders")
-    slices = pd.read_json(os.path.join(folder_path, "all_slices.json"))
+    slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
     frames_path = os.path.join(folder_path, "frames")
-    agg_to_trees(frames_path, slices)
+    agg_to_trees(frames_path, slices, zed_shift)
     print("detecting and tracking for each tree")
-    track_row(folder_path)
+    trees_path = os.path.join(folder_path, "trees")
+    track_row(trees_path)
     print("aligning folders")
-    align_folder(folder_path)
+    pathed_trees = [os.path.join(trees_path, tree) for tree in os.listdir(trees_path)]
+    n_trees = len(pathed_trees)
+    with ProcessPoolExecutor(max_workers=16) as executor:
+        results = list(executor.map(align_folder, pathed_trees, [""] * n_trees, [False] * n_trees, [False] * n_trees,
+                                    [zed_shift] * n_trees))
 
 
-def preprocess_rows_to_trees(plot_path):
+def preprocess_rows_to_trees(plot_path, zed_shift=0):
     for row in os.listdir(plot_path):
-        row_path = os.path.join(plot_path, row_path)
+        row_path = os.path.join(plot_path, row)
         if os.path.isdir(row_path):
-            preprocess_videos_to_trees(row_path)
+            preprocess_videos_to_trees(row_path, zed_shift)
 
 
 if __name__ == "__main__":
+    # TODO break trees to sides!
+    dual_frame_viewer()
     movies_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1"
     preprocess_videos_to_trees(movies_path)

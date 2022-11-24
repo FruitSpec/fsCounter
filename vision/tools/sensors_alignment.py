@@ -75,7 +75,7 @@ def first_translation(cropped_zed, grey_jai, zed_rgb, jai_rgb, y_s, y_e):
     tx, ty, sx, sy = affine_to_values(M)
     M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
     #plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e)
-    plot_homography(resize_img(zed_rgb[y_s: y_e], 960)[0], M_homography)
+    # plot_homography(resize_img(zed_rgb[y_s: y_e], 960)[0], M_homography)
     return tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai
 
 
@@ -191,15 +191,17 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     return x1, y1, x2, y2
 
 
-def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True):
+def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True, zed_shift=3):
     if result_folder == "":
         result_folder = folder_path
     frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
     df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
                            "tx": [], "ty": [], "sx": [], "sy": [], "frame": []})
     for frame in frames:
-        zed_path = os.path.join(folder_path, f"frame_{int(frame)+3}.jpg")
+        zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
+        if not (os.path.exists(zed_path) and os.path.exists(rgb_path)):
+            break
         rgb_jai = cv2.imread(rgb_path)
         rgb_jai = cv2.cvtColor(rgb_jai, cv2.COLOR_BGR2RGB)
         zed = cv2.imread(zed_path)
@@ -220,6 +222,7 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True):
             except:
                 print("resize problem")
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
+    print(f"aligned: {folder_path}")
 
 
 if __name__ == "__main__":

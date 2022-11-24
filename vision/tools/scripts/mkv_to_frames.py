@@ -195,18 +195,22 @@ def vid_to_folders(movies_path, output_path):
         os.rename(os.path.join(movies_path, movie), os.path.join(row_path, movie))
 
 
-def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True):
+def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude = ["800","975"]):
     """
     breaks all of the videos of the row to frames
     :param folder_path: path to a plots row
     :param flip_channels: which pictures needs flipping
     :param rotate: do the pictures need rotation?
+    :param exclude: do not break this video to frames
     :return:
     """
     output_path = os.path.join(folder_path, "frames")
-    for movie_path in os.listdir(folder_path):
+    for movie_path in os.listdir(folder_path)[::-1]:
         if "mkv" in movie_path:
-            flip_chan = movie_path.split('.')[0].split('_')[1].lower() in flip_channels
+            channel_name = movie_path.split('.')[0].split('_')[1]
+            flip_chan = channel_name.lower() in flip_channels
+            if channel_name in exclude:
+                continue
             slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan)
         if "svo" in movie_path:
             svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None, rotate=rotate)

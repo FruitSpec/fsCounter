@@ -56,7 +56,7 @@ class FsTracker():
     def get_search_ranges(self, detections, frame, r, percentile=10):
         kp, des = find_keypoints(frame)
         if self.last_kp is not None:
-            tx, ty = find_translation(self.last_kp, self.last_des, kp, des, r)
+            tx, ty, M = find_translation(self.last_kp, self.last_des, kp, des, r)
             if tx is None:
                 tx, ty = self.x_distance, self.y_distance
         else:

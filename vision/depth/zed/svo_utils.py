@@ -42,6 +42,8 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
     while True:  # for 'q' key
         err = cam.grab(runtime)
         pbar.update(1)
+        if err != sl.ERROR_CODE.SUCCESS:
+            print("DF")
         if err == sl.ERROR_CODE.SUCCESS and counter < max_frame:
             cam_run_p = cam.get_init_parameters()
             cam.retrieve_image(mat, sl.VIEW.LEFT)
@@ -54,7 +56,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
             cam.retrieve_measure(depth, sl.MEASURE.DEPTH)
             cam.retrieve_measure(xyz, sl.MEASURE.XYZRGBA)
             depth_img = depth.get_data()
-            xyz_img = xyz.get_data()[:, :, :3].astype(np.float16)
+            xyz_img = xyz.get_data()[:, :, :3]
             depth_img = (cam_run_p.depth_maximum_distance - np.clip(depth_img, 0,
                                                                     cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
             bool_mask = np.where(np.isnan(depth_img), True, False)
@@ -71,7 +73,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
             generated_path = os.path.join(output_path_name, f"depth_frame_{counter}.jpg")
             generated_xyz_path = os.path.join(output_path_name, f"xyz_frame_{counter}.npy")
             cv2.imwrite(generated_path, depth_img)
-            np.save(os.path.join(output_path_name, generated_xyz_path), xyz_img)
+            np.save(os.path.join(output_path_name, generated_xyz_path), xyz_img.astype(np.float16))
 
             counter += 1
         else:
