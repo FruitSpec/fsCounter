@@ -205,6 +205,8 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude = 
     :return:
     """
     output_path = os.path.join(folder_path, "frames")
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
     for movie_path in os.listdir(folder_path)[::-1]:
         if "mkv" in movie_path:
             channel_name = movie_path.split('.')[0].split('_')[1]

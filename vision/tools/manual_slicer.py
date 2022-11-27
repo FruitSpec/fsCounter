@@ -253,6 +253,9 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     data = collections.OrderedDict(sorted(data.items()))
 
     trees_data = parse_data_to_trees(data)
+    os.path.basename(file_path)
+    pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist]).to_csv(os.path.join(output_path, "all_slices.csv"))
+    return
     hash = {}
     for tree_id, frames in trees_data.items():
         for frame in frames:
@@ -300,9 +303,6 @@ def parse_data_to_trees(data):
     last_state = 0
     trees_data = {}
     for frame_id, loc in data.items():
-        if frame_id == 830:
-            a = 1
-
         trees = list(trees_data.keys())
         state = get_state(loc)
 
@@ -532,13 +532,13 @@ def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
 
 
 if __name__ == "__main__":
+    # manual_slicer(f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_4/Result_FSI_4.mkv",
+    #               f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122", rotate=True)
     for i in range(1, 10):
-        output_path = f'/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/tmp{i}'
+        output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/tmp{i}'
         if not os.path.exists(output_path):
             os.mkdir(output_path)
-        fp = f"/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_{i}/Result_FSI_{i}.mkv"
-        data_file = f"/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/Result_FSI_{i}_slice_data.json"
-        try:
-            slice_to_trees(data_file, fp, output_path)
-        except:
-            print(f"problem with file {i}")
+        fp = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}/Result_FSI_{i}.mkv"
+        data_file = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/Result_FSI_{i}_slice_data.json"
+        slice_to_trees(data_file, fp, output_path)
+        print("finished ", i)
