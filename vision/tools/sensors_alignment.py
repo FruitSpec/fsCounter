@@ -146,46 +146,44 @@ def affine_to_values(M):
 def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     jai_in_zed_height = np.round(grey_jai.shape[0] * sy).astype(np.int)
     jai_in_zed_width = np.round(grey_jai.shape[1] * sx).astype(np.int)
+    # jai_in_zed_height = np.round(grey_zed.shape[0] * sy).astype(np.int)
+    # jai_in_zed_width = np.round(grey_zed.shape[1] * sx).astype(np.int)
 
     z_h = grey_zed.shape[0]
     z_w = grey_zed.shape[1]
     if tx > 0:
+        x1 = tx
+        x2 = tx + jai_in_zed_width
         if ty > 0:
-            x1 = tx
             y1 = ty
-            x2 = tx + jai_in_zed_width
             y2 = ty + jai_in_zed_height
-            x1 = tx
-            x2 = x1 + jai_in_zed_width
-            y1 = z_h + ty - jai_in_zed_height# r
-            y2 = z_h + ty # r
+            # x1 = tx
+            # x2 = x1 + jai_in_zed_width
+            # y1 = z_h + ty - jai_in_zed_height# r
+            # y2 = z_h + ty # r
         else:
             # x1 = z_w - tx - jai_in_zed_width
             # y1 = z_h - ty - jai_in_zed_height
             # x2 = tx + jai_in_zed_width
             # y2 = z_h - ty
-            x1 = tx # r
-            x2 = tx + jai_in_zed_width # r
             y1 = z_h + ty - jai_in_zed_height# r
             y2 = z_h + ty # r
 
     else:
+        x2 = z_w + tx  # r
+        x1 = x2 - jai_in_zed_width  # r
         if ty > 0:
             # x1 = z_w - tx - jai_in_zed_width
             # y1 = z_h - ty - jai_in_zed_height
             # x2 = tx + jai_in_zed_width
             # y2 = ty + jai_in_zed_height
-            x2 = z_w + tx  # r
-            x1 = x2 - jai_in_zed_width # r
-            y1 = z_h + ty - jai_in_zed_height# r
-            y2 = z_h + ty# r
+            y1 = ty
+            y2 = ty + jai_in_zed_height
         else:
             x1 = z_w - tx - jai_in_zed_width
             y1 = z_h - ty - jai_in_zed_height
             x2 = z_w - tx
             y2 = z_h - ty
-            x2 = z_w + tx  # r
-            x1 = x2 - jai_in_zed_width # r
             y1 = z_h + ty - jai_in_zed_height# r
             y2 = z_h + ty# r
     return x1, y1, x2, y2

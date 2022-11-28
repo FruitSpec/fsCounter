@@ -6,6 +6,14 @@ from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
 
+def plot_2_imgs(img1,img2,title=""):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+    plt.title(title)
+    plt.show()
+
+
 def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
