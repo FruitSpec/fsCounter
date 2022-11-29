@@ -58,6 +58,15 @@ def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1080, 0, 1920
     return objpoints, imgpoints, gray, img
 
 
+def chess_board_2_cameras_translation(folder_path_zed, folder_path_jai, n_rows=7, n_cols=10,
+                            cut_img_zed=(0, 1080, 0, 1920), cut_img_jai=(0, 1536, 0, 2048)):
+    objpoints_jai, imgpoints_jai, _, _ = draw_chess_board(folder_path_jai, n_rows, n_cols, cut_img_jai)
+    objpoints_zed, imgpoints_zed, _, _ = draw_chess_board(folder_path_zed, n_rows, n_cols, cut_img_zed)
+    M = cv2.estimateAffine2D(np.array(imgpoints_zed).reshape(-1, 1, 2)[:, 0, :],
+                             np.array(imgpoints_jai).reshape(-1, 1, 2)[:, 0, :])[0]
+    return M
+
+
 def get_calibration_params(objpoints, imgpoints, gray):
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
     return ret, mtx, dist, rvecs, tvecs
@@ -77,7 +86,10 @@ if __name__ == "__main__":
     #     file_path = path.join("/home/fruitspec-lab/Documents/ZED", image)
     #     if "png" in image:
     #         draw_chess_board(file_path)
-
+    folder_path_zed = "/home/fruitspec-lab/Documents/ZED/zed"
+    folder_path_jai = "/home/fruitspec-lab/Documents/ZED/jai"
+    M = chess_board_2_cameras_translation(folder_path_zed, folder_path_jai, n_rows=7, n_cols=10,
+                            cut_img_zed=(0, 1080, 0, 1920), cut_img_jai=(0, 1080, 0, 1920))
     folder_path = "/home/fruitspec-lab/Documents/ZED/calibaration"
     objpoints, imgpoints, gray, img = draw_chess_board(folder_path)
     ret, mtx, dist, rvecs, tvecs = get_calibration_params(objpoints, imgpoints, gray)
