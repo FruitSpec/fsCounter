@@ -12,12 +12,14 @@ def show_img(img, cmap=""):
         plt.imshow(img, cmap=cmap)
     plt.show()
 
-def plot_2_imgs(img1,img2,title=""):
+
+def plot_2_imgs(img1, img2, title=""):
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     ax1.imshow(img1)
     ax2.imshow(img2)
     plt.title(title)
     plt.show()
+
 
 def init_objp(n_rows=7, n_cols=10):
     objp = np.zeros((n_rows * n_cols, 3), np.float32)

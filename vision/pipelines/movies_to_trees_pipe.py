@@ -74,10 +74,11 @@ def dual_frame_viewer(master_frames_folder="/media/fruitspec-lab/Extreme Pro/JAI
     cv2.namedWindow('img')
     while index < max_frame:
         fsi = cv2.imread(os.path.join(master_frames_folder, fsi_imgs[index]))
-        if index >= 1677:
-            zed_ind = index - 18
-        else:
-            zed_ind = index
+        # if index >= 1677:
+        #     zed_ind = index - 18
+        # else:
+        #     zed_ind = index
+        zed_ind = index
         zed = cv2.imread(os.path.join(master_frames_folder, zed_imgs[zed_ind]))
         zed = cv2.resize(zed, (400, 600))
         fsi = cv2.resize(fsi, (400, 600))
@@ -185,6 +186,8 @@ def preprocess_rows_to_trees(plot_path, zed_shift=0):
 if __name__ == "__main__":
     # TODO break trees to sides
     # dual_frame_viewer()
+    movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
+    preprocess_videos_to_trees(movies_path)
     for i in range(1, 10):
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}"
         print(movies_path)

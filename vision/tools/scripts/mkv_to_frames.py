@@ -1,6 +1,7 @@
 import os
 import cv2
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from skimage import exposure
 from vision.tools.camera import jai_to_channels
@@ -59,7 +60,7 @@ def run(movie_path, output_path,  range=None, rotate=True):
     cap.release()
 
 
-def slice_to_frames(movie_path, output_path, rotate=True, flip_channels=False):
+def slice_to_frames(movie_path, output_path, rotate=True, flip_channels=False, frame_log=None):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
@@ -73,17 +74,24 @@ def slice_to_frames(movie_path, output_path, rotate=True, flip_channels=False):
         print("Error opening video stream or file")
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Read until video is completed
+    if isinstance(frame_log, type(None)):
+        frame_log = {i: True for i in range(tot_frames)}
     f_id = 0
+    dropped = 0
     ids = []
     pbar = tqdm(total=tot_frames)
     while (cap.isOpened()):
 
         # Capture frame-by-frame
         ret, frame = cap.read()
-        if ret == True:
+        if ret:
+            if not frame_log[f_id]:
+                dropped += 1
+                f_id += 1
+                continue
             pbar.update(1)
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -195,7 +203,7 @@ def vid_to_folders(movies_path, output_path):
         os.rename(os.path.join(movies_path, movie), os.path.join(row_path, movie))
 
 
-def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude = ["800","975"]):
+def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude=["800", "975"]):
     """
     breaks all of the videos of the row to frames
     :param folder_path: path to a plots row
@@ -204,6 +212,11 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude = 
     :param exclude: do not break this video to frames
     :return:
     """
+    frame_log_path = os.path.join(folder_path, "frame_log.csv")
+    if os.path.exists(frame_log_path):
+        frame_log = pd.read_csv(frame_log_path)
+    jai_frame_log = dict(zip(frame_log["frame"],frame_log["jai"]))
+    zed_frame_log = dict(zip(frame_log["frame"], frame_log["zed"]))
     output_path = os.path.join(folder_path, "frames")
     if not os.path.exists(output_path):
         os.mkdir(output_path)
@@ -213,9 +226,9 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude = 
             flip_chan = channel_name.lower() in flip_channels
             if channel_name in exclude:
                 continue
-            slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan)
+            slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan, frame_log=jai_frame_log)
         if "svo" in movie_path:
-            svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None, rotate=rotate)
+            svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None, rotate=rotate, frame_log=zed_frame_log)
 
 
 if __name__ == "__main__":

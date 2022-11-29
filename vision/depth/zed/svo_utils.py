@@ -27,7 +27,7 @@ def slice_image(filepath, output_path_name, per_svo_sample):
     cam.close()
 
 
-def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
+def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False, frame_log=None):
 
     counter = 0
     cam, runtime = init_cam(filepath)
@@ -39,7 +39,13 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
     xyz = sl.Mat()
     key = ''
     pbar = tqdm(total=max_frame)
+    if isinstance(frame_log, type(None)):
+        frame_log = {i: True for i in range(max_frame)}
+
     while True:  # for 'q' key
+        if not frame_log[counter]:
+            counter += 1
+            continue
         err = cam.grab(runtime)
         pbar.update(1)
         if err != sl.ERROR_CODE.SUCCESS:
@@ -58,7 +64,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
             depth_img = depth.get_data()
             xyz_img = xyz.get_data()[:, :, :3]
             depth_img = (cam_run_p.depth_maximum_distance - np.clip(depth_img, 0,
-                                                                    cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
+                         cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
             bool_mask = np.where(np.isnan(depth_img), True, False)
             depth_img[bool_mask] = 0
             # if remove_high_blues:
