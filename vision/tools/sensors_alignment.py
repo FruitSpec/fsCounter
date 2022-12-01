@@ -73,7 +73,7 @@ def first_translation(cropped_zed, grey_jai, zed_rgb, jai_rgb, y_s, y_e):
     kp_jai, des_jai = find_keypoints(im_jai)
     M, st = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai)
     tx, ty, sx, sy = affine_to_values(M)
-    M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
+    # M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
     #plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e)
     # plot_homography(resize_img(zed_rgb[y_s: y_e], 960)[0], M_homography)
     return tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai

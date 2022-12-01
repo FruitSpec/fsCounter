@@ -40,7 +40,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False, fram
     key = ''
     pbar = tqdm(total=max_frame)
     if isinstance(frame_log, type(None)):
-        frame_log = {i: True for i in range(max_frame)}
+        frame_log = {i: True for i in range(max_frame+1)}
 
     while True:  # for 'q' key
         if not frame_log[counter]:
@@ -48,8 +48,6 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False, fram
             continue
         err = cam.grab(runtime)
         pbar.update(1)
-        if err != sl.ERROR_CODE.SUCCESS:
-            print("DF")
         if err == sl.ERROR_CODE.SUCCESS and counter < max_frame:
             cam_run_p = cam.get_init_parameters()
             cam.retrieve_image(mat, sl.VIEW.LEFT)

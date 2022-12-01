@@ -99,7 +99,7 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=4):
     """
     this is where the magic happens, palys the video
     """
@@ -241,7 +241,7 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536):
+def slice_to_trees(data_file, file_path, output_path, resize_factor=4, h=2048, w=1536):
     size = int(h // resize_factor)
     r = min(size / h, size / w)
 
@@ -253,8 +253,10 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     data = collections.OrderedDict(sorted(data.items()))
 
     trees_data = parse_data_to_trees(data)
-    os.path.basename(file_path)
-    pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist]).to_csv(os.path.join(output_path, "all_slices.csv"))
+    df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
+    df_out[["start", "end"]] = df_out[["start", "end"]]*resize_factor
+    df_out[["start", "end"]] = df_out[["start", "end"]].replace(resize_factor*(-1),-1)
+    df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return
     hash = {}
     for tree_id, frames in trees_data.items():
@@ -321,8 +323,10 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
+                    print(f"{frame_id}: {tree_id}")
                     raise ValueError("Got tree closing before tree opening")
             elif state == 3:
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got tree closing before tree opening")
             elif state == 4:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -333,6 +337,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got tree closing before tree opening")
 
 
@@ -368,6 +373,7 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got wrong state 3 after state 2")
             elif state == 4:
                 trees_data[tree_id].append(
@@ -395,12 +401,14 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
+                    print(f"{frame_id}: {tree_id}")
                     raise ValueError("Got tree closing before tree opening")
             elif state == 3:  # start - end
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # add to next tree
                 trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']})
             elif state == 4:  # end - start
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got wrong state 4 after state 3")
             elif state == 5:
                 tree_id += 1
@@ -425,6 +433,7 @@ def parse_data_to_trees(data):
                     tree_id += 1
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:  # start - end
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got tree closing before tree opening")
             elif state == 4:  # end - start
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -450,8 +459,10 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
+                    print(f"{frame_id}: {tree_id}")
                     raise ValueError("Got tree closing before tree opening")
             elif state == 3:  # start - end
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got tree closing before tree opening")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
@@ -476,8 +487,10 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
+                    print(f"{frame_id}: {tree_id}")
                     raise ValueError("Got tree closing before tree opening")
             elif state == 3:  # start - end
+                print(f"{frame_id}: {tree_id}")
                 raise ValueError("Got tree closing before tree opening")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
@@ -516,7 +529,7 @@ def get_state(loc):
     return state
 
 
-def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
+def slice_to_csv(data_file, output_path, resize_factor=4, h=2048, w=1536):
     size = int(h // resize_factor)
     r = min(size / h, size / w)
 
@@ -532,13 +545,31 @@ def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
 
 
 if __name__ == "__main__":
-    # manual_slicer(f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_4/Result_FSI_4.mkv",
-    #               f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122", rotate=True)
-    for i in range(1, 10):
-        output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/tmp{i}'
-        if not os.path.exists(output_path):
-            os.mkdir(output_path)
-        fp = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}/Result_FSI_{i}.mkv"
-        data_file = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/Result_FSI_{i}_slice_data.json"
-        slice_to_trees(data_file, fp, output_path)
-        print("finished ", i)
+    filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r2in/Result_FSI_1.mkv"
+    output_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in"
+    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in/Result_FSI_1_slice_data.json"
+    with open(data_file) as json_file:
+        data = json.load(json_file)
+    data = {int(key): item for key,item in data.items()}
+    manual_slicer(filepath, output_path, data, index=121, rotate=True)
+    fp = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1.mkv"
+    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1_slice_data.json"
+    output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/tmp6'
+    folder_p = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6"
+    for sub_folder in os.listdir(folder_p):
+        sub_folder_p = os.path.join(folder_p, sub_folder)
+        data_file = os.path.join(sub_folder_p, "Result_FSI_1_slice_data.json")
+        output_path = sub_folder_p
+        try:
+            slice_to_trees(data_file, "", output_path)
+        except:
+            print("problem with", sub_folder)
+    slice_to_trees(data_file, fp, output_path)
+    # for i in range(1, 10):
+    #     output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/tmp{i}'
+    #     if not os.path.exists(output_path):
+    #         os.mkdir(output_path)
+    #     fp = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}/Result_FSI_{i}.mkv"
+    #     data_file = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/Result_FSI_{i}_slice_data.json"
+    #     slice_to_trees(data_file, fp, output_path)
+    #     print("finished ", i)

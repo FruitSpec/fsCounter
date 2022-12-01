@@ -212,11 +212,12 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude=["
     :param exclude: do not break this video to frames
     :return:
     """
+    jai_frame_log, zed_frame_log = None, None
     frame_log_path = os.path.join(folder_path, "frame_log.csv")
     if os.path.exists(frame_log_path):
         frame_log = pd.read_csv(frame_log_path)
-    jai_frame_log = dict(zip(frame_log["frame"],frame_log["jai"]))
-    zed_frame_log = dict(zip(frame_log["frame"], frame_log["zed"]))
+        jai_frame_log = dict(zip(frame_log["frame"],frame_log["jai"]))
+        zed_frame_log = dict(zip(frame_log["frame"], frame_log["zed"]))
     output_path = os.path.join(folder_path, "frames")
     if not os.path.exists(output_path):
         os.mkdir(output_path)
