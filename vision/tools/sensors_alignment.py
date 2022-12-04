@@ -17,13 +17,19 @@ def multi_convert_gray(list_imgs):
     return [cv2.cvtColor(img, cv2.COLOR_RGB2GRAY) for img in list_imgs]
 
 
-def crop_zed_roi(grey_zed, zed_angles, jai_angles):
+def crop_zed_roi(grey_zed, zed_angles, jai_angles, y_s=None, y_e=None, x_s=0, x_e=None):
     zed_mid_h = grey_zed.shape[0] // 2
     zed_half_height = int(zed_mid_h / (zed_angles[0] / 2) * (jai_angles[0] / 2))
-    y_s = zed_mid_h - zed_half_height-100
-    y_e = zed_mid_h + zed_half_height+100
-    cropped_zed = grey_zed[y_s: y_e]
-    return cropped_zed, y_s, y_e
+    if isinstance(y_s, type(None)):
+        y_s = zed_mid_h - zed_half_height-100
+    if isinstance(y_e, type(None)):
+        y_e = zed_mid_h + zed_half_height+100
+    if isinstance(x_e, type(None)):
+        x_e = grey_zed.shape[1]
+    if isinstance(x_s, type(None)):
+        x_s = 0
+    cropped_zed = grey_zed[y_s: y_e, x_s:x_e]
+    return cropped_zed, y_s, y_e, x_s, x_e
 
 
 def plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e):
@@ -88,12 +94,13 @@ def get_fine_affine_translation(im_zed_stage2, im_jai):
 
 
 def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62],
-                  use_fine=True):
+                  use_fine=False, zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
     grey_zed, grey_jai = multi_convert_gray([zed_rgb, jai_rgb])
-    cropped_zed, y_s, y_e = crop_zed_roi(grey_zed, zed_angles, jai_angles)
-    tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai = first_translation(cropped_zed, grey_jai, zed_rgb, jai_rgb, y_s, y_e)
+    cropped_zed, y_s, y_e, x_s, x_e = crop_zed_roi(grey_zed, zed_angles, jai_angles, **zed_roi_params)
+    tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai = first_translation(cropped_zed, grey_jai, zed_rgb, jai_rgb,
+                                                                               y_s, y_e)
     x1, y1, x2, y2 = get_coordinates_in_zed(im_zed, im_jai, tx, ty, sx, sy)
-    x1, y1, x2, y2 = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed)
+    x1, y1, x2, y2 = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed)
     h_z = zed_rgb.shape[0]
     w_z = zed_rgb.shape[1]
     if use_fine:
@@ -118,13 +125,16 @@ def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62],
     return coordinates, tx, ty, sx, sy
 
 
-def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
+def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed):
 
     arr = np.array([x1, y1, x2, y2])
     arr = arr / r_zed
 
     arr[1] += y_s
     arr[3] += y_s
+
+    arr[0] += x_s
+    arr[2] += x_s
 
     return arr
 
@@ -189,30 +199,33 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     return x1, y1, x2, y2
 
 
-def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True, zed_shift=3):
+def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, zed_shift=0,
+                 zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
     if result_folder == "":
         result_folder = folder_path
     frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
     df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
                            "tx": [], "ty": [], "sx": [], "sy": [], "frame": []})
-    for frame in frames:
+    frames.sort(key=lambda x: int(x))
+    for frame in frames[200:]:
         zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
         if not (os.path.exists(zed_path) and os.path.exists(rgb_path)):
-            break
+            continue
         rgb_jai = cv2.imread(rgb_path)
         rgb_jai = cv2.cvtColor(rgb_jai, cv2.COLOR_BGR2RGB)
         zed = cv2.imread(zed_path)
         zed = cv2.cvtColor(zed, cv2.COLOR_BGR2RGB)
-        corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine)
+        corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine, zed_roi_params=zed_roi_params)
         x1, y1, x2, y2 = corr
+        print(f"x1:{x1}, tx: {tx}")
         df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
                                 "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame}, ignore_index=True)
         if plot_res:
             try:
                 img1 = rgb_jai
                 img2 = zed
-                jai_in_zed = img2[int(y1): min(int(y2), zed.shape[0]), max(int(x1),0): min(int(x2), zed.shape[1])]
+                jai_in_zed = img2[int(y1): min(int(y2), zed.shape[0]), max(int(x1), 0): min(int(x2), zed.shape[1])]
                 fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
                 ax1.imshow(cv2.resize(img1, jai_in_zed.shape[:2][::-1]))
                 ax2.imshow(jai_in_zed)
@@ -224,7 +237,8 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=True, ze
 
 
 if __name__ == "__main__":
-    align_folder("/home/fruitspec-lab/PycharmProjects/foliage/counter/T_32", use_fine=True)
+    align_folder("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/frames", use_fine=False,
+                 zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670), zed_shift=-1)
     zed_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/frame_548.jpg"
     depth_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/depth_frame_548.jpg"
     jai_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30/frame_539.jpg"

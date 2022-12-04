@@ -159,7 +159,7 @@ def track_row(folder_path):
         dets, tracks = frames_pipeline_run(cfg, args)
 
 
-def preprocess_videos_to_trees(folder_path, zed_shift=0):
+def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
     print("breaking videos to frames")
     folder_to_frames(folder_path)
     print("aggtregating tree frames to folders")
@@ -174,7 +174,7 @@ def preprocess_videos_to_trees(folder_path, zed_shift=0):
     n_trees = len(pathed_trees)
     with ProcessPoolExecutor(max_workers=16) as executor:
         results = list(executor.map(align_folder, pathed_trees, [""] * n_trees, [False] * n_trees, [False] * n_trees,
-                                    [zed_shift] * n_trees))
+                                    [zed_shift] * n_trees, zed_roi_params*n_trees))
 
 
 def preprocess_rows_to_trees(plot_path, zed_shift=0):
@@ -187,7 +187,7 @@ def preprocess_rows_to_trees(plot_path, zed_shift=0):
 
 if __name__ == "__main__":
     # TODO break trees to sides
-    #dual_frame_viewer("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/frames")
+    # dual_frame_viewer("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2/frames")
     # plot_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
     # preprocess_videos_to_trees("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6", zed_shift=0)
     # for row in os.listdir(plot_path):
@@ -197,8 +197,8 @@ if __name__ == "__main__":
     #         folder_to_frames(row_path)
     # movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
     # preprocess_videos_to_trees(movies_path)
-    for i in range(2, 7):
+    for i in list(range(2, 7)) + [11]:
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         print(movies_path)
         folder_to_frames(movies_path)
-        preprocess_videos_to_trees(movies_path)
+        preprocess_videos_to_trees(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670))

@@ -286,19 +286,19 @@ def write_coords(params, zed_frame, jai_frame):
 
 
 if __name__ == "__main__":
-    jai_im_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/frames/channel_FSI_frame_105.jpg"
-    zed_im_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/frames/frame_105.jpg"
-    zed_fp = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/ZED_1.svo'
-    jai_fp = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/Result_FSI_1.mkv'
-    output_path = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1'
-    json_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/calibration_data.json"
-    json_path_real = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1/calibration_data_real.json"
-
+    jai_im_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/jai_rgb/channel_RGB_frame_100.jpg"
+    zed_im_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/zed_rgb/frame_100.jpg"
+    zed_fp = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/ZED_1.svo'
+    jai_fp = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/Result_FSI_1.mkv'
+    output_path = '/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st'
+    json_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/calibration_data.json"
+    json_path_real = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/calibration_data_real.json"
+    #
     with open(json_path) as json_file:
         data = json.load(json_file)
     data = {int(key): value for key, value in data.items()}
 
-    # manual_calibration(zed_fp, jai_fp, output_path,data = data, zed_rotate=2, jai_rotate=1, index = 95)
+    #manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1, index = 100)
 
     with open(json_path_real) as json_file_real:
         real_data = json.load(json_file_real)

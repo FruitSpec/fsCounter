@@ -548,13 +548,14 @@ if __name__ == "__main__":
     #r2in 468
     #r3in 763
     # this part is for fixing bad slicing
-    # filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r2in/Result_FSI_1.mkv"
-    # output_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in"
-    # data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in/Result_FSI_1_slice_data.json"
-    # with open(data_file) as json_file:
-    #     data = json.load(json_file)
-    # data = {int(key): item for key, item in data.items()}
-    # manual_slicer(filepath, output_path, data, index=468, rotate=True)
+    filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r11/Result_FSI_1.mkv"
+    output_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r11"
+    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r11/Result_FSI_1_slice_data.json"
+    with open(data_file) as json_file:
+        data = json.load(json_file)
+    data = {int(key): item for key, item in data.items()}
+    slice_to_trees(data_file, "", output_path)
+    manual_slicer(filepath, output_path, data, index=1571, rotate=True)
     # this part is to convert slicing to csv
     folder_p = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6"
     for sub_folder in os.listdir(folder_p):
