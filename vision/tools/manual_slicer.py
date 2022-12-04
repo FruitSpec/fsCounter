@@ -99,7 +99,7 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=4):
+def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=3):
     """
     this is where the magic happens, palys the video
     """
@@ -241,7 +241,7 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=4, h=2048, w=1536):
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536):
     size = int(h // resize_factor)
     r = min(size / h, size / w)
 
@@ -529,7 +529,7 @@ def get_state(loc):
     return state
 
 
-def slice_to_csv(data_file, output_path, resize_factor=4, h=2048, w=1536):
+def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
     size = int(h // resize_factor)
     r = min(size / h, size / w)
 
@@ -545,16 +545,17 @@ def slice_to_csv(data_file, output_path, resize_factor=4, h=2048, w=1536):
 
 
 if __name__ == "__main__":
-    filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r2in/Result_FSI_1.mkv"
-    output_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in"
-    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in/Result_FSI_1_slice_data.json"
-    with open(data_file) as json_file:
-        data = json.load(json_file)
-    data = {int(key): item for key,item in data.items()}
-    manual_slicer(filepath, output_path, data, index=121, rotate=True)
-    fp = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1.mkv"
-    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1_slice_data.json"
-    output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/tmp6'
+    #r2in 468
+    #r3in 763
+    # this part is for fixing bad slicing
+    # filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r2in/Result_FSI_1.mkv"
+    # output_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in"
+    # data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6/r2in/Result_FSI_1_slice_data.json"
+    # with open(data_file) as json_file:
+    #     data = json.load(json_file)
+    # data = {int(key): item for key, item in data.items()}
+    # manual_slicer(filepath, output_path, data, index=468, rotate=True)
+    # this part is to convert slicing to csv
     folder_p = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6"
     for sub_folder in os.listdir(folder_p):
         sub_folder_p = os.path.join(folder_p, sub_folder)
@@ -564,6 +565,10 @@ if __name__ == "__main__":
             slice_to_trees(data_file, "", output_path)
         except:
             print("problem with", sub_folder)
+    # run one folder
+    fp = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1.mkv"
+    data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1_slice_data.json"
+    output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/tmp6'
     slice_to_trees(data_file, fp, output_path)
     # for i in range(1, 10):
     #     output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/tmp{i}'

@@ -188,17 +188,17 @@ def preprocess_rows_to_trees(plot_path, zed_shift=0):
 if __name__ == "__main__":
     # TODO break trees to sides
     #dual_frame_viewer("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/frames")
-    plot_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    preprocess_videos_to_trees("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6", zed_shift=0)
-    for row in os.listdir(plot_path):
-        print(row)
-        row_path = os.path.join(plot_path, row)
-        if os.path.isdir(row_path) and "frames" not in os.listdir(row_path):
-            folder_to_frames(row_path)
-    movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
-    preprocess_videos_to_trees(movies_path)
-    for i in range(1, 10):
-        movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}"
+    # plot_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
+    # preprocess_videos_to_trees("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6", zed_shift=0)
+    # for row in os.listdir(plot_path):
+    #     print(row)
+    #     row_path = os.path.join(plot_path, row)
+    #     if os.path.isdir(row_path) and "frames" not in os.listdir(row_path):
+    #         folder_to_frames(row_path)
+    # movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
+    # preprocess_videos_to_trees(movies_path)
+    for i in range(2, 7):
+        movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         print(movies_path)
         folder_to_frames(movies_path)
-    preprocess_videos_to_trees(movies_path)
+        preprocess_videos_to_trees(movies_path)
