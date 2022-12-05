@@ -106,14 +106,17 @@ def all_slices_aggregation(main_folder):
 def copy_frames(frame, tree_folder, frames_path, zed_shift=0):
     frame_imgs = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg",
                   f"frame_{int(frame) + zed_shift}.jpg", f"xyz_frame_{int(frame) + zed_shift}.npy"]
+    new_names = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg",
+                  f"frame_{int(frame)}.jpg", f"xyz_frame_{int(frame)}.npy"]
     if not np.all([os.path.exists(os.path.join(frames_path, img)) for img in frame_imgs]):
         pass
-    [shutil.copyfile(os.path.join(frames_path, img), os.path.join(tree_folder, img)) for img in frame_imgs
-     if os.path.exists(os.path.join(frames_path, img))]
+    [shutil.copyfile(os.path.join(frames_path, img), os.path.join(tree_folder, new_name))
+     for img, new_name in zip(frame_imgs, new_names) if os.path.exists(os.path.join(frames_path, img))]
 
 
 def agg_to_trees(frames_path, slices, zed_shift=0,
                  m_threds=16, m_procs=0):
+    folder_alignmnet_df = pd.read_csv(os.path.join(frames_path, "jai_cors_in_zed.csv"))
     trees_path = os.path.join(os.path.dirname(frames_path), "trees")
     if not os.path.exists(trees_path):
         os.mkdir(trees_path)
@@ -125,16 +128,24 @@ def agg_to_trees(frames_path, slices, zed_shift=0,
         subslice = slices[slices["tree_id"] == id]
         frame_ids = subslice["frame_id"]
         n_frames = len(frame_ids)
+        jai_in_zed_subset = folder_alignmnet_df[folder_alignmnet_df["frame"].apply(lambda x: int(x) in frame_ids.values)]
+        if len(jai_in_zed_subset) > 0:
+            z_shifts = jai_in_zed_subset["zed_shift"].astype(int)
+        else:
+            z_shifts = [0] * n_frames
         if m_threds > 1:
             with ThreadPoolExecutor(max_workers=m_threds) as executor:
-                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames, [frames_path]*n_frames, [zed_shift]*n_frames))
+                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames,
+                                            [frames_path]*n_frames, z_shifts))
         elif m_procs > 1:
             with ProcessPoolExecutor(max_workers=m_procs) as executor:
-                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames, [frames_path]*n_frames, [zed_shift]*n_frames))
+                results = list(executor.map(copy_frames, frame_ids, [tree_folder]*n_frames,
+                                            [frames_path]*n_frames, z_shifts))
         else:
-            for frame in frame_ids:
+            for frame, zed_shift in zip(frame_ids, z_shifts):
                 copy_frames(frame, tree_folder, frames_path, zed_shift)
         subslice.to_csv(os.path.join(tree_folder, "slices.csv"))
+        jai_in_zed_subset.to_csv(os.path.join(tree_folder, "jai_cors_in_zed.csv"))
 
 
 def get_tracker_args(config_file="/vision/pipelines/config/pipeline_config.yaml"):
@@ -177,6 +188,26 @@ def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s
                                     [zed_shift] * n_trees, zed_roi_params*n_trees))
 
 
+def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
+                                            zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
+                                            skip_steps = []):
+    print("breaking videos to frames")
+    if not ("folder_to_frames" in skip_steps):
+        folder_to_frames(folder_path)
+    slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
+    frames_path = os.path.join(folder_path, "frames")
+    print("align all frames")
+    if not ("align_folder" in skip_steps):
+        align_folder(frames_path, plot_res=False, zed_roi_params=zed_roi_params)
+    print("aggtregating tree frames to folders")
+    if not ("agg_to_trees" in skip_steps):
+        agg_to_trees(frames_path, slices, zed_shift)
+    print("detecting and tracking for each tree")
+    trees_path = os.path.join(folder_path, "trees")
+    if not ("track_row" in skip_steps):
+        track_row(trees_path)
+
+
 def preprocess_rows_to_trees(plot_path, zed_shift=0):
     for row in os.listdir(plot_path):
         print(row)
@@ -196,9 +227,14 @@ if __name__ == "__main__":
     #     if os.path.isdir(row_path) and "frames" not in os.listdir(row_path):
     #         folder_to_frames(row_path)
     # movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
-    # preprocess_videos_to_trees(movies_path)
+    # # preprocess_videos_to_trees(movies_path)
+    # movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6"
+    # preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
+    #                                         skip_steps=["folder_to_frames"])
     for i in list(range(2, 7)) + [11]:
+        if i == 6:
+            continue
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         print(movies_path)
-        folder_to_frames(movies_path)
-        preprocess_videos_to_trees(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670))
+        #folder_to_frames(movies_path)
+        preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670))

@@ -200,7 +200,7 @@ def calc_affine_transform(kp1, kp2, match):
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
     if len(dst_pts) == 0:
         return np.full((2, 3), np.nan), False
-    M, status = cv2.estimateAffine2D(src_pts, dst_pts)
+    M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=15, maxIters=5000)
 
     return M, status
 

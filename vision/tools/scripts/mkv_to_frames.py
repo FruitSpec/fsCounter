@@ -222,14 +222,16 @@ def folder_to_frames(folder_path, flip_channels=["rgb"], rotate=True, exclude=["
     if not os.path.exists(output_path):
         os.mkdir(output_path)
     for movie_path in os.listdir(folder_path)[::-1]:
-        if "mkv" in movie_path:
+        if "mkv" in movie_path and ("FSI" in movie_path or "RGB" in movie_path):
             channel_name = movie_path.split('.')[0].split('_')[1]
             flip_chan = channel_name.lower() in flip_channels
             if channel_name in exclude:
                 continue
-            slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate, flip_channels=flip_chan, frame_log=jai_frame_log)
+            slice_to_frames(os.path.join(folder_path, movie_path), output_path, rotate=rotate,
+                            flip_channels=flip_chan, frame_log=jai_frame_log)
         if "svo" in movie_path:
-            svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None, rotate=rotate, frame_log=zed_frame_log)
+            svo_to_frames(os.path.join(folder_path, movie_path), output_path, max_frame=None,
+                          rotate=rotate, frame_log=zed_frame_log)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
-
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 from vision.tools.image_stitching import (resize_img, find_keypoints,get_affine_homography,
@@ -205,9 +205,10 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
         result_folder = folder_path
     frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
     df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
-                           "tx": [], "ty": [], "sx": [], "sy": [], "frame": []})
+                           "tx": [], "ty": [], "sx": [], "sy": [], "frame": [], "zed_shift": []})
     frames.sort(key=lambda x: int(x))
-    for frame in frames[200:]:
+    consec_less_threshold = 0
+    for frame in tqdm(frames):
         zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
         if not (os.path.exists(zed_path) and os.path.exists(rgb_path)):
@@ -218,9 +219,9 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
         zed = cv2.cvtColor(zed, cv2.COLOR_BGR2RGB)
         corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine, zed_roi_params=zed_roi_params)
         x1, y1, x2, y2 = corr
-        print(f"x1:{x1}, tx: {tx}")
+        # print(f"frame:{frame}, x1:{int(x1)}, tx: {tx}, zed_shift: {zed_shift}")
         df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame}, ignore_index=True)
+                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift}, ignore_index=True)
         if plot_res:
             try:
                 img1 = rgb_jai
@@ -232,13 +233,20 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
                 plt.show()
             except:
                 print("resize problem")
+        if tx < 20:
+            consec_less_threshold+=1
+        else:
+            consec_less_threshold = 0
+        if consec_less_threshold > 5:
+            zed_shift-=1
+            consec_less_threshold = 0
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
     print(f"aligned: {folder_path}")
 
 
 if __name__ == "__main__":
     align_folder("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/frames", use_fine=False,
-                 zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670), zed_shift=-1)
+                 zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670), zed_shift=0)
     zed_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/frame_548.jpg"
     depth_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/depth_frame_548.jpg"
     jai_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30/frame_539.jpg"
