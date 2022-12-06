@@ -1,9 +1,11 @@
-import enum
 import signal
+import subprocess
+from time import sleep
 from GPS import location_awareness
 from DataManager import uploader
 from Analysis import analyzer
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
+from application.utils.settings import conf
 
 global manager
 
@@ -23,11 +25,13 @@ def transfer_data(sig, frame):
             continue
 
 
-
 def main():
     global manager
     manager = dict()
-    for module in ModulesEnum:
+    if conf["GUI"]:
+        subprocess.Popen("npm run dev --prefix ./JAI-Operator-client", shell=True)
+
+    for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
 
     manager[ModulesEnum.GPS].set_process(target=location_awareness.GPSSampler.init_module)

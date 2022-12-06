@@ -10,6 +10,7 @@ GPS_conf = OmegaConf.load(os.path.abspath("GPS/GPS_config.yaml"))
 conf = OmegaConf.load(os.path.abspath("utils/config.yaml"))
 conf["log name"] = os.path.join(conf["logs path"], f"{conf['log name']}_{today}.log")
 
+
 # logFormatter = logging.Formatter("%(levelname)s %(asctime)s %(processName)s %(message)s")
 # fileHandler = logging.FileHandler("{0}".format(conf["log name"]))
 # fileHandler.setFormatter(logFormatter)
