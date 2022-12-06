@@ -5,6 +5,16 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from skimage.exposure import adjust_gamma
 
+
+
+def is_sturated(img, percentile=0.8, threshold=245):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, b = np.histogram(gray.flatten(), 255)
+    norm = np.cumsum(h) / np.sum(h)
+    ind = np.argmax(norm >= percentile)
+
+    return b[ind] >= threshold
+
 def stretch(img, lower, upper, min_int, max_int):
 
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())

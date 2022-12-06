@@ -53,6 +53,7 @@ class counter_detection():
                          minimal_max_distance=cfg.tracker.minimal_max_distance,
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
+                         det_area=cfg.tracker.det_area,
                          translation_size=cfg.tracker.translation_size)
 
     def detect(self, frame):

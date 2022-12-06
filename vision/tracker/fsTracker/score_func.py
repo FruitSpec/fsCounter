@@ -42,9 +42,9 @@ def ratio(trck_box, det_box):
 
     return min(trck_area / det_area, det_area / trck_area)
 
-def dist(trk_windows, detections, mean_movement, max_distance):
+def dist(trk_windows, detections, mean_x, y_distance, max_distance):
 
-    distances = compute_dist_on_vec(trk_windows, detections, mean_movement)
+    distances = compute_dist_on_vec(trk_windows, detections, mean_x, y_distance)
     distances = distances / max_distance
     distances[distances > 1] = 1  # distance higher than allowed
 
@@ -76,10 +76,10 @@ def compute_dist(atlbr, btlbr, mean_movment):
     return np.sqrt((a_x - b_x)**2 + (a_y - b_y)**2)
     # center - tracks
 
-def compute_dist_on_vec(trk_windows, dets, mean_movment):
+def compute_dist_on_vec(trk_windows, dets, mean_movment, y_distance):
 
     trk_x = (trk_windows[:, 0] + trk_windows[:, 2]) / 2 + mean_movment
-    trk_y = (trk_windows[:, 1] + trk_windows[:, 3]) / 2
+    trk_y = (trk_windows[:, 1] + trk_windows[:, 3]) / 2 + y_distance
 
     det_x = (dets[:, 0] + dets[:, 2]) / 2
     det_y = (dets[:, 1] + dets[:, 3]) / 2

@@ -4,12 +4,14 @@ import numpy as np
 
 class video_wrapper():
 
-    def __init__(self, filepath, rotate):
+    def __init__(self, filepath, rotate, depth_minimum=0.1, depth_maximum=2.5):
         if 'svo' in filepath.split('.')[-1]:
             self.mode = 'svo'
-            self.cam, self.runtime = self.init_cam(filepath)
+            self.cam, self.runtime = self.init_cam(filepath, depth_minimum, depth_maximum)
             self.mat = sl.Mat()
             self.res = None
+
+
         else:
             self.mode = 'other'
             self.cam = cv2.VideoCapture(filepath)
@@ -18,6 +20,7 @@ class video_wrapper():
             self.res = None
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
+
 
     @staticmethod
     def get_rotation(rotate):
@@ -35,7 +38,7 @@ class video_wrapper():
 
         if self.mode == 'svo':
             self.grab(frame_number)
-            frame = self.get_frame()
+            _, frame = self.get_frame()
             depth = self.get_depth()
             point_cloud = self.get_point_cloud()
         else:
@@ -161,7 +164,7 @@ class video_wrapper():
         pass
 
     @staticmethod
-    def init_cam(filepath, depth_minimum=0.5, depth_maximum=10):
+    def init_cam(filepath, depth_minimum=0.1, depth_maximum=2.5):
         """
         inits camera and runtime
         :param filepath: path to svo file

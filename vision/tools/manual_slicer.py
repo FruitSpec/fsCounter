@@ -37,6 +37,7 @@ def mouse_callback(event, x, y, flags, params):
         frame = print_text(frame, params)
         cv2.imshow(params['headline'], frame)
 
+
 def print_lines(params):
     frame = params['frame'].copy()
     y = int(params['height'] // params['resize_factor'])
@@ -49,6 +50,7 @@ def print_lines(params):
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
+
 
 def print_text(frame, params, text=None):
     if text is None:
@@ -137,7 +139,7 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
             frame, params = preprocess_frame(frame, params)
 
             params = init_data_index(params)
-            #params = get_updated_location_in_index(frame, params)
+            # params = get_updated_location_in_index(frame, params)
 
             frame = print_lines(params)
             frame = print_text(frame, params)
@@ -148,10 +150,10 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
             k = cv2.waitKey()
             # Press Q on keyboard to  exit
             if cv2.waitKey(k) & 0xFF == ord('q'):
-                #write_json(params)
+                # write_json(params)
                 break
             params = update_index(k, params)
-            #write_json(params)
+            # write_json(params)
         # Break the loop
         else:
             break
@@ -161,6 +163,7 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
 
     # Closes all the frames
     cv2.destroyAllWindows()
+
 
 def preprocess_frame(frame, params):
     height = int(params['height'] // params['resize_factor'])
@@ -173,8 +176,8 @@ def preprocess_frame(frame, params):
 
     return frame, params
 
-def get_updated_location_in_index(frame, params):
 
+def get_updated_location_in_index(frame, params):
     gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
     kp_des = get_fine_keypoints(gray)
 
@@ -194,21 +197,19 @@ def get_updated_location_in_index(frame, params):
                 end = min(max(end + (int(translation[0]) // 2), 0), int(params['height'] // params['resize_factor']))
                 params['data'][params['index']]['end'] = end
 
-
     params['last_kp_des'] = kp_des
 
     return params
 
+
 def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
-        params['data'][params['index']] = {'start': None, 'end': None}\
-
+        params['data'][params['index']] = {'start': None, 'end': None}
     return params
 
 
 def write_json(params):
-
     temp_str = params['filepath']
     temp_str = temp_str.split('.')[0]
     clip_name = temp_str('/')[-1]
@@ -219,6 +220,6 @@ def write_json(params):
 
 
 if __name__ == "__main__":
-    fp = '/home/yotam/FruitSpec/Data/MIC_03112022/Result_FSI_3.mkv' #frame 105, middle
-    manual_slicer(fp, "", rotate=True)
-
+    fp = "/home/yotam/Downloads/Result_FSI_1.mkv"#'/media/yotam/Extreme Pro/JAIZED_CaraCara_151122/R_4/Result_FSI_4.mkv'
+    output_path = '/home/yotam/FruitSpec/Sandbox/detection_caracara'
+    manual_slicer(fp, output_path, rotate=True)

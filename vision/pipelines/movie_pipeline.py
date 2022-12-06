@@ -92,15 +92,17 @@ if __name__ == "__main__":
 
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     #config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(repo_dir + runtime_config)
 
 
-    args = make_parser()
+    #args = make_parser()
 
-    args.movie_path = '/home/yotam/FruitSpec/Data/Syngenta/JAI_blower/BLOWER_SIMPLE.mkv'
-    args.output_folder = '/home/yotam/FruitSpec/Sandbox/Syngenta/blower_1'
-    args.rotate = True
+    #args.movie_path = '/home/yotam/FruitSpec/Data/Syngenta/JAI_blower/BLOWER_SIMPLE.mkv'
+    #args.output_folder = '/home/yotam/FruitSpec/Sandbox/Syngenta/blower_1'
+#    args.rotate = True
     args.frame_size = [2048, 1536]
 
     run(cfg, args)

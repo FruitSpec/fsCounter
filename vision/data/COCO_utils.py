@@ -46,7 +46,7 @@ def convert_to_coco_format(outputs, info_imgs, img_size, class_ids, type_='dets'
 
 def create_category_dict(category_list):
     categories = []
-    for i, category in category_list:
+    for i, category in enumerate(category_list):
         categories.append({"id": i,
                            "name": category
                            })

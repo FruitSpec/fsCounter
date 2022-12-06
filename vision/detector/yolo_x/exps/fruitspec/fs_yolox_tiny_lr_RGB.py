@@ -20,18 +20,18 @@ class Exp(MyExp):
         self.seed = 42
 
         # Define yourself dataset path
-        self.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
+        self.data_dir = "/home/yotam/FruitSpec/Data/Syngenta/VEG_RGB_Tasq_V2_coco"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/yotam/FruitSpec/Sandbox'
-        self.num_classes = 2
+        self.output_dir = "/home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes" #'/home/yotam/FruitSpec/Sandbox/'
+        self.num_classes = 1
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5
-        self.max_epoch = 150
+        self.max_epoch = 300
         self.warmup_lr = 0.0005
-        self.basic_lr_per_img = 0.01 / 32.0
+        self.basic_lr_per_img = 0.01 / 16.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 25
         self.min_lr_ratio = 0.3

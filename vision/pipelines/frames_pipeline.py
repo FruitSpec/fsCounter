@@ -9,7 +9,7 @@ import numpy as np
 import json
 from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir, scale_dets
+from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -21,7 +21,7 @@ from vision.pipelines.run_args import make_parser
 
 def run(cfg, args):
 
-    detector = counter_detection(cfg)
+    detector = counter_detection(cfg, args)
     results_collector = ResultsCollector()
 
     img_list = os.listdir(args.data_dir)
@@ -33,7 +33,8 @@ def run(cfg, args):
         if 'png' in img or 'jpg' in img:
             if 'frame' in img or 'FSI' in img:
                 full_name = img.split('.')[0]
-                id_ = int(full_name.split('_')[1])
+                #id_ = int(full_name.split('_')[1])
+                id_ = int(full_name.split('_')[-1])
                 files_dict[id_] = img
 
     # sort by ids
@@ -59,6 +60,8 @@ def run(cfg, args):
         results_collector.collect_detections(det_outputs, id_)
         results_collector.collect_tracks(trk_outputs)
 
+        results_collector.draw_and_save(frame, trk_outputs, id_, args.output_folder)
+
 
     results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
 
@@ -68,15 +71,18 @@ def run(cfg, args):
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/home/yotam/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
     # config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(runtime_config)
 
-    args = make_parser()
+    #args = make_parser()
     args.eval_batch = 1
     args.rotate = False
-    args.data_dir = "/home/yotam/FruitSpec/Data/VEG_RGB_v3i_coco/val2017"
-    args.output_folder = "/home/yotam/FruitSpec/Sandbox/Syngenta/val_results_fine_model"
+    args.data_dir = "/home/yotam/FruitSpec/Sandbox/detection_caracara/R4_front"
+    args.output_folder = "/home/yotam/FruitSpec/Sandbox/detection_caracara/R4_front/test"
 
+    validate_output_path(args.output_folder)
     dets, tracks = run(cfg, args)
     # folder_path = "/home/yotam/FruitSpec/Data/VEG_RGB_v3i_coco/val2017"
     # folder_list = os.listdir(folder_path)

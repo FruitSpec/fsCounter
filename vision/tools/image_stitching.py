@@ -5,6 +5,33 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
+def kepp_dets_only(frame, detections):
+    canvas = frame.copy()
+    if len(detections) > 0:
+        dets = np.array(detections)[:, :4]
+    else:
+        dets = []
+    h, w = frame.shape[:2]
+    bool_arr = np.zeros((h, w), dtype=np.bool)
+    for det in dets:
+        bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
+    canvas[np.logical_not(bool_arr)] = 0
+
+    return canvas
+
+def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
+
+    # Define termination criteria
+    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
+
+    # Define the motion model
+    warp_mode = cv2.MOTION_TRANSLATION
+    warp_matrix = np.eye(2, 3, dtype=np.float32)
+
+    # find transform
+    score, M = cv2.findTransformECC(img1, img2, warp_matrix, motionType=warp_mode, criteria=criteria)
+
+    return M, score, warp_matrix
 
 def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     """
@@ -157,6 +184,7 @@ def features_to_translation(kp1, kp2, des1, des2):
 
 def find_keypoints(img):
     sift = cv2.SIFT_create()
+    #sift = cv2.ORB()
     # find key points
     kp, des = sift.detectAndCompute(img, None)
 
@@ -171,7 +199,7 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     try:
         matches = flann.knnMatch(des1, des2, k=2)
     except:
-        Warning('flann.knnMatch collapes, return empty matches')
+        Warning('flann.knnMatch collapsed, return empty matches')
         matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []

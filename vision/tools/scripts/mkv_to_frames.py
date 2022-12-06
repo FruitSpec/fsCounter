@@ -162,10 +162,11 @@ def get_frame_by_index(cap, index_):
     return frame
 
 if __name__ == "__main__":
-    movie_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/Result_FSI_2_30_720_30.mkv"
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30"
+    movie_path = "/media/yotam/Extreme Pro/JAIZED_CaraCara_151122/R_4/Result_FSI_4.mkv"
+    output_path = "/home/yotam/FruitSpec/Sandbox/detection_caracara/R4"
     range_ = None # [250, 300]
-    run(movie_path, output_path, range=range_)
+    #run(movie_path, output_path, range=range_)
+    slice_to_frames(movie_path, output_path)
 
 
 

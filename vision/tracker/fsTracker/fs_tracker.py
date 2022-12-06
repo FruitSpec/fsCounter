@@ -1,16 +1,17 @@
+import cv2
 import numpy as np
 
 from vision.tracker.fsTracker.base_track import Track
 from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, get_intersection
 from vision.tools.image_stitching import find_keypoints, find_translation, resize_img
-from vision.tools.image_stitching import get_fine_translation, get_fine_keypoints
+from vision.tools.image_stitching import get_fine_translation, get_fine_keypoints, get_ECCtranslation, kepp_dets_only
 from vision.tracker.fsTracker.base_track import TrackState
 
 
 class FsTracker():
 
     def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, minimal_max_distance=10,
-                 score_weights=[0.5, 1, 0.5], match_type='center', translation_size=640, max_losses=10):
+                 score_weights=[0.5, 1, 0.5], match_type='center', det_area=1, translation_size=640, max_losses=10):
 
         self.tracklets = []
         self.track_id = track_id
@@ -20,21 +21,27 @@ class FsTracker():
         self.x_distance = 0
         self.y_distance = 0
         self.match_type = match_type
+        self.det_area = det_area
         self.max_losses = max_losses
 
         self.score_weights = score_weights
         self.frame_size = frame_size
 
         self.translation_size = translation_size
-        self.last_kp_des = None
+        #self.last_kp_des = None
+        self.last_kp = None
+        self.last_des = None
         self.last_center_x = None
+        self.last_frame = None
 
     def reset_state(self):
         pass
 
     def update(self, detections, frame):
+        frame = kepp_dets_only(frame, detections)
         frame, r = resize_img(frame, self.translation_size)
         search_window = self.get_search_ranges(detections, frame, r)
+        #print(search_window)
         self.update_max_distance()
 
         self.is_extreme_shift()
@@ -74,18 +81,36 @@ class FsTracker():
 
 
     def get_search_ranges(self, detections, frame, r, percentile=10):
-        #kp, des = find_keypoints(frame)
-        kp_des = get_fine_keypoints(frame)
-        if self.last_kp_des is not None:
-            tx, ty = get_fine_translation(self.last_kp_des, kp_des, 1)
-            if tx is None:
-                tx = self.x_distance
-            if ty is None:
-                ty = self.y_distance
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        #frame, r = resize_img(frame, 640)
+        #h, w = frame.shape
+        #frame = frame[:, :]
+
+        # #kp_des = get_fine_keypoints(frame)
+        # if self.last_kp is not None:
+        #     tx, ty = find_translation(self.last_kp, self.last_des, kp, des, 1)
+        #     if tx is None:
+        #         tx = self.x_distance
+        #     if ty is None:
+        #         ty = self.y_distance
+        if self.last_frame is not None:
+            try:
+                M, _, _ = get_ECCtranslation(self.last_frame, frame)
+
+                tx = int(M[0, -1] / r)
+                ty = int(M[1, -1] / r)
+            except:
+                Warning('failed to match')
+                tx = self.x_distance if self.x_distance is not None else 0
+                ty = self.y_distance if self.y_distance is not None else 0
+
         else:
             tx, ty = 0, 0
-        self.last_kp_des = kp_des  #kp
-        #self.last_des = des
+
+        self.last_frame = frame
+        #self.last_kp_des = kp_des  #kp
+        # self.last_kp = kp
+        # self.last_des = des
 
         # if len(self.x_distance) >= self.max_ranges:
         #     new_x_dist = [r for r in self.x_distance[1:]]
@@ -105,11 +130,11 @@ class FsTracker():
             tracklets_bboxes = np.vstack(tracklets_bboxes)
 
             if tx > 0:
-                x1 = tracklets_bboxes[:, 0] - tx
+                x1 = tracklets_bboxes[:, 0] + tx
                 x2 = tracklets_bboxes[:, 2] + margin
             else:
                 x1 = tracklets_bboxes[:, 0] - margin
-                x2 = tracklets_bboxes[:, 2] - tx
+                x2 = tracklets_bboxes[:, 2] + tx
             x1[x1 < 0] = 0
             x2[x2 > self.frame_size[1]] = self.frame_size[1]
 
@@ -152,12 +177,12 @@ class FsTracker():
 
     @staticmethod
     def get_detections_center(detections):
-
         det_centers = []
-        for det in detections:
-            center_x = (det[0] + det[2]) / 2
-            center_y = (det[1] + det[3]) / 2
-            det_centers.append((center_x, center_y))
+        if len(detections) > 0:
+            dets = np.array(detections)[:, :4]
+            center_x = (dets[:, 0] + dets[:, 2]) / 2
+            center_y = (dets[:, 1] + dets[:, 3]) / 2
+            det_centers = np.stack((center_x, center_y), axis=1)
 
         return det_centers
 
@@ -179,6 +204,16 @@ class FsTracker():
 
         intersections = []
 
+        if self.det_area < 1 and len(bboxes2) > 0:
+            bboxes2 = np.array(bboxes2)[:, :4]
+            margin_coef = (1 - self.det_area) / 2
+            margin_x = (bboxes2[:, 2] - bboxes2[:, 0]) * margin_coef
+            margin_y = (bboxes2[:, 3] - bboxes2[:, 1]) * margin_coef
+            bboxes2[:, 0] + margin_x
+            bboxes2[:, 2] - margin_x
+            bboxes2[:, 1] + margin_y
+            bboxes2[:, 3] - margin_y
+
         inetr_area = get_intersection(bboxes1, bboxes2)
         if len(inetr_area) > 0:
             intersections = inetr_area > 0
@@ -187,21 +222,20 @@ class FsTracker():
 
 
     def match_by_center(self, windows, detections):
-        centers = self.get_detections_center(detections)
+        intersections = []
 
-        ids_list = []
-        dets_list = []
-        for det_id, center in enumerate(centers):
-            t_list = [center for _ in windows]
-            dets_list.append(t_list)
-            ids_list.append(det_id)
+        if len(detections) > 0:
+            centers = self.get_detections_center(detections)
+            dets = np.zeros((centers.shape[0], 4))
+            dets[:, 0] = centers[:, 0]
+            dets[:, 1] = centers[:, 1]
+            dets[:, 2] = centers[:, 0] + 1
+            dets[:, 3] = centers[:, 1] + 1
+            inetr_area = get_intersection(windows, dets)
+            if len(inetr_area) > 0:
+                intersections = inetr_area > 0
 
-        matches = dict()
-        for det_id in ids_list:
-            track_tf = list(map(self.is_in_range, windows, dets_list[det_id]))
-            matches[det_id] = track_tf
-
-        return matches
+        return intersections
 
     @staticmethod
     def is_in_range(window, center):
@@ -227,7 +261,7 @@ class FsTracker():
         dets_score = detections_arr[:, 4] * detections_arr[:, 5]
 
 
-        dist_score = dist(track_windows, dets, tracks_acc_dist, np.abs(self.max_distance))
+        dist_score = dist(track_windows, dets, tracks_acc_dist, self.y_distance, np.abs(self.max_distance))
         ratio_score = compute_ratios(track_windows, dets)
         conf_score = confidence_score(trk_score, dets_score)
 
@@ -357,11 +391,11 @@ class FsTracker():
             if track.is_activated is False:  # not found in current frame
                 valid = False
                 if track.state == TrackState.Lost:  # object found once
-                    track.accumulated_dist.append(-self.x_distance)
-                track.bbox[0] -= self.x_distance
-                track.bbox[2] -= self.x_distance
-                track.bbox[1] -= self.y_distance
-                track.bbox[3] -= self.y_distance
+                    track.accumulated_dist.append(+self.x_distance)
+                track.bbox[0] += self.x_distance
+                track.bbox[2] += self.x_distance
+                track.bbox[1] += self.y_distance
+                track.bbox[3] += self.y_distance
                 track.state = TrackState.Lost
                 track.lost_counter += 1
 

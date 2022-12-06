@@ -20,7 +20,7 @@ class Exp(MyExp):
         self.seed = 42
 
         # Define yourself dataset path
-        self.data_dir = "/home/yotam/FruitSpec/Data/VEG_JAI_v2i_coco"
+        self.data_dir = "/home/yotam/FruitSpec/Data/VEG_JAI_v4i_coco"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 

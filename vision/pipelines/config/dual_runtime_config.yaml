@@ -1,0 +1,15 @@
+output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/pepper/3
+rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+
+zed:
+  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/ZED_1.svo
+  frame_size: [1920, 1080]
+jai:
+  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/FSI.mkv
+  frame_size: [2048, 1536]
+
+frame_size: [2048, 1536]
+
+
+
+
