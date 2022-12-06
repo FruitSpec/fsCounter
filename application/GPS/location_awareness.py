@@ -20,7 +20,11 @@ class GPSSampler(Module):
     
     @staticmethod
     def init_module(sender, receiver, main_pid):
-        super().init_module(sender, receiver, main_pid)
+        GPSSampler.sender = sender
+        GPSSampler.receiver = receiver
+        GPSSampler.main_pid = main_pid
+        signal.signal(signal.SIGTERM, GPSSampler.shutdown)
+        signal.signal(signal.SIGUSR1, GPSSampler.receive_data)
         GPSSampler.previous_plot, GPSSampler.plot_code = GPS_conf["global polygon"], GPS_conf["global polygon"]
         GPSSampler.locator, GPSSampler.is_latest = None, False
         GPSSampler.try_set_locator()
@@ -120,5 +124,5 @@ class GPSSampler(Module):
         t.start()
 
     @staticmethod
-    def stop_sampling(sig, frame):
+    def shutdown(sig, frame):
         GPSSampler.shutdown_event.set()
