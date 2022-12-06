@@ -307,7 +307,6 @@ def parse_data_to_trees(data):
     for frame_id, loc in data.items():
         trees = list(trees_data.keys())
         state = get_state(loc)
-
         if last_state == 0:
             if state == 0:
                 if len(trees) == 0:
@@ -468,13 +467,13 @@ def parse_data_to_trees(data):
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id+1, 'start': loc['start'], 'end': -1}]
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
             elif state == 6:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id+1, 'start': loc['start'], 'end': -1}]
 
         elif last_state == 6:
             if state == 0:
@@ -545,18 +544,17 @@ def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
 
 
 if __name__ == "__main__":
-    #r9 832
     # this part is for fixing bad slicing
-    filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R5/Result_FSI_1.mkv"
-    output_path = "/media/fruitspec-lab/easystore/trees_1_6/r5in"
-    data_file = "/media/fruitspec-lab/easystore/trees_1_6/r5in/Result_FSI_1_slice_data.json"
+    filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/Result_FSI_1.mkv"
+    output_path = "/media/fruitspec-lab/easystore/trees_1_6/r6"
+    data_file = "/media/fruitspec-lab/easystore/trees_1_6/r6/Result_FSI_1_slice_data.json"
     with open(data_file) as json_file:
         data = json.load(json_file)
     data = {int(key): item for key, item in data.items()}
-    manual_slicer(filepath, output_path, data, index=0, rotate=True)
+    # manual_slicer(filepath, output_path, data, index=0, rotate=True)
     # slice_to_trees(data_file, "", output_path)
     # this part is to convert slicing to csv
-    folder_p = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/trees_1_6"
+    folder_p = "/media/fruitspec-lab/easystore/trees_1_6"
     for sub_folder in os.listdir(folder_p):
         sub_folder_p = os.path.join(folder_p, sub_folder)
         data_file = os.path.join(sub_folder_p, "Result_FSI_1_slice_data.json")
@@ -566,7 +564,7 @@ if __name__ == "__main__":
         except:
             print("problem with", sub_folder)
     # run one folder
-    fp = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1.mkv"
+    fp = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122//Result_FSI_1.mkv"
     data_file = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/Result_FSI_1_slice_data.json"
     output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/r6/tmp6'
     slice_to_trees(data_file, fp, output_path)

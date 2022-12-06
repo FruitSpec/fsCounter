@@ -104,6 +104,22 @@ def all_slices_aggregation(main_folder):
 
 
 def copy_frames(frame, tree_folder, frames_path, zed_shift=0):
+    """
+    This function copies frames from a video frames folder to a tree folder.
+
+    The function takes the frame number, the path to the tree folder, the path
+    to the frames, and an optional zed_shift parameter. It creates a list of
+    frame filenames and corresponding new names for the frames. If all of the
+    frame files exist, the function copies them to the tree folder using the
+    new names. If any of the frame files do not exist, the function does
+    nothing.
+
+    Parameters:
+        frame (int): The frame number.
+        tree_folder (str): The path to the tree folder.
+        frames_path (str): The path to the frames.
+        zed_shift (int): The amount to shift the zed frames by.
+    """
     frame_imgs = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg",
                   f"frame_{int(frame) + zed_shift}.jpg", f"xyz_frame_{int(frame) + zed_shift}.npy"]
     new_names = [f"channel_FSI_frame_{frame}.jpg", f"channel_RGB_frame_{frame}.jpg",
@@ -191,6 +207,20 @@ def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s
 def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
                                             zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
                                             skip_steps = []):
+    """
+    This script preprocesses videos of trees to prepare them for analysis.
+
+    The script breaks the videos into frames and aligns the frames. It then
+    aggregates the frames into folders, one for each tree, and performs
+    detection and tracking on each tree.
+
+    Parameters:
+        folder_path (str): The path to the folder containing the videos.
+        zed_shift (int): The amount to shift the zed frames by.
+        zed_roi_params (dict): A dictionary containing the region of interest
+                               in the frames to be used for alignment.
+        skip_steps (list): A list of steps to skip in the preprocessing process.
+    """
     print("breaking videos to frames")
     if not ("folder_to_frames" in skip_steps):
         folder_to_frames(folder_path)
@@ -231,10 +261,15 @@ if __name__ == "__main__":
     # movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6"
     # preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
     #                                         skip_steps=["folder_to_frames"])
-    for i in list(range(2, 7)) + [11]:
-        if i == 6:
+    for i in list(range(2, 11)):
+        if i in [3, 11]:
             continue
+        if i < 7:
+            skip_steps = ["folder_to_frames", "align_folder"]
+        else:
+            skip_steps = []
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         print(movies_path)
         #folder_to_frames(movies_path)
-        preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670))
+        preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
+                                                skip_steps=skip_steps)
