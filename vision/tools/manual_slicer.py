@@ -255,7 +255,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     trees_data = parse_data_to_trees(data)
     df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
     df_out[["start", "end"]] = df_out[["start", "end"]]*resize_factor
-    df_out[["start", "end"]] = df_out[["start", "end"]].replace(resize_factor*(-1),-1)
+    df_out[["start", "end"]] = df_out[["start", "end"]].replace(resize_factor*(-1), -1)
     df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return
     hash = {}
@@ -551,7 +551,7 @@ if __name__ == "__main__":
     with open(data_file) as json_file:
         data = json.load(json_file)
     data = {int(key): item for key, item in data.items()}
-    # manual_slicer(filepath, output_path, data, index=0, rotate=True)
+    # manual_slicer(filepath, output_path, data, index=420, rotate=True)
     # slice_to_trees(data_file, "", output_path)
     # this part is to convert slicing to csv
     folder_p = "/media/fruitspec-lab/easystore/trees_1_6"

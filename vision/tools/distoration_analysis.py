@@ -2,8 +2,9 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from os import listdir,path
+from tqdm import tqdm
 import glob
-
+from sensors_alignment import affine_to_values
 
 def show_img(img, cmap=""):
     if cmap == "":
@@ -48,13 +49,18 @@ def findChessboardCorners_wresize(gray, n_cols, n_rows):
     return ret, corners
 
 
-def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1080, 0, 1920), show_plots=True):
+def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1080, 0, 1920),
+                     show_plots=False, with_valid=False):
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp, objpoints, imgpoints = init_objp(n_rows-1, n_cols-1)
-    for image in listdir(folder_path):
+    if with_valid:
+        valid = []
+    for image in tqdm(listdir(folder_path)):
         file_path = path.join(folder_path, image)
         gray, img = read_gray(file_path, return_org=True, cut_img=cut_img)
         ret, corners = findChessboardCorners_wresize(gray, n_cols, n_rows)
+        if with_valid:
+            valid.append(ret)
         if ret:
             objpoints.append(objp)
             corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
@@ -65,8 +71,13 @@ def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1080, 0, 1920
                 show_img(img)
                 # cv2.imshow('img', img)
                 # cv2.waitKey()
+        elif with_valid:
+            imgpoints.append(objpoints)
+            objpoints.append(objpoints)
         if show_plots:
             cv2.destroyAllWindows()
+    if with_valid:
+        return objpoints, imgpoints, gray, img, valid
     return objpoints, imgpoints, gray, img
 
 
@@ -82,8 +93,13 @@ def get_corners_for_picture(gray, n_cols=7, n_rows=10):
 
 def chess_board_2_cameras_translation(folder_path_zed, folder_path_jai, n_rows=7, n_cols=10,
                             cut_img_zed=(0, 1080, 0, 1920), cut_img_jai=(0, 1536, 0, 2048)):
-    objpoints_jai, imgpoints_jai, _, _ = draw_chess_board(folder_path_jai, n_rows, n_cols, cut_img_jai)
-    objpoints_zed, imgpoints_zed, _, _ = draw_chess_board(folder_path_zed, n_rows, n_cols, cut_img_zed)
+    objpoints_jai, imgpoints_jai, _, _, valid_jai = draw_chess_board(folder_path_jai, n_rows, n_cols,
+                                                                     cut_img_jai, with_valid=True)
+    objpoints_zed, imgpoints_zed, _, _, valid_zed = draw_chess_board(folder_path_zed, n_rows, n_cols,
+                                                                     cut_img_zed, with_valid=True)
+    valid_pics_both = np.all([valid_jai, valid_zed], axis=0)
+    imgpoints_zed = [img for img, ret in zip(imgpoints_zed, valid_pics_both) if ret]
+    imgpoints_jai = [img for img, ret in zip(imgpoints_jai, valid_pics_both) if ret]
     M = cv2.estimateAffine2D(np.array(imgpoints_zed).reshape(-1, 1, 2)[:, 0, :],
                              np.array(imgpoints_jai).reshape(-1, 1, 2)[:, 0, :])[0]
     return M
@@ -122,32 +138,33 @@ if __name__ == "__main__":
     #     file_path = path.join("/home/fruitspec-lab/Documents/ZED", image)
     #     if "png" in image:
     #         draw_chess_board(file_path)
-    for i in range(103, 150):
-        img_zed_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/zed_rgb/frame_{i}.jpg"
-        img_rgb_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/jai_rgb/channel_RGB_frame_{i}.jpg"
-        gray_zed, zed_img = read_gray(img_zed_path, return_org=True)
-        gray_jai_rgb, jai_rgb = read_gray(img_rgb_path, return_org=True)
-        zed_chess_board_point = get_corners_for_picture(gray_zed, n_rows=4, n_cols=5)
-        cut_coords = {"x1": [20], "x2": [940], "y1": [360], "y2": [1620]}
-        zed_cut = cut_zed_in_jai(zed_img, cut_coords)
-        # M = np.array([[6.01312693e-01, -2.40858197e-02,  4.15215540e+01],
-        #               [-2.24936494e-03,  5.92510960e-01,  3.85117129e+02],
-        #               [0, 0, 1]])
-        # corners_from_zed_to_jai = [(np.linalg.inv(M) @ [x, y, 1])[:-1].astype(np.int) for x, y in zed_chess_board_point]
-        zed_cut_gray = cv2.resize(cut_zed_in_jai(gray_zed, cut_coords), (1536, 2048))
-        corners_from_zed_to_jai = get_corners_for_picture(zed_cut_gray, n_rows=4, n_cols=5).astype(np.int)
-        for point in corners_from_zed_to_jai:
-            jai_rgb = cv2.circle(jai_rgb.astype(np.uint8), tuple(point), 5, (255, 0, 0), 3)
-        show_img(jai_rgb)
-        plot_2_imgs(zed_cut, jai_rgb)
+    # for i in range(103, 150):
+    #     img_zed_path = f"/media/fruitspec-lab/easystore/ch_st/zed_rgb/frame_{i}.jpg"
+    #     img_rgb_path = f"/media/fruitspec-lab/easystore/ch_st/jai_rgb/channel_RGB_frame_{i}.jpg"
+    #     gray_zed, zed_img = read_gray(img_zed_path, return_org=True)
+    #     gray_jai_rgb, jai_rgb = read_gray(img_rgb_path, return_org=True)
+    #     zed_chess_board_point = get_corners_for_picture(gray_zed, n_rows=4, n_cols=5)
+    #     cut_coords = {"x1": [20], "x2": [940], "y1": [360], "y2": [1620]}
+    #     zed_cut = cut_zed_in_jai(zed_img, cut_coords)
+    #     # M = np.array([[6.01312693e-01, -2.40858197e-02,  4.15215540e+01],
+    #     #               [-2.24936494e-03,  5.92510960e-01,  3.85117129e+02],
+    #     #               [0, 0, 1]])
+    #     # corners_from_zed_to_jai = [(np.linalg.inv(M) @ [x, y, 1])[:-1].astype(np.int) for x, y in zed_chess_board_point]
+    #     zed_cut_gray = cv2.resize(cut_zed_in_jai(gray_zed, cut_coords), (1536, 2048))
+    #     corners_from_zed_to_jai = get_corners_for_picture(zed_cut_gray, n_rows=4, n_cols=5).astype(np.int)
+    #     for point in corners_from_zed_to_jai:
+    #         jai_rgb = cv2.circle(jai_rgb.astype(np.uint8), tuple(point), 5, (255, 0, 0), 3)
+    #     show_img(jai_rgb)
+    #     plot_2_imgs(zed_cut, jai_rgb)
     #zed_points_in_jai = [[x, y, 1] for x, y in zed_chess_board_point]
 
 
 
-    folder_path_zed = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/zed_rgb"
-    folder_path_jai = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/ch_st/jai_rgb"
+    folder_path_zed = "/media/fruitspec-lab/easystore/ch_st/zed_rgb"
+    folder_path_jai = "/media/fruitspec-lab/easystore/ch_st/jai_rgb"
     M = chess_board_2_cameras_translation(folder_path_zed, folder_path_jai, n_rows=4, n_cols=5,
                             cut_img_zed=(0, 1920, 0, 1080), cut_img_jai=(0, 2048, 0, 1536))
+    tx, ty, sx, sy = affine_to_values(M)
     folder_path = "/home/fruitspec-lab/Documents/ZED/calibaration"
     objpoints, imgpoints, gray, img = draw_chess_board(folder_path)
     ret, mtx, dist, rvecs, tvecs = get_calibration_params(objpoints, imgpoints, gray)

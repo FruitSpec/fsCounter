@@ -15,12 +15,6 @@ from omegaconf import OmegaConf
 from vision.pipelines.run_args import make_parser
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
-# flow:
-# break video to frames
-# order frames in tree folders
-# track folder
-# align folder
-
 
 def update_index(k, index):
     """
@@ -262,12 +256,7 @@ if __name__ == "__main__":
     # preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
     #                                         skip_steps=["folder_to_frames"])
     for i in list(range(2, 11)):
-        if i in [3, 11]:
-            continue
-        if i < 7:
-            skip_steps = ["folder_to_frames", "align_folder"]
-        else:
-            skip_steps = []
+        skip_steps = ["folder_to_frames", "align_folder", "agg_to_trees"]
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         print(movies_path)
         #folder_to_frames(movies_path)
