@@ -264,6 +264,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     cap = cv2.VideoCapture(file_path)
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
+
     # Read until video is completed
     f_id = 0
     hash_ids = list(hash.keys())
@@ -289,6 +290,8 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
         df.loc[df['start'] != -1, 'start'] = df.loc[df['start'] != -1, 'start'] // r
         df.loc[df['end'] != -1, 'end'] = df.loc[df['end'] != -1, 'end'] // r
+        if not os.path.exists(os.path.join(output_path, f"T{tree_id}")):
+            os.mkdir(os.path.join(output_path, f"T{tree_id}"))
         df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
 
 
@@ -300,7 +303,7 @@ def parse_data_to_trees(data):
     last_state = 0
     trees_data = {}
     for frame_id, loc in data.items():
-        if frame_id == 830:
+        if frame_id == 668:
             a = 1
 
         trees = list(trees_data.keys())
@@ -414,7 +417,8 @@ def parse_data_to_trees(data):
         # end-start
         elif last_state == 4:
             if state == 0:
-                continue
+                tree_id += 1
+                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': -1})
             elif state == 1:
                 tree_id += 1
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
@@ -509,17 +513,12 @@ def get_state(loc):
         else:
             state = 6  # end - start
     elif loc['end'] is not None:
-        state = 2
+        state = 2 # end
     else:
-        state = 1
+        state = 1 # start
 
     return state
 
 
 if __name__ == "__main__":
-    fp = r'C:\Users\frodo\Downloads\sliced_pepper\POST-HARVEST-PEPPER-GOOD\1L\FSI.mkv'  # frame 105, middle
-    output_path = r'C:\Users\frodo\Downloads\sliced_pepper\POST-HARVEST-PEPPER-GOOD\1L'
-    #manual_slicer(fp, output_path, rotate=True)
-
-    data_file = r"C:\Users\frodo\Downloads\sliced_pepper\POST-HARVEST-PEPPER-GOOD\1L\FSI_slice_data.json"
-    slice_to_trees(data_file, fp, output_path)
+    pass
