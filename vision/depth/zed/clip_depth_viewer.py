@@ -77,7 +77,7 @@ def run(filepath, cam=None, runtime=None, size=(1792//2, 1008//2), mode="depth",
             break
     cam.close()
 
-def init_cam(filepath):
+def init_cam(filepath, depth_minimum=0.5, depth_maximum=10):
     """
     inits camera and runtime
     :param filepath: path to svo file
@@ -87,13 +87,15 @@ def init_cam(filepath):
     input_type.set_from_svo_file(filepath)
     init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
     init_params.depth_mode = sl.DEPTH_MODE.ULTRA
+    #init_params.depth_mode = sl.DEPTH_MODE.QUALITY
     init_params.coordinate_units = sl.UNIT.METER
-    init_params.depth_minimum_distance = 0.5
-    init_params.depth_maximum_distance = 10.
-    init_params.depth_stabilization = False
+    init_params.depth_minimum_distance = depth_minimum
+    init_params.depth_maximum_distance = depth_maximum
+    init_params.depth_stabilization = True
     runtime = sl.RuntimeParameters()
     runtime.confidence_threshold = 100
-    runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+    #runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+    runtime.sensing_mode = sl.SENSING_MODE.FILL
     cam = sl.Camera()
     status = cam.open(init_params)
     positional_tracking_parameters = sl.PositionalTrackingParameters()

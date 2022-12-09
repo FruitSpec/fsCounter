@@ -6,24 +6,25 @@ from omegaconf import OmegaConf
 import cv2
 from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir
+from vision.misc.help_func import get_repo_dir, scale_dets
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
-#from vision.detector.yolo_x.yolox.evaluators.coco_evaluator import COCOEvaluator
 from vision.detector.yolo_x.yolox.data import COCODataset
-#from vision.detector.yolo_x.yolox.data.data_augment import ValTransform
 from vision.detector.yolo_x.yolox.utils import xyxy2xywh
+from vision.data.results_collector import ResultsCollector, scale
 from vision.data import COCO_utils
+
 
 
 
 def run(cfg, args):
 
     detector = counter_detection(cfg)
+    results_collector = ResultsCollector()
 
     data_dir = os.path.join(args.data_dir, args.ds_name)
     img_list = os.listdir(data_dir)
@@ -34,10 +35,16 @@ def run(cfg, args):
     for img_name in tqdm(img_list):
 
         id_ = map_[img_name]
+        results_collector.collect_file_name(img_name)
+        results_collector.collect_id(id_)
+
         img = cv2.imread(os.path.join(data_dir, img_name))
 
         output = detector.detect(img)
 
+        scale_ = scale(detector.input_size, img.shape)
+        det_outputs = scale_dets(output, scale_)
+        results_collector.collect_detections(det_outputs, id_)
         try:
             results += output_to_coco(output,
                                       img.shape[0],
@@ -47,6 +54,8 @@ def run(cfg, args):
                                       id_)
         except:
             a = 1
+
+    results_collector.draw_and_save_dir(os.path.join(args.data_dir, args.ds_name), args.output_folder)
     coco_results = gt.copy()
     coco_results['annotations'] = results
 

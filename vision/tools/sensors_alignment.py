@@ -8,16 +8,22 @@ def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62]):
 
     grey_zed = cv2.cvtColor(zed_rgb, cv2.COLOR_RGB2GRAY)
     grey_jai = cv2.cvtColor(jai_rgb, cv2.COLOR_RGB2GRAY)
+    #grey_zed = zed_rgb
+    #grey_jai = jai_rgb
 
     zed_mid_h = grey_zed.shape[0] // 2
     #zed_mid_w = grey_zed.shape[1] // 2
     zed_half_height = int(zed_mid_h / (zed_angles[0] / 2) * (jai_angles[0] / 2))
     y_s = zed_mid_h - zed_half_height
     y_e = zed_mid_h + zed_half_height
-    cropped_zed = grey_zed[y_s: y_e]
+    #cropped_zed = grey_zed[y_s: y_e]
 
-    im_zed, r_zed = resize_img(cropped_zed, 960)
-    im_jai, r_jai = resize_img(grey_jai, 960)
+    #im_zed, r_zed = resize_img(cropped_zed, 960)
+    #im_zed, r_zed = resize_img(grey_zed, 960)
+    im_zed = grey_zed.copy()
+    r_zed = 1
+    im_jai= grey_jai.copy()
+    r_jai = 1
 
     kp_zed, des_zed = find_keypoints(im_zed)
     kp_jai, des_jai = find_keypoints(im_jai)
@@ -35,8 +41,8 @@ def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
     arr = np.array([x1, y1, x2, y2])
     arr = arr / r_zed
 
-    arr[1] += y_s
-    arr[3] += y_s
+    # arr[1] += y_s
+    # arr[3] += y_s
 
     return arr
 
@@ -50,8 +56,8 @@ def affine_to_values(M):
     sx = np.sqrt(M[0, 0] ** 2 + M[0, 1] ** 2)
     sy = np.sqrt(M[1, 0] ** 2 + M[1, 1] ** 2)
 
-    tx = np.round(M[0, 2]).astype(np.int)
-    ty = np.round(M[1, 2]).astype(np.int)
+    tx = M[0, 2]
+    ty = M[1, 2]
 
     return tx, ty, sx, sy
 
@@ -64,25 +70,40 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     if tx > 0:
         if ty > 0:
             x1 = tx
-            y1 = ty
             x2 = tx + jai_in_zed_width
+            y1 = ty
             y2 = ty + jai_in_zed_height
         else:
-            x1 = z_w - tx - jai_in_zed_width
-            y1 = z_h - ty - jai_in_zed_height
-            x2 = z_w - tx
-            y2 = z_h - ty
+            # x1 = (tx * sx)
+            # x2 = (tx * sx) + grey_jai.shape[1]
+            # y1 = z_h + (ty * sy) - grey_jai.shape[0]
+            # y2 = z_h + (ty * sy)
+
+            x1 = tx
+            x2 = tx + jai_in_zed_width
+            y1 = z_h + ty - jai_in_zed_height
+            y2 = z_h + ty
     else:
         if ty > 0:
-            x1 = z_w - tx - jai_in_zed_width
-            y1 = z_h - ty - jai_in_zed_height
-            x2 = tx + jai_in_zed_width
+            # x1 = z_w + (tx * sx) - grey_jai.shape[1]
+            # x2 = z_w + (tx * sx)
+            # y1 = (ty * sy)
+            # y2 = (ty * sy) + grey_jai.shape[0]
+
+            x1 = z_w + tx - jai_in_zed_width
+            x2 = z_w + tx
+            y1 = ty
             y2 = ty + jai_in_zed_height
         else:
-            x1 = z_w - tx - jai_in_zed_width
-            y1 = z_h - ty - jai_in_zed_height
-            x2 = z_w - tx
-            y2 = z_h - ty
+            # x1 = z_w + (tx / sx) - grey_jai.shape[1]
+            # x2 = z_w + (tx / sx)
+            # y1 = z_h + (ty / sy) - grey_jai.shape[0]
+            # y2 = z_h + (ty / sy)
+
+            x1 = z_w + tx - jai_in_zed_width
+            x2 = z_w + tx
+            y1 = z_h + ty - jai_in_zed_height
+            y2 = z_h + ty
 
     return x1, y1, x2, y2
 

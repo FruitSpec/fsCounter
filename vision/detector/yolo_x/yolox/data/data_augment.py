@@ -15,6 +15,7 @@ import random
 import cv2
 import numpy as np
 
+import albumentations as A
 from yolox.utils import xyxy2cxcywh
 
 
@@ -158,11 +159,21 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     return padded_img, r
 
 
+def get_transform():
+    transform = A.Compose([A.RGBShift(p=0.5),
+                           A.RandomBrightnessContrast(brightness_limit=0.4, contrast_limit=0.4, p=0.5),
+                           A.AdvancedBlur(p=0.5),
+                           A.CLAHE(p=0.5),
+                           A.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, p=0.5)
+                           ])
+    return transform
+
 class TrainTransform:
     def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0):
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
+        self.transform = get_transform()
 
     def __call__(self, image, targets, input_dim):
         boxes = targets[:, :4].copy()
@@ -179,6 +190,10 @@ class TrainTransform:
         labels_o = targets_o[:, 4]
         # bbox_o: [xyxy] to [c_x,c_y,w,h]
         boxes_o = xyxy2cxcywh(boxes_o)
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = self.transform(image=image)["image"]
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)

@@ -17,7 +17,7 @@ from vision.data.results_collector import ResultsCollector, scale
 
 
 def run(cfg, args):
-    detector = counter_detection(cfg)
+    detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
 
     cap = cv2.VideoCapture(args.movie_path)
@@ -50,13 +50,13 @@ def run(cfg, args):
             det_outputs = scale_dets(det_outputs, scale_)
 
             # track:
-            trk_outputs = detector.track(det_outputs, f_id, frame)
+            trk_outputs, _ = detector.track(det_outputs, f_id, frame)
 
             # collect results:
             results_collector.collect_detections(det_outputs, f_id)
             results_collector.collect_tracks(trk_outputs)
 
-
+            results_collector.draw_and_save(frame, trk_outputs, f_id, args.output_folder)
             ids.append(f_id)
             f_id += 1
 
@@ -91,14 +91,17 @@ if __name__ == "__main__":
 
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     #config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(repo_dir + runtime_config)
 
 
-    args = make_parser()
+    #args = make_parser()
 
-    args.movie_path = '/home/fruitspec-lab/FruitSpec/Data/syngenta/1/Result_FSI_1.mkv'
-    args.output_folder = '/home/fruitspec-lab/FruitSpec/Sandbox/Syngenta/4'
-    args.rotate = True
+    args.movie_path = '/home/yotam/FruitSpec/Data/Syngenta/JAI_blower/BLOWER_SIMPLE.mkv'
+    args.output_folder = '/home/yotam/FruitSpec/Sandbox/Syngenta/blower_1'
+#    args.rotate = True
+    args.frame_size = [2048, 1536]
 
     run(cfg, args)

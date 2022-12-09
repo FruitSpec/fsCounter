@@ -2,9 +2,8 @@ import os
 import cv2
 import numpy as np
 from tqdm import tqdm
-from skimage import exposure
-from vision.tools.camera import jai_to_channels
 
+from vision.tools.camera import jai_to_channels
 
 def run(movie_path, output_path,  range=None, rotate=True):
     if not os.path.exists(output_path):

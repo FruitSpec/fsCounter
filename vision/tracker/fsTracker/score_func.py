@@ -1,24 +1,35 @@
 import numpy as np
-from cython_bbox import bbox_overlaps as bbox_ious
+#from cython_bbox import bbox_overlaps as bbox_ious
 
-def ious(atlbrs, btlbrs):
-    """
-    Compute cost based on IoU
-    :type atlbrs: list[tlbr] | np.ndarray
-    :type atlbrs: list[tlbr] | np.ndarray
+# def ious(atlbrs, btlbrs):
+#     """
+#     Compute cost based on IoU
+#     :type atlbrs: list[tlbr] | np.ndarray
+#     :type atlbrs: list[tlbr] | np.ndarray
+#
+#     :rtype ious np.ndarray
+#     """
+#     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
+#     if ious.size == 0:
+#         return ious
+#
+#     ious = bbox_ious(
+#         np.ascontiguousarray(atlbrs, dtype=np.float),
+#         np.ascontiguousarray(btlbrs, dtype=np.float)
+#     )
+#
+#     return ious
+#def compute_ratios(trk_windows, dets):
+    #trk_area = (trk_windows[:, 2] - trk_windows[:, 0]) * (trk_windows[:, 3] - trk_windows[:, 1])
+    #det_area = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
 
-    :rtype ious np.ndarray
-    """
-    ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
-    if ious.size == 0:
-        return ious
+#    trk_area = np.expand_dims(trk_area, axis=0)
+#    det_area = np.expand_dims(det_area, axis=0)
 
-    ious = bbox_ious(
-        np.ascontiguousarray(atlbrs, dtype=np.float),
-        np.ascontiguousarray(btlbrs, dtype=np.float)
-    )
+#    trk_det = trk_area.T / det_area
+#    det_trk = (1 / trk_area.T) * det_area
 
-    return ious
+#    return np.min(np.stack((trk_det, det_trk), axis=2), axis=2)
 
 def compute_ratios(trck_bbox, dets):
     trck_boxes = [trck_bbox for _ in dets]

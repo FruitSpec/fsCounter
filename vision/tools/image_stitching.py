@@ -5,6 +5,33 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
+def kepp_dets_only(frame, detections):
+    canvas = frame.copy()
+    if len(detections) > 0:
+        dets = np.array(detections)[:, :4]
+    else:
+        dets = []
+    h, w = frame.shape[:2]
+    bool_arr = np.zeros((h, w), dtype=np.bool)
+    for det in dets:
+        bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
+    canvas[np.logical_not(bool_arr)] = 0
+
+    return canvas
+
+def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
+
+    # Define termination criteria
+    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
+
+    # Define the motion model
+    warp_mode = cv2.MOTION_TRANSLATION
+    warp_matrix = np.eye(2, 3, dtype=np.float32)
+
+    # find transform
+    score, M = cv2.findTransformECC(img1, img2, warp_matrix, motionType=warp_mode, criteria=criteria)
+
+    return M, score, warp_matrix
 
 def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     """
@@ -70,7 +97,18 @@ def get_fine_translation(key_des1, key_des2, max_workers=5):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(find_translation, kp1, des1, kp2, des2, r))
 
-    return results
+    x_values = list(filter(None, [r[0] for r in results]))
+    y_values = list(filter(None, [r[1] for r in results]))
+    if x_values:
+        tx = np.median(x_values)
+    else:
+        tx = None
+    if y_values:
+        ty = np.median(y_values)
+    else:
+        ty = None
+
+    return tx, ty
 def  get_translation(img1, img2):
 
     kp1, des1 = find_keypoints(img1)
@@ -80,7 +118,7 @@ def  get_translation(img1, img2):
 
     return tx, ty
 def get_windows(img1):
-    h, w = img1.shape
+    h, w = img1.shape[:2]
     set1 = [int(w * 0.2), int(h * 0.2), int(w * 0.5), int(h * 0.4)]
     set2 = [int(w * 0.2), int(h * 0.6), int(w * 0.5), int(h * 0.8)]
     set3 = [int(w * 0.5), int(h * 0.2), int(w * 0.8), int(h * 0.4)]
@@ -157,15 +195,16 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
+    try:
+        matches = flann.knnMatch(des1, des2, k=2)
+    except:
+        Warning('flann.knnMatch collapsed, return empty matches')
+        matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []
     for m, n in matches:
         if m.distance < threshold * n.distance:
             match.append(m)
-
-    if match.__len__() < min_matches:
-        print(f'number of matching descriptors is too low')
 
     return match
 
@@ -174,7 +213,11 @@ def calc_affine_transform(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
-    M, status = cv2.estimateAffine2D(src_pts, dst_pts)
+    if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
+        M, status = cv2.estimateAffine2D(src_pts, dst_pts)
+    else:
+        M, status = None, [0]
+
 
     return M, status
 
@@ -376,8 +419,14 @@ def translation_based(M, height, width, r):
 
 def find_translation(kp1, des1, kp2, des2, r):
     M, status = features_to_translation(kp1, kp2, des1, des2)
-    tx = int(np.round(M[0, 2] / r))
-    ty = int(np.round(M[1, 2] / r))
+    if 1 in np.unique(status) and True not in np.unique(np.isnan(M)) and True not in np.unique(np.isinf(M)):
+        try:
+            tx = int(np.round(M[0, 2] / r))
+            ty = int(np.round(M[1, 2] / r))
+        except:
+            a=1
+    else:
+        tx, ty = None, None
 
     return tx, ty
 
