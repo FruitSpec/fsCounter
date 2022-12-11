@@ -208,6 +208,7 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
                            "tx": [], "ty": [], "sx": [], "sy": [], "frame": [], "zed_shift": []})
     frames.sort(key=lambda x: int(x))
     consec_less_threshold = 0
+    consec_more_threshold = 0
     for frame in tqdm(frames):
         zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
@@ -240,7 +241,18 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
         if consec_less_threshold > 5:
             zed_shift-=1
             consec_less_threshold = 0
+            consec_more_threshold = 0
+        if tx > 120:
+            consec_more_threshold+=1
+        else:
+            consec_more_threshold = 0
+        if consec_more_threshold > 5:
+            zed_shift+=1
+            consec_less_threshold = 0
+            consec_more_threshold = 0
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
+    plt.plot(df_out["tx"])
+    plt.show()
     print(f"aligned: {folder_path}")
 
 

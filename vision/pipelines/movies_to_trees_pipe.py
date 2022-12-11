@@ -252,9 +252,9 @@ if __name__ == "__main__":
     #         folder_to_frames(row_path)
     # movies_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_1_testing"
     # # preprocess_videos_to_trees(movies_path)
-    # movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6"
-    # preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
-    #                                         skip_steps=["folder_to_frames"])
+    movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R7"
+    preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
+                                            skip_steps=["folder_to_frames"])
     for i in list(range(2, 11)):
         skip_steps = ["folder_to_frames", "align_folder", "agg_to_trees"]
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
