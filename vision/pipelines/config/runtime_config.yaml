@@ -3,7 +3,9 @@ output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/tomatoes/pre_ZED_90_1Class
 #movie_path:
 
 frame_size:  [1920, 1080] # [2048, 1536]
-rotate: true
+rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
+depth_minimum: 0.1 # 1 counter
+depth_maximum: 2.5 # 8 counter
 
 debug:
   is_debug: true  # master switch
@@ -12,4 +14,6 @@ debug:
   det_results: false
   raw_frame: false
   depth: false
+  tracker: None
+  clusters: false
 

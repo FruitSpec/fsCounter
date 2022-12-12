@@ -14,6 +14,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
 from vision.data.results_collector import ResultsCollector, scale
+from vision.misc.help_func import validate_output_path
 
 
 def run(cfg, args):
@@ -46,17 +47,17 @@ def run(cfg, args):
 
             # detect:
             det_outputs = detector.detect(frame)
-            scale_ = scale(detector.input_size, frame.shape)
-            det_outputs = scale_dets(det_outputs, scale_)
 
             # track:
-            trk_outputs, _ = detector.track(det_outputs, f_id, frame)
+            trk_outputs, trk_windows = detector.track(det_outputs, f_id, frame)
 
             # collect results:
             results_collector.collect_detections(det_outputs, f_id)
             results_collector.collect_tracks(trk_outputs)
 
-            results_collector.draw_and_save(frame, trk_outputs, f_id, args.output_folder)
+            if args.debug.is_debug:
+                results_collector.debug(f_id, args, trk_outputs, det_outputs, frame, trk_windows=trk_windows)
+
             ids.append(f_id)
             f_id += 1
 
@@ -103,5 +104,5 @@ if __name__ == "__main__":
     args.output_folder = '/home/yotam/FruitSpec/Sandbox/Syngenta/blower_1'
 #    args.rotate = True
     args.frame_size = [2048, 1536]
-
+    validate_output_path(args.output_folder)
     run(cfg, args)

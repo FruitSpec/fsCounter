@@ -14,12 +14,14 @@ class Track:
         self._count = 0
         self.track_id = 0
         self.is_activated = False
-        self.state = TrackState.New
+        self.state = None
         self.bbox = None  # x1y1x2y2
         self.score = None
         self.cls = None
         self.frame_size = []
-        self.accumulated_dist = []
+        self.accumulated_dist = deque()
+        self.accumulated_height = deque()
+        self.lost_counter = 0
 
 
     def get_track_search_window(self, search_window, margin=15, multiply=1.25):
@@ -72,13 +74,18 @@ class Track:
     def update(self, det):
         bbox = [det[0], det[1], det[2], det[3]]
         self.accumulated_dist.append(self.bbox[0] - bbox[0])
+        self.accumulated_height.append(self.bbox[1] - bbox[1])
+        if self.accumulated_dist.__len__() > 3:
+            self.accumulated_dist.popleft()
+        if self.accumulated_height.__len__() > 3:
+            self.accumulated_height.popleft()
         self.bbox = bbox
-
         self.is_activated = True
         self.score = det[4] * det[5]
         self.cls = det[6]
         self._count += 1
         self.state = TrackState.Tracked
+        self.lost_counter = 0
 
     def output(self):
         return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]

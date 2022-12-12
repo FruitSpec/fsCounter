@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
-def kepp_dets_only(frame, detections):
+def keep_dets_only(frame, detections, margin = 0.5):
     canvas = frame.copy()
     if len(detections) > 0:
         dets = np.array(detections)[:, :4]
@@ -14,7 +14,14 @@ def kepp_dets_only(frame, detections):
     h, w = frame.shape[:2]
     bool_arr = np.zeros((h, w), dtype=np.bool)
     for det in dets:
-        bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
+        margin_h = ((det[3] - det[1]) * margin / 2)
+        margin_w = ((det[2] - det[0]) * margin / 2)
+        y1 = max(det[1] - margin_h, 0)
+        y2 = min(det[3] + margin_h, frame.shape[0])
+        x1 = max(det[0] - margin_w, 0)
+        x2 = min(det[2] + margin_w, frame.shape[1])
+        #bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
+        bool_arr[int(y1): int(y2), int(x1): int(x2)] = True
     canvas[np.logical_not(bool_arr)] = 0
 
     return canvas
@@ -177,22 +184,23 @@ def features_to_homography(kp1, kp2, des1, des2):
 
 
 def features_to_translation(kp1, kp2, des1, des2):
-    good = match_descriptors(des1, des2)
+    good, matches, matchesMask = match_descriptors(des1, des2)
     M, status = calc_affine_transform(kp1, kp2, good)
 
-    return M, status
+    return M, status, good, matches, matchesMask
 
 def find_keypoints(img):
-    sift = cv2.SIFT_create()
+    detector = cv2.SIFT_create()
+    #detector = cv2.ORB_create()
     # find key points
-    kp, des = sift.detectAndCompute(img, None)
+    kp, des = detector.detectAndCompute(img, None)
 
     return kp, des
 
 
 def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     try:
@@ -202,11 +210,14 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
         matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []
+    matchesMask = [[0, 0] for i in range(len(matches))]
+    id = 0
     for m, n in matches:
         if m.distance < threshold * n.distance:
             match.append(m)
-
-    return match
+            matchesMask[id] = [1, 0]
+        id += 1
+    return match, matches, matchesMask
 
 
 def calc_affine_transform(kp1, kp2, match):
@@ -214,7 +225,7 @@ def calc_affine_transform(kp1, kp2, match):
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
-        M, status = cv2.estimateAffine2D(src_pts, dst_pts)
+        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=7)
     else:
         M, status = None, [0]
 
@@ -418,7 +429,7 @@ def translation_based(M, height, width, r):
 
 
 def find_translation(kp1, des1, kp2, des2, r):
-    M, status = features_to_translation(kp1, kp2, des1, des2)
+    M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)
     if 1 in np.unique(status) and True not in np.unique(np.isnan(M)) and True not in np.unique(np.isinf(M)):
         try:
             tx = int(np.round(M[0, 2] / r))
@@ -428,7 +439,7 @@ def find_translation(kp1, des1, kp2, des2, r):
     else:
         tx, ty = None, None
 
-    return tx, ty
+    return tx, ty, good, matches, matchesMask
 
 
 def resize_img(input_, size):

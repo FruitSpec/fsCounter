@@ -2,12 +2,11 @@ import os
 import numpy as np
 import cv2
 import json
-import collections
-import pandas as pd
-from tqdm import tqdm
 
 from vision.visualization.drawer import draw_highlighted_test
-from vision.tools.image_stitching import find_keypoints, get_fine_keypoints, find_translation, resize_img, get_fine_translation
+from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
+from vision.tools.video_wrapper import video_wrapper
+from vision.misc.help_func import validate_output_path
 
 
 def mouse_callback(event, x, y, flags, params):
@@ -120,49 +119,47 @@ def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_
     params['headline'] = headline
     cv2.namedWindow(headline, cv2.WINDOW_GUI_NORMAL)
 
-    cap = cv2.VideoCapture(filepath)
-    number_of_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    cam = video_wrapper(filepath, rotate=rotate)
+    number_of_frames = cam.get_number_of_frames()
+    width = cam.get_width()
+    height = cam.get_height()
 
     params['height'] = height
     params['width'] = width
 
-    if (cap.isOpened() == False):
-        print("Error opening video stream or file")
     # Read until video is completed
-    while (cap.isOpened()):
+    while True:
         # Capture frame-by-frame
         print(params["index"])
-        cap.set(cv2.CAP_PROP_POS_FRAMES, params["index"])
-        ret, frame = cap.read()
-        if ret == True:
+        if cam.mode == 'svo':
+            cam.grab(params["index"])
+        ret, frame = cam.get_frame(params["index"])
+        if ret != True:
+            break  # couldn't load frame
 
-            # preprocess: resize and rotate if needed
-            frame, params = preprocess_frame(frame, params)
+        # preprocess: resize and rotate if needed
+        frame, params = preprocess_frame(frame, params)
 
-            params = init_data_index(params)
-            # params = get_updated_location_in_index(frame, params)
+        params = init_data_index(params)
+        # params = get_updated_location_in_index(frame, params)
 
-            frame = print_lines(params)
-            frame = print_text(frame, params)
+        frame = print_lines(params)
+        frame = print_text(frame, params)
 
-            cv2.imshow(headline, frame)
+        cv2.imshow(headline, frame)
 
-            cv2.setMouseCallback(headline, mouse_callback, params)
-            k = cv2.waitKey()
-            # Press Q on keyboard to  exit
-            if cv2.waitKey(k) & 0xFF == ord('q'):
-                write_json(params)
-                break
-            params = update_index(k, params)
+        cv2.setMouseCallback(headline, mouse_callback, params)
+        k = cv2.waitKey()
+        # Press Q on keyboard to  exit
+        if cv2.waitKey(k) & 0xFF == ord('q'):
             write_json(params)
-        # Break the loop
-        else:
             break
+        params = update_index(k, params)
+        write_json(params)
+
 
     # When everything done, release the video capture object
-    cap.release()
+    cam.close()
 
     # Closes all the frames
     cv2.destroyAllWindows()
@@ -172,8 +169,8 @@ def preprocess_frame(frame, params):
     height = int(params['height'] // params['resize_factor'])
 
     frame, r = resize_img(frame, height)
-    if params['rotate']:
-        frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    #if params['rotate']:
+    #       frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
     params['frame'] = frame.copy()
     params['r'] = r
 
@@ -209,7 +206,6 @@ def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
         params['data'][params['index']] = {'start': None, 'end': None}
-
     return params
 
 

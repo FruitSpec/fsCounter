@@ -114,7 +114,7 @@ def filter_by_height(det_outputs, depth, bias=0, y_crop=200):
         grad_y[grad_y < -300] = 1
 
         y_loc = np.argmax(grad_y, axis=0)
-        y_threshold = np.mean(y_loc[y_loc > 0]) + y_crop - bias
+        y_threshold = np.mean(y_loc[y_loc > 0]) + y_crop + bias
 
         for det in det_outputs:
             if det[1] > y_threshold:

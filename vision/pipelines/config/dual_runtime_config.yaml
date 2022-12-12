@@ -4,12 +4,19 @@ rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 zed:
   movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/ZED_1.svo
   frame_size: [1920, 1080]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  depth_minimum: 0.1 # 1 counter
+  depth_maximum: 2.5 # 8 counter
+
 jai:
-  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/FSI.mkv
+  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/291122/PRE/4/Result_FSI_1.mkv
   frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 frame_size: [2048, 1536]
 
+debug:
+  tracker: None
 
 
 
