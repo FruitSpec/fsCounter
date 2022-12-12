@@ -1,17 +1,17 @@
+import os.path
+
 import cv2
 import numpy as np
 
 from vision.tracker.fsTracker.base_track import Track
-from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, get_intersection
-from vision.tools.image_stitching import find_keypoints, find_translation, resize_img
-from vision.tools.image_stitching import get_fine_translation, get_fine_keypoints, get_ECCtranslation, kepp_dets_only
+from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, get_intersection, relativity_score
 from vision.tracker.fsTracker.base_track import TrackState
-
+from vision.misc.help_func import validate_output_path
 
 class FsTracker():
 
     def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, minimal_max_distance=10,
-                 score_weights=[0.5, 1, 0.5], match_type='center', det_area=1, translation_size=640, max_losses=10):
+                 score_weights=[0.5, 1, 0.5], match_type='center', det_area=1, translation_size=640, max_losses=10, major=3, minor=2.5, debug_folder=None):
 
         self.tracklets = []
         self.track_id = track_id
@@ -20,6 +20,8 @@ class FsTracker():
         self.minimal_max_distance = minimal_max_distance
         self.x_distance = 0
         self.y_distance = 0
+        self.major = major
+        self.minor = minor
         self.match_type = match_type
         self.det_area = det_area
         self.max_losses = max_losses
@@ -32,25 +34,29 @@ class FsTracker():
         self.last_kp = None
         self.last_des = None
         self.last_center_x = None
-        self.last_frame = None
+
+
+        if debug_folder is not None:
+            self.last_frame = None
+            self.f_id = 0
+            validate_output_path(debug_folder)
+            self.debug_folder = debug_folder
+
 
     def reset_state(self):
         pass
 
-    def update(self, detections, frame):
-        frame = kepp_dets_only(frame, detections)
-        frame, r = resize_img(frame, self.translation_size)
-        search_window = self.get_search_ranges(detections, frame, r)
-        #print(search_window)
+    def update(self, detections, tx, ty, frame_id=None):
+        tx, ty = self.update_frame_meta(frame_id, tx, ty)
         self.update_max_distance()
-
         self.is_extreme_shift()
+
         self.deactivate_tracks()
         """ find dets that match tracks"""
-        tracklets_bboxes, tracklets_scores, track_acc_dist = self.get_tracklets_data()
-        track_windows = self.get_track_search_window_by_id(search_window, tracklets_bboxes)
+        tracklets_bboxes, tracklets_scores, track_acc_dist, tracks_acc_height = self.get_tracklets_data()
+        track_windows = self.get_track_search_window_by_id([tx, ty], tracklets_bboxes)
         matches = self.match_detections_to_windows(track_windows, detections, self.match_type)
-        not_coupled = self.calc_matches_score_and_update(matches, detections, tracklets_bboxes, tracklets_scores, track_acc_dist)
+        not_coupled = self.calc_matches_score_and_update(matches, detections, tracklets_bboxes, tracklets_scores, track_acc_dist, tracks_acc_height)
 
         """ add new dets tracks"""
         for det_id in not_coupled:
@@ -69,81 +75,64 @@ class FsTracker():
 
         tracklets = list(map(self.get_track, self.tracklets))
         track_acc_dist = list(map(self.get_acc_dist, self.tracklets))
+        track_acc_height = list(map(self.get_acc_height, self.tracklets))
         if len(tracklets) > 0:
             tracklets = np.vstack(tracklets)
             tracklets_bboxes = tracklets[:, :4]
             tracklets_scores = tracklets[:, 4]
 
-        return tracklets_bboxes, tracklets_scores, track_acc_dist
+        return tracklets_bboxes, tracklets_scores, track_acc_dist, track_acc_height
 
 
 
 
-
-    def get_search_ranges(self, detections, frame, r, percentile=10):
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        #frame, r = resize_img(frame, 640)
-        #h, w = frame.shape
-        #frame = frame[:, :]
-
-        # #kp_des = get_fine_keypoints(frame)
-        # if self.last_kp is not None:
-        #     tx, ty = find_translation(self.last_kp, self.last_des, kp, des, 1)
-        #     if tx is None:
-        #         tx = self.x_distance
-        #     if ty is None:
-        #         ty = self.y_distance
-        if self.last_frame is not None:
-            try:
-                M, _, _ = get_ECCtranslation(self.last_frame, frame)
-
-                tx = int(M[0, -1] / r)
-                ty = int(M[1, -1] / r)
-            except:
-                Warning('failed to match')
-                tx = self.x_distance if self.x_distance is not None else 0
-                ty = self.y_distance if self.y_distance is not None else 0
-
+    def update_frame_meta(self, frame_id, tx, ty):
+        self.f_id = frame_id
+        if tx is not None:
+            self.x_distance = tx
         else:
-            tx, ty = 0, 0
+            tx = 0
 
-        self.last_frame = frame
-        #self.last_kp_des = kp_des  #kp
-        # self.last_kp = kp
-        # self.last_des = des
-
-        # if len(self.x_distance) >= self.max_ranges:
-        #     new_x_dist = [r for r in self.x_distance[1:]]
-        #     self.x_distance = new_x_dist
-
-        self.x_distance = tx
-        self.y_distance = ty
+        if ty is not None:
+            self.y_distance = tx
+        else:
+            ty = 0
 
         return tx, ty
 
-    def get_track_search_window_by_id(self, search_window, tracklets_bboxes, margin=15, multiply=1.25):
-        tx = search_window[0] * multiply
-        ty = search_window[1] * multiply
+
+    def get_track_search_window_by_id(self, search_window, tracklets_bboxes, margin=15):
+        tx = search_window[0] * self.major
+        ty = search_window[1] * self.major
+        tx_m = search_window[0] * self.minor
+        ty_m = search_window[1] * self.minor
         tracklets_windows = []
 
         if len(tracklets_bboxes) > 0:
             tracklets_bboxes = np.vstack(tracklets_bboxes)
 
-            if tx > 0:
-                x1 = tracklets_bboxes[:, 0] + tx
-                x2 = tracklets_bboxes[:, 2] + margin
+
+            if tx > 0:  # moving right - fruits moving left
+                x1 = tracklets_bboxes[:, 0] - tx
+                x2 = tracklets_bboxes[:, 2] + margin - tx_m
             else:
-                x1 = tracklets_bboxes[:, 0] - margin
-                x2 = tracklets_bboxes[:, 2] + tx
+                x1 = tracklets_bboxes[:, 0] + margin - tx_m
+                x2 = tracklets_bboxes[:, 2] - tx
+
+
             x1[x1 < 0] = 0
             x2[x2 > self.frame_size[1]] = self.frame_size[1]
 
             if ty > 0:
                 y1 = tracklets_bboxes[:, 1] - ty
-                y2 = tracklets_bboxes[:, 3] + margin
+                y2 = tracklets_bboxes[:, 3] + margin - ty_m
             else:
-                y1 = tracklets_bboxes[:, 1] - margin
+                y1 = tracklets_bboxes[:, 1] + margin - ty_m
                 y2 = tracklets_bboxes[:, 3] - ty
+
+
+
+
             y1[y1 < 0] = 0
             y2[y2 > self.frame_size[0]] = self.frame_size[0]
 
@@ -163,6 +152,16 @@ class FsTracker():
         else:
             acc_dist = 0
         return acc_dist
+
+    @staticmethod
+    def get_acc_height(track):
+
+        if len(track.accumulated_height) > 0:
+            acc_height = np.mean(track.accumulated_height)
+        else:
+            acc_height = 0
+        return acc_height
+
     def get_track_search_window_by_id_np(self, search_window):
 
 
@@ -250,7 +249,7 @@ class FsTracker():
         return x_valid & y_valid
 
 
-    def calc_matches_score_and_update(self, matches, detections, track_windows, trk_score, tracks_acc_dist):
+    def calc_matches_score_and_update(self, matches, detections, track_windows, trk_score, tracks_acc_dist, tracks_acc_height):
         if len(track_windows) == 0:
             return [i for i in range(len(detections))]
         elif len(detections) == 0:
@@ -261,21 +260,27 @@ class FsTracker():
         dets_score = detections_arr[:, 4] * detections_arr[:, 5]
 
 
-        dist_score = dist(track_windows, dets, tracks_acc_dist, self.y_distance, np.abs(self.max_distance))
+        #dist_score = dist(track_windows, dets, tracks_acc_dist, tracks_acc_height, np.abs(self.max_distance))
+        dist_score = dist(track_windows, dets, self.x_distance * self.major, self.y_distance * self.major, np.abs(self.max_distance))
         ratio_score = compute_ratios(track_windows, dets)
         conf_score = confidence_score(trk_score, dets_score)
+        rel_score = relativity_score(track_windows, dets)
 
         # no match get 0 score
+        # no_match = np.logical_not(matches & rel_score)
         no_match = np.logical_not(matches)
         dist_score[no_match] = 0  # no match
         ratio_score[no_match] = 0
         conf_score[no_match] = 0
+        rel_score[no_match] = 0
 
         weigthed_ratio = ratio_score * self.score_weights[0]
         weigthed_dist = dist_score * self.score_weights[1]
         weigthed_conf = conf_score * self.score_weights[2]
+        weigthed_rel = rel_score * self.score_weights[3]
 
-        weigthed_score = (weigthed_ratio + weigthed_dist + weigthed_conf) / np.sum(self.score_weights)
+        weigthed_score = (weigthed_ratio + weigthed_dist + weigthed_conf + weigthed_rel) / np.sum(self.score_weights)
+        #weigthed_score = (weigthed_ratio + weigthed_dist + weigthed_conf) / np.sum(self.score_weights)
 
         coupled_dets = []
         n_dets = weigthed_score.shape[1]
@@ -390,12 +395,17 @@ class FsTracker():
         for track in self.tracklets:
             if track.is_activated is False:  # not found in current frame
                 valid = False
-                if track.state == TrackState.Lost:  # object found once
-                    track.accumulated_dist.append(+self.x_distance)
-                track.bbox[0] += self.x_distance
-                track.bbox[2] += self.x_distance
-                track.bbox[1] += self.y_distance
-                track.bbox[3] += self.y_distance
+                if len(track.accumulated_dist) == 0:  # object found once
+                    track.accumulated_dist.append(self.x_distance)
+                    track.accumulated_height.append(self.y_distance)
+                #track.bbox[0] -= self.x_distance
+                #track.bbox[2] -= self.x_distance
+                #track.bbox[1] -= self.y_distance
+                #track.bbox[3] -= self.y_distance
+                track.bbox[0] -= np.mean(track.accumulated_dist)
+                track.bbox[2] -= np.mean(track.accumulated_dist)
+                track.bbox[1] -= np.mean(track.accumulated_height)
+                track.bbox[3] -= np.mean(track.accumulated_height)
                 track.state = TrackState.Lost
                 track.lost_counter += 1
 
@@ -423,6 +433,19 @@ class FsTracker():
             self.x_distance = 0
             self.y_distance = 0
             self.tracklets = []
+
+    def save_debug(self, frame, good, matches, matchesMask, kp):
+
+        # Need to draw only good matches, so create a mask
+
+        draw_params = dict(matchColor=(0, 255, 0),
+                           singlePointColor=(255, 0, 0),
+                           matchesMask=matchesMask,
+                           flags=0)
+        debug_img = cv2.drawMatchesKnn(self.last_frame, self.last_kp, frame, kp, matches, None, **draw_params)
+        file_name = os.path.join(self.debug_folder, f'kp_f{self.f_id}.jpg')
+        cv2.imwrite(file_name, debug_img)
+
 
 
 def test_func(f_list):

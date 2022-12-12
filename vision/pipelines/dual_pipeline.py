@@ -15,6 +15,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector, scale
+from vision.tools.translation import translation as T
 from vision.depth.zed.clip_depth_viewer import init_cam
 from vision.tracker.fsTracker.score_func import get_intersection
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_duplicates, filter_by_size
@@ -22,11 +23,10 @@ from vision.pipelines.misc.filters import filter_by_distance, filter_by_duplicat
 def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
-    zed_cam = video_wrapper(args.zed.movie_path, args.rotate, 0.1, 1)
-    jai_cam = video_wrapper(args.jai.movie_path, args.rotate)
-
-
+    zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate, args.zed.depth_minimum, args.zed.depth_maximum)
+    jai_cam = video_wrapper(args.jai.movie_path, args.jai.rotate)
 
     # Read until video is completed
     print(f'Inferencing on {args.jai.movie_path}\n')
@@ -38,35 +38,23 @@ def run(cfg, args):
         zed_frame, depth, point_cloud = zed_cam.get_zed()
         ret, jai_frame = jai_cam.get_frame()
         if not ret and not zed_cam.res:  # couldn't get frames
+            # Break the loop
             break
 
         # detect:
         try:
             det_outputs = detector.detect(jai_frame)
-            scale_ = scale(detector.input_size, jai_frame.shape)
-            det_outputs = scale_dets(det_outputs, scale_)
-            # filter:
-            # filtered_outputs = filter_by_distance(det_outputs, depth, cfg.filters.distance.threshold)
-            # filtered_outputs = filter_by_size(filtered_outputs, cfg.filters.size.size_threshold)
-            # filtered_outputs = filter_by_duplicates(filtered_outputs, cfg.filters.duplicates.iou_threshold)
-
-            # track:
-            trk_outputs, trk_windows = detector.track(det_outputs, f_id, jai_frame)
-
-            #collect results:
-            results_collector.collect_detections(det_outputs, f_id)
-            results_collector.collect_tracks(trk_outputs)
-
-            output_path = os.path.join(args.output_folder, 'jai')
-            validate_output_path(output_path)
-            results_collector.draw_and_save(jai_frame, trk_outputs, f_id, output_path)
-
-            output_path = os.path.join(args.output_folder, 'depth')
-            validate_output_path(output_path)
-            results_collector.draw_and_save(depth, trk_outputs, f_id, output_path)
-
         except:
-            break
+            continue
+        # find translation
+        tx, ty = translation.get_translation(jai_frame, [])
+
+        # track:
+        trk_outputs, trk_windows = detector.track(det_outputs, tx, ty, f_id)
+
+        #collect results:
+        results_collector.collect_detections(det_outputs, f_id)
+        results_collector.collect_tracks(trk_outputs)
 
         f_id += 1
 
@@ -74,7 +62,7 @@ def run(cfg, args):
     jai_cam.close()
 
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), detections=False)
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), type="tracks")
 
 
 def validate_output_path(output_folder):

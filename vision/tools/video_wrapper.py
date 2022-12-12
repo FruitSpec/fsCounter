@@ -4,7 +4,7 @@ import numpy as np
 
 class video_wrapper():
 
-    def __init__(self, filepath, rotate, depth_minimum=0.1, depth_maximum=2.5):
+    def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5):
         if 'svo' in filepath.split('.')[-1]:
             self.mode = 'svo'
             self.cam, self.runtime = self.init_cam(filepath, depth_minimum, depth_maximum)
@@ -133,8 +133,9 @@ class video_wrapper():
 
     def get_height(self):
         if self.mode == 'svo':
-            height = None
-            Warning('FPS Not implemented for svo file')
+            ci = self.cam.get_camera_information()
+            # camera is rotated - width is height
+            height = ci.camera_configuration.camera_resolution.width
         else:
             height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
@@ -142,8 +143,9 @@ class video_wrapper():
 
     def get_width(self):
         if self.mode == 'svo':
-            width = None
-            Warning('FPS Not implemented for svo file')
+            ci = self.cam.get_camera_information()
+            # camera is rotated - height is width
+            width = ci.camera_configuration.camera_resolution.height
         else:
             width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
         return width

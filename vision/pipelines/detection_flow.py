@@ -8,7 +8,7 @@ sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 from vision.detector.yolo_x.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
 from vision.detector.yolo_x.yolox.utils.boxes import postprocess
-#from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
+from vision.misc.help_func import scale_dets, scale
 from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 
@@ -54,7 +54,11 @@ class counter_detection():
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
                          det_area=cfg.tracker.det_area,
-                         translation_size=cfg.tracker.translation_size)
+                         max_losses=cfg.tracker.max_losses,
+                         translation_size=cfg.tracker.translation_size,
+                         major = cfg.tracker.major,
+                         minor=cfg.tracker.minor,
+                         debug_folder=args.debug.tracker)
 
     def detect(self, frame):
         preprc_frame = self.preprocess(frame)
@@ -68,14 +72,15 @@ class counter_detection():
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
-
+        # Scale bboxes to orig image coordinates
+        output = self.scale_output(output, frame.shape)
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, frame_id, frame):
+    def track(self, outputs, tx, ty, frame_id=None):
 
         if outputs is not None:
-            online_targets, track_windows = self.tracker.update(outputs, frame)
+            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)
@@ -105,6 +110,13 @@ class counter_detection():
                 online_scores.append(t.score)
 
         return frame_id, online_tlwhs, online_ids, online_scores
+
+    def scale_output(self, output, frame_size):
+
+        scale_ = scale(self.input_size, frame_size)
+        output = scale_dets(output, scale_)
+
+        return output
 
 
 

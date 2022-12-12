@@ -1,15 +1,20 @@
-movie_path: /home/yotam/FruitSpec/Sandbox/Syngenta/pre_ZED_90.svo
-output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/tomatoes/pre_ZED_90_1Class_aug_5
+movie_path: /media/yotam/Extreme SSD/syngenta trail/tomato/061022/YATED62L/HD1080_SN39018199_11-07-44.svo
+output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/tomatoes/YATED62L
+#output_folder: /home/yotam/FruitSpec/Sandbox/fsi_test_1
 #movie_path:
 
 frame_size:  [1920, 1080] # [2048, 1536]
-rotate: true
+rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
+depth_minimum: 0.1 # 1 counter
+depth_maximum: 2.5 # 8 counter
 
 debug:
   is_debug: true  # master switch
-  tracker_windows: true
+  tracker_windows: false
   tracker_results: true
   det_results: false
   raw_frame: false
   depth: false
+  tracker: None
+  clusters: false
 

@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.depth.zed.svo_operations import get_measures
+from vision.depth.zed.svo_operations import get_dimentions
 from vision.misc.help_func import validate_output_path, scale_dets
 
 
@@ -15,7 +15,7 @@ class ResultsCollector():
 
         self.detections = []
         self.tracks = []
-        self.measures = []
+        self.results = []
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
@@ -60,8 +60,22 @@ class ResultsCollector():
 
         return tracking_results
 
+    def collect_results(self, tracking_results, clusters, dimentsions, colors):
+
+        results = []
+        for i in range(len(tracking_results)):
+            temp = tracking_results[i]
+            temp.append(clusters[i])
+            temp += dimentsions[i]
+            temp += colors[i]
+
+            results.append(temp)
+
+        self.results += results
+
+        return results
     def collect_size_measure(self, point_cloud_mat, tracking_results):
-        self.measures += get_measures(point_cloud_mat, tracking_results)
+        self.measures += get_dimentions(point_cloud_mat, tracking_results)
 
     def collect_file_name(self, file_anme):
         self.file_names.append(file_anme)
@@ -95,20 +109,18 @@ class ResultsCollector():
         y2 = y1 + int(bbox[3])
         return [x1, y1, x2, y2, tracker_score, track_id, frame_id]
 
-    def dump_to_csv(self, output_file_path, detections=True, size=False):
+    def dump_to_csv(self, output_file_path, type='detections'):
 
-        if detections:
+        if type == 'detections':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf",
                       "image_id", "class_pred"]
             rows = self.detections
+        elif type == 'measures':
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "color", "color_std"]
+            rows = self.results
         else:
-            # TODO Matan to go through implementation
-            if size:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "", "track_id", "width", "height"]
-                rows = self.measures
-            else:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "", "track_id"]
-                rows = self.tracks
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
+            rows = self.tracks
 
         with open(output_file_path, 'w') as f:
             # using csv.writer method from CSV package
@@ -189,18 +201,18 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
-    def draw_and_save(self, frame, dets, f_id, output_path):
+    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = self.draw_dets(frame, dets)
+        frame = self.draw_dets(frame, dets, t_index=t_index)
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
 
-    def draw_dets(self, frame, dets):
+    def draw_dets(self, frame, dets, t_index=6):
 
         for det in dets:
-            track_id = det[-2]
+            track_id = det[t_index]
             color_id = int(track_id) % 15  # 15 is the number of colors in list
             color = get_color(color_id)
             text_color = get_color(-1)
@@ -224,7 +236,7 @@ class ResultsCollector():
 
         return hash
 
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
@@ -236,9 +248,12 @@ class ResultsCollector():
         if args.debug.raw_frame:
             validate_output_path(os.path.join(args.output_folder, 'frames'))
             self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
-        if args.debug.depth:
+        if args.debug.depth and depth is not None:
             validate_output_path(os.path.join(args.output_folder, 'depth'))
             self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
+        if args.debug.clusters:
+            validate_output_path(os.path.join(args.output_folder, 'clusters'))
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)

@@ -20,6 +20,7 @@ class Track:
         self.cls = None
         self.frame_size = []
         self.accumulated_dist = deque()
+        self.accumulated_height = deque()
         self.lost_counter = 0
 
 
@@ -74,8 +75,11 @@ class Track:
     def update(self, det):
         bbox = [det[0], det[1], det[2], det[3]]
         self.accumulated_dist.append(self.bbox[0] - bbox[0])
+        self.accumulated_height.append(self.bbox[1] - bbox[1])
         if self.accumulated_dist.__len__() > 3:
             self.accumulated_dist.popleft()
+        if self.accumulated_height.__len__() > 3:
+            self.accumulated_height.popleft()
         self.bbox = bbox
         self.is_activated = True
         self.score = det[4] * det[5]

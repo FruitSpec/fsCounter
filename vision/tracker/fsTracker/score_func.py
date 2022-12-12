@@ -1,24 +1,7 @@
 import numpy as np
 #from cython_bbox import bbox_overlaps as bbox_ious
 
-# def ious(atlbrs, btlbrs):
-#     """
-#     Compute cost based on IoU
-#     :type atlbrs: list[tlbr] | np.ndarray
-#     :type atlbrs: list[tlbr] | np.ndarray
-#
-#     :rtype ious np.ndarray
-#     """
-#     ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
-#     if ious.size == 0:
-#         return ious
-#
-#     ious = bbox_ious(
-#         np.ascontiguousarray(atlbrs, dtype=np.float),
-#         np.ascontiguousarray(btlbrs, dtype=np.float)
-#     )
-#
-#     return ious
+
 def compute_ratios(trk_windows, dets):
     trk_area = (trk_windows[:, 2] - trk_windows[:, 0]) * (trk_windows[:, 3] - trk_windows[:, 1])
     det_area = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
@@ -32,23 +15,89 @@ def compute_ratios(trk_windows, dets):
     return np.min(np.stack((trk_det, det_trk), axis=2), axis=2)
 
 
-# def compute_ratios(trck_bbox, dets):
-#     trck_boxes = [trck_bbox for _ in dets]
-#     return np.array(list(map(ratio, trck_boxes, dets)))
-
 def ratio(trck_box, det_box):
     trck_area = (trck_box[2] - trck_box[0]) * (trck_box[3] - trck_box[1])
     det_area = (det_box[2] - det_box[0]) * (det_box[3] - det_box[1])
 
     return min(trck_area / det_area, det_area / trck_area)
 
-def dist(trk_windows, detections, mean_x, y_distance, max_distance):
+def dist(trk_windows, detections, mean_x, mean_y, max_distance):
 
-    distances = compute_dist_on_vec(trk_windows, detections, mean_x, y_distance)
+    distances = compute_dist_on_vec(trk_windows, detections)
     distances = distances / max_distance
     distances[distances > 1] = 1  # distance higher than allowed
 
     return 1 - distances
+
+
+def relativity_score(trk_boxes, detections, relatives=10, score_rel=3):
+    relatives = min(min(len(trk_boxes), len(detections)) - 1, relatives)
+    trk_mag, trk_ang, trk_args = get_features(trk_boxes, relatives)
+    det_mag, det_ang, det_args = get_features(detections, relatives)
+
+    best_trk_mag = trk_mag
+    best_trk_ang = trk_ang
+    best_det_mag = det_mag
+    best_det_ang = det_ang
+
+    if len(best_trk_mag) < score_rel:
+        Warning("number of relatives is smaller than 'score_rel', using all relatives")
+        score_rel = len(best_trk_mag)
+
+    res = []
+    for i in range(len(det_mag)):
+
+        m = best_det_mag[i, 1:]
+        a = best_det_ang[i, 1:]
+
+        dm = best_trk_mag[:, 1:] - m
+        da = best_trk_ang[:, 1:] - a
+
+        #tf_m = dm < 20
+        #tf_a = np.abs(da) < 10
+
+        #tf = tf_m & tf_a
+        #count = np.sum(tf, axis=1)
+        #relative_match = count > 2
+        relative_diff = np.sqrt(np.abs(dm * da))
+        #relative_diff = da ** 2
+        relative_diff = np.sum(relative_diff, axis=1)  # [:, :score_rel], axis=1)
+        res.append(relative_diff)
+
+    res = np.stack(res, axis=1)
+
+    res /= res.max()
+
+    return 1 - res
+    #return res
+
+
+
+
+
+
+
+def get_features(bboxes, relatives):
+
+    center_x = (bboxes[:, 2] + bboxes[:, 0]) / 2
+    center_y = (bboxes[:, 3] + bboxes[:, 1]) / 2
+
+    center_x = np.expand_dims(center_x, axis=0)
+    center_y = np.expand_dims(center_y, axis=0)
+    x_diffs = center_x.T - center_x
+    y_diffs = center_y.T - center_y
+    magnitudes = np.sqrt(x_diffs**2 + y_diffs**2)
+    angles = np.arctan2(y_diffs, x_diffs) * 180 / np.pi
+
+    args = np.argsort(magnitudes, axis=1)
+
+    ordered_mag = np.take_along_axis(magnitudes, args, axis=1)
+    ordered_ang = np.take_along_axis(angles, args, axis=1)
+
+    return ordered_mag[:, :relatives], ordered_ang[:, :relatives], args
+    #return magnitudes, angles
+
+
 
 
 
@@ -76,10 +125,11 @@ def compute_dist(atlbr, btlbr, mean_movment):
     return np.sqrt((a_x - b_x)**2 + (a_y - b_y)**2)
     # center - tracks
 
-def compute_dist_on_vec(trk_windows, dets, mean_movment, y_distance):
+def compute_dist_on_vec(trk_windows, dets):
 
-    trk_x = (trk_windows[:, 0] + trk_windows[:, 2]) / 2 + mean_movment
-    trk_y = (trk_windows[:, 1] + trk_windows[:, 3]) / 2 + y_distance
+    trk_x = (trk_windows[:, 0] + trk_windows[:, 2]) / 2 # - mean_x_movment
+    trk_y = (trk_windows[:, 1] + trk_windows[:, 3]) / 2 #- mean_y_movment
+
 
     det_x = (dets[:, 0] + dets[:, 2]) / 2
     det_y = (dets[:, 1] + dets[:, 3]) / 2

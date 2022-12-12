@@ -81,28 +81,22 @@ def get_height(crop, margin=0.2, fixed_z=True):
 
 
 # TODO Matan to go through implementation
-def get_measures(point_cloud, dets):
+def get_dimentions(point_cloud, dets):
 
+    dims = []
     for det in dets:
         # in case that is not a full fruit
         if det[-3] == 1:
             continue
         crop = get_cropped_point_cloud(det[:4], point_cloud)
-        try:
-            width = get_width(crop)
-            det.append(width)
-        except:
-            pass
+        width = get_width(crop)
 
-        #mat = get_dist_vec(point_cloud, bbox2d[:4], 'height')
         crop = get_cropped_point_cloud(det[:4], point_cloud)
-        try:
-            height = get_height(crop)
-            det.append(height)
-        except:
-            pass
+        height = get_height(crop)
 
-    return dets
+        dims.append([height, width])
+
+    return dims
 
 def average_det_depth(crop, margin=0.2):
     h, w, c = crop.shape
@@ -112,10 +106,10 @@ def average_det_depth(crop, margin=0.2):
     return np.nanmean(crop[marginy:-marginy, marginx:-marginx, 2])
 
 
-def get_det_depth(point_cloud, dets):
+def get_dets_ranges(point_cloud, dets):
+    ranges = []
     for det in dets:
         crop = get_cropped_point_cloud(det[:4], point_cloud)
-        avg_depth = average_det_depth(crop)
-        det.append(avg_depth)
+        ranges.append(average_det_depth(crop))
 
-    return dets
+    return ranges
