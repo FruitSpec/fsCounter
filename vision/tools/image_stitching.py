@@ -6,7 +6,7 @@ from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
 
-def plot_2_imgs(img1,img2,title=""):
+def plot_2_imgs(img1, img2, title=""):
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     ax1.imshow(img1)
     ax2.imshow(img2)
@@ -14,12 +14,23 @@ def plot_2_imgs(img1,img2,title=""):
     plt.show()
 
 
-def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
+def load_color_img(file_path):
+    img = cv2.imread(file_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    return img
+
+
+def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
                    2. 'hm' for homography
     """
-    file_list = get_fsi_files(frames_folder)
+    if isinstance(file_list, type(None)):
+        file_list = get_fsi_files(frames_folder)
+    # file_list = [os.path.join(r"C:\Users\Nir\Downloads",image) for image in
+    #              ["IMG_20220906_161320.jpg","IMG_20220906_161321.jpg",
+    #               "IMG_20220906_161322.jpg","IMG_20220906_161323.jpg" ]]
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -28,7 +39,8 @@ def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     if method == 'at':
         masks = list(map(translation_based, M, heights, widths, rs))
     elif method == 'hm':
-        masks = list(map(find_overlapping, M, heights, widths))
+        image_list = [load_color_img(img) for img in file_list]
+        masks = list(map(find_overlapping, image_list[:-1], image_list[1:], M))
     return masks
 
 

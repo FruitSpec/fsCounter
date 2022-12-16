@@ -252,6 +252,7 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
             consec_more_threshold = 0
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
     plt.plot(df_out["tx"])
+    plt.ylim(-200, 200)
     plt.show()
     print(f"aligned: {folder_path}")
 
