@@ -206,7 +206,7 @@ def get_fsi_and_masks(tree_images, minimal_frames):
     :param minimal_frames: list of frame numbers
     :return: returns list of fsis and corresponding masks
     """
-    fsi_list = [tree_images[frame]["fsi"] for frame in minimal_frames]
+    fsi_list = [tree_images[frame]["rgb"].astype(np.uint8) for frame in minimal_frames]
     masks = []
     if len(minimal_frames) > 1:
         masks = get_frames_overlap(file_list=fsi_list, method='at')

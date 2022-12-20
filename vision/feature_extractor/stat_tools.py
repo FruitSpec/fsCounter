@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse.csgraph import minimum_spanning_tree
 from sklearn.metrics import pairwise_distances
 from scipy.sparse import csr_matrix
+from scipy.stats import gaussian_kde
 
 def quantile_trim(data_arr, trim_vals=(0.025, 0.975), keep_size=True):
     """
@@ -48,8 +49,6 @@ def iqr_max(arr, n_std=2, max_quantile=0.9):
     qauntiles = np.nanquantile(arr, (0.25, 0.75, max_quantile))
     if isinstance(qauntiles, float):
         return 0
-    if len(qauntiles) < 2:
-        print("err2")
     t_quantile = qauntiles[1]
     iqr_val = t_quantile - qauntiles[0]
     return min(t_quantile + n_std*iqr_val, qauntiles[2])
@@ -106,3 +105,18 @@ def compute_density_mst(centers):
     distances = mst_arr[mst_arr != 0]
     distances = distances[~np.isnan(distances)]
     return mst, distances
+
+
+def get_mode_kde(data_arr, step=0.05):
+    """
+    :param data_arr: data_array to use
+    :param step: step value for arange
+    :return: mode of the distribution (not the array itself)
+    """
+    if len(data_arr) < 5:
+        return np.nan
+    kde = gaussian_kde(data_arr)
+    min_val, max_val = np.min(data_arr), np.max(data_arr)
+    x_values = np.arange(min_val, max_val, step=step)
+    pdf_estimated_values = kde(x_values)
+    return x_values[np.argmax(pdf_estimated_values)]

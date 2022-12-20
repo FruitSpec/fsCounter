@@ -142,14 +142,12 @@ def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed):
 def affine_to_values(M):
     if isinstance(M, type(None)):
         return np.nan, np.nan, np.nan, np.nan
-    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]):
         return np.nan, np.nan, np.nan, np.nan
     sx = np.sqrt(M[0, 0] ** 2 + M[0, 1] ** 2)
     sy = np.sqrt(M[1, 0] ** 2 + M[1, 1] ** 2)
-
     tx = np.round(M[0, 2]).astype(np.int)
     ty = np.round(M[1, 2]).astype(np.int)
-
     return tx, ty, sx, sy
 
 
@@ -199,6 +197,26 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     return x1, y1, x2, y2
 
 
+def update_zed_shift(tx, zed_shift, consec_less_threshold, consec_more_threshold):
+    if tx < 20:
+        consec_less_threshold += 1
+    else:
+        consec_less_threshold = 0
+    if consec_less_threshold > 5:
+        zed_shift -= 1
+        consec_less_threshold = 0
+        consec_more_threshold = 0
+    if tx > 120:
+        consec_more_threshold += 1
+    else:
+        consec_more_threshold = 0
+    if consec_more_threshold > 5:
+        zed_shift += 1
+        consec_less_threshold = 0
+        consec_more_threshold = 0
+    return zed_shift, consec_less_threshold, consec_more_threshold
+
+
 def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, zed_shift=0,
                  zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
     if result_folder == "":
@@ -207,22 +225,20 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
     df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
                            "tx": [], "ty": [], "sx": [], "sy": [], "frame": [], "zed_shift": []})
     frames.sort(key=lambda x: int(x))
-    consec_less_threshold = 0
-    consec_more_threshold = 0
+    consec_less_threshold, consec_more_threshold = 0, 0
     for frame in tqdm(frames):
         zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
         rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
         if not (os.path.exists(zed_path) and os.path.exists(rgb_path)):
             continue
-        rgb_jai = cv2.imread(rgb_path)
-        rgb_jai = cv2.cvtColor(rgb_jai, cv2.COLOR_BGR2RGB)
-        zed = cv2.imread(zed_path)
-        zed = cv2.cvtColor(zed, cv2.COLOR_BGR2RGB)
+        rgb_jai = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
+        zed = cv2.cvtColor(cv2.imread(zed_path), cv2.COLOR_BGR2RGB)
         corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine, zed_roi_params=zed_roi_params)
         x1, y1, x2, y2 = corr
         # print(f"frame:{frame}, x1:{int(x1)}, tx: {tx}, zed_shift: {zed_shift}")
         df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift}, ignore_index=True)
+                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift},
+                               ignore_index=True)
         if plot_res:
             try:
                 img1 = rgb_jai
@@ -234,22 +250,8 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
                 plt.show()
             except:
                 print("resize problem")
-        if tx < 20:
-            consec_less_threshold+=1
-        else:
-            consec_less_threshold = 0
-        if consec_less_threshold > 5:
-            zed_shift-=1
-            consec_less_threshold = 0
-            consec_more_threshold = 0
-        if tx > 120:
-            consec_more_threshold+=1
-        else:
-            consec_more_threshold = 0
-        if consec_more_threshold > 5:
-            zed_shift+=1
-            consec_less_threshold = 0
-            consec_more_threshold = 0
+        zed_shift, consec_less_threshold, consec_more_threshold = update_zed_shift(tx, zed_shift, consec_less_threshold,
+                                                                               consec_more_threshold)
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
     plt.plot(df_out["tx"])
     plt.ylim(-200, 200)

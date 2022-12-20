@@ -6,11 +6,16 @@ from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
 
-def plot_2_imgs(img1, img2, title=""):
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
     ax1.imshow(img1)
     ax2.imshow(img2)
     plt.title(title)
+    if save_to != "":
+        plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
     plt.show()
 
 
@@ -285,8 +290,10 @@ def extract_frame_id(file_name):
 
 def load_img(file_path, resize_=640):
     r = None
-
-    img = cv2.imread(file_path)
+    if isinstance(file_path, str):
+        img = cv2.imread(file_path)
+    else:
+        img = file_path
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h = height(img)
@@ -413,6 +420,8 @@ def translation_based(M, height, width, r):
     ty = int(np.round(M[1, 2] / r))
 
     mask = np.zeros((height, width))
+    if np.abs(tx) > width or np.abs(ty) > height:
+        raise ValueError("tx or ty is too big")
     if tx < 0:
         if ty < 0:
             mask[-ty:, -tx:] = 1

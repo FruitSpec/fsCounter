@@ -124,8 +124,7 @@ def copy_frames(frame, tree_folder, frames_path, zed_shift=0):
      for img, new_name in zip(frame_imgs, new_names) if os.path.exists(os.path.join(frames_path, img))]
 
 
-def agg_to_trees(frames_path, slices, zed_shift=0,
-                 m_threds=16, m_procs=0):
+def agg_to_trees(frames_path, slices, m_threds=0, m_procs=0):
     folder_alignmnet_df = pd.read_csv(os.path.join(frames_path, "jai_cors_in_zed.csv"))
     trees_path = os.path.join(os.path.dirname(frames_path), "trees")
     if not os.path.exists(trees_path):
@@ -169,6 +168,13 @@ def get_tracker_args(config_file="/vision/pipelines/config/pipeline_config.yaml"
     return args, cfg
 
 
+def track_tree_folder(data_dir, args, cfg):
+    args.data_dir = data_dir
+    args.output_folder = args.data_dir
+    if not os.path.isdir(args.output_folder):
+        os.mkdir(args.output_folder)
+    dets, tracks = frames_pipeline_run(cfg, args)
+
 def track_row(folder_path):
     args, cfg = get_tracker_args()
     res = []
@@ -178,6 +184,10 @@ def track_row(folder_path):
         if not os.path.isdir(args.output_folder):
             os.mkdir(args.output_folder)
         dets, tracks = frames_pipeline_run(cfg, args)
+    # pathed_trees = [os.path.join(folder_path, folder) for folder in os.listdir(folder_path) if "." not in folder]
+    # n = len(pathed_trees)
+    # with ThreadPoolExecutor(max_workers=16) as executor:
+    #     results = list(executor.map(track_tree_folder, pathed_trees, [args]*n, [cfg]*n))
 
 
 def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
@@ -200,7 +210,7 @@ def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s
 
 def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
                                             zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
-                                            skip_steps = []):
+                                            skip_steps=["folder_to_frames", "align_folder"]):
     """
     This script preprocesses videos of trees to prepare them for analysis.
 
@@ -222,10 +232,10 @@ def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
     frames_path = os.path.join(folder_path, "frames")
     print("align all frames")
     if not ("align_folder" in skip_steps):
-        align_folder(frames_path, plot_res=False, zed_roi_params=zed_roi_params)
+        align_folder(frames_path, plot_res=False, zed_roi_params=zed_roi_params, zed_shift=zed_shift)
     print("aggtregating tree frames to folders")
     if not ("agg_to_trees" in skip_steps):
-        agg_to_trees(frames_path, slices, zed_shift)
+        agg_to_trees(frames_path, slices)
     print("detecting and tracking for each tree")
     trees_path = os.path.join(folder_path, "trees")
     if not ("track_row" in skip_steps):
@@ -255,10 +265,22 @@ if __name__ == "__main__":
     # movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R7"
     # preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
     #                                         skip_steps=["folder_to_frames"])
-    for i in list(range(2, 11)):
+    # vid_ids = [f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}" for i in range(6, 11)]
+    # n_vids = len(vid_ids)
+    # with ThreadPoolExecutor(max_workers=8) as executor:
+    #     results = list(executor.map(preprocess_videos_to_trees_aligmnet_fix, vid_ids, [0] * n_vids,
+    #                                 [dict(x_s=0, x_e=1080, y_s=310, y_e=1670)] * n_vids),
+    #                    [list("folder_to_frames", "align_folder")]*n_vids)
+    preprocess_videos_to_trees_aligmnet_fix(f"/media/fruitspec-lab/easystore/R7",
+                                            zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
+                                            skip_steps=["folder_to_frames"], zed_shift=3)
+    for i in list(range(7, 11)):
         skip_steps = ["folder_to_frames", "align_folder"]
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
+        if i == 7:
+            zed_shift = 3
+        elif i == 4:
+            zed_shift = -8
         print(movies_path)
-        #folder_to_frames(movies_path)
         preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
                                                 skip_steps=skip_steps)

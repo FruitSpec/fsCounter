@@ -74,11 +74,11 @@ if __name__ == "__main__":
 
     args = make_parser()
     args.eval_batch = 1
-    args.draw_on_img = False
+    args.draw_on_img = True
     #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
-    folder_path = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/trees"
+    folder_path = "/media/fruitspec-lab/easystore/track_detect_analysis"
     folder_list = [folder for folder in os.listdir(folder_path) if "." not in folder]
-    parent_folder = "/media/fruitspec-lab/Extreme Pro/JAIZED_CaraCara_151122/R_1/trees"
+    parent_folder = "/media/fruitspec-lab/easystore/track_detect_analysis"
 
     res = []
     for folder in folder_list:

@@ -26,17 +26,24 @@ fsi_size = (900, 600)
 nir_channel, ir975_channel, blue_channel = 0, 1, 2
 
 
-def get_minimal_frames(tree_images, slicer_results):
+def get_minimal_frames(tree_images, slicer_results, tree_name):
     # TODO check for large trees / close video
     frames_numbers = list(tree_images.keys())
     n_frames = len(frames_numbers)
-    where_all_tree_in_pic = np.where(np.all([[slice[0] > 50, slice[1] < fsi_size[1]-50] for slice in slicer_results.values()],axis = 1))[0]
+    where_all_tree_in_pic = np.where(np.all([[slice[0] > 30, slice[1] < fsi_size[1]-30]
+                                             for slice in slicer_results.values()], axis=1))[0]
+    masks = None
     if len(where_all_tree_in_pic) > 0:
-        return [frames_numbers[where_all_tree_in_pic[0]]]
+        return [frames_numbers[where_all_tree_in_pic[0]]], masks
     else:
-        q1_frame = frames_numbers[int(n_frames * 3/8)]
-        q3_frame = frames_numbers[int(n_frames * 5 / 8)]
-        return [q1_frame, q3_frame]
+        q1_frame = frames_numbers[int(n_frames * 0.35)]
+        q3_frame = frames_numbers[int(n_frames * 0.65)]
+        try:
+            _, masks = get_fsi_and_masks(tree_images, [q1_frame, frames_numbers[int(n_frames * 0.5)], q3_frame])
+            return [q1_frame, frames_numbers[int(n_frames * 0.5)], q3_frame], masks
+        except:
+            print(f"no homography for all pics: {tree_name}, added more picturss")
+            return [frames_numbers[int(n_frames * i/10)] for i in range(3, 8)], masks
 
 
 def get_additional_vegetation_indexes(rgb, nir, swir_975, fill=None, mask=None):
@@ -193,6 +200,9 @@ def transform_to_tree_physical_features(tree_physical_params):
     tree_physical_params["avg_width"] = np.median(summed_width)
     tree_physical_params["avg_perimeter"] = np.nanmedian(summed_perimeter)
     tree_physical_params["avg_height"] = np.nanmedian(heights)
+    tree_physical_params["mode_width"] = get_mode_kde(summed_width)
+    tree_physical_params["mode_perimeter"] = get_mode_kde(summed_perimeter)
+    tree_physical_params["mode_height"] = get_mode_kde(heights)
     volume, avg_volume = get_tree_volume(tree_physical_params, vol_style="cone")
     tree_physical_params["volume"] = volume
     tree_physical_params["avg_volume"] = avg_volume
@@ -215,7 +225,7 @@ def calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary):
     return frame_physical_parmas
 
 
-def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_results, tree_name):
+def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_results, tree_name, masks=None):
     """
     :param tree_images: {"frame": {"fsi":fsi,"rgb":rgb,"zed":zed} for each frame}
     :param slicer_results: {"frame": (x_start,x_end) for each frame}
@@ -224,14 +234,13 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
     :param tree_name: name of the tree (for logging)
     :return: physical features for tree, updated tree images with ndvi's
     """
-    masks = None
     # 17% of time
-    if len(minimal_frames) > 1:
+    if len(minimal_frames) > 1 and isinstance(masks, type(None)):
         try:
-            fsi_list, masks = get_fsi_and_masks(tree_images, minimal_frames)
+            _, masks = get_fsi_and_masks(tree_images, minimal_frames)
         except:
             print(f"no homography for all pics: {tree_name}")
-            return init_physical_parmas(0), tree_images, masks
+            return init_physical_parmas(np.nan), tree_images, masks
     tree_physical_params = init_physical_parmas([])
     if len(minimal_frames) > 1:
         min_top, max_bottom = get_global_top_bottom(masks)
@@ -239,6 +248,7 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
     else:
         y_ranges = ()
     false_mask = None
+    n_min_frames = len(minimal_frames)
     for i, frame_number in enumerate(minimal_frames):
         print(f"physical features - {tree_name}: {frame_number}")
         fsi, rgb, nir, swir_975, xyz_point_cloud, zed_rgb = get_pictures(tree_images, frame_number, with_zed=True)
@@ -253,11 +263,9 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
             ndvi_binary[false_mask] = np.nan
             binary_box_img[false_mask] = np.nan
         images = [xyz_point_cloud, ndvi_binary, binary_box_img]
-        xyz_point_cloud, ndvi_binary, binary_box_img = slice_outside_trees(images, slicer_results,
-                                                                                               frame_number,
-                                                                                               reduce_size=True,
-                                                                                                mask=false_mask,
-                                                                                               y_ranges=y_ranges)
+        xyz_point_cloud, ndvi_binary, binary_box_img = slice_outside_trees(images, slicer_results, frame_number,
+                                                                           reduce_size=True, mask=false_mask, i=i,
+                                                                           y_ranges=y_ranges, n_min_frames=n_min_frames)
         ndvi_binary = np.nan_to_num(ndvi_binary, nan=0)
         binary_box_img = np.nan_to_num(binary_box_img, nan=0)
         plot_2_imgs(ndvi_img, ndvi_binary, title=frame_number)
@@ -266,7 +274,28 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
             continue
         frame_physical_parmas = calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary)
         tree_physical_params = update_tree_foli_fetures(tree_physical_params, frame_physical_parmas, keep_dict=True)
+    if len(minimal_frames) > 1:
+        translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images)
     return transform_to_tree_physical_features(tree_physical_params), tree_images, masks
+
+
+def translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images):
+    fsi_next = tree_images[minimal_frames[1]]["fsi"].copy()
+    fsi_next[masks[0].astype(bool)] = 0
+    plot_2_imgs(tree_images[minimal_frames[0]]["fsi"], tree_images[minimal_frames[1]]["fsi"], title=frame_number,
+                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_1_clean.png",
+                save_only=True)
+    plot_2_imgs(tree_images[minimal_frames[0]]["fsi"], fsi_next, title=frame_number,
+                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_1_masked.png",
+                save_only=True)
+    fsi_next = tree_images[minimal_frames[2]]["fsi"].copy()
+    fsi_next[masks[1].astype(bool)] = 0
+    plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], tree_images[minimal_frames[2]]["fsi"], title=frame_number,
+                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_2_clean.png",
+                save_only=True)
+    plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], fsi_next, title=frame_number,
+                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_2_masked.png",
+                save_only=True)
 
 
 def update_fruit_features(tree_fruit_params, tracker_results, fsi, rgb, frame_number):
@@ -319,7 +348,7 @@ def calc_vi(tree_images, slicer_results, minimal_frames, tree_name, masks=None):
     #     return get_additional_vegetation_indexes(rgb, nir, swir_975, mask=ndvi_binary)
     if isinstance(masks, type(None)) and len(minimal_frames) > 1:
         print(f"no homography for all pics: {tree_name}")
-        return get_additional_vegetation_indexes(0, 0, 0, fill=[0])
+        return get_additional_vegetation_indexes(0, 0, 0, fill=np.nan)
     features_dict = {**get_additional_vegetation_indexes(0, 0, 0, fill=[])}
     for i, frame_number in enumerate(minimal_frames):
         print(f"vegetational features - {tree_name}: {frame_number}")
@@ -359,7 +388,7 @@ def calc_fruit_features(tree_images, tracker_results, tree_name):
     wh_std_per_fruit = np.fromiter((np.std(w_h_ratios) for w_h_ratios in
                                                             tree_fruit_params["w_h_ratio"].values()), float)
     tree_fruit_params["w_h_ratio"] = np.median(wh_std_per_fruit[n_samp_per_fruit > 2])
-    tree_fruit_params = tree_intensity_summary(tree_fruit_params, tree_name, tree_name)
+    tree_fruit_params = tree_intensity_summary(tree_fruit_params, tree_name, frame_number)
     return tree_fruit_params
 
 
@@ -556,7 +585,7 @@ def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree
 
     print(f"filter_outside_tree_boxes: { time.time()-s_time_0 }")
     s_time = time.time()
-    minimal_frames = get_minimal_frames(tree_images, slicer_results)
+    minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name)
     print(f"get_minimal_frames: { time.time()-s_time }")
     s_time = time.time()
     # masks bags
@@ -831,8 +860,8 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
         tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
                                        for row in tracker_subset[["track_id", "bbox"]].iterrows()}
     keys = list(tree_images.keys())
-    for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
-    # for frame in keys:
+    # for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
+    for frame in keys:
         frame = str(frame)
         fsi = tree_images[frame]["fsi"].copy()
         zed = tree_images[frame]["zed_rgb"].copy()
@@ -902,18 +931,19 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
         if os.path.isdir(row_path):
             df = pd.concat([df, create_row_features(row_path, zed_shift, max_x, max_y, save_csv, block_name, max_z)])
     if save_csv:
-        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_ndvi_fix.csv"))
+        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_pysic_features.csv"))
     return df
 
 
 if __name__ == '__main__':
     path_to_plot = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R5/trees"
-    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R5"
-    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4","R5","R6","R7","R8"])
+    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R3/trees"
+    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R3"
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R2", "R3", "R4", "R5", "R11",
     #                                                                                       "R10"])
-    tree = "T8"
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2, 11]])
+    tree = "T5"
     tree_folder = os.path.join(path_to_row, tree)
     tracker_path = os.path.join(tree_folder, "tracker.csv")
     slice_path = os.path.join(tree_folder, "slices.csv")

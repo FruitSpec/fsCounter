@@ -54,16 +54,35 @@ def get_mask_corners(mask, top_bot=False):
     return top, left, bottom, right
 
 
-def get_global_top_bottom(masks):
+def get_global_top_bottom(masks, min_factor=0.2):
     tops, bottoms = [], []
     for mask in masks:
         top, bottom = get_mask_corners(mask, top_bot=True)
         tops.append(top)
         bottoms.append(bottom)
-    return np.min(tops), np.max(bottoms)
+    min_y, max_y = int(mask.shape[0]*min_factor), int(mask.shape[0]*(1-min_factor))
+    return min(np.min(tops), min_y), max(np.max(bottoms), max_y)
 
 
-def slice_outside_trees(pictures, slicer_results, frame_number, reduce_size = False, mask = None, y_ranges = ()):
+def x_start_end_resizing(x_start, x_end, i=0, n_min_frames=1, cut_val=0.1):
+    x_range = x_end-x_start
+    cut_size = int(x_range * cut_val)
+    if n_min_frames == 1:
+        x_start += cut_size
+        x_end -= cut_size
+    elif i == 0:
+        x_start += cut_size
+    elif i == n_min_frames-1:
+        x_end -= cut_size
+    else:
+        cut_size = int(cut_size/2)
+        x_start += cut_size
+        x_end -= cut_size
+    return x_start, x_end
+
+
+def slice_outside_trees(pictures, slicer_results, frame_number, reduce_size = False, mask = None, y_ranges = (),
+                        i=0, n_min_frames=1, cut_val=0.1):
     """
     :param pictures: list of pictures to edit
     :param slicer_results: {"frame": (x_start,x_end) for each frame}
@@ -71,6 +90,7 @@ def slice_outside_trees(pictures, slicer_results, frame_number, reduce_size = Fa
     :return: vegetation_indexes for tree
     """
     x_start, x_end = slicer_results[frame_number]
+    x_start, x_end = x_start_end_resizing(x_start, x_end, i=i, n_min_frames=n_min_frames, cut_val=cut_val)
     if not isinstance(mask, type(None)):
         top, left, bottom, right = get_mask_corners(mask)
         if left == 0:

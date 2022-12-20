@@ -93,7 +93,7 @@ def calc_tree_widths(xyz_point_cloud, ndvi_binary):
 def calc_tree_heights(xyz_point_cloud, ndvi_binary):
     heights = np.array([])
     n = ndvi_binary.shape[1]
-    for x in range(n):
+    for x in range(int(n)):
         print(f"\r{x}/{n-1} ({x / (n-1) * 100: .2f}%) heights", end="")
         heights = np.append(heights, calc_height_per_col(xyz_point_cloud, ndvi_binary, x, buffer=3))
     print()
@@ -108,8 +108,8 @@ def get_real_world_dims_with_correction(depth_map, fx = 1065.98388671875, fy = 1
     """
     pic_size = depth_map.shape
     if resized:
-        resize_fator_x = 1280/pic_size[0]
-        resize_fator_y = 720/pic_size[1]
+        resize_fator_x = 1080/pic_size[0]
+        resize_fator_y = 1920/pic_size[1]
     else:
         resize_fator_x = 1
         resize_fator_y = 1
@@ -166,9 +166,10 @@ def liner_approxsimation(dist_between_points, trim_iqr=False):
         dist_between_points = iqr_trim(dist_between_points.copy())
     else:
         dist_between_points = quantile_trim(dist_between_points.copy(), trim_vals=(0.01, 0.95))
-    dist_between_points[np.isnan(dist_between_points)] = 0
-    med_dist = np.median(dist_between_points[np.where(dist_between_points != 0)])
-    dist_between_points[np.where(dist_between_points == 0)] = med_dist
+    nan_dists = np.isnan(dist_between_points)
+    dist_between_points[nan_dists] = 0
+    med_dist = np.median(dist_between_points[~nan_dists])
+    dist_between_points[nan_dists] = med_dist
     return dist_between_points
 
 
@@ -256,7 +257,8 @@ def get_surface_area(xyz_point_cloud, mask=None, clean_smooth=False, subset_fact
     dist_between_consec_points_y = np.sqrt(np.nansum(np.power(points_for_y - points_p1_for_y, 2), axis=2))
     if len(dist_between_consec_points_x) == 0 or len(dist_between_consec_points_y) == 0:
         return 0
-    dist_between_consec_points_xy = np.apply_along_axis(liner_approxsimation, 1,dist_between_consec_points_x*dist_between_consec_points_y)
+    dist_between_consec_points_xy = np.apply_along_axis(liner_approxsimation, 1,
+                                                        dist_between_consec_points_x*dist_between_consec_points_y)
     return np.nansum(dist_between_consec_points_xy)
 
 

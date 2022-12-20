@@ -546,8 +546,8 @@ def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
 if __name__ == "__main__":
     # this part is for fixing bad slicing
     filepath = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2/Result_FSI_1.mkv"
-    output_path = "/media/fruitspec-lab/easystore/trees_1_6 (copy)/r2_testing"
-    manual_slicer(filepath, output_path, index=0, rotate=True)
+    output_path = "/media/fruitspec-lab/easystore/trees_1_6 (copy)/r2"
+    manual_slicer(filepath, output_path, index=337, rotate=True)
     data_file = "/media/fruitspec-lab/easystore/trees_1_6/r8/Result_FSI_1_slice_data.json"
     with open(data_file) as json_file:
         data = json.load(json_file)
