@@ -495,10 +495,10 @@ def elipse_convexhull_area(centers, labels):
     return ellipse_area, convex_hull_area
 
 
-def plot_3d_cloud(fruit_3d_space, centers):
+def plot_3d_cloud(fruit_3d_space, centers, c=None):
     fig = plt.figure(figsize=(10, 10))
     ax = plt.axes(projection='3d')
-    ax.scatter3D(-centers[:, 2], -centers[:, 0], -centers[:, 1])
+    ax.scatter3D(-centers[:, 2], -centers[:, 0], -centers[:, 1], c=c)
     for i, label in enumerate(fruit_3d_space.keys()):  # plot each point + it's index as text above
         ax.text(-centers[i, 2], -centers[i, 0], -centers[i, 1], '%s' % (str(label)), size=10, zorder=1,
                 color='k')
@@ -509,10 +509,10 @@ def plot_3d_cloud(fruit_3d_space, centers):
     plt.show()
 
 
-def plot_2d_cloud(fruit_3d_space, centers):
+def plot_2d_cloud(fruit_3d_space, centers, c=None):
     fig = plt.figure(figsize=(10, 10))
     ax = plt.axes()
-    ax.scatter(-centers[:, 0], -centers[:, 1])
+    ax.scatter(-centers[:, 0], -centers[:, 1], c=c)
     for i, label in enumerate(fruit_3d_space.keys()):  # plot each point + it's index as text above
         ax.text(-centers[i, 0], -centers[i, 1], '%s' % (str(label)), size=10, zorder=1,
                 color='k')
@@ -860,8 +860,8 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
         tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
                                        for row in tracker_subset[["track_id", "bbox"]].iterrows()}
     keys = list(tree_images.keys())
-    # for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
-    for frame in keys:
+    for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
+    # for frame in keys:
         frame = str(frame)
         fsi = tree_images[frame]["fsi"].copy()
         zed = tree_images[frame]["zed_rgb"].copy()
@@ -937,13 +937,13 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
 
 if __name__ == '__main__':
     path_to_plot = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R3/trees"
-    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R3"
+    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2/trees"
+    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2"
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R2", "R3", "R4", "R5", "R11",
     #                                                                                       "R10"])
-    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2, 11]])
-    tree = "T5"
+    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2,3,5,6,8,9,10,11]])
+    tree = "T16"
     tree_folder = os.path.join(path_to_row, tree)
     tracker_path = os.path.join(tree_folder, "tracker.csv")
     slice_path = os.path.join(tree_folder, "slices.csv")

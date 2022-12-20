@@ -271,16 +271,18 @@ if __name__ == "__main__":
     #     results = list(executor.map(preprocess_videos_to_trees_aligmnet_fix, vid_ids, [0] * n_vids,
     #                                 [dict(x_s=0, x_e=1080, y_s=310, y_e=1670)] * n_vids),
     #                    [list("folder_to_frames", "align_folder")]*n_vids)
-    preprocess_videos_to_trees_aligmnet_fix(f"/media/fruitspec-lab/easystore/R7",
-                                            zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
-                                            skip_steps=["folder_to_frames"], zed_shift=3)
-    for i in list(range(7, 11)):
-        skip_steps = ["folder_to_frames", "align_folder"]
+    # preprocess_videos_to_trees_aligmnet_fix(f"/media/fruitspec-lab/easystore/R7",
+    #                                         zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
+    #                                         skip_steps=["folder_to_frames"], zed_shift=3)
+    for i in [7]:
+        skip_steps = ["folder_to_frames", "align_folder", "agg_to_trees"]
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         if i == 7:
             zed_shift = 3
         elif i == 4:
             zed_shift = -8
+        else:
+            zed_shift = 0
         print(movies_path)
         preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
                                                 skip_steps=skip_steps)
