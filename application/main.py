@@ -1,3 +1,4 @@
+import os
 import signal
 import subprocess
 from time import sleep
@@ -33,10 +34,10 @@ def main():
 
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
-
-    manager[ModulesEnum.GPS].set_process(target=location_awareness.GPSSampler.init_module)
-    manager[ModulesEnum.DataManager].set_process(target=uploader.init_module)
-    manager[ModulesEnum.Analysis].set_process(target=analyzer.init_module)
+    main_pid = os.getpid()
+    manager[ModulesEnum.GPS].set_process(target=location_awareness.GPSSampler.init_module, main_pid=main_pid)
+    manager[ModulesEnum.DataManager].set_process(target=uploader.init_module, main_pid=main_pid)
+    manager[ModulesEnum.Analysis].set_process(target=analyzer.init_module, main_pid=main_pid)
 
     manager[ModulesEnum.GPS].start()
     manager[ModulesEnum.DataManager].start()

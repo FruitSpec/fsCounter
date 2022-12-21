@@ -24,8 +24,8 @@ class ModuleManager:
         self.pid = -1
         self.sender, self.receiver = Pipe()
 
-    def set_process(self, *args, target):
-        args = (self.sender, self.receiver) + args
+    def set_process(self, *args, target, main_pid):
+        args = (self.sender, self.receiver, main_pid) + args
         self._process = Process(target=target, args=args, daemon=True)
         self.pid = self._process.pid
 
