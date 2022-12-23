@@ -42,7 +42,7 @@ def stable_euclid_dist(point_cloud, bbox, buffer=1):
     return safe_nanmean(valid_h_dist), safe_nanmean(valid_v_dist)
 
 
-def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=3):
+def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=5, x_only=True):
     row_ndvi = ndvi_binary[y, :]
     row_pc = xyz_point_cloud[y, :, 2]
     foliage_row = np.where(np.all([np.isfinite(row_pc), row_ndvi == 1], axis=0))
@@ -54,9 +54,14 @@ def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=3):
         buffer = xyz_point_cloud.shape[1] - x_0
     if x_1-buffer < 0:
         buffer = x_1
-    points_left = xyz_point_cloud[y, x_0:x_0+buffer]
-    points_right = xyz_point_cloud[y, x_1-buffer:x_1]
-    h_dist = np.sqrt(np.nansum(np.power(points_left - points_right, 2), axis=1))
+    if x_only:
+        points_left = xyz_point_cloud[y, x_0:x_0+buffer, 0]
+        points_right = xyz_point_cloud[y, x_1-buffer:x_1, 0]
+        h_dist = np.abs(points_left - points_right)
+    else:
+        points_left = xyz_point_cloud[y, x_0:x_0+buffer]
+        points_right = xyz_point_cloud[y, x_1-buffer:x_1]
+        h_dist = np.sqrt(np.nansum(np.power(points_left - points_right, 2), axis=1))
     h_dist_above_zero = h_dist[h_dist > 0]
     return np.nanmedian(h_dist_above_zero) if len(h_dist_above_zero) > 0 else np.nan
 
@@ -84,7 +89,7 @@ def calc_tree_widths(xyz_point_cloud, ndvi_binary):
     widths = np.array([])
     n = ndvi_binary.shape[0]
     for y in range(n):
-        print(f"\r{y}/{n-1} ({y / (n-1) * 100: .2f}%) widths", end="")
+        print(f"\r{y+1}/{n} ({(y+1) / n * 100: .2f}%) widths", end="")
         widths = np.append(widths, calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=3))
     print()
     return widths
@@ -94,7 +99,7 @@ def calc_tree_heights(xyz_point_cloud, ndvi_binary):
     heights = np.array([])
     n = ndvi_binary.shape[1]
     for x in range(int(n)):
-        print(f"\r{x}/{n-1} ({x / (n-1) * 100: .2f}%) heights", end="")
+        print(f"\r{x+1}/{n} ({(x+1) / (n) * 100: .2f}%) heights", end="")
         heights = np.append(heights, calc_height_per_col(xyz_point_cloud, ndvi_binary, x, buffer=3))
     print()
     return heights

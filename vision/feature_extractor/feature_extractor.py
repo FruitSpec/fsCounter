@@ -197,12 +197,26 @@ def transform_to_tree_physical_features(tree_physical_params):
     tree_physical_params["width"] = iqr_max(summed_width)
     tree_physical_params["perimeter"] = iqr_max(summed_perimeter)
     tree_physical_params["height"] = iqr_max(heights)
-    tree_physical_params["avg_width"] = np.median(summed_width)
+    tree_physical_params["avg_width"] = np.nanmedian(summed_width)
     tree_physical_params["avg_perimeter"] = np.nanmedian(summed_perimeter)
     tree_physical_params["avg_height"] = np.nanmedian(heights)
-    tree_physical_params["mode_width"] = get_mode_kde(summed_width)
-    tree_physical_params["mode_perimeter"] = get_mode_kde(summed_perimeter)
-    tree_physical_params["mode_height"] = get_mode_kde(heights)
+    tree_physical_params["center_width"] = clac_statistic_on_center(summed_width)
+    tree_physical_params["center_perimeter"] = clac_statistic_on_center(summed_perimeter)
+    tree_physical_params["center_height"] = clac_statistic_on_center(heights)
+    ## this is what we need to use when aggregation the frames
+    # widths = tree_physical_params["width"][tree_physical_params["width"] > 0.25]
+    # heights = tree_physical_params["height"][tree_physical_params["height"] > 0.25]
+    # perimeters = tree_physical_params["perimeter"][tree_physical_params["perimeter"] > 0.25]
+    # tree_physical_params["avg_width_full"] = np.nanmedian(widths)
+    # tree_physical_params["avg_perimeter_full"] = np.nanmedian(perimeters)
+    # tree_physical_params["avg_height_full"] = np.nanmedian(heights)
+    # tree_physical_params["center_width_full"] = clac_statistic_on_center(widths)
+    # tree_physical_params["center_perimeter_full"] = clac_statistic_on_center(perimeters)
+    # tree_physical_params["center_height_full"] = clac_statistic_on_center(heights)
+    # tree_physical_params["width"] = iqr_max(widths)
+    # tree_physical_params["perimeter"] = iqr_max(perimeters)
+    # tree_physical_params["height"] = iqr_max(heights)
+
     volume, avg_volume = get_tree_volume(tree_physical_params, vol_style="cone")
     tree_physical_params["volume"] = volume
     tree_physical_params["avg_volume"] = avg_volume
@@ -219,8 +233,7 @@ def calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary):
     frame_physical_parmas["total_foliage"] = total_foliage  # scalar
     frame_physical_parmas["width"] = calc_tree_widths(xyz_point_cloud, ndvi_binary)  # np array (scaler for each row)
     frame_physical_parmas["height"] = calc_tree_heights(xyz_point_cloud, ndvi_binary)  # np array (scaler for each col)
-    frame_physical_parmas["perimeter"] = calc_tree_perimeter(xyz_point_cloud,
-                                                             ndvi_binary)  # np array (scaler for each row)
+    frame_physical_parmas["perimeter"] = calc_tree_perimeter(xyz_point_cloud, ndvi_binary)  # np array (scaler for each row)
     frame_physical_parmas["surface_area"] = get_surface_area(xyz_point_cloud, ndvi_binary)  # scalar
     return frame_physical_parmas
 
@@ -241,14 +254,9 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
         except:
             print(f"no homography for all pics: {tree_name}")
             return init_physical_parmas(np.nan), tree_images, masks
-    tree_physical_params = init_physical_parmas([])
-    if len(minimal_frames) > 1:
-        min_top, max_bottom = get_global_top_bottom(masks)
-        y_ranges = (min_top, max_bottom)
-    else:
-        y_ranges = ()
-    false_mask = None
-    n_min_frames = len(minimal_frames)
+    y_ranges = get_y_ranges(minimal_frames, masks)
+    false_mask, n_min_frames, tree_physical_params = None, len(minimal_frames), init_physical_parmas([])
+    # xyz_imgs, ndvi_binary_imgs, binary_box_imgs = [], [], []
     for i, frame_number in enumerate(minimal_frames):
         print(f"physical features - {tree_name}: {frame_number}")
         fsi, rgb, nir, swir_975, xyz_point_cloud, zed_rgb = get_pictures(tree_images, frame_number, with_zed=True)
@@ -266,16 +274,22 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
         xyz_point_cloud, ndvi_binary, binary_box_img = slice_outside_trees(images, slicer_results, frame_number,
                                                                            reduce_size=True, mask=false_mask, i=i,
                                                                            y_ranges=y_ranges, n_min_frames=n_min_frames)
-        ndvi_binary = np.nan_to_num(ndvi_binary, nan=0)
-        binary_box_img = np.nan_to_num(binary_box_img, nan=0)
+        ndvi_binary, binary_box_img = np.nan_to_num(ndvi_binary, nan=0), np.nan_to_num(binary_box_img, nan=0)
         plot_2_imgs(ndvi_img, ndvi_binary, title=frame_number)
         # 28%
         if 0 in ndvi_binary.shape:
             continue
+        # xyz_imgs.append(xyz_point_cloud.copy())
+        # ndvi_binary_imgs.append(ndvi_binary.copy())
+        # binary_box_imgs.append(binary_box_img.copy())
         frame_physical_parmas = calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary)
         tree_physical_params = update_tree_foli_fetures(tree_physical_params, frame_physical_parmas, keep_dict=True)
-    if len(minimal_frames) > 1:
-        translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images)
+    # if len(minimal_frames) > 1:
+    #     translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images)
+    # xyz_full_img = np.concatenate(xyz_imgs, axis=1)
+    # ndvi_binary_full_img = np.concatenate(ndvi_binary_imgs, axis=1)
+    # binary_box_full_img = np.concatenate(binary_box_imgs, axis=1)
+    # tree_physical_params = calc_frame_physical_parmas(xyz_full_img, ndvi_binary_full_img, binary_box_full_img)
     return transform_to_tree_physical_features(tree_physical_params), tree_images, masks
 
 
@@ -482,7 +496,7 @@ def elipse_convexhull_area(centers, labels):
     ellipse_area = 0
     convex_hull_area = 0
     for label in np.unique(labels)[1:]:
-        cnt = centers[labels == label]
+        cnt = np.unique(centers[labels == label], axis=0)
         if len(cnt) < 4:
             continue
         cnvx_hull = ConvexHull(cnt)
@@ -891,12 +905,14 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
     return tree_images, slicer_results, tracker_results
 
 
-def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv=True, block_name="", max_z=0):
+def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv=True, block_name="", max_z=0,
+                        save_name="row_features.csv"):
     df = pd.DataFrame({})
     row = os.path.basename(os.path.dirname(path_to_row))
     trees = [file for file in os.listdir(path_to_row) if os.path.isdir(os.path.join(path_to_row, file))]
     trees.sort(key=lambda x: int(x[1:]))
-    for tree in trees[1:-1]: # change back to [1:-1]
+    start_ind = 1 if int(row[1:])%2==0 else 2
+    for tree in trees[start_ind:-1:2]: # change back to [1:-1]
         tree_folder = os.path.join(path_to_row, tree)
         if not os.path.isdir(tree_folder):
             continue
@@ -912,7 +928,7 @@ def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv
         tree_features["block_name"] = block_name
         df = df.append(tree_features, ignore_index=True)
     if save_csv:
-        df.to_csv(os.path.join(path_to_row, "row_features.csv"))
+        df.to_csv(os.path.join(path_to_row, save_name))
     return df
 
 
@@ -931,19 +947,19 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
         if os.path.isdir(row_path):
             df = pd.concat([df, create_row_features(row_path, zed_shift, max_x, max_y, save_csv, block_name, max_z)])
     if save_csv:
-        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_pysic_features.csv"))
+        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_size_adjs.csv"))
     return df
 
 
 if __name__ == '__main__':
     path_to_plot = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2/trees"
-    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2"
+    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/trees"
+    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6"
+    # create_row_features(path_to_row, save_name="row_features_h2_band25.csv")
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
-    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R2", "R3", "R4", "R5", "R11",
-    #                                                                                       "R10"])
-    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2,3,5,6,8,9,10,11]])
-    tree = "T16"
+    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5)
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2,3,4,5,7,8,9,10,11]])
+    tree = "T28"
     tree_folder = os.path.join(path_to_row, tree)
     tracker_path = os.path.join(tree_folder, "tracker.csv")
     slice_path = os.path.join(tree_folder, "slices.csv")

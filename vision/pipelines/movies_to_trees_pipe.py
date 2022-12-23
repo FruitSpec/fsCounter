@@ -274,8 +274,8 @@ if __name__ == "__main__":
     # preprocess_videos_to_trees_aligmnet_fix(f"/media/fruitspec-lab/easystore/R7",
     #                                         zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
     #                                         skip_steps=["folder_to_frames"], zed_shift=3)
-    for i in [7]:
-        skip_steps = ["folder_to_frames", "align_folder", "agg_to_trees"]
+    for i in [11]:
+        skip_steps = ["folder_to_frames"]
         movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
         if i == 7:
             zed_shift = 3

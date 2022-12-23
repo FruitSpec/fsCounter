@@ -120,3 +120,11 @@ def get_mode_kde(data_arr, step=0.05):
     x_values = np.arange(min_val, max_val, step=step)
     pdf_estimated_values = kde(x_values)
     return x_values[np.argmax(pdf_estimated_values)]
+
+
+def clac_statistic_on_center(arr, statistic=np.nanmean, bandwidth=0.25):
+    arr = arr[np.isfinite(arr)]
+    n = len(arr)
+    min_ind = max(0, int(bandwidth*n))
+    max_ind = min(n-1, n-int(bandwidth * n))
+    return statistic(arr[min_ind:max_ind])

@@ -64,6 +64,15 @@ def get_global_top_bottom(masks, min_factor=0.2):
     return min(np.min(tops), min_y), max(np.max(bottoms), max_y)
 
 
+def get_y_ranges(minimal_frames, masks):
+    if len(minimal_frames) > 1:
+        min_top, max_bottom = get_global_top_bottom(masks)
+        y_ranges = (min_top, max_bottom)
+    else:
+        y_ranges = ()
+    return y_ranges
+
+
 def x_start_end_resizing(x_start, x_end, i=0, n_min_frames=1, cut_val=0.1):
     x_range = x_end-x_start
     cut_size = int(x_range * cut_val)
@@ -82,7 +91,7 @@ def x_start_end_resizing(x_start, x_end, i=0, n_min_frames=1, cut_val=0.1):
 
 
 def slice_outside_trees(pictures, slicer_results, frame_number, reduce_size = False, mask = None, y_ranges = (),
-                        i=0, n_min_frames=1, cut_val=0.1):
+                        i=0, n_min_frames=1, cut_val=0.05):
     """
     :param pictures: list of pictures to edit
     :param slicer_results: {"frame": (x_start,x_end) for each frame}
