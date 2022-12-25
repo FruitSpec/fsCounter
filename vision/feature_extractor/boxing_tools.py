@@ -241,11 +241,24 @@ def filter_outside_tree_boxes(tracker_results, slicer_results):
         x_start, x_end = slicer_results[frame]
         x_0 = np.array([box[0][0] for box in tracker_results[frame].values()])
         x_1 = np.array([box[1][0] for box in tracker_results[frame].values()])
-        for id in np.array(list(tracker_results[frame].keys()))[np.all([x_0 > x_start, x_1< x_end],axis = 0) == False]:
+        for id in np.array(list(tracker_results[frame].keys()))[np.all([x_0 > x_start, x_1 < x_end], axis=0) == False]:
             tracker_results[frame].pop(id)
     tracker_results["cv"] = len({id for frame in set(tracker_results.keys())-{"cv"} for id in tracker_results[frame].keys()})
     return tracker_results
 
+
+def filter_outside_zed_boxes(tracker_results, tree_images, max_z):
+    for frame in tree_images.keys():
+        frame_images = tree_images[frame]
+        boxes = tracker_results[frame]
+        to_pop = []
+        for id, box in boxes.items():
+            _, _, z = xyz_center_of_box(frame_images["zed"], box, nir=frame_images["nir"], swir_975=frame_images["swir_975"])
+            if z > max_z:
+                to_pop.append(id)
+        for id in to_pop:
+            boxes.pop(id)
+    return tracker_results
 
 def cut_center_of_box(image, box, nir=None, swir_975=None):
     t, b, l, r = get_box_corners(box)

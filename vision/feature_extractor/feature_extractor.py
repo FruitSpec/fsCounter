@@ -582,12 +582,13 @@ def calc_localization_features(tree_images, tracker_results, tree_name, centers=
     return tree_loc_params
 
 
-def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree_name):
+def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree_name, max_z=0):
     """
     :param tree_images: {"frame": {"fsi":fsi image,"rgb":rgb image,"zed":zed image} for each frame}
     :param slicer_results: {"frame": (x_start,x_end) for each frame}
     :param tracker_results: {"frame": {"id": ((x0,y0),(x1,y1))} for each frame}
     :param tree_name: name of the tree (for logging)
+    :param max_z: the maximum depth allowed to use
     :return:
     """
     s_time_0 = time.time()
@@ -596,7 +597,8 @@ def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree
         frame_images = tree_images[frame]
         frame_images["nir"], frame_images["swir_975"] = get_nir_swir(frame_images["fsi"])
         frame_images["rgb"] = frame_images["rgb"].astype(float)
-
+    if max_z > 0:
+        tracker_results = filter_outside_zed_boxes(tracker_results, tree_images, max_z)
     print(f"filter_outside_tree_boxes: { time.time()-s_time_0 }")
     s_time = time.time()
     minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name)
@@ -911,8 +913,8 @@ def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv
     row = os.path.basename(os.path.dirname(path_to_row))
     trees = [file for file in os.listdir(path_to_row) if os.path.isdir(os.path.join(path_to_row, file))]
     trees.sort(key=lambda x: int(x[1:]))
-    start_ind = 1 if int(row[1:])%2==0 else 2
-    for tree in trees[start_ind:-1:2]: # change back to [1:-1]
+    start_ind = 1 if int(row[1:]) % 2 == 0 else 2
+    for tree in trees[start_ind:-1:2]:# change back to [1:-1]
         tree_folder = os.path.join(path_to_row, tree)
         if not os.path.isdir(tree_folder):
             continue
@@ -924,7 +926,7 @@ def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv
         if len(tree_images) == 0:
             df = df.append({"name": f"{row}_{tree}", "block_name": block_name}, ignore_index=True)
             continue
-        tree_features = extract_features_for_tree(tree_images, slicer_results, tracker_results, f"{row}_{tree}")
+        tree_features = extract_features_for_tree(tree_images, slicer_results, tracker_results, f"{row}_{tree}", max_z)
         tree_features["block_name"] = block_name
         df = df.append(tree_features, ignore_index=True)
     if save_csv:
@@ -947,19 +949,19 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
         if os.path.isdir(row_path):
             df = pd.concat([df, create_row_features(row_path, zed_shift, max_x, max_y, save_csv, block_name, max_z)])
     if save_csv:
-        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_size_adjs.csv"))
+        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_max_z_boxes.csv"))
     return df
 
 
 if __name__ == '__main__':
     path_to_plot = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/trees"
-    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6"
+    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R11/trees"
+    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R11"
     # create_row_features(path_to_row, save_name="row_features_h2_band25.csv")
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
     df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5)
-    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in [2,3,4,5,7,8,9,10,11]])
-    tree = "T28"
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in range(2, 11)])
+    tree = "T41"
     tree_folder = os.path.join(path_to_row, tree)
     tracker_path = os.path.join(tree_folder, "tracker.csv")
     slice_path = os.path.join(tree_folder, "slices.csv")
