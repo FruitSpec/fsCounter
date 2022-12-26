@@ -20,20 +20,20 @@ class Exp(MyExp):
         self.seed = 42
 
         # Define yourself dataset path
-        self.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
+        self.data_dir = "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/fruitspec-lab/FruitSpec/Sandbox'
+        self.output_dir = '/home/yotam/FruitSpec/Sandbox/Counter_detector'
         self.num_classes = 1
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5
-        self.max_epoch = 150
-        self.warmup_lr = 0.0005
+        self.max_epoch = 300
+        self.warmup_lr = 0.0001
         self.basic_lr_per_img = 0.01 / 32.0
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 25
+        self.no_aug_epochs = 35
         self.min_lr_ratio = 0.3
         self.ema = True
         self.weight_decay = 5e-4

@@ -98,7 +98,7 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=False, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3):
     """
     this is where the magic happens, palys the video
     """
@@ -517,4 +517,6 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    pass
+    file_path = r"/media/yotam/Extreme SSD/syngenta trail/tomato/221222/post0.5m1stm/ZED_1.svo"
+    output_path = r"/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/221222/post0.5m1stm"
+    manual_slicer(file_path, output_path, rotate=True)

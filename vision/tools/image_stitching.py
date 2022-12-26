@@ -225,7 +225,7 @@ def calc_affine_transform(kp1, kp2, match):
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
-        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=7)
+        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=3)
     else:
         M, status = None, [0]
 

@@ -1,6 +1,7 @@
 import os
 import csv
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
@@ -74,6 +75,7 @@ class ResultsCollector():
         self.results += results
 
         return results
+
     def collect_size_measure(self, point_cloud_mat, tracking_results):
         self.measures += get_dimentions(point_cloud_mat, tracking_results)
 
@@ -201,6 +203,20 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
+    def plot_hist(self, frame, trk_outputs, f_id, output_path, hists):
+        for hist, det in zip(hists, trk_outputs):
+            #TODO
+            crop = frame[max(det[1],0):det[3], max(det[0],0):det[2]].copy()
+            crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.plot(hist)
+            try:
+                ax2.imshow(crop)
+            except:
+                continue
+            fig.savefig(os.path.join(output_path, f'{det[6]}_hue_{f_id}.jpg'))
+            plt.close()
+
     def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -236,7 +252,7 @@ class ResultsCollector():
 
         return hash
 
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, hists, depth=None, trk_windows=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
@@ -254,6 +270,10 @@ class ResultsCollector():
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+        if args.debug.hue_histogram:
+            validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
+            self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)
+
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
@@ -275,7 +295,6 @@ def scale(det_dims, frame_dims):
 
 
 def scale_det(detection, scale_):
-
     # Detection ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
     x1 = int(detection[0] * scale_)
     y1 = int(detection[1] * scale_)

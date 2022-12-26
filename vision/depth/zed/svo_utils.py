@@ -7,6 +7,8 @@ import random
 import string
 
 from vision.depth.zed.clip_depth_viewer import init_cam
+from vision.tools.video_wrapper import video_wrapper
+from vision.misc.help_func import validate_output_path
 
 def slice_image(filepath, output_path_name, per_svo_sample):
     per_svo_sample = int(per_svo_sample)
@@ -53,57 +55,39 @@ def get_random_frame_ids(number_of_frames, per_svo_sample):
 
     return random_ids
 
-def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=False):
-
+def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=0, min_depth=1., max_depth=5.):
+    frames_path = os.path.join(output_path_name, "frames")
+    validate_output_path(frames_path)
+    depth_path = os.path.join(output_path_name, "depth")
+    validate_output_path(depth_path)
     counter = 0
-    cam, runtime = init_cam(filepath)
+    cam = video_wrapper(filepath, rotate, min_depth, max_depth)
     if max_frame is None:
-        max_frame = cam.get_svo_number_of_frames()
+        max_frame = cam.get_number_of_frames()
 
-    mat = sl.Mat()
-    depth = sl.Mat()
-    xyz = sl.Mat()
-    key = ''
     while True:  # for 'q' key
-        err = cam.grab(runtime)
-        if err == sl.ERROR_CODE.SUCCESS and counter < max_frame:
-            cam_run_p = cam.get_init_parameters()
-            cam.retrieve_image(mat, sl.VIEW.LEFT)
-            generated_path = os.path.join(output_path_name, f"frame_{counter}.jpg")
-            image = mat.get_data()
-            if rotate:
-                image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
-            cv2.imwrite(generated_path, image[:, :, :3])
-
-            cam.retrieve_measure(depth, sl.MEASURE.DEPTH)
-            cam.retrieve_measure(xyz, sl.MEASURE.XYZRGBA)
-            depth_img = depth.get_data()
-            xyz_img = xyz.get_data()[:,:,:3]
-            depth_img = (cam_run_p.depth_maximum_distance - np.clip(depth_img, 0,
-                                                                    cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
-            bool_mask = np.where(np.isnan(depth_img), True, False)
-            depth_img[bool_mask] = 0
-            # if remove_high_blues:
-            if True:
-                mat = sl.Mat()
-                cam.retrieve_image(mat, sl.VIEW.LEFT)
-                depth_img[mat.get_data()[:, :, 0] > 190] = 0
-            depth_img = cv2.medianBlur(depth_img, 5)
-            if rotate:
-                depth_img = cv2.rotate(depth_img, cv2.ROTATE_90_CLOCKWISE)
-                xyz_img = cv2.rotate(xyz_img, cv2.ROTATE_90_CLOCKWISE)
-            generated_path = os.path.join(output_path_name, f"depth_frame_{counter}.jpg")
-            generated_xyz_path = os.path.join(output_path_name, f"xyz_frame_{counter}.npy")
-            cv2.imwrite(generated_path, depth_img)
-            np.save(os.path.join(output_path_name, f"xyz_frame_{counter}.npy"), xyz_img)
-
-            counter += 1
-        else:
+        if counter == 163:
+            a = 1
+        frame, depth, pc = cam.get_zed()
+        if not cam.res:
             break
+        b = frame[:, :, 0].copy()
+        depth[b > 220] = 0
+        generated_path = os.path.join(frames_path, f"frame_{counter}.jpg")
+        cv2.imwrite(generated_path, frame[:, :, :3])
+
+        generated_path = os.path.join(depth_path, f"depth_frame_{counter}.jpg")
+        cv2.imwrite(generated_path, depth)
+
+        counter += 1
+        if counter == max_frame:
+            break
+
     cam.close()
 
 
 if __name__ == "__main__":
-    fp ="/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/HD720_SN39577186_M_11-06-35.svo"
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED2"
-    svo_to_frames(fp, output_path, 600, True)
+    fp ="/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/ZED_1.svo"
+    output_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3"
+    validate_output_path(output_path)
+    svo_to_frames(fp, output_path, 300, 2, 1., 3.5)

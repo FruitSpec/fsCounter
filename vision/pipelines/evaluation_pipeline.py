@@ -5,8 +5,9 @@ import torch
 from omegaconf import OmegaConf
 import cv2
 from tqdm import tqdm
+import numpy as np
 
-from vision.misc.help_func import get_repo_dir, scale_dets
+from vision.misc.help_func import get_repo_dir
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -15,15 +16,17 @@ from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.run_args import make_parser
 from vision.detector.yolo_x.yolox.data import COCODataset
 from vision.detector.yolo_x.yolox.utils import xyxy2xywh
+from vision.misc.help_func import validate_output_path
 from vision.data.results_collector import ResultsCollector, scale
 from vision.data import COCO_utils
 
 
 
 
+
 def run(cfg, args):
 
-    detector = counter_detection(cfg)
+    detector = counter_detection(cfg, args)
     results_collector = ResultsCollector()
 
     data_dir = os.path.join(args.data_dir, args.ds_name)
@@ -40,17 +43,11 @@ def run(cfg, args):
 
         img = cv2.imread(os.path.join(data_dir, img_name))
 
-        output = detector.detect(img)
+        det_outputs = detector.detect(img)
 
-        scale_ = scale(detector.input_size, img.shape)
-        det_outputs = scale_dets(output, scale_)
         results_collector.collect_detections(det_outputs, id_)
         try:
-            results += output_to_coco(output,
-                                      img.shape[0],
-                                      img.shape[1],
-                                      detector.input_size[0],
-                                      detector.input_size[1],
+            results += output_to_coco(det_outputs,
                                       id_)
         except:
             a = 1
@@ -64,34 +61,27 @@ def run(cfg, args):
 
 
 
-def output_to_coco(outputs, img_h, img_w, infer_h, infer_w, img_id):
+def output_to_coco(outputs, img_id):
     data_list = []
-    for output in outputs:
-        if output is None:
-            return
-        output = output.cpu()
+    if outputs is None:
+        return
+    #output = output.cpu()
+    outputs = np.array(outputs)
+    bboxes = outputs[:, 0:4]
+    cls = outputs[:, 6]
+    scores = outputs[:, 4] * outputs[:, 5]
 
-        bboxes = output[:, 0:4]
+    bboxes = xyxy2xywh(bboxes)
 
-        # preprocessing: resize
-        scale = min(
-            infer_h / float(img_h), infer_w / float(img_w)
-        )
-        bboxes /= scale
-        cls = output[:, 6]
-        scores = output[:, 4] * output[:, 5]
-
-        bboxes = xyxy2xywh(bboxes)
-
-        for ind in range(bboxes.shape[0]):
-            pred_data = {
-                "image_id": int(img_id),
-                "category_id": int(cls[ind]),
-                "bbox": bboxes[ind].numpy().tolist(),
-                "score": scores[ind].numpy().item(),
-                "segmentation": [],
-            }  # COCO json format
-            data_list.append(pred_data)
+    for ind in range(bboxes.shape[0]):
+        pred_data = {
+            "image_id": int(img_id),
+            "category_id": int(cls[ind]),
+            "bbox": bboxes[ind].tolist(),
+            "score": scores[ind].item(),
+            "segmentation": [],
+        }  # COCO json format
+        data_list.append(pred_data)
 
     return data_list
 
@@ -148,12 +138,12 @@ if __name__ == "__main__":
 
     args = make_parser()
 
-    args.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
-    args.coco_gt = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/annotations/instances_val.json"
+    args.data_dir = "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco"
+    args.coco_gt = "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco/annotations/instances_val.json"
     args.ds_name = "val2017"
     args.eval_batch = 1
-    args.output_path = '/home/fruitspec-lab/FruitSpec/Sandbox/Run_3_5_oct_2022'
-
+    args.output_folder = '/home/yotam/FruitSpec/Sandbox/Eval_data'
+    validate_output_path(args.output_folder)
     coco_results = run(cfg, args)
 
-    COCO_utils.write_coco_file(coco_results, '/home/fruitspec-lab/FruitSpec/Sandbox/Run_3_5_oct_2022/instances_res.json')
+    COCO_utils.write_coco_file(coco_results, '/home/yotam/FruitSpec/Sandbox/Eval_data/instances_res.json')

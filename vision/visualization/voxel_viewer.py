@@ -108,9 +108,9 @@ def create_name():
 
 
 if __name__ == '__main__':
-    data_path = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/val2017"
-    files = {"GT": "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/annotations/instances_val.json"} #,
-             #"yolox": "/home/fruitspec-lab/FruitSpec/Sandbox/yolox_tiny_hires_1024X1024/instances_res3.json",
+    data_path = "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco/val2017 (copy)"
+    files = {"GT": "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco/annotations/instances_val.json", #,
+             "yolox": "/home/yotam/FruitSpec/Sandbox/Eval_data/instances_res.json"}
              #'yoloV5': "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6_COCO/coco_resV5.json"}
     vizualize_coco_results(files, data_path)
 

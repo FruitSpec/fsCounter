@@ -162,7 +162,7 @@ def remove_outliers(diff, lower_percentile=0.05, upper_percentile=0.0005):
 
 
 def find_gl_by_percentile(channel, upper, lower):
-    h, b = np.histogram(channel.flatten(), 256)
+    h, b = np.histogram(channel.flatten(), 255)
     total = np.sum(h)
     accumulated = np.cumsum(h).astype(np.float32) / total
 
@@ -172,7 +172,7 @@ def find_gl_by_percentile(channel, upper, lower):
     lower_intensity = b[i]
 
     for i in range(len(accumulated) - 1, 0, -1):
-        if accumulated[i] <= 1 - upper:
+        if accumulated[i] <= upper:
             break
     upper_intensity = b[i]
 

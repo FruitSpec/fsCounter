@@ -151,14 +151,14 @@ def remove_wrong_samples_from_coco(coco, wrong):
 
 if __name__ == "__main__":
     #dataset_folder = '/home/yotam/FruitSpec/Data/VEG_JAI_v4i_coco'
-    dataset_folder = "/home/yotam/FruitSpec/Data/VEG_RGB_v6i_coco"
-    expected_dims = [1920, 1080]
+    dataset_folder = "/home/yotam/FruitSpec/Data/JAI_FSI_v11i_coco"
+    expected_dims = [2048, 1536]
     rotation = 'clockwise'
 
-    #roboflow_to_coco(dataset_folder, expected_dims, rotation)
+    roboflow_to_coco(dataset_folder, expected_dims, rotation)
 
-    wrong = ['18199_12-06-05', '18199_12-09-03', '18199_12-11-32', '18199_12-13-29']
-    curate_ds(dataset_folder, wrong)
+    #wrong = ['18199_12-06-05', '18199_12-09-03', '18199_12-11-32', '18199_12-13-29']
+    #curate_ds(dataset_folder, wrong)
     #align_iamges(os.path.join(dataset_folder, 'train2017'), expected_dims, rotation)
     #align_iamges(os.path.join(dataset_folder, 'val2017'), expected_dims, rotation)
 

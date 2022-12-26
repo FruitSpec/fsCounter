@@ -47,7 +47,7 @@ def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
     return arr
 
 def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
-    match = match_descriptors(des_zed, des_jai)
+    match, _, _ = match_descriptors(des_zed, des_jai)
     M, st = calc_affine_transform(kp_zed, kp_jai, match)
 
     return M, st

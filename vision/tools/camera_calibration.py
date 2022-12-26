@@ -138,7 +138,7 @@ def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_r
     params['headline'] = headline
     cv2.namedWindow(headline, cv2.WINDOW_GUI_NORMAL)
 
-    zed_cam = video_wrapper(zed_filepath, zed_rotate)
+    zed_cam = video_wrapper(zed_filepath, zed_rotate, 1, 5)
     jai_cam = video_wrapper(jai_filepath, jai_rotate)
     number_of_frames = jai_cam.get_number_of_frames()
 
@@ -148,8 +148,7 @@ def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_r
     while True:
         # Capture frame-by-frame
         print(params["index"])
-        zed_cam.grab(params["index"])
-        _, zed_frame = zed_cam.get_frame()
+        zed_frame, depth, pc = zed_cam.get_zed(params["index"])
         #jai_cam.grab(params["index"])
         #_, jai_frame = jai_cam.get_frame()
         #ret1, zed_frame = zed_cam.get_frame(params["index"])
@@ -158,23 +157,24 @@ def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_r
         #if not ret and not ret1:  # couldn't get frames
             break
         zed_orig = zed_frame.copy()
-        jai_orig = jai_frame.copy()
+        #jai_orig = jai_frame.copy()
+        #jai_orig = jai_frame.copy()
         # preprocess: resize and rotate if needed
-        jai_frame, params = preprocess_frame(jai_frame, params)
+        depth, params = preprocess_frame(depth, params)
         zed_frame, params = preprocess_frame(zed_frame, params)
 
         #jai_frame = cv2.cvtColor(jai_frame, cv2.COLOR_RGB2GRAY)
-        #zed_frame = cv2.cvtColor(zed_frame, cv2.COLOR_RGB2GRAY)
+        depth = cv2.cvtColor(depth, cv2.COLOR_GRAY2RGB)
 
-        canvas_half_width = (max(zed_frame.shape[1], jai_frame.shape[1]) + 50)
-        if len(jai_frame.shape) > 2:
+        canvas_half_width = (max(zed_frame.shape[1], depth.shape[1]) + 50)
+        if len(depth.shape) > 2:
             canvas = np.zeros((size, canvas_half_width * 2, 3)).astype(np.uint8)
             canvas[:zed_frame.shape[0], 25:zed_frame.shape[1]+25, :] = zed_frame
-            canvas[:jai_frame.shape[0], canvas_half_width + 25: canvas_half_width + 25 + jai_frame.shape[1], :] = jai_frame
+            canvas[:depth.shape[0], canvas_half_width + 25: canvas_half_width + 25 + depth.shape[1], :] = depth
         else:
             canvas = np.zeros((size, canvas_half_width * 2)).astype(np.uint8)
             canvas[:, 25:zed_frame.shape[1] + 25] = zed_frame
-            canvas[:, canvas_half_width + 25: canvas_half_width + 25 + jai_frame.shape[1]] = jai_frame
+            canvas[:, canvas_half_width + 25: canvas_half_width + 25 + depth.shape[1]] = depth
         params['frame'] = canvas
         params['canvas_half_width'] = canvas_half_width
         params['zed_offset'] = 25
@@ -202,13 +202,14 @@ def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_r
             ty.append(y1)
 
             zed_c = zed_orig[int(y1): int(y2), int(x1): int(x2)]
-            jai_c, params = preprocess_frame(jai_orig, params)
+            depth_c = depth[int(y1): int(y2), int(x1): int(x2)]
+            depth_c, params = preprocess_frame(depth_c, params)
             zed_c, params = preprocess_frame(zed_c, params)
 
-            canvas_half_width = (max(zed_c.shape[1], jai_c.shape[1]) + 50)
+            canvas_half_width = (max(zed_c.shape[1], depth_c.shape[1]) + 50)
             canvas1 = np.zeros((size, canvas_half_width * 2, 3)).astype(np.uint8)
             canvas1[:zed_c.shape[0], 25:zed_c.shape[1] + 25, :] = zed_c
-            canvas1[:jai_c.shape[0], canvas_half_width + 25: canvas_half_width + 25 + jai_c.shape[1], :] = jai_c
+            canvas1[:depth_c.shape[0], canvas_half_width + 25: canvas_half_width + 25 + depth_c.shape[1], :] = cv2.cvtColor(depth_c, cv2.COLOR_GRAY2RGB)
             cv2.imshow(headline, canvas1)
             k = cv2.waitKey()
         params = update_index(k, params)
@@ -253,9 +254,9 @@ if __name__ == "__main__":
     #zed_fp = "/home/yotam/FruitSpec/Sandbox/JAIZED EXPERIMENT BITRATE/FSI_b 51200.mkv"
     jai_fp = "/home/yotam/FruitSpec/Data/Scan_3011/wetransfer_new-scan_2022-11-30_1639/r2in/Result_RGB_1.mkv"
     #zed_fp = "/home/yotam/FruitSpec/Sandbox/JAIZED EXPERIMENT BITRATE/ZED_b 20K.svo"
-    zed_fp = "/home/yotam/FruitSpec/Data/Scan_3011/wetransfer_new-scan_2022-11-30_1639/r2in/ZED_1.svo"
+    zed_fp = "/home/yotam/FruitSpec/Sandbox/slicer_test/CARA_CARA_R3_1511/ZED_3.svo"
 
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/pepper/dual/'
+    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/slicer/'
     validate_output_path(output_path)
     manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1)
 

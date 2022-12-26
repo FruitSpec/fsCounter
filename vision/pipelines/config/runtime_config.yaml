@@ -1,5 +1,5 @@
-movie_path: /home/yotam/FruitSpec/Sandbox/Syngenta/pre_ZED_90.svo
-output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/tomatoes/pre_ZED_90_1Class_aug_5
+movie_path: /media/yotam/Extreme SSD/syngenta trail/tomato/221222/post0.5m1stm/ZED_1.svo
+output_folder: /media/yotam/Extreme SSD/syngenta trail/tomato/analysis/221222/post0.5m1stm
 #movie_path:
 
 frame_size:  [1920, 1080] # [2048, 1536]
@@ -9,11 +9,12 @@ depth_maximum: 2.5 # 8 counter
 
 debug:
   is_debug: true  # master switch
-  tracker_windows: true
+  tracker_windows: false
   tracker_results: true
   det_results: false
   raw_frame: false
   depth: false
   tracker: None
   clusters: false
+  hue_histogram: false
 
