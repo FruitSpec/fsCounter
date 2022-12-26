@@ -5,7 +5,7 @@ from vision.tracker.fsTracker.score_func import get_intersection
 
 
 def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
-    filtered_dets = []
+    filtered = []
     range_ = []
     for det in dets:
         crop = depth[det[1]:det[3] - 1, det[0]:det[2] - 1]
@@ -20,9 +20,10 @@ def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
-                filtered_dets.append(dets[d_id])
+                filtered.append(d_id)
 
-    return filtered_dets
+    return filtered
+
 
 def filter_by_intersection(dets_outputs, threshold=0.8):
     filtered = []
@@ -52,17 +53,12 @@ def filter_by_intersection(dets_outputs, threshold=0.8):
     return filtered
 
 
-
 def filter_by_duplicates(dets_outputs, iou_threshold=0.9):
     dets = np.array(dets_outputs)
     scores = dets[:, 4] * dets[:, 5]
     dets = dets[:, :4]
 
     inter = get_intersection(dets, dets)
-
-
-
-
 
     area = (dets[:, 3] - dets[:, 1]) * (dets[:, 2] - dets[:, 0])
 
@@ -116,8 +112,21 @@ def filter_by_height(det_outputs, depth, bias=0, y_crop=200):
         y_loc = np.argmax(grad_y, axis=0)
         y_threshold = np.mean(y_loc[y_loc > 0]) + y_crop + bias
 
-        for det in det_outputs:
+        for d_id, det in enumerate(det_outputs):
             if det[1] > y_threshold:
-                filtered.append(det)
+                filtered.append(d_id)
 
     return filtered
+
+
+def sort_out(trk1, trk2, indices):
+    trk2 = list(trk2)
+
+    indices = sorted(indices, reverse=True)
+    for idx in indices:
+        if idx < len(trk1):
+            trk1.pop(idx)
+        if idx < len(trk2):
+            trk2.pop(idx)
+    trk2 = np.array(trk2)
+    return trk1, trk2

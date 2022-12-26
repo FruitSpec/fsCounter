@@ -17,4 +17,5 @@ debug:
   depth: false
   tracker: None
   clusters: false
+  hue_histogram: false
 

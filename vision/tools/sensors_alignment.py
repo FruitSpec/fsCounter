@@ -66,7 +66,7 @@ def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, r_zed):
     return arr
 
 def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
-    match = match_descriptors(des_zed, des_jai)
+    match, _, _ = match_descriptors(des_zed, des_jai)
     M, st = calc_affine_transform(kp_zed, kp_jai, match)
 
     return M, st
@@ -84,21 +84,10 @@ def get_coordinates_in_zed(grey_zed, grey_jai, tx, ty, sx, sy):
     jai_in_zed_height = np.round(grey_jai.shape[0] * sy).astype(np.int)
     jai_in_zed_width = np.round(grey_jai.shape[1] * sx).astype(np.int)
 
-    z_h = grey_zed.shape[0] #/ sy
-    z_w = grey_zed.shape[1] #/ sx
-    #
-    # x1 = (z_w / 2) - (grey_jai.shape[1] * sx / 2) - tx
-    # x2 = (z_w / 2) + (grey_jai.shape[1] * sx / 2) - tx
-    # y1 = (z_h / 2) - (grey_jai.shape[0] * sy / 2) - ty
-    # y2 = (z_h / 2) + (grey_jai.shape[0] * sy / 2) - ty
-
+    z_h = grey_zed.shape[0]
+    z_w = grey_zed.shape[1]
     if tx > 0:
         if ty > 0:
-            # x1 = (tx * sx)
-            # x2 = (tx * sx) + grey_jai.shape[1]
-            # y1 = (ty * sy)
-            # y2 = (ty * sy) + grey_jai.shape[0]
-
             x1 = tx
             x2 = tx + jai_in_zed_width
             y1 = ty

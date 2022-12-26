@@ -29,8 +29,8 @@ def get_point_cloud(point_cloud_mat, cam):
 
     return point_cloud
 
-# TODO Matan to go through implementation
-def get_dist_vec(pc_mat, bbox2d,dim):
+
+def get_dist_vec(pc_mat, bbox2d, dim):
     x1 = int(bbox2d[0])
     y1 = int(bbox2d[1])
     x2 = int(bbox2d[2])
@@ -54,19 +54,22 @@ def get_dist_vec(pc_mat, bbox2d,dim):
             mat = pc_mat[y1:y2, mid_w - 1: mid_w + 2, :-1].copy()
         return mat
 
-def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
 
-    crop = point_cloud[int(bbox[1]):int(bbox[3]), int(bbox[0]): int(bbox[2]), :-1].copy()
+def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
+    # TODO
+
+    crop = point_cloud[max(int(bbox[1]),0):int(bbox[3]), max(int(bbox[0]),0): int(bbox[2]), :-1].copy()
     return crop
+
 
 def get_width(crop, margin=0.2, fixed_z=True):
     h, w, c = crop.shape
     marginy = np.round(margin / 2 * h).astype(np.int16)
     vec = np.nanmean(crop[marginy:-marginy, :, :], axis=0)
     if fixed_z:
-        width = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
     else:
-        width = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
     return width
 
 def get_height(crop, margin=0.2, fixed_z=True):
@@ -74,15 +77,16 @@ def get_height(crop, margin=0.2, fixed_z=True):
     marginx = np.round(margin / 2 * w).astype(np.int16)
     vec = np.nanmean(crop[:, marginx:-marginx, :], axis=1)
     if fixed_z:
-        height = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
+        try:
+            height = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
+        except:
+            pass
     else:
-        height = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
+        height = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
     return height
 
 
-# TODO Matan to go through implementation
 def get_dimentions(point_cloud, dets):
-
     dims = []
     for det in dets:
         # in case that is not a full fruit
@@ -97,6 +101,7 @@ def get_dimentions(point_cloud, dets):
         dims.append([height, width])
 
     return dims
+
 
 def average_det_depth(crop, margin=0.2):
     h, w, c = crop.shape

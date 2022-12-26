@@ -30,7 +30,6 @@ class FsTracker():
         self.frame_size = frame_size
 
         self.translation_size = translation_size
-        #self.last_kp_des = None
         self.last_kp = None
         self.last_des = None
         self.last_center_x = None
@@ -170,8 +169,6 @@ class FsTracker():
             track_windows.append(track.get_track_search_window(search_window))
 
 
-
-
         return track_windows
 
     @staticmethod
@@ -302,52 +299,6 @@ class FsTracker():
                 not_coupled.append(det_id)
 
         return not_coupled
-
-
-
-
-
-
-
-        # for det_id in det_ids:
-        #     if det_id not in coupled_dets:
-        #         not_coupled.append(det_id)
-
-
-
-        # det_ids = [i for i in range(len(detections))]
-        # coupled_dets = []
-        #
-        # for id_, track_tf in matches.items():
-        #
-        #     matched_tracks, matched_track_index, matched_tracks_acc_dist = self.get_matches(track_tf)
-        #     if len(matched_track_index) == 0:
-        #         continue
-        #
-        #     det = detections[id_]
-        #
-        #     matches_bbox = [[track[0], track[1], track[2], track[3]] for track in matched_tracks]
-        #     ratio_score = compute_ratios(det[:4], matches_bbox)
-        #
-        #     dist_score = np.array(dist(det[:4], matches_bbox, matched_tracks_acc_dist, np.abs(self.max_distance)))
-        #     conf_score = np.array(confidence_score(det[4] * det[5], matched_tracks))
-        #
-        #     weigthed_iou = ratio_score * self.score_weights[0]
-        #     weigthed_dist = dist_score * self.score_weights[1]
-        #     weigthed_conf = conf_score * self.score_weights[2]
-        #
-        #     weigthed_score = (weigthed_iou + weigthed_dist + weigthed_conf) / np.sum(self.score_weights)
-        #     track_index = np.argmax(weigthed_score)
-        #
-        #     self.tracklets[matched_track_index[track_index]].update(det)
-        #     coupled_dets.append(id_)
-        #
-        # not_coupled = []
-        # for det_id in det_ids:
-        #     if det_id not in coupled_dets:
-        #         not_coupled.append(det_id)
-        #
-        # return not_coupled
 
     def get_matches(self, track_tf):
         temp_track_index = [track_id for track_id, tf in enumerate(track_tf) if tf]
