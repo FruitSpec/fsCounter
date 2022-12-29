@@ -6,7 +6,8 @@ from GPS import location_awareness
 from DataManager import uploader
 from Analysis import analyzer
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
-from application.utils.settings import conf
+from utils.settings import conf
+from GUI.gui_interface import GUIInterface
 
 global manager
 
@@ -26,12 +27,27 @@ def transfer_data(sig, frame):
             continue
 
 
+def setup_GUI():
+    def connect(sid, environ):
+        pass
+
+    def disconnect(sid, environ):
+        pass
+
+    def start_camera(sid, environ):
+        pass
+
+    def stop_camera(sid, environ):
+        pass
+
+    GUIInterface.start_GUI(connect, disconnect, start_camera, stop_camera)
+
+
 def main():
     global manager
     manager = dict()
     if conf["GUI"]:
-        subprocess.Popen("npm run dev --prefix ./JAI-Operator-client", shell=True)
-
+        setup_GUI()
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
     main_pid = os.getpid()

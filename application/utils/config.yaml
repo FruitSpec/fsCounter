@@ -1,6 +1,4 @@
-GUI: true
 logs path: "path/to/logfile"
 log name: "log"
 customer code: "TNKBLL"
-default_plots: ["PLOT001", "PLOT002", "PLOT003"]
-
+default plots: ["PLOT001", "PLOT002", "PLOT003"]
