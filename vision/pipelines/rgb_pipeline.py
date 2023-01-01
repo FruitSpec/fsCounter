@@ -62,15 +62,10 @@ def run(cfg, args):
         # track:
         trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
 
-        # filter by height:
-        filtered_outputs = trk_outputs
-        # indices_in_height = filter_by_height(filtered_outputs, depth, cfg.filters.height.bias, cfg.filters.height.y_crop)
-
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, depth, cfg.filters.distance.threshold)
+        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        # indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_height) | set(indices_in_distance)))
         indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
         trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
 

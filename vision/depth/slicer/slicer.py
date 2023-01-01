@@ -6,15 +6,119 @@ from vision.tools.camera import find_gl_by_percentile
 
 
 
-def slice_frame(depth, depth_thrs=70, slice_thrs=0.15, grad_kernel=7):
-    pos_grad, neg_grad = get_grad(depth, k_size=grad_kernel)
-    first, last = get_search_limits(neg_grad)
+def slice_frame(depth, depth_thrs=70, slice_thrs=0.15, gaussian_kernel=5):
 
-    croped_depth = depth[first:last, :].copy()
+    s, e = find_tree_height_limits(depth)
 
-    nearest = np.max(croped_depth)
-    mean_vec = np.mean(croped_depth, axis=0)
-    pass
+    cropped_depth = depth[s:e, :].copy()
+    vec = find_local_minimum(cropped_depth)
+
+
+
+
+def find_local_minimum(cropped_depth, signal_thrs=0.4, gaussian_kernel=5):
+    mean_vec = np.mean(cropped_depth, axis=0)
+    mean_vec = gaussian_filter1d(mean_vec, gaussian_kernel)
+
+    k = [1, 0, -1]
+    first_der_vec = np.convolve(mean_vec, k, mode='same') / 3
+    second_der_vec = np.convolve(first_der_vec, k, mode='same') / 3
+
+    # first derivative suspects - both min and max points
+    tf_f = np.abs(first_der_vec) <= 0.03
+
+    # second derivative suspects - keep only local min
+    tf_s = second_der_vec > 0
+
+    # keep only local min below threshold - far
+    norm_vec = mean_vec / mean_vec.max()
+    tf_n = norm_vec < signal_thrs
+
+    vec = tf_f & tf_s & tf_n
+
+    return reduce_to_center(vec)
+
+
+def remove_windows(depth, vec, start, end, signal_thrs=10, window_thrs=0.5):
+    final = []
+    for index_ in vec:
+        mid = (start + end) // 2
+
+        # seperate the signal to two halfs
+        uppper_signal_vec = depth[start:mid, index_].copy()
+        lower_signal_vec = depth[mid: end, index_].copy()
+
+        # how many below threshold - no signal
+        upper = np.sum(uppper_signal_vec < signal_thrs) / (mid - start)
+        lower = np.sum(lower_signal_vec < signal_thrs) / (end - mid)
+
+        if upper > window_thrs and lower > window_thrs:
+            # valid
+            final.append(index_)
+        elif upper > window_thrs and lower < window_thrs:
+            # upper window
+            continue
+        elif upper < window_thrs and lower > window_thrs:
+            # lower window
+            continue
+        else: # gap - valid
+            final.append(index_)
+
+    return final
+
+
+
+
+
+
+
+def reduce_to_center(vec):
+    centers = []
+    args = np.where(vec == 1)
+    temp = [args[0][0]]
+    for i in range(1, len(list(args[0]))):
+        if args[0][i] - args[0][i - 1] <= 1:
+            temp.append(args[0][i])
+        else:
+            centers.append(int(np.mean(temp)))
+            temp = [args[0][i]]
+
+    centers.append(int(np.mean(temp)))
+
+    return centers
+
+
+
+def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, median_kernel=15):
+    depth = cv2.medianBlur(depth, median_kernel)
+
+    w = depth.shape[1]
+    slices = np.arange(0, w, w // fov_slice).astype(np.int16)
+    slices = np.append(slices, w)
+
+    s = 0
+    vecs = []
+    for i in slices[1:]:
+        v = np.mean(depth[:, s:i], axis=1)
+        v = gaussian_filter1d(v, filter_width)
+        vecs.append(v)
+        s = i
+
+    d = []
+    v_l = vecs[0]
+    for v in vecs[1:]:
+        d.append(np.abs(v - v_l))
+        v_l = v.copy()
+
+    d = np.array(d)
+    d[d <= noise_thrs] = 0
+
+    starts = np.median(first_nonzero(d, axis=1)).astype(np.uint16)
+    ends = np.median(last_nonzero(d, axis=1)).astype(np.uint16)
+
+    return starts, ends
+
+
 
 def slice_frame(depth, routh_thrs=4000, grad_kernel=3, number_of_rouths=30, depth_thrs=70, get_best=4, delta_thrs=500):
 
@@ -288,5 +392,6 @@ if __name__ == "__main__":
     frame = cv2.imread(fp)
     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
+    #s, e = find_tree_height_limits(depth)
     gaps = slice_frame(depth, grad_kernel=7, depth_thrs=70)
 
