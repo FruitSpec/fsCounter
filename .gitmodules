@@ -1,4 +1,4 @@
-[submodule "application/JAI-Operator-client"]
-	path = application/JAI-Operator-client
+[submodule "application/GUI/JAI-Operator-client"]
+	path = application/GUI/JAI-Operator-client
 	url = git@github.com:FruitSpec/JAI-Operator-client.git
     branch = south-africa-gui
