@@ -66,8 +66,8 @@ def customer_to_preds(customer_path, customer_cnfg, model=None):
 
 if __name__ == '__main__':
     customer_path = "/media/yotam/easystore/test_pred_pipe"
-    skip_rows_dict = {"301022": {"test_plot": {"R2": [],
-                                               "R3": []}}}
+    skip_rows_dict = {"301022": {"test_plot": {"R2": ["folder_to_frames", "align_folder", "agg_to_trees", "track_row"],
+                                               "R3": ["folder_to_frames", "align_folder", "agg_to_trees", "track_row"]}}}
     max_depth_dict = {"301022": {"test_plot": 5}}
     roi_parms_dict = {"301022": dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
                       "default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}

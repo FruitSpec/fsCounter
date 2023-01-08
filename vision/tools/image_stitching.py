@@ -23,6 +23,7 @@ def keep_dets_only(frame, detections, margin = 0.5):
         #bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
         bool_arr[int(y1): int(y2), int(x1): int(x2)] = True
     canvas[np.logical_not(bool_arr)] = 0
+    return canvas
 
 
 def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
@@ -214,35 +215,30 @@ def find_keypoints(img):
 
 def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    try:
-        matches = flann.knnMatch(des1, des2, k=2)
-    except:
-        Warning('flann.knnMatch collapsed, return empty matches')
-        matches = []
+    matches = flann.knnMatch(des1, des2, k=2)
     # store all the good matches as per Lowe's ratio test.
     match = []
-    matchesMask = [[0, 0] for i in range(len(matches))]
-    id = 0
     for m, n in matches:
         if m.distance < threshold * n.distance:
             match.append(m)
-            matchesMask[id] = [1, 0]
-        id += 1
-    return match, matches, matchesMask
+
+    if match.__len__() < min_matches:
+        print(f'number of matching descriptors is too low')
+
+    return match
 
 
 def calc_affine_transform(kp1, kp2, match):
+    if len(kp1) == 0 or len(kp2) == 0:
+        np.full((2, 3), np.nan), False
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-
-    if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
-        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=7)
-    else:
-        M, status = None, [0]
-
+    if len(dst_pts) == 0 or len(src_pts) == 0:
+        return np.full((2, 3), np.nan), False
+    M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=15, maxIters=5000)
 
     return M, status
 
@@ -314,8 +310,10 @@ def extract_frame_id(file_name):
 
 def load_img(file_path, resize_=640):
     r = None
-
-    img = cv2.imread(file_path)
+    if isinstance(file_path, str):
+        img = cv2.imread(file_path)
+    else:
+        img = file_path
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h = height(img)
@@ -459,17 +457,15 @@ def translation_based(M, height, width, r):
 
 
 def find_translation(kp1, des1, kp2, des2, r):
-    M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)
-    if 1 in np.unique(status) and True not in np.unique(np.isnan(M)) and True not in np.unique(np.isinf(M)):
-        try:
-            tx = int(np.round(M[0, 2] / r))
-            ty = int(np.round(M[1, 2] / r))
-        except:
-            a=1
-    else:
-        tx, ty = None, None
+    M, status = features_to_translation(kp1, kp2, des1, des2)
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, M
+    if not np.isfinite(M[0, 2]) or not np.isfinite(M[1, 2]) :
+        return np.nan, np.nan, M
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
 
-    return tx, ty, good, matches, matchesMask
+    return tx, ty, M
 
 
 def resize_img(input_, size):

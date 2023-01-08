@@ -185,7 +185,8 @@ def init_physical_parmas(value):
     :return: an initialized features dictionary
     """
     features_list = ["total_foliage", "total_orange", "width", "height", "volume", "surface_area", "perimeter",
-                     "avg_width", "avg_height", "avg_volume", "avg_perimeter"]
+                     "avg_width", "avg_height", "avg_volume", "avg_perimeter", "sum_binary_ndvi", "sum_contur",
+                     "foliage_fullness"]
     return fill_dict(features_list, value)
 
 
@@ -199,9 +200,10 @@ def init_fruit_params(value):
 
 
 def transform_to_tree_physical_features(tree_physical_params):
-    sclars = ["total_orange", "total_foliage", "surface_area"]
+    sclars = ["total_orange", "total_foliage", "surface_area", "sum_binary_ndvi", "sum_contur"]
     for scalar_key in sclars:
         tree_physical_params[scalar_key] = np.sum(tree_physical_params[scalar_key])
+    tree_physical_params["foliage_fullness"] = tree_physical_params["sum_binary_ndvi"] / tree_physical_params["sum_contur"]
     tree_physical_params["surface_area"] = np.sqrt(tree_physical_params["surface_area"])
     summed_width = np.nansum(np.array(tree_physical_params["width"]), axis=0)
     summed_width = summed_width[summed_width > 0.25]
@@ -231,7 +233,8 @@ def transform_to_tree_physical_features(tree_physical_params):
     # tree_physical_params["width"] = iqr_max(widths)
     # tree_physical_params["perimeter"] = iqr_max(perimeters)
     # tree_physical_params["height"] = iqr_max(heights)
-
+    tree_physical_params.pop("sum_binary_ndvi")
+    tree_physical_params.pop("sum_contur")
     volume, avg_volume = get_tree_volume(tree_physical_params, vol_style="cone")
     tree_physical_params["volume"] = volume
     tree_physical_params["avg_volume"] = avg_volume
@@ -250,6 +253,8 @@ def calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary):
     frame_physical_parmas["height"] = calc_tree_heights(xyz_point_cloud, ndvi_binary)  # np array (scaler for each col)
     frame_physical_parmas["perimeter"] = calc_tree_perimeter(xyz_point_cloud, ndvi_binary)  # np array (scaler for each row)
     frame_physical_parmas["surface_area"] = get_surface_area(xyz_point_cloud, ndvi_binary)  # scalar
+    frame_physical_parmas["sum_binary_ndvi"] = np.nansum(ndvi_binary)
+    frame_physical_parmas["sum_contur"] = get_contour_size(ndvi_binary)
     return frame_physical_parmas
 
 
@@ -334,13 +339,16 @@ def update_fruit_features(tree_fruit_params, tracker_results, fsi, rgb, frame_nu
     for i, track_id in enumerate(boxes.keys()):
         cur_ratio = w_h_ratios[i]
         # 90% of the function time is  get intensity
-        cur_intens = get_intensity(fsi, rgb, boxes[track_id])
+        cur_intens, cur_foli_ratio = get_intensity(fsi, rgb, boxes[track_id])
         if np.isin(track_id, w_h_keys):
             tree_fruit_params["w_h_ratio"][track_id] = np.append(tree_fruit_params["w_h_ratio"][track_id], cur_ratio)
             tree_fruit_params["intensity"][track_id] = np.append(tree_fruit_params["intensity"][track_id], cur_intens)
+            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.append(tree_fruit_params["fruit_foliage_ratio"][track_id], cur_foli_ratio)
+
         else:
             tree_fruit_params["w_h_ratio"][track_id] = np.array([cur_ratio])
             tree_fruit_params["intensity"][track_id] = np.array([cur_intens])
+            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.array([cur_foli_ratio])
     return tree_fruit_params
 
 
@@ -404,7 +412,7 @@ def calc_fruit_features(tree_images, tracker_results, tree_name):
     """
     # ["cv" V, "frame" V, "w_h_ratio" V, "q1" V, "q3" V, "avg_intens_arr" V, "med_intens_arr" V]
     tree_fruit_params = init_fruit_params([])
-    tree_fruit_params["w_h_ratio"], tree_fruit_params["intensity"] = {}, {}
+    tree_fruit_params["w_h_ratio"], tree_fruit_params["intensity"], tree_fruit_params["fruit_foliage_ratio"] = {}, {}, {}
     for i, frame_number in enumerate(tree_images.keys()):
         print(f"fruit features - {tree_name}: {frame_number}")
         fsi, rgb, nir, swir_975, xyz_point_cloud, zed_rgb = get_pictures(tree_images, frame_number, with_zed=True)
@@ -417,6 +425,8 @@ def calc_fruit_features(tree_images, tracker_results, tree_name):
     wh_std_per_fruit = np.fromiter((np.std(w_h_ratios) for w_h_ratios in
                                                             tree_fruit_params["w_h_ratio"].values()), float)
     tree_fruit_params["w_h_ratio"] = np.median(wh_std_per_fruit[n_samp_per_fruit > 2])
+    tree_fruit_params["fruit_foliage_ratio"] = np.median(np.fromiter(
+        (np.mean(ffr[np.isfinite(ffr)]) for ffr in tree_fruit_params["fruit_foliage_ratio"].values()), float))
     tree_fruit_params = tree_intensity_summary(tree_fruit_params, tree_name, frame_number)
     return tree_fruit_params
 
@@ -614,9 +624,17 @@ def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree
         frame_images["rgb"] = frame_images["rgb"].astype(float)
     if max_z > 0:
         tracker_results = filter_outside_zed_boxes(tracker_results, tree_images, max_z)
+    tracker_results["cv"] = len({id for frame in set(tracker_results.keys()) - {"cv"}
+                                    for id in tracker_results[frame].keys()})
     print(f"filter_outside_tree_boxes: { time.time()-s_time_0 }")
     s_time = time.time()
-    minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name)
+    # minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name)
+    frames_numbers = list(tree_images.keys())
+    n_frames = len(frames_numbers)
+    masks = None
+    start_frame = int(np.floor(n_frames*0.25))
+    end_frame = int(np.ceil(n_frames*0.75))
+    minimal_frames = frames_numbers[start_frame:end_frame:2]
     print(f"get_minimal_frames: { time.time()-s_time }")
     s_time = time.time()
     # masks bags
@@ -838,9 +856,47 @@ def get_slicer_data(slice_path, max_w):
     return sliced_data
 
 
-def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=None, max_y=None, max_z=0):
+def debug_preprocess(tree_images, max_y):
+    keys = list(tree_images.keys())
+    for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
+    # for frame in keys:
+        frame = str(frame)
+        fsi = tree_images[frame]["fsi"].copy()
+        zed = tree_images[frame]["zed_rgb"].copy()
+        xyz = tree_images[frame]["zed"].copy()
+
+        for id, track in tracker_results[frame].items():
+            fsi = cv2.rectangle(fsi, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(255, 0, 0),
+                                thickness=2)
+        fsi = cv2.line(fsi, (slicer_results[frame][0], 0), (slicer_results[frame][0], max_y), color=(255, 0, 0),
+                       thickness=2)
+        fsi = cv2.line(fsi, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
+                       thickness=2)
+        # plt.imshow(fsi)
+        # plt.show()
+        for id, track in tracker_results[frame].items():
+            zed = cv2.rectangle(zed, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(255, 0, 0),
+                                thickness=2)
+        zed = cv2.line(zed, (slicer_results[frame][0], 0), (slicer_results[frame][0], max_y), color=(255, 0, 0),
+                       thickness=2)
+        zed = cv2.line(zed, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
+                       thickness=2)
+        # plt.imshow(zed)
+        # plt.show()
+        plot_2_imgs(zed, fsi, frame)
+        # plot_2_imgs(xyz[:,:,2], zed, frame)
+
+def read_tracker_results(tracker_path):
     tracker_full_results = pd.read_csv(tracker_path)
     tracker_full_results["bbox"] = get_trakcer_bboxes(tracker_full_results)
+    tracker_full_results.rename({"frame": "image_id"}, axis=1, inplace=True)
+    if "frame" in tracker_full_results.columns:
+        tracker_full_results.rename()
+    return tracker_full_results
+
+def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=None, max_y=None, max_z=0,
+                    debug=False):
+    tracker_full_results = read_tracker_results(tracker_path)
     jai_frames = [file.split(".")[0].split("_")[-1] for file in os.listdir(tree_folder)
                   if "jpg" in file and "FSI" in file]
     jai_frames.sort(key=lambda x: int(x))
@@ -870,6 +926,7 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
     if isinstance(max_x, type(None)):
         max_x, max_y = np.max(shapes_x), np.max(shapes_y)
     r_h, r_w = max_y / jai_h, max_x / jai_w
+    #resizing images
     for i, frame in enumerate(jai_frames):
         zed_pic = tree_images[frame]["zed"]
         if np.prod(tree_images[frame]["zed"].shape) == 0:
@@ -890,34 +947,8 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
         tracker_subset = tracker_full_results[tracker_full_results["image_id"] == int(frame)]
         tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
                                        for row in tracker_subset[["track_id", "bbox"]].iterrows()}
-    keys = list(tree_images.keys())
-    for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
-    # for frame in keys:
-        frame = str(frame)
-        fsi = tree_images[frame]["fsi"].copy()
-        zed = tree_images[frame]["zed_rgb"].copy()
-        xyz = tree_images[frame]["zed"].copy()
-
-        for id, track in tracker_results[frame].items():
-            fsi = cv2.rectangle(fsi, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(255, 0, 0),
-                                thickness=2)
-        fsi = cv2.line(fsi, (slicer_results[frame][0], 0), (slicer_results[frame][0], max_y), color=(255, 0, 0),
-                       thickness=2)
-        fsi = cv2.line(fsi, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
-                       thickness=2)
-        # plt.imshow(fsi)
-        # plt.show()
-        for id, track in tracker_results[frame].items():
-            zed = cv2.rectangle(zed, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(255, 0, 0),
-                                thickness=2)
-        zed = cv2.line(zed, (slicer_results[frame][0], 0), (slicer_results[frame][0], max_y), color=(255, 0, 0),
-                       thickness=2)
-        zed = cv2.line(zed, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
-                       thickness=2)
-        # plt.imshow(zed)
-        # plt.show()
-        plot_2_imgs(zed, fsi, frame)
-        # plot_2_imgs(xyz[:,:,2], zed, frame)
+    if debug:
+        debug_preprocess(tree_images, max_y)
 
     return tree_images, slicer_results, tracker_results
 
@@ -985,5 +1016,5 @@ if __name__ == '__main__':
                                                                    max_x=600, max_y=900, max_z=5)
     # tree_images, slicer_results, tracker_results = read_images_small()
     print("loaded pictures")
-    extract_features_for_tree(tree_images, slicer_results, tracker_results, tree)
+    extract_features_for_tree(tree_images, slicer_results, tracker_results, tree, max_z=5)
     print("finito")

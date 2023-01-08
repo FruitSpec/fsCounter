@@ -156,13 +156,16 @@ def get_intensity(fsi, rgb, box, use_cuda=False):
     hls = cv2.cvtColor(img_as_ubyte(cropped_rgb), cv2.COLOR_RGB2HLS)
     # 95% of time
     ndri = img_pro.make_ndri(cropped_fsi)
-    binary_ndri = img_pro.ndvi_to_binary(ndri, 0.05)
+    binary_ndri = img_pro.ndvi_to_binary(ndri, 0)
+    ndvi = img_pro.make_ndvi(cropped_rgb, cropped_fsi[:, :, nir_channel])
+    binary_ndvi= img_pro.ndvi_to_binary(ndvi, 0.05)
     relevant_v = hls[:, :, 1][binary_ndri.astype(bool)]
     rel_v_flat = relevant_v.flatten()
     rel_v_flat_trim = quantile_trim(rel_v_flat, keep_size=False)
     if len(rel_v_flat_trim) == 0:
         return np.nan
-    return np.nanmedian(rel_v_flat_trim)
+    foli_ratio = np.nansum(binary_ndvi)/np.nansum(binary_ndri)
+    return np.nanmedian(rel_v_flat_trim), foli_ratio
 
 
 def normalize_intensity(intensity, path_to_tree_folder):
@@ -252,7 +255,6 @@ def filter_outside_tree_boxes(tracker_results, slicer_results):
         x_1 = np.array([box[1][0] for box in tracker_results[frame].values()])
         for id in np.array(list(tracker_results[frame].keys()))[np.all([x_0 > x_start, x_1 < x_end], axis=0) == False]:
             tracker_results[frame].pop(id)
-    tracker_results["cv"] = len({id for frame in set(tracker_results.keys())-{"cv"} for id in tracker_results[frame].keys()})
     return tracker_results
 
 
@@ -263,10 +265,11 @@ def filter_outside_zed_boxes(tracker_results, tree_images, max_z):
         to_pop = []
         for id, box in boxes.items():
             _, _, z = xyz_center_of_box(frame_images["zed"], box, nir=frame_images["nir"], swir_975=frame_images["swir_975"])
-            if z > max_z:
+            if z > max_z or not np.isfinite(z):
                 to_pop.append(id)
         for id in to_pop:
             boxes.pop(id)
+        tracker_results[frame] = boxes
     return tracker_results
 
 def cut_center_of_box(image, box, nir=None, swir_975=None):

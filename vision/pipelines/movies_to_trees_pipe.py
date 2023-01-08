@@ -157,14 +157,24 @@ def agg_to_trees(frames_path, slices, m_threds=0, m_procs=0):
         jai_in_zed_subset.to_csv(os.path.join(tree_folder, "jai_cors_in_zed.csv"))
 
 
-def get_tracker_args(config_file="/vision/pipelines/config/pipeline_config.yaml"):
+def get_tracker_args(config_file="/vision/pipelines/config/pipeline_config.yaml",
+                     runtime_config="/vision/pipelines/config/runtime_config.yaml"):
     repo_dir = get_repo_dir()
     # config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(repo_dir + runtime_config)
 
-    args = make_parser()
     args.eval_batch = 1
     args.draw_on_img = False
+    args.is_debug = False  # master switch
+    args.tracker_windows = False
+    args.racker_results = False
+    args.det_results = False
+    args.raw_frame = False
+    args.depth = False
+    args.tracker = None
+    args.clusters = False
+    args.hue_histogram = False
     return args, cfg
 
 

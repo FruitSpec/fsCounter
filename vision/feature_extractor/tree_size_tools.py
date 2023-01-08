@@ -1,5 +1,6 @@
 import numpy as np
 from math import pi
+import cv2
 try:
     from stat_tools import smooth_data_np_average, iqr_trim, quantile_trim
 except:
@@ -290,3 +291,9 @@ def get_tree_volume(tree_physical_params, vol_style="cone"):
         volume = 4 / 3 * pi * r ** 3
         avg_volume = 4 / 3 * pi * avg_r ** 2 * avg_height
     return volume, avg_volume
+
+
+def get_contour_size(ndvi_binary):
+    contours, hierarchy = cv2.findContours(ndvi_binary.copy().astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contur_img = cv2.fillPoly(np.zeros(ndvi_binary.shape), contours, (255, 255, 255))
+    return np.nansum(contur_img)

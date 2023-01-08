@@ -56,7 +56,7 @@ class counter_detection():
                          det_area=cfg.tracker.det_area,
                          max_losses=cfg.tracker.max_losses,
                          translation_size=cfg.tracker.translation_size,
-                         major = cfg.tracker.major,
+                         major=cfg.tracker.major,
                          minor=cfg.tracker.minor,
                          debug_folder=args.debug.tracker)
 
