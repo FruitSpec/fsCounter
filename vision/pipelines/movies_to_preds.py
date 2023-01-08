@@ -20,10 +20,11 @@ import joblib
 from vision.pipelines.movies_to_trees_pipe import preprocess_videos_to_trees_aligmnet_fix
 
 def preprocessing(df):
-    return df
+    return df["cv"]
 
 def plot_to_preds(path_to_plot, block_name, model=None, zed_shift={"default": 0}, max_z=5,
-                  zed_roi_params={"default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}, skip_steps=[]):
+                  zed_roi_params={"default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}, skip_steps=[],
+                  scan_date=0, customer_name="customer_plot"):
     zed_shift_keys = list(zed_shift.keys())
     skip_steps_keys = list(skip_steps.keys())
     defualt_shift = zed_shift["default"]
@@ -38,11 +39,13 @@ def plot_to_preds(path_to_plot, block_name, model=None, zed_shift={"default": 0}
 
     features_df = feat_e.create_plot_features(path_to_plot, block_name=block_name, max_z=max_z)
     pred_frame = pd.DataFrame({})
-    if not isinstance(model, None):
+    if not isinstance(model, type(None)):
         features_df_processed = preprocessing(features_df)
         preds = model.predict(features_df_processed)
         pred_frame["preds"] = preds
-        pred_frame[["name", "block_name"]] = features_df_processed[["name", "block_name"]]
+        pred_frame["scan_date"] = scan_date
+        pred_frame["customer_name"] = customer_name
+        pred_frame[["name", "block_name"]] = features_df[["name", "block_name"]]
         #TODO add all relevent fearteur, tree name etc
         preds.to_csv(os.path.join(path_to_plot, "preds.csv"))
     return pred_frame, features_df
@@ -61,7 +64,8 @@ def customer_to_preds(customer_path, customer_cnfg, model=None):
                 skip_steps = customer_cnfg["skip_rows_dict"][scan][customer_plot]
                 plot_preds, plot_features = plot_to_preds(plot_path, customer_plot, model=model,
                                                           zed_shift=zed_shift, max_z=max_z,
-                                                          zed_roi_params=zed_roi_params, skip_steps=skip_steps)
+                                                          zed_roi_params=zed_roi_params, skip_steps=skip_steps,
+                                                          scan_date=scan_path, customer_name=customer_plot)
 
 
 if __name__ == '__main__':

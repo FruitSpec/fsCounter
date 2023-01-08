@@ -295,7 +295,7 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
                                                                            reduce_size=True, mask=false_mask, i=i,
                                                                            y_ranges=y_ranges, n_min_frames=n_min_frames)
         ndvi_binary, binary_box_img = np.nan_to_num(ndvi_binary, nan=0), np.nan_to_num(binary_box_img, nan=0)
-        plot_2_imgs(ndvi_img, ndvi_binary, title=frame_number)
+        # plot_2_imgs(ndvi_img, ndvi_binary, title=frame_number)
         # 28%
         if 0 in ndvi_binary.shape:
             continue
