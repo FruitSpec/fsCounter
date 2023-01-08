@@ -6,7 +6,6 @@ import numpy as np
 from tqdm import tqdm
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.depth.zed.svo_operations import get_dimentions
 from vision.misc.help_func import validate_output_path, scale_dets
 
 
@@ -61,13 +60,13 @@ class ResultsCollector():
 
         return tracking_results
 
-    def collect_results(self, tracking_results, clusters, dimentsions, colors):
+    def collect_results(self, tracking_results, clusters, dimensions, colors):
 
         results = []
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
             temp.append(clusters[i])
-            temp += dimentsions[i]
+            temp += dimensions[i]
             temp += colors[i]
 
             results.append(temp)
@@ -75,8 +74,6 @@ class ResultsCollector():
         self.results += results
 
         return results
-    def collect_size_measure(self, point_cloud_mat, tracking_results):
-        self.measures += get_dimentions(point_cloud_mat, tracking_results)
 
     def collect_file_name(self, file_anme):
         self.file_names.append(file_anme)
@@ -117,7 +114,7 @@ class ResultsCollector():
                       "image_id", "class_pred"]
             rows = self.detections
         elif type == 'measures':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "color", "color_std"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "distance", "color", "color_std"]
             rows = self.results
         else:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]

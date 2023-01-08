@@ -58,47 +58,82 @@ def get_dist_vec(pc_mat, bbox2d, dim):
 def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
     # TODO
 
-    crop = point_cloud[max(int(bbox[1]),0):int(bbox[3]), max(int(bbox[0]),0): int(bbox[2]), :-1].copy()
+    crop = point_cloud[max(int(bbox[1]), 0):int(bbox[3]), max(int(bbox[0]), 0): int(bbox[2]), :-1].copy()
     return crop
 
 
-def get_width(crop, margin=0.2, fixed_z=True):
+def get_distance(crop):
+    return np.nanmean(crop[:, :, 2])
+
+
+def get_width(crop, margin=0.2, fixed_z=True, max_z=1):
     h, w, c = crop.shape
     marginy = np.round(margin / 2 * h).astype(np.int16)
-    vec = np.nanmean(crop[marginy:-marginy, :, :], axis=0)
+    crop_marg = crop[marginy:-marginy, :, :]
+    crop_marg[crop_marg[:, :, 2] > max_z] = np.nan
+    vec = np.nanmean(crop_marg, axis=0)
+    vec = vec[np.isfinite(vec[:, 2])]
+    if len(vec) < 2:
+        return np.nan
     if fixed_z:
-        width = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
     else:
-        width = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
     return width
 
-def get_height(crop, margin=0.2, fixed_z=True):
+
+def get_height(crop, margin=0.2, fixed_z=True, max_z=1):
     h, w, c = crop.shape
     marginx = np.round(margin / 2 * w).astype(np.int16)
-    vec = np.nanmean(crop[:, marginx:-marginx, :], axis=1)
+    crop_marg = crop[:, marginx:-marginx, :]
+    crop_marg[crop_marg[:, :, 2] > max_z] = np.nan
+    vec = np.nanmean(crop_marg, axis=1)
+    vec = vec[np.isfinite(vec[:, 2])]
+    if len(vec) < 2:
+        return np.nan
     if fixed_z:
-        try:
-            height = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
-        except:
-            pass
+        height = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
     else:
-        height = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
+        height = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
     return height
 
 
-def get_dimentions(point_cloud, dets):
+def get_dimensions(point_cloud, dets, dist_max):
     dims = []
     for det in dets:
         # in case that is not a full fruit
         if det[-3] == 1:
             continue
         crop = get_cropped_point_cloud(det[:4], point_cloud)
-        width = get_width(crop)
+        width = get_width(crop, fixed_z=False, max_z=dist_max)
+        height = get_height(crop, fixed_z=True, max_z=dist_max)
+        distance = get_distance(crop)
 
-        crop = get_cropped_point_cloud(det[:4], point_cloud)
-        height = get_height(crop)
+        dims.append([height, width, distance])
 
-        dims.append([height, width])
+    return dims
+
+
+def sl_get_dimensions(dets, wrapper):
+    dims = []
+    objects_in = []
+    for det in dets:
+        x1, x2, y1, y2 = max(int(det[0]), 0), int(det[2]), max(int(det[1]), 0), int(det[3])
+        mat = sl.Mat()
+        wrapper.cam.retrieve_image(mat, sl.VIEW.LEFT)
+        bounding_box_2d = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
+        tmp = sl.CustomBoxObjectData()
+        tmp.unique_object_id = sl.generate_unique_id()
+        tmp.label = -1
+        tmp.probability = det[4]
+        tmp.bounding_box_2d = bounding_box_2d
+        tmp.is_grounded = False
+        objects_in.append(tmp)
+    wrapper.cam.ingest_custom_box_objects(objects_in)
+    objects_out = sl.Objects()
+    wrapper.cam.retrieve_objects(objects_out)
+    for obj in objects_out.object_list:
+        dims.append([obj.dimensions[1]*1000, obj.dimensions[0]*1000, obj.position[2]])
 
     return dims
 

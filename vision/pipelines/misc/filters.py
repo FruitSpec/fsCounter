@@ -4,11 +4,11 @@ import numpy as np
 from vision.tracker.fsTracker.score_func import get_intersection
 
 
-def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
+def filter_by_distance(dets, point_cloud, threshold=150, percentile=0.4, factor=2.5):
     filtered = []
     range_ = []
     for det in dets:
-        crop = depth[det[1]:det[3] - 1, det[0]:det[2] - 1]
+        crop = point_cloud[det[1]:det[3] - 1, det[0]:det[2] - 1, 2]
         h, w = crop.shape
         if w == 0 or h == 0:
             range_.append(0)
@@ -16,7 +16,7 @@ def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
             range_.append(np.nanmean(crop))
 
     if range_:  # not empty
-        bool_vec = np.array(range_) > threshold
+        bool_vec = np.array(range_) < threshold
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:

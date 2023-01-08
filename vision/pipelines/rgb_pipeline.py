@@ -10,7 +10,7 @@ import numpy as np
 import collections
 
 from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud
+from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions,sl_get_dimensions
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -19,7 +19,6 @@ from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
-from vision.depth.zed.svo_operations import get_dimentions
 from vision.tools.translation import translation as T
 from vision.tools.camera import is_sturated
 from vision.tools.color import get_hue
@@ -43,7 +42,7 @@ def run(cfg, args):
         pbar.update(1)
         frame, depth, point_cloud = cam.get_zed()
         if not cam.res:  # couldn't get frames
-            # Break the loop
+        #     Break the loop
             break
 
         if is_sturated(frame):
@@ -62,28 +61,26 @@ def run(cfg, args):
         # track:
         trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
 
-        # filter by height:
-        filtered_outputs = trk_outputs
-        # indices_in_height = filter_by_height(filtered_outputs, depth, cfg.filters.height.bias, cfg.filters.height.y_crop)
 
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, depth, cfg.filters.distance.threshold)
+        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        # indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_height) | set(indices_in_distance)))
         indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
         trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
 
         # measure:
         colors, hists_hue = get_colors(trk_outputs, frame)
         clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimentions(point_cloud, trk_outputs)
+        dimensions = get_dimensions(point_cloud, trk_outputs, cfg.filters.distance.threshold)
+        # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
         frame_results = results_collector.collect_results(trk_outputs, clusters, dimensions, colors)
 
         if args.debug.is_debug:
+            depth = None
             results_collector.debug(f_id, args, frame_results, det_outputs, frame, hists_hue, depth, trk_windows)
 
         f_id += 1
