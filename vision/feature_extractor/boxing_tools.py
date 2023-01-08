@@ -1,9 +1,18 @@
 import numpy as np
 import cv2
 from skimage.util import img_as_ubyte
-from stat_tools import iqr_trim, quantile_trim
-import image_processing as img_pro
-from tree_size_tools import stable_euclid_dist
+try:
+    from stat_tools import iqr_trim, quantile_trim
+except:
+    from vision.feature_extractor.stat_tools import iqr_trim, quantile_trim
+try:
+    import image_processing as img_pro
+except:
+    import vision.feature_extractor.image_processing as img_pro
+try:
+    from tree_size_tools import stable_euclid_dist
+except:
+    from vision.feature_extractor.tree_size_tools import stable_euclid_dist
 from cupyx.scipy import ndimage
 import cupy as cp
 

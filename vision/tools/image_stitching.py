@@ -24,28 +24,37 @@ def keep_dets_only(frame, detections, margin = 0.5):
         bool_arr[int(y1): int(y2), int(x1): int(x2)] = True
     canvas[np.logical_not(bool_arr)] = 0
 
-    return canvas
 
-def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+    plt.title(title)
+    if save_to != "":
+        plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
+    plt.show()
 
-    # Define termination criteria
-    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
 
-    # Define the motion model
-    warp_mode = cv2.MOTION_TRANSLATION
-    warp_matrix = np.eye(2, 3, dtype=np.float32)
+def load_color_img(file_path):
+    img = cv2.imread(file_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    # find transform
-    score, M = cv2.findTransformECC(img1, img2, warp_matrix, motionType=warp_mode, criteria=criteria)
+    return img
 
-    return M, score, warp_matrix
 
-def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
+def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
                    2. 'hm' for homography
     """
-    file_list = get_fsi_files(frames_folder)
+    if isinstance(file_list, type(None)):
+        file_list = get_fsi_files(frames_folder)
+    # file_list = [os.path.join(r"C:\Users\Nir\Downloads",image) for image in
+    #              ["IMG_20220906_161320.jpg","IMG_20220906_161321.jpg",
+    #               "IMG_20220906_161322.jpg","IMG_20220906_161323.jpg" ]]
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -54,7 +63,8 @@ def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     if method == 'at':
         masks = list(map(translation_based, M, heights, widths, rs))
     elif method == 'hm':
-        masks = list(map(find_overlapping, M, heights, widths))
+        image_list = [load_color_img(img) for img in file_list]
+        masks = list(map(find_overlapping, image_list[:-1], image_list[1:], M))
     return masks
 
 
@@ -104,28 +114,33 @@ def get_fine_translation(key_des1, key_des2, max_workers=5):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(find_translation, kp1, des1, kp2, des2, r))
 
-    x_values = list(filter(None, [r[0] for r in results]))
-    y_values = list(filter(None, [r[1] for r in results]))
-    if x_values:
-        tx = np.median(x_values)
-    else:
-        tx = None
-    if y_values:
-        ty = np.median(y_values)
-    else:
-        ty = None
+    return results
 
-    return tx, ty
+
+def find_homography(kp1, des1, kp2, des2, r):
+    M, status = features_to_homography(kp1, kp2, des1, des2)
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, M
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
+        return np.nan, np.nan, M
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
+
+    return tx, ty, M
+
+
 def  get_translation(img1, img2):
 
     kp1, des1 = find_keypoints(img1)
     kp2, des2 = find_keypoints(img2)
 
-    tx, ty = find_translation(kp1, des1, kp2, des2, 1)
+    tx, ty, _ = find_translation(kp1, des1, kp2, des2, 1)
 
     return tx, ty
+
+
 def get_windows(img1):
-    h, w = img1.shape[:2]
+    h, w = img1.shape
     set1 = [int(w * 0.2), int(h * 0.2), int(w * 0.5), int(h * 0.4)]
     set2 = [int(w * 0.2), int(h * 0.6), int(w * 0.5), int(h * 0.8)]
     set3 = [int(w * 0.5), int(h * 0.2), int(w * 0.8), int(h * 0.4)]
@@ -184,16 +199,15 @@ def features_to_homography(kp1, kp2, des1, des2):
 
 
 def features_to_translation(kp1, kp2, des1, des2):
-    good, matches, matchesMask = match_descriptors(des1, des2)
+    good = match_descriptors(des1, des2)
     M, status = calc_affine_transform(kp1, kp2, good)
 
-    return M, status, good, matches, matchesMask
+    return M, status
 
 def find_keypoints(img):
-    detector = cv2.SIFT_create()
-    #detector = cv2.ORB_create()
+    sift = cv2.SIFT_create()
     # find key points
-    kp, des = detector.detectAndCompute(img, None)
+    kp, des = sift.detectAndCompute(img, None)
 
     return kp, des
 
@@ -233,6 +247,13 @@ def calc_affine_transform(kp1, kp2, match):
     return M, status
 
 
+def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
+    match = match_descriptors(des_zed, des_jai)
+    M, st = calc_affine_transform(kp_zed, kp_jai, match)
+
+    return M, st
+
+
 def calc_homography(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
@@ -240,6 +261,13 @@ def calc_homography(kp1, kp2, match):
     M, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
     return M, status
+
+
+def get_affine_homography(kp1, kp2, des1, des2):
+    match = match_descriptors(des1, des2)
+    M, st = calc_homography(kp1, kp2, match)
+
+    return M, st
 
 
 def trim(frame):

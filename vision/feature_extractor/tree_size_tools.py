@@ -1,7 +1,13 @@
 import numpy as np
 from math import pi
-from stat_tools import smooth_data_np_average, iqr_trim, quantile_trim
-import boxing_tools as box_t
+try:
+    from stat_tools import smooth_data_np_average, iqr_trim, quantile_trim
+except:
+    from vision.feature_extractor.stat_tools import smooth_data_np_average, iqr_trim, quantile_trim
+try:
+    import boxing_tools as box_t
+except:
+    import vision.feature_extractor.boxing_tools as box_t
 
 
 def safe_nanmean(arr):

@@ -1,9 +1,15 @@
 import numpy as np
 import cv2
 from skimage.morphology import area_opening, area_closing
-from vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
+try:
+    from vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
+except:
+    from vision.feature_extractor.vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
 from vision.tools.image_stitching import get_frames_overlap, plot_2_imgs
-from boxing_tools import get_mask_corners, make_bbox_pic
+try:
+    from boxing_tools import get_mask_corners, make_bbox_pic
+except:
+    from vision.feature_extractor.boxing_tools import get_mask_corners, make_bbox_pic
 from cupyx.scipy import ndimage
 import cupy as cp
 

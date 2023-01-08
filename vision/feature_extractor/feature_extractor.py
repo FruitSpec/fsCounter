@@ -8,11 +8,26 @@ import pandas as pd
 from scipy.stats import skew
 from sklearn.cluster import DBSCAN
 from scipy.spatial import ConvexHull
-from vegetation_indexes import *
-from stat_tools import *
-from image_processing import *
-from boxing_tools import *
-from tree_size_tools import *
+try:
+    from vegetation_indexes import *
+except:
+    from vision.feature_extractor.vegetation_indexes import *
+try:
+    from stat_tools import *
+except:
+    from vision.feature_extractor.stat_tools import *
+try:
+    from image_processing import *
+except:
+    from vision.feature_extractor.image_processing import *
+try:
+    from boxing_tools import *
+except:
+    from vision.feature_extractor.boxing_tools import *
+try:
+    from tree_size_tools import *
+except:
+    from vision.feature_extractor.tree_size_tools import *
 import time
 import matplotlib.pyplot as plt
 from vision.tools.image_stitching import plot_2_imgs
