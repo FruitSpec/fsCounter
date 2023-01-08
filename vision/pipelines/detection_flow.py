@@ -8,13 +8,13 @@ sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 from vision.detector.yolo_x.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
 from vision.detector.yolo_x.yolox.utils.boxes import postprocess
-#from vision.tracker.byteTrack.tracker.byte_tracker import BYTETracker
+from vision.misc.help_func import scale_dets, scale
 from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 
 class counter_detection():
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, args):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
 
@@ -23,8 +23,9 @@ class counter_detection():
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
+        self.input_size = cfg.input_size
 
-        self.tracker = self.init_tracker(cfg)
+        self.tracker = self.init_tracker(cfg, args)
 
         self.device = cfg.device
 
@@ -45,15 +46,19 @@ class counter_detection():
 
         return model
 
-    def init_tracker(self, cfg):
+    @staticmethod
+    def init_tracker(cfg, args):
 
-        self.frame_rate = cfg.tracker.frame_rate
-        self.orig_width = cfg.tracker.orig_width
-        self.orig_height = cfg.tracker.orig_height
-        self.min_box_area = cfg.tracker.min_box_area
-        self.input_size = cfg.input_size
-
-        return FsTracker()
+        return FsTracker(frame_size=args.frame_size,
+                         minimal_max_distance=cfg.tracker.minimal_max_distance,
+                         score_weights=cfg.tracker.score_weights,
+                         match_type=cfg.tracker.match_type,
+                         det_area=cfg.tracker.det_area,
+                         max_losses=cfg.tracker.max_losses,
+                         translation_size=cfg.tracker.translation_size,
+                         major = cfg.tracker.major,
+                         minor=cfg.tracker.minor,
+                         debug_folder=args.debug.tracker)
 
     def detect(self, frame):
         preprc_frame = self.preprocess(frame)
@@ -67,20 +72,21 @@ class counter_detection():
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
-
+        # Scale bboxes to orig image coordinates
+        output = self.scale_output(output, frame.shape)
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, frame_id, frame):
+    def track(self, outputs, tx, ty, frame_id=None):
 
         if outputs is not None:
-            online_targets, _ = self.tracker.update(outputs, frame)
+            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)
                 tracking_results.append(target)
 
-            return tracking_results
+            return tracking_results, track_windows
 
 
     def get_imgs_info(self, frame_id):
@@ -104,6 +110,13 @@ class counter_detection():
                 online_scores.append(t.score)
 
         return frame_id, online_tlwhs, online_ids, online_scores
+
+    def scale_output(self, output, frame_size):
+
+        scale_ = scale(self.input_size, frame_size)
+        output = scale_dets(output, scale_)
+
+        return output
 
 
 

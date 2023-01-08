@@ -9,7 +9,7 @@ import numpy as np
 import json
 from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir, scale_dets
+from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -17,12 +17,14 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector, scale
 from vision.pipelines.run_args import make_parser
+from vision.tools.translation import translation as T
 
 
 def run(cfg, args):
 
-    detector = counter_detection(cfg)
+    detector = counter_detection(cfg, args)
     results_collector = ResultsCollector()
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     img_list = os.listdir(args.data_dir)
 
@@ -40,7 +42,7 @@ def run(cfg, args):
     # sort by ids
     files_dict = collections.OrderedDict(sorted(files_dict.items()))
 
-    for id_, img_name in files_dict.items():
+    for id_, img_name in tqdm(files_dict.items()):
 
         results_collector.collect_file_name(img_name)
         results_collector.collect_id(id_)
@@ -49,14 +51,18 @@ def run(cfg, args):
 
         det_outputs = detector.detect(frame)
 
-        scale_ = scale(detector.input_size, frame.shape)
-        det_outputs = scale_dets(det_outputs, scale_)
+        # find translation
+        tx, ty = translation.get_translation(frame, det_outputs)
+
         # track:
-        trk_outputs = detector.track(det_outputs, id_, frame)
+        trk_outputs, trk_windows = detector.track(det_outputs, tx, ty, id_)
 
         # collect results:
         results_collector.collect_detections(det_outputs, id_)
         results_collector.collect_tracks(trk_outputs)
+
+        if cfg.debug.is_debug:
+            results_collector.debug(id_, args, trk_outputs, det_outputs, frame, trk_windows=trk_windows)
 
     if args.draw_on_img:
         results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
@@ -69,23 +75,25 @@ def run(cfg, args):
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     # config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(repo_dir + runtime_config)
 
-    args = make_parser()
+    #args = make_parser()
     args.eval_batch = 1
     args.draw_on_img = True
     #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
-    folder_path = "/media/fruitspec-lab/easystore/track_detect_analysis"
+    folder_path = "/media/yotam/easystore/track_detect_analysis"
     folder_list = [folder for folder in os.listdir(folder_path) if "." not in folder]
-    parent_folder = "/media/fruitspec-lab/easystore/track_detect_analysis"
+    parent_folder = "/media/yotam/easystore/track_detect_analysis"
 
     res = []
     for folder in folder_list:
 
         args.data_dir = os.path.join(folder_path, folder)
 
-        args.output_folder = os.path.join(parent_folder, folder,"det")
+        args.output_folder = os.path.join(parent_folder, folder, "det")
         if not os.path.isdir(args.output_folder):
             os.mkdir(args.output_folder)
 

@@ -5,37 +5,47 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
+def keep_dets_only(frame, detections, margin = 0.5):
+    canvas = frame.copy()
+    if len(detections) > 0:
+        dets = np.array(detections)[:, :4]
+    else:
+        dets = []
+    h, w = frame.shape[:2]
+    bool_arr = np.zeros((h, w), dtype=np.bool)
+    for det in dets:
+        margin_h = ((det[3] - det[1]) * margin / 2)
+        margin_w = ((det[2] - det[0]) * margin / 2)
+        y1 = max(det[1] - margin_h, 0)
+        y2 = min(det[3] + margin_h, frame.shape[0])
+        x1 = max(det[0] - margin_w, 0)
+        x2 = min(det[2] + margin_w, frame.shape[1])
+        #bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
+        bool_arr[int(y1): int(y2), int(x1): int(x2)] = True
+    canvas[np.logical_not(bool_arr)] = 0
 
-def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
-    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-    ax1.imshow(img1)
-    ax2.imshow(img2)
-    plt.title(title)
-    if save_to != "":
-        plt.savefig(save_to)
-    if save_only:
-        plt.close()
-        return
-    plt.show()
+    return canvas
 
+def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
 
-def load_color_img(file_path):
-    img = cv2.imread(file_path)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    # Define termination criteria
+    criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, number_of_iterations, termination_eps)
 
-    return img
+    # Define the motion model
+    warp_mode = cv2.MOTION_TRANSLATION
+    warp_matrix = np.eye(2, 3, dtype=np.float32)
 
+    # find transform
+    score, M = cv2.findTransformECC(img1, img2, warp_matrix, motionType=warp_mode, criteria=criteria)
 
-def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='hm', max_workers=8):
+    return M, score, warp_matrix
+
+def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
                    2. 'hm' for homography
     """
-    if isinstance(file_list, type(None)):
-        file_list = get_fsi_files(frames_folder)
-    # file_list = [os.path.join(r"C:\Users\Nir\Downloads",image) for image in
-    #              ["IMG_20220906_161320.jpg","IMG_20220906_161321.jpg",
-    #               "IMG_20220906_161322.jpg","IMG_20220906_161323.jpg" ]]
+    file_list = get_fsi_files(frames_folder)
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -44,8 +54,7 @@ def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='
     if method == 'at':
         masks = list(map(translation_based, M, heights, widths, rs))
     elif method == 'hm':
-        image_list = [load_color_img(img) for img in file_list]
-        masks = list(map(find_overlapping, image_list[:-1], image_list[1:], M))
+        masks = list(map(find_overlapping, M, heights, widths))
     return masks
 
 
@@ -84,7 +93,6 @@ def get_fine_keypoints(img, max_workers=5):
 
     return results
 
-
 def get_fine_translation(key_des1, key_des2, max_workers=5):
 
     r = [1 for _ in key_des1]
@@ -96,33 +104,28 @@ def get_fine_translation(key_des1, key_des2, max_workers=5):
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         results = list(executor.map(find_translation, kp1, des1, kp2, des2, r))
 
-    return results
+    x_values = list(filter(None, [r[0] for r in results]))
+    y_values = list(filter(None, [r[1] for r in results]))
+    if x_values:
+        tx = np.median(x_values)
+    else:
+        tx = None
+    if y_values:
+        ty = np.median(y_values)
+    else:
+        ty = None
 
-
-def find_homography(kp1, des1, kp2, des2, r):
-    M, status = features_to_homography(kp1, kp2, des1, des2)
-    if isinstance(M, type(None)):
-        return np.nan, np.nan, M
-    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]) :
-        return np.nan, np.nan, M
-    tx = int(np.round(M[0, 2] / r))
-    ty = int(np.round(M[1, 2] / r))
-
-    return tx, ty, M
-
-
+    return tx, ty
 def  get_translation(img1, img2):
 
     kp1, des1 = find_keypoints(img1)
     kp2, des2 = find_keypoints(img2)
 
-    tx, ty, _ = find_translation(kp1, des1, kp2, des2, 1)
+    tx, ty = find_translation(kp1, des1, kp2, des2, 1)
 
     return tx, ty
-
-
 def get_windows(img1):
-    h, w = img1.shape
+    h, w = img1.shape[:2]
     set1 = [int(w * 0.2), int(h * 0.2), int(w * 0.5), int(h * 0.4)]
     set2 = [int(w * 0.2), int(h * 0.6), int(w * 0.5), int(h * 0.8)]
     set3 = [int(w * 0.5), int(h * 0.2), int(w * 0.8), int(h * 0.4)]
@@ -181,53 +184,53 @@ def features_to_homography(kp1, kp2, des1, des2):
 
 
 def features_to_translation(kp1, kp2, des1, des2):
-    good = match_descriptors(des1, des2)
+    good, matches, matchesMask = match_descriptors(des1, des2)
     M, status = calc_affine_transform(kp1, kp2, good)
 
-    return M, status
+    return M, status, good, matches, matchesMask
 
 def find_keypoints(img):
-    sift = cv2.SIFT_create()
+    detector = cv2.SIFT_create()
+    #detector = cv2.ORB_create()
     # find key points
-    kp, des = sift.detectAndCompute(img, None)
+    kp, des = detector.detectAndCompute(img, None)
 
     return kp, des
 
 
 def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     FLANN_INDEX_KDTREE = 1
-    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+    index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
     search_params = dict(checks=50)
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
+    try:
+        matches = flann.knnMatch(des1, des2, k=2)
+    except:
+        Warning('flann.knnMatch collapsed, return empty matches')
+        matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []
+    matchesMask = [[0, 0] for i in range(len(matches))]
+    id = 0
     for m, n in matches:
         if m.distance < threshold * n.distance:
             match.append(m)
-
-    if match.__len__() < min_matches:
-        print(f'number of matching descriptors is too low')
-
-    return match
+            matchesMask[id] = [1, 0]
+        id += 1
+    return match, matches, matchesMask
 
 
 def calc_affine_transform(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-    if len(dst_pts) == 0:
-        return np.full((2, 3), np.nan), False
-    M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=15, maxIters=5000)
+
+    if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
+        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=7)
+    else:
+        M, status = None, [0]
+
 
     return M, status
-
-
-
-def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
-    match = match_descriptors(des_zed, des_jai)
-    M, st = calc_affine_transform(kp_zed, kp_jai, match)
-
-    return M, st
 
 
 def calc_homography(kp1, kp2, match):
@@ -237,13 +240,6 @@ def calc_homography(kp1, kp2, match):
     M, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
     return M, status
-
-
-def get_affine_homography(kp1, kp2, des1, des2):
-    match = match_descriptors(des1, des2)
-    M, st = calc_homography(kp1, kp2, match)
-
-    return M, st
 
 
 def trim(frame):
@@ -290,10 +286,8 @@ def extract_frame_id(file_name):
 
 def load_img(file_path, resize_=640):
     r = None
-    if isinstance(file_path, str):
-        img = cv2.imread(file_path)
-    else:
-        img = file_path
+
+    img = cv2.imread(file_path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h = height(img)
@@ -437,15 +431,17 @@ def translation_based(M, height, width, r):
 
 
 def find_translation(kp1, des1, kp2, des2, r):
-    M, status = features_to_translation(kp1, kp2, des1, des2)
-    if isinstance(M, type(None)):
-        return np.nan, np.nan, M
-    if not np.isfinite(M[0, 2]) or not np.isfinite(M[1, 2]) :
-        return np.nan, np.nan, M
-    tx = int(np.round(M[0, 2] / r))
-    ty = int(np.round(M[1, 2] / r))
+    M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)
+    if 1 in np.unique(status) and True not in np.unique(np.isnan(M)) and True not in np.unique(np.isinf(M)):
+        try:
+            tx = int(np.round(M[0, 2] / r))
+            ty = int(np.round(M[1, 2] / r))
+        except:
+            a=1
+    else:
+        tx, ty = None, None
 
-    return tx, ty, M
+    return tx, ty, good, matches, matchesMask
 
 
 def resize_img(input_, size):
