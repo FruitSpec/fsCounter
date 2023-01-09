@@ -2,18 +2,15 @@ import cv2
 import numpy as np
 
 from vision.tracker.fsTracker.score_func import get_intersection
+from vision.depth.zed.svo_operations import get_distance
 
 
-def filter_by_distance(dets, point_cloud, threshold=150, percentile=0.4, factor=2.5):
+def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.5):
     filtered = []
     range_ = []
     for det in dets:
-        crop = point_cloud[det[1]:det[3] - 1, det[0]:det[2] - 1, 2]
-        h, w = crop.shape
-        if w == 0 or h == 0:
-            range_.append(0)
-        else:
-            range_.append(np.nanmean(crop))
+        crop = point_cloud[det[1]: det[3], det[0]:det[2], 2]
+        range_.append(get_distance(crop))
 
     if range_:  # not empty
         bool_vec = np.array(range_) < threshold
@@ -39,7 +36,7 @@ def filter_by_intersection(dets_outputs, threshold=0.8):
         tot_duplicants = []
         valid_dets = []
         for i in range(inter.shape[1]):
-            #inter[i, :] = 0
+            # inter[i, :] = 0
             vec = inter[:, i]
             vec[i] = 0
             dup = vec > threshold

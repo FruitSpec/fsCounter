@@ -63,7 +63,12 @@ def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
 
 
 def get_distance(crop):
-    return np.nanmean(crop[:, :, 2])
+    h, w = crop.shape
+    filter_ = 0.2
+    if h < 4 or w < 4 or h == 0 or w == 0:
+        return np.inf
+    crop = crop[int(h * filter_): h - int(h * filter_), int(w * filter_):w - int(w * filter_)]
+    return np.nanmedian(crop)
 
 
 def get_width(crop, margin=0.2, fixed_z=True, max_z=1):
@@ -107,7 +112,7 @@ def get_dimensions(point_cloud, dets, dist_max):
         crop = get_cropped_point_cloud(det[:4], point_cloud)
         width = get_width(crop, fixed_z=False, max_z=dist_max)
         height = get_height(crop, fixed_z=True, max_z=dist_max)
-        distance = get_distance(crop)
+        distance = get_distance(crop[:, :, 2])
 
         dims.append([height, width, distance])
 
@@ -115,12 +120,20 @@ def get_dimensions(point_cloud, dets, dist_max):
 
 
 def sl_get_dimensions(dets, wrapper):
+    import matplotlib.pyplot as plt
     dims = []
     objects_in = []
     for det in dets:
-        x1, x2, y1, y2 = max(int(det[0]), 0), int(det[2]), max(int(det[1]), 0), int(det[3])
+        x1, x2, y1, y2 = max(int(det[1]), 0), int(det[3]), 1080 - min(int(det[2]), 1080), 1080 - max(int(det[0]), 0)
         mat = sl.Mat()
         wrapper.cam.retrieve_image(mat, sl.VIEW.LEFT)
+
+        # img = mat.get_data()
+        # img = cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 0), 5)
+        # plt.imshow(img)
+        # plt.show()
+
+        # try:
         bounding_box_2d = np.array([[x1, y1], [x2, y1], [x2, y2], [x1, y2]])
         tmp = sl.CustomBoxObjectData()
         tmp.unique_object_id = sl.generate_unique_id()
@@ -129,11 +142,15 @@ def sl_get_dimensions(dets, wrapper):
         tmp.bounding_box_2d = bounding_box_2d
         tmp.is_grounded = False
         objects_in.append(tmp)
+        # except OverflowError:
+        #     print("***************************************", det)
+        #     print(x1, x2, y1, y2)
+
     wrapper.cam.ingest_custom_box_objects(objects_in)
     objects_out = sl.Objects()
     wrapper.cam.retrieve_objects(objects_out)
     for obj in objects_out.object_list:
-        dims.append([obj.dimensions[1]*1000, obj.dimensions[0]*1000, obj.position[2]])
+        dims.append([obj.dimensions[1] * 1000, obj.dimensions[0] * 1000, obj.position[2]])
 
     return dims
 

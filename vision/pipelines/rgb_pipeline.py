@@ -1,9 +1,5 @@
-import copy
-
 import os
 import sys
-import pyzed.sl as sl
-import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
@@ -45,9 +41,13 @@ def run(cfg, args):
         #     Break the loop
             break
 
+        if f_id > 130:
+            break
+
         if is_sturated(frame):
             f_id += 1
             continue
+
 
         # detect:
         det_outputs = detector.detect(frame)
@@ -164,10 +164,10 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/yotam/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
-    # config_file = "/config/pipeline_config.yaml"
-    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    pipeline_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/runtime_config.yaml"
+
+    cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
