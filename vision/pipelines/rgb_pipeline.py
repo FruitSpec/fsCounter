@@ -41,9 +41,6 @@ def run(cfg, args):
         #     Break the loop
             break
 
-        if f_id > 130:
-            break
-
         if is_sturated(frame):
             f_id += 1
             continue
