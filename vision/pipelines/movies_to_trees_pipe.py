@@ -218,9 +218,47 @@ def preprocess_videos_to_trees(folder_path, zed_shift=0, zed_roi_params=dict(y_s
                                     [zed_shift] * n_trees, zed_roi_params*n_trees))
 
 
+def get_random_slicing(frames_path, rate=50):
+    img_list = os.listdir(frames_path)
+    fsi_list = []
+    for img in img_list:
+        if ('png' in img or 'jpg' in img) and ('FSI' in img):
+            fsi_list.append(img.split('.')[0])
+    n_frames = len(fsi_list)
+    tree_id = 1
+    frame_ids, tree_ids, starts, ends = [], [], [], []
+    start = 700
+    end = -1
+    for frame in range(100, n_frames):
+        frame_ids.append(frame)
+        tree_ids.append(tree_id)
+        if tree_id == 1:
+            start -= rate
+            end = -1
+            starts.append(start)
+            ends.append(end)
+        else:
+            start -= rate
+            end -= rate
+            tree_ids.append(tree_id - 1)
+            frame_ids.append(frame)
+            starts.append(-1)
+            ends.append(start)
+            starts.append(end)
+            ends.append(-1)
+        if start < 0:
+            start, end = 1300, 1535
+            tree_id+=1
+    df = pd.DataFrame({"frame_ids": frame_ids, "tree_ids": tree_ids, "starts": starts, "ends": ends})
+    return df
+
+
+
+
 def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
                                             zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
-                                            skip_steps=["folder_to_frames", "align_folder"]):
+                                            skip_steps=["folder_to_frames", "align_folder"],
+                                            random_slicing=False):
     """
     This script preprocesses videos of trees to prepare them for analysis.
 
@@ -238,8 +276,11 @@ def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
     print("breaking videos to frames")
     if not ("folder_to_frames" in skip_steps):
         folder_to_frames(folder_path)
-    slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
     frames_path = os.path.join(folder_path, "frames")
+    if not random_slicing:
+        slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
+    else:
+        slices = get_random_slicing(frames_path)
     print("align all frames")
     if not ("align_folder" in skip_steps):
         align_folder(frames_path, plot_res=False, zed_roi_params=zed_roi_params, zed_shift=zed_shift)
@@ -286,7 +327,7 @@ if __name__ == "__main__":
     #                                         skip_steps=["folder_to_frames"], zed_shift=3)
     for i in [11]:
         skip_steps = ["folder_to_frames", "align_folder", "agg_to_trees"]
-        movies_path = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R{i}"
+        movies_path = f"/media/yotam/easystore/JAIZED_CaraCara_301122/R{i}"
         if i == 7:
             zed_shift = 3
         elif i == 4:
@@ -296,3 +337,4 @@ if __name__ == "__main__":
         print(movies_path)
         preprocess_videos_to_trees_aligmnet_fix(movies_path, zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
                                                 skip_steps=skip_steps)
+
