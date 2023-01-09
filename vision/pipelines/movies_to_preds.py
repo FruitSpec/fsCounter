@@ -22,6 +22,19 @@ from vision.pipelines.movies_to_trees_pipe import preprocess_videos_to_trees_ali
 def preprocessing(df):
     return df["cv"]
 
+def get_prediction_df(features_df,scan_date, customer_name, path_to_plot, model = None):
+    pred_frame = pd.DataFrame({})
+    if not isinstance(model, type(None)):
+        features_df_processed = preprocessing(features_df)
+        preds = model.predict(features_df_processed)
+    else:
+        preds = features_df["cv"] * 4
+    pred_frame["preds"] = preds
+    pred_frame["scan_date"] = scan_date
+    pred_frame["customer_name"] = customer_name
+    pred_frame[["name", "block_name"]] = features_df[["name", "block_name"]]
+    pred_frame.to_csv(os.path.join(path_to_plot, "preds.csv"))
+
 def plot_to_preds(path_to_plot, block_name, model=None, zed_shift={"default": 0}, max_z=5,
                   zed_roi_params={"default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}, skip_steps=[],
                   scan_date=0, customer_name="customer_plot", skip_rows=[]):
@@ -36,17 +49,7 @@ def plot_to_preds(path_to_plot, block_name, model=None, zed_shift={"default": 0}
             preprocess_videos_to_trees_aligmnet_fix(row_path, zed_shift=zed_shift_row,
                                                     zed_roi_params=zed_roi_params, skip_steps=skip_steps_row)
     features_df = feat_e.create_plot_features(path_to_plot, block_name=block_name, max_z=max_z, skip_rows=skip_rows)
-    pred_frame = pd.DataFrame({})
-    if not isinstance(model, type(None)):
-        features_df_processed = preprocessing(features_df)
-        preds = model.predict(features_df_processed)
-    else:
-        preds = features_df["cv"] * 4
-    pred_frame["preds"] = preds
-    pred_frame["scan_date"] = scan_date
-    pred_frame["customer_name"] = customer_name
-    pred_frame[["name", "block_name"]] = features_df[["name", "block_name"]]
-    pred_frame.to_csv(os.path.join(path_to_plot, "preds.csv"))
+    pred_frame = get_prediction_df(features_df,scan_date, customer_name, path_to_plot, model = None)
     return pred_frame, features_df
 
 

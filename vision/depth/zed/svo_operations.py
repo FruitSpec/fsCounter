@@ -59,33 +59,30 @@ def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
     crop = point_cloud[int(bbox[1]):int(bbox[3]), int(bbox[0]): int(bbox[2]), :-1].copy()
     return crop
 
-
 def get_width(crop, margin=0.2, fixed_z=True):
     h, w, c = crop.shape
     marginy = np.round(margin / 2 * h).astype(np.int16)
     vec = np.nanmean(crop[marginy:-marginy, :, :], axis=0)
     if fixed_z:
-        width = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
     else:
-        width = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
+        width = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
     return width
-
 
 def get_height(crop, margin=0.2, fixed_z=True):
     h, w, c = crop.shape
     marginx = np.round(margin / 2 * w).astype(np.int16)
     vec = np.nanmean(crop[:, marginx:-marginx, :], axis=1)
     if fixed_z:
-        try:
-            height = np.sqrt(np.sum((vec[0, :2] - vec[-1, :2]) ** 2)) * 1000
-        except:
-            pass
+        height = np.sqrt(np.sum((vec[0, :-1] - vec[-1, :-1]) ** 2)) * 1000
     else:
-        height = np.sqrt(np.sum((vec[0, :3] - vec[-1, :3]) ** 2)) * 1000
+        height = np.sqrt(np.sum((vec[0, :] - vec[-1, :]) ** 2)) * 1000
     return height
 
 
+# TODO Matan to go through implementation
 def get_dimentions(point_cloud, dets):
+
     dims = []
     for det in dets:
         # in case that is not a full fruit

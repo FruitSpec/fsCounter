@@ -1,6 +1,5 @@
 import numpy as np
 from math import pi
-import cv2
 try:
     from stat_tools import smooth_data_np_average, iqr_trim, quantile_trim
 except:
@@ -8,7 +7,8 @@ except:
 try:
     import boxing_tools as box_t
 except:
-    import vision.feature_extractor.boxing_tools as box_t
+    from vision.feature_extractor import boxing_tools as box_t
+import cv2
 
 
 def safe_nanmean(arr):
@@ -49,11 +49,11 @@ def stable_euclid_dist(point_cloud, bbox, buffer=1):
     return safe_nanmean(valid_h_dist), safe_nanmean(valid_v_dist)
 
 
-def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=5, x_only=True):
+def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=1, x_only=True):
     row_ndvi = ndvi_binary[y, :]
     row_pc = xyz_point_cloud[y, :, 2]
     foliage_row = np.where(np.all([np.isfinite(row_pc), row_ndvi == 1], axis=0))
-    if np.sum(foliage_row) < buffer * 2:
+    if np.sum(foliage_row) <= buffer * 2:
         return np.nan
     x_0 = np.min(foliage_row)
     x_1 = np.max(foliage_row)
@@ -70,7 +70,7 @@ def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=5, x_only=True):
         points_right = xyz_point_cloud[y, x_1-buffer:x_1]
         h_dist = np.sqrt(np.nansum(np.power(points_left - points_right, 2), axis=1))
     h_dist_above_zero = h_dist[h_dist > 0]
-    return np.nanmedian(h_dist_above_zero) if len(h_dist_above_zero) > 0 else np.nan
+    return np.median(h_dist_above_zero) if len(h_dist_above_zero) > 0 else np.nan
 
 
 def calc_height_per_col(xyz_point_cloud, ndvi_binary, x, buffer=3):
@@ -97,7 +97,7 @@ def calc_tree_widths(xyz_point_cloud, ndvi_binary):
     n = ndvi_binary.shape[0]
     for y in range(n):
         print(f"\r{y+1}/{n} ({(y+1) / n * 100: .2f}%) widths", end="")
-        widths = np.append(widths, calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=3))
+        widths = np.append(widths, calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=1))
     print()
     return widths
 
@@ -250,6 +250,12 @@ def get_points_for_surface(point_cloud, mask, clean_smooth, subset_factor=1):
     return points_for_x, points_p1_for_x, points_for_y, points_p1_for_y, sub_mask[:-1, :-1]
 
 
+def get_foliage_fullness(ndvi_binary):
+    contours, _ = cv2.findContours(ndvi_binary.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cont_image = cv2.drawContours(ndvi_binary.copy(), contours, -1, (1, 0, 0), -1)
+    return np.sum(ndvi_binary), (np.sum(cont_image))
+
+
 def get_surface_area(xyz_point_cloud, mask=None, clean_smooth=False, subset_factor=5):
     """
     this function is O(n^2) and should be reconsidered for use
@@ -293,7 +299,12 @@ def get_tree_volume(tree_physical_params, vol_style="cone"):
     return volume, avg_volume
 
 
-def get_contour_size(ndvi_binary):
-    contours, hierarchy = cv2.findContours(ndvi_binary.copy().astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    contur_img = cv2.fillPoly(np.zeros(ndvi_binary.shape), contours, (255, 255, 255))
-    return np.nansum(contur_img)
+def get_min_max_real_y(tree_images, slicer_results, minimal_frames):
+    middle_frame = minimal_frames[len(minimal_frames)//2]
+    xyz = tree_images[middle_frame]["zed"]
+    binary_ndvi = tree_images[middle_frame]["ndvi_binary"]
+    binary_ndvi = box_t.slice_outside_trees([binary_ndvi], slicer_results, middle_frame, reduce_size=False,
+                                            mask=None, y_ranges=(), i=0, n_min_frames=1, cut_val=0.05)[0]
+    y_s = xyz[:, :, 1] * binary_ndvi
+    return np.nanquantile(y_s, (0.05, 0.95))
+

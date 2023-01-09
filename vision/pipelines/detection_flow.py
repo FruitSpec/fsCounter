@@ -58,7 +58,7 @@ class counter_detection():
                          translation_size=cfg.tracker.translation_size,
                          major=cfg.tracker.major,
                          minor=cfg.tracker.minor,
-                         debug_folder=args.debug.tracker)
+                         debug_folder=None)
 
     def detect(self, frame):
         preprc_frame = self.preprocess(frame)
@@ -117,7 +117,3 @@ class counter_detection():
         output = scale_dets(output, scale_)
 
         return output
-
-
-
-

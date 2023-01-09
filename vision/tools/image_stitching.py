@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
-def keep_dets_only(frame, detections, margin = 0.5):
+
+def keep_dets_only(frame, detections, margin=0.5):
     canvas = frame.copy()
     if len(detections) > 0:
         dets = np.array(detections)[:, :4]
@@ -23,6 +24,7 @@ def keep_dets_only(frame, detections, margin = 0.5):
         #bool_arr[int(det[1]): int(det[3]), int(det[0]): int(det[2])] = True
         bool_arr[int(y1): int(y2), int(x1): int(x2)] = True
     canvas[np.logical_not(bool_arr)] = 0
+
     return canvas
 
 
@@ -56,6 +58,17 @@ def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='
     # file_list = [os.path.join(r"C:\Users\Nir\Downloads",image) for image in
     #              ["IMG_20220906_161320.jpg","IMG_20220906_161321.jpg",
     #               "IMG_20220906_161322.jpg","IMG_20220906_161323.jpg" ]]
+    if method == "match":
+        resize_list = [resize_ for _ in file_list]
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(find_match_translation, file_list[:-1], file_list[1:], resize_list[:-1]))
+        results = np.array(results).astype(int)
+        txs, tys = results[:, 0], results[:, 1]
+        widths = [file.shape[1] for file in file_list]
+        heights = [file.shape[0] for file in file_list]
+        masks = list(map(get_masks_from_tx_ty, txs, tys, heights, widths))
+        return masks
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -76,12 +89,14 @@ def load_and_extract_kp(file_path, resize_=640):
     res = [kp, des, r, h, w]
     return res
 
-def height(img):
 
+def height(img):
     return img.shape[0]
+
 
 def width(img):
     return img.shape[1]
+
 
 def extract_keypoints(file_list, resize_=640, max_workers=8):
 
@@ -91,6 +106,7 @@ def extract_keypoints(file_list, resize_=640, max_workers=8):
         results = list(executor.map(load_and_extract_kp, file_list, resize_list))
 
     return results_to_lists(results)
+
 
 def get_fine_keypoints(img, max_workers=5):
     windows = get_windows(img)
@@ -103,6 +119,7 @@ def get_fine_keypoints(img, max_workers=5):
         results = list(executor.map(find_keypoints, cr))
 
     return results
+
 
 def get_fine_translation(key_des1, key_des2, max_workers=5):
 
@@ -232,15 +249,14 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
 
 
 def calc_affine_transform(kp1, kp2, match):
-    if len(kp1) == 0 or len(kp2) == 0:
-        np.full((2, 3), np.nan), False
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-    if len(dst_pts) == 0 or len(src_pts) == 0:
+    if len(dst_pts) == 0:
         return np.full((2, 3), np.nan), False
     M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=15, maxIters=5000)
 
     return M, status
+
 
 
 def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai):
@@ -380,6 +396,7 @@ def get_overlapping(folder_path):
 
     return res
 
+
 def find_overlapping(M, h, w):
     dummy = np.ones((h, w))
 
@@ -395,6 +412,7 @@ def find_overlapping(M, h, w):
     src = np.round(src).astype(np.uint8)
 
     return src
+
 
 def remove_artifacts(src):
 
@@ -412,7 +430,6 @@ def remove_artifacts(src):
         src[boolMask] = 0
 
     return src
-
 
 
 def warp(im1, im2, M):
@@ -439,6 +456,10 @@ def translation_based(M, height, width, r):
     tx = int(np.round(M[0, 2] / r))
     ty = int(np.round(M[1, 2] / r))
 
+    return get_masks_from_tx_ty(tx, ty, height, width)
+
+
+def get_masks_from_tx_ty(tx, ty, height, width):
     mask = np.zeros((height, width))
     if np.abs(tx) > width or np.abs(ty) > height:
         raise ValueError("tx or ty is too big")
@@ -452,7 +473,6 @@ def translation_based(M, height, width, r):
             mask[-ty:, :-tx] = 1
         else:
             mask[:-ty, :-tx] = 1
-
     return mask
 
 
@@ -477,6 +497,27 @@ def resize_img(input_, size):
     ).astype(np.uint8)
 
     return resized_img, r
+
+
+def find_match_translation(last_frame, frame, size):
+    frame, r = resize_img(cv2.cvtColor(frame.astype(np.uint8), cv2.COLOR_BGR2GRAY), size)
+    last_frame, r = resize_img(cv2.cvtColor(last_frame.astype(np.uint8), cv2.COLOR_BGR2GRAY), size)
+    try:
+        # Apply template Matching
+        res = cv2.matchTemplate(last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
+        x_vec = np.mean(res, axis=0)
+        y_vec = np.mean(res, axis=1)
+        tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
+        ty = (np.argmax(y_vec) - (res.shape[0] // 2 + 1)) / r
+
+    except:
+        Warning('failed to match')
+        tx = None
+        ty = None
+
+    return tx, ty
+
+
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

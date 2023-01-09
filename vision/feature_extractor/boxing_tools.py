@@ -8,7 +8,7 @@ except:
 try:
     import image_processing as img_pro
 except:
-    import vision.feature_extractor.image_processing as img_pro
+    from vision.feature_extractor import image_processing as img_pro
 try:
     from tree_size_tools import stable_euclid_dist
 except:
@@ -156,16 +156,15 @@ def get_intensity(fsi, rgb, box, use_cuda=False):
     hls = cv2.cvtColor(img_as_ubyte(cropped_rgb), cv2.COLOR_RGB2HLS)
     # 95% of time
     ndri = img_pro.make_ndri(cropped_fsi)
-    binary_ndri = img_pro.ndvi_to_binary(ndri, 0)
-    ndvi = img_pro.make_ndvi(cropped_rgb, cropped_fsi[:, :, nir_channel])
-    binary_ndvi= img_pro.ndvi_to_binary(ndvi, 0.05)
+    ndvi = img_pro.make_ndvi(cropped_rgb, cropped_fsi[:, :, 0])
+    binary_ndri = img_pro.ndvi_to_binary(ndri, 0.05)
+    binary_ndvi = img_pro.ndvi_to_binary(ndvi, 0.05)
     relevant_v = hls[:, :, 1][binary_ndri.astype(bool)]
     rel_v_flat = relevant_v.flatten()
     rel_v_flat_trim = quantile_trim(rel_v_flat, keep_size=False)
     if len(rel_v_flat_trim) == 0:
-        return np.nan
-    foli_ratio = np.nansum(binary_ndvi)/np.nansum(binary_ndri)
-    return np.nanmedian(rel_v_flat_trim), foli_ratio
+        return np.nan, np.nanmean(binary_ndvi)/np.nanmean(binary_ndri)
+    return np.nanmedian(rel_v_flat_trim), np.nanmean(binary_ndvi)/np.nanmean(binary_ndri)
 
 
 def normalize_intensity(intensity, path_to_tree_folder):
@@ -265,12 +264,12 @@ def filter_outside_zed_boxes(tracker_results, tree_images, max_z):
         to_pop = []
         for id, box in boxes.items():
             _, _, z = xyz_center_of_box(frame_images["zed"], box, nir=frame_images["nir"], swir_975=frame_images["swir_975"])
-            if z > max_z or not np.isfinite(z):
+            if z > max_z or np.isnan(z):
                 to_pop.append(id)
         for id in to_pop:
             boxes.pop(id)
-        tracker_results[frame] = boxes
     return tracker_results
+
 
 def cut_center_of_box(image, box, nir=None, swir_975=None):
     t, b, l, r = get_box_corners(box)

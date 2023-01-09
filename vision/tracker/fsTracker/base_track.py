@@ -80,7 +80,6 @@ class Track:
         if self.accumulated_height.__len__() > 3:
             self.accumulated_height.popleft()
         self.bbox = bbox
-
         self.is_activated = True
         self.score = det[4] * det[5]
         self.cls = det[6]

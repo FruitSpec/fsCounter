@@ -9,7 +9,6 @@ class translation():
         self.translation_size = translation_size
         self.dets_only = dets_only
         self.mode = mode
-
         self.last_frame = None
         self.last_kp = None
         self.last_des = None

@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from vision.tools.image_stitching import (resize_img, find_keypoints, get_affine_homography,
+from vision.tools.image_stitching import (resize_img, find_keypoints,get_affine_homography,
                                           get_fine_keypoints, get_fine_translation, get_affine_matrix)
 from vision.tools.image_stitching import calc_affine_transform, calc_homography
 

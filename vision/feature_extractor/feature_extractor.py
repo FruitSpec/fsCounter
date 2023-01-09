@@ -41,7 +41,7 @@ fsi_size = (900, 600)
 nir_channel, ir975_channel, blue_channel = 0, 1, 2
 
 
-def get_minimal_frames(tree_images, slicer_results, tree_name):
+def get_minimal_frames(tree_images, slicer_results, tree_name, tracker_results=None):
     # TODO check for large trees / close video
     frames_numbers = list(tree_images.keys())
     n_frames = len(frames_numbers)
@@ -54,7 +54,7 @@ def get_minimal_frames(tree_images, slicer_results, tree_name):
         q1_frame = frames_numbers[int(n_frames * 0.35)]
         q3_frame = frames_numbers[int(n_frames * 0.65)]
         try:
-            _, masks = get_fsi_and_masks(tree_images, [q1_frame, frames_numbers[int(n_frames * 0.5)], q3_frame])
+            _, masks = get_fsi_and_masks(tree_images, [q1_frame, frames_numbers[int(n_frames * 0.5)], q3_frame], tracker_results)
             return [q1_frame, frames_numbers[int(n_frames * 0.5)], q3_frame], masks
         except:
             print(f"no homography for all pics: {tree_name}, added more picturss")
@@ -78,6 +78,9 @@ def get_additional_vegetation_indexes(rgb, nir, swir_975, fill=None, mask=None):
                     **{f"{key}_skew": fill.copy() for key in vegetation_indexes_keys}}
         return {**{key: fill for key in vegetation_indexes_keys},
                 **{f"{key}_skew": fill for key in vegetation_indexes_keys}}
+    if 0 in rgb.shape:
+        return {**{key: np.array([np.nan]) for key in vegetation_indexes_keys},
+                **{f"{key}_skew": np.array([np.nan]) for key in vegetation_indexes_keys}}
     red, green, blue = cv2.split(rgb)
     # input_dict = {"nir": np.float32(nir), "red": np.float32(red), "green": np.float32(green),
     #               "blue": np.float32(blue), "swir_975": np.float32(swir_975)}
@@ -91,24 +94,6 @@ def get_additional_vegetation_indexes(rgb, nir, swir_975, fill=None, mask=None):
     clean_arr = {key: cp.asnumpy(vi_functions[key](**input_dict).flatten())
                  for key in vegetation_indexes_keys}
     return {**clean_arr}
-
-
-def get_width_height(ndvi_binary, x_start, x_end, mask, point_cloud):
-    """
-    :param ndvi_binary: binary ndvi
-    :param point_cloud: point_cloud from zed
-    :param x_start: x start of tree
-    :param x_end: x end of tree
-    :param mask: foliage mask
-    :return: widths, heights of picture
-    """
-    ndvi_binary = slice_outside_trees([ndvi_binary], x_start, x_end)
-    ndvi_binary[mask] = 0
-    np.nan_to_num(ndvi_binary, copy=False, nan=0)
-    point_cloud[1 - ndvi_binary] = np.nan
-    widths = np.sum(ndvi_binary, axis=1)
-    heights = np.sum(ndvi_binary, axis=0)
-    return widths, heights
 
 
 def update_tree_foli_fetures(features_dict, new_values, keep_dict=False, replace=False):
@@ -185,8 +170,7 @@ def init_physical_parmas(value):
     :return: an initialized features dictionary
     """
     features_list = ["total_foliage", "total_orange", "width", "height", "volume", "surface_area", "perimeter",
-                     "avg_width", "avg_height", "avg_volume", "avg_perimeter", "sum_binary_ndvi", "sum_contur",
-                     "foliage_fullness"]
+                     "avg_width", "avg_height", "avg_volume", "avg_perimeter", "foliage_fullness", "cont", "ndvi_bin"]
     return fill_dict(features_list, value)
 
 
@@ -200,10 +184,10 @@ def init_fruit_params(value):
 
 
 def transform_to_tree_physical_features(tree_physical_params):
-    sclars = ["total_orange", "total_foliage", "surface_area", "sum_binary_ndvi", "sum_contur"]
+    sclars = ["total_orange", "total_foliage", "surface_area", "ndvi_bin", "cont"]
     for scalar_key in sclars:
         tree_physical_params[scalar_key] = np.sum(tree_physical_params[scalar_key])
-    tree_physical_params["foliage_fullness"] = tree_physical_params["sum_binary_ndvi"] / tree_physical_params["sum_contur"]
+    tree_physical_params["foliage_fullness"] = tree_physical_params["ndvi_bin"]/tree_physical_params["cont"]
     tree_physical_params["surface_area"] = np.sqrt(tree_physical_params["surface_area"])
     summed_width = np.nansum(np.array(tree_physical_params["width"]), axis=0)
     summed_width = summed_width[summed_width > 0.25]
@@ -233,11 +217,12 @@ def transform_to_tree_physical_features(tree_physical_params):
     # tree_physical_params["width"] = iqr_max(widths)
     # tree_physical_params["perimeter"] = iqr_max(perimeters)
     # tree_physical_params["height"] = iqr_max(heights)
-    tree_physical_params.pop("sum_binary_ndvi")
-    tree_physical_params.pop("sum_contur")
+
     volume, avg_volume = get_tree_volume(tree_physical_params, vol_style="cone")
     tree_physical_params["volume"] = volume
     tree_physical_params["avg_volume"] = avg_volume
+    for key in ["ndvi_bin", "cont"]:
+        tree_physical_params.pop(key)
     return tree_physical_params
 
 
@@ -253,12 +238,11 @@ def calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary):
     frame_physical_parmas["height"] = calc_tree_heights(xyz_point_cloud, ndvi_binary)  # np array (scaler for each col)
     frame_physical_parmas["perimeter"] = calc_tree_perimeter(xyz_point_cloud, ndvi_binary)  # np array (scaler for each row)
     frame_physical_parmas["surface_area"] = get_surface_area(xyz_point_cloud, ndvi_binary)  # scalar
-    frame_physical_parmas["sum_binary_ndvi"] = np.nansum(ndvi_binary)
-    frame_physical_parmas["sum_contur"] = get_contour_size(ndvi_binary)
+    frame_physical_parmas["ndvi_bin"], frame_physical_parmas["cont"] = get_foliage_fullness(ndvi_binary)
     return frame_physical_parmas
 
 
-def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_results, tree_name, masks=None):
+def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_results, tree_name, masks=None, dets_only=False):
     """
     :param tree_images: {"frame": {"fsi":fsi,"rgb":rgb,"zed":zed} for each frame}
     :param slicer_results: {"frame": (x_start,x_end) for each frame}
@@ -270,12 +254,13 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
     # 17% of time
     if len(minimal_frames) > 1 and isinstance(masks, type(None)):
         try:
-            _, masks = get_fsi_and_masks(tree_images, minimal_frames)
+            _, masks = get_fsi_and_masks(tree_images, minimal_frames, tracker_results if dets_only else None)
         except:
             print(f"no homography for all pics: {tree_name}")
             return init_physical_parmas(np.nan), tree_images, masks
     y_ranges = get_y_ranges(minimal_frames, masks)
     false_mask, n_min_frames, tree_physical_params = None, len(minimal_frames), init_physical_parmas([])
+    middle_frame = minimal_frames[len(minimal_frames) // 2]
     # xyz_imgs, ndvi_binary_imgs, binary_box_imgs = [], [], []
     for i, frame_number in enumerate(minimal_frames):
         print(f"physical features - {tree_name}: {frame_number}")
@@ -286,6 +271,18 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
         tree_images[frame_number]["ndvi_img"] = ndvi_img
         tree_images[frame_number]["ndvi_binary"] = ndvi_binary
         tree_images[frame_number]["binary_box_img"] = binary_box_img
+        if middle_frame == frame_number:
+            min_y, max_y = get_min_max_real_y(tree_images, slicer_results, minimal_frames)
+        # rgb_debug = rgb.copy().astype(np.uint8)
+        # rgb_debug[(1-ndvi_binary).astype(bool)] = 0
+        # cv2.imshow(frame_number, cv2.cvtColor(rgb.astype(np.uint8)[:, :, ::-1], cv2.COLOR_RGB2HLS))
+        # cv2.waitKey()
+        # cv2.imshow(frame_number, fsi.astype(np.uint8)[:, :, ::-1])
+        # cv2.waitKey()
+        # cv2.imshow(frame_number, ((ndvi_img+1)*255/2).astype(np.uint8))
+        # cv2.waitKey()
+        # cv2.destroyAllWindows()
+
         if i > 0:
             false_mask = masks[i - 1].astype(bool)
             ndvi_binary[false_mask] = np.nan
@@ -295,6 +292,7 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
                                                                            reduce_size=True, mask=false_mask, i=i,
                                                                            y_ranges=y_ranges, n_min_frames=n_min_frames)
         ndvi_binary, binary_box_img = np.nan_to_num(ndvi_binary, nan=0), np.nan_to_num(binary_box_img, nan=0)
+
         # plot_2_imgs(ndvi_img, ndvi_binary, title=frame_number)
         # 28%
         if 0 in ndvi_binary.shape:
@@ -304,32 +302,33 @@ def calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_
         # binary_box_imgs.append(binary_box_img.copy())
         frame_physical_parmas = calc_frame_physical_parmas(xyz_point_cloud, binary_box_img, ndvi_binary)
         tree_physical_params = update_tree_foli_fetures(tree_physical_params, frame_physical_parmas, keep_dict=True)
-    # if len(minimal_frames) > 1:
-    #     translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images)
+    if len(minimal_frames) > 1:
+        translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images)
     # xyz_full_img = np.concatenate(xyz_imgs, axis=1)
     # ndvi_binary_full_img = np.concatenate(ndvi_binary_imgs, axis=1)
     # binary_box_full_img = np.concatenate(binary_box_imgs, axis=1)
     # tree_physical_params = calc_frame_physical_parmas(xyz_full_img, ndvi_binary_full_img, binary_box_full_img)
-    return transform_to_tree_physical_features(tree_physical_params), tree_images, masks
+    return transform_to_tree_physical_features(tree_physical_params), tree_images, masks, min_y, max_y
 
 
 def translation_debugging(minimal_frames, masks, frame_number, tree_name, tree_images):
-    fsi_next = tree_images[minimal_frames[1]]["fsi"].copy()
-    fsi_next[masks[0].astype(bool)] = 0
-    plot_2_imgs(tree_images[minimal_frames[0]]["fsi"], tree_images[minimal_frames[1]]["fsi"], title=frame_number,
-                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_1_clean.png",
-                save_only=True)
-    plot_2_imgs(tree_images[minimal_frames[0]]["fsi"], fsi_next, title=frame_number,
-                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_1_masked.png",
-                save_only=True)
-    fsi_next = tree_images[minimal_frames[2]]["fsi"].copy()
-    fsi_next[masks[1].astype(bool)] = 0
-    plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], tree_images[minimal_frames[2]]["fsi"], title=frame_number,
-                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_2_clean.png",
-                save_only=True)
-    plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], fsi_next, title=frame_number,
-                save_to=f"/media/fruitspec-lab/easystore/CaraCara translation logging/{tree_name}_2_masked.png",
-                save_only=True)
+    for i in range(1, len(minimal_frames)):
+        fsi_next = tree_images[minimal_frames[i]]["fsi"].copy()
+        fsi_next[masks[i-1].astype(bool)] = 0
+        # plot_2_imgs(tree_images[minimal_frames[i-1]]["fsi"], tree_images[minimal_frames[i]]["fsi"], title=frame_number,
+        #             save_to=f"/media/fruitspec-lab/easystore/translation keypoints dets only/{tree_name}_{i}_clean.png",
+        #             save_only=True)
+        # plot_2_imgs(tree_images[minimal_frames[i-1]]["fsi"], fsi_next, title=frame_number,
+        #             save_to=f"/media/fruitspec-lab/easystore/translation keypoints dets only/{tree_name}_{i}_masked.png",
+        #             save_only=True)
+    # fsi_next = tree_images[minimal_frames[2]]["fsi"].copy()
+    # fsi_next[masks[1].astype(bool)] = 0
+    # plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], tree_images[minimal_frames[2]]["fsi"], title=frame_number,
+    #             save_to=f"/media/fruitspec-lab/easystore/translation match dets only/{tree_name}_2_clean.png",
+    #             save_only=True)
+    # plot_2_imgs(tree_images[minimal_frames[1]]["fsi"], fsi_next, title=frame_number,
+    #             save_to=f"/media/fruitspec-lab/easystore/translation match dets only/{tree_name}_2_masked.png",
+    #             save_only=True)
 
 
 def update_fruit_features(tree_fruit_params, tracker_results, fsi, rgb, frame_number):
@@ -339,16 +338,16 @@ def update_fruit_features(tree_fruit_params, tracker_results, fsi, rgb, frame_nu
     for i, track_id in enumerate(boxes.keys()):
         cur_ratio = w_h_ratios[i]
         # 90% of the function time is  get intensity
-        cur_intens, cur_foli_ratio = get_intensity(fsi, rgb, boxes[track_id])
+        cur_intens, cur_foilage_ratio = get_intensity(fsi, rgb, boxes[track_id])
         if np.isin(track_id, w_h_keys):
             tree_fruit_params["w_h_ratio"][track_id] = np.append(tree_fruit_params["w_h_ratio"][track_id], cur_ratio)
             tree_fruit_params["intensity"][track_id] = np.append(tree_fruit_params["intensity"][track_id], cur_intens)
-            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.append(tree_fruit_params["fruit_foliage_ratio"][track_id], cur_foli_ratio)
-
+            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.append(tree_fruit_params["fruit_foliage_ratio"][track_id],
+                                                                           cur_foilage_ratio)
         else:
             tree_fruit_params["w_h_ratio"][track_id] = np.array([cur_ratio])
             tree_fruit_params["intensity"][track_id] = np.array([cur_intens])
-            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.array([cur_foli_ratio])
+            tree_fruit_params["fruit_foliage_ratio"][track_id] = np.array([cur_foilage_ratio])
     return tree_fruit_params
 
 
@@ -383,6 +382,9 @@ def calc_vi(tree_images, slicer_results, minimal_frames, tree_name, masks=None):
     #     x_start, x_end = slicer_results[minimal_frames[0]]
     #     rgb, nir, swir_975 = slice_outside_trees([rgb, nir, swir_975], x_start, x_end)
     #     return get_additional_vegetation_indexes(rgb, nir, swir_975, mask=ndvi_binary)
+    y_ranges = get_y_ranges(minimal_frames, masks)
+    n_min_frames = len(minimal_frames)
+    false_mask = None
     if isinstance(masks, type(None)) and len(minimal_frames) > 1:
         print(f"no homography for all pics: {tree_name}")
         return get_additional_vegetation_indexes(0, 0, 0, fill=np.nan)
@@ -397,7 +399,9 @@ def calc_vi(tree_images, slicer_results, minimal_frames, tree_name, masks=None):
             false_mask = masks[i - 1].astype(bool)
             ndvi_binary[false_mask] = np.nan
         rgb, nir, swir_975, ndvi_binary = slice_outside_trees([rgb, nir, swir_975, ndvi_binary], slicer_results,
-                                                              frame_number, reduce_size=True)
+                                                              frame_number, reduce_size=True, mask=false_mask, i=i,
+                                                            y_ranges=y_ranges, n_min_frames=n_min_frames)
+
         frame_features = get_additional_vegetation_indexes(rgb, nir, swir_975, mask=ndvi_binary)
         features_dict = update_tree_foli_fetures(features_dict, frame_features)
     return transform_to_vi_features(features_dict)
@@ -425,9 +429,10 @@ def calc_fruit_features(tree_images, tracker_results, tree_name):
     wh_std_per_fruit = np.fromiter((np.std(w_h_ratios) for w_h_ratios in
                                                             tree_fruit_params["w_h_ratio"].values()), float)
     tree_fruit_params["w_h_ratio"] = np.median(wh_std_per_fruit[n_samp_per_fruit > 2])
-    tree_fruit_params["fruit_foliage_ratio"] = np.median(np.fromiter(
-        (np.mean(ffr[np.isfinite(ffr)]) for ffr in tree_fruit_params["fruit_foliage_ratio"].values()), float))
     tree_fruit_params = tree_intensity_summary(tree_fruit_params, tree_name, frame_number)
+    fruit_foliage_ratio = np.fromiter((np.nanmean(fruit_foliage_ratio) for fruit_foliage_ratio in
+                                                            tree_fruit_params["fruit_foliage_ratio"].values()), float)
+    tree_fruit_params["fruit_foliage_ratio"] = np.mean(fruit_foliage_ratio[np.isfinite(fruit_foliage_ratio)])
     return tree_fruit_params
 
 
@@ -560,7 +565,17 @@ def plot_2d_cloud(fruit_3d_space, centers, c=None):
     plt.show()
 
 
-def calc_localization_features(tree_images, tracker_results, tree_name, centers=None):
+def get_fruit_distribution_on_tree(centers, min_y, max_y, num_breaks=3):
+    out_put = {}
+    breaks = np.linspace(min_y, max_y, num_breaks+1)
+    y_s = centers[:, 1]
+    for i in range(num_breaks):
+        out_put[f"q_{i+1}_precent_fruits"] = np.mean(np.all([y_s >= breaks[i], y_s < breaks[i+1]], axis=0))
+    return out_put
+
+
+
+def calc_localization_features(tree_images, tracker_results, tree_name, min_y, max_y, centers=None):
     """
     :param tree_images: {"frame": {"fsi":fsi,"rgb":rgb,"zed":zed} for each frame}
     :param tracker_results: {"frame": {"id": ((x0,y0),(x1,y1))} for each frame}
@@ -603,7 +618,9 @@ def calc_localization_features(tree_images, tracker_results, tree_name, centers=
                        "mst_skew_arr": skew(distances),
                        "clusters_area_mean_arr": area_mean, "clusters_area_med_arr": area_med,
                        "clusters_ch_area_mean_arr": convex_hull_area_mean,
-                       "clusters_ch_area_med_arr": convex_hull_area_med, **clustring_dict}
+                       "clusters_ch_area_med_arr": convex_hull_area_med, **clustring_dict,
+                       **get_fruit_distribution_on_tree(centers, min_y, max_y),
+                       "fruit_dist_center": (np.nanmean(centers[:, 1])-min_y)/(max_y-min_y)}
     return tree_loc_params
 
 
@@ -624,27 +641,27 @@ def extract_features_for_tree(tree_images, slicer_results, tracker_results, tree
         frame_images["rgb"] = frame_images["rgb"].astype(float)
     if max_z > 0:
         tracker_results = filter_outside_zed_boxes(tracker_results, tree_images, max_z)
-    tracker_results["cv"] = len({id for frame in set(tracker_results.keys()) - {"cv"}
-                                    for id in tracker_results[frame].keys()})
+    tracker_results["cv"] = len(
+        {id for frame in set(tracker_results.keys()) - {"cv"} for id in tracker_results[frame].keys()})
     print(f"filter_outside_tree_boxes: { time.time()-s_time_0 }")
     s_time = time.time()
-    # minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name)
-    frames_numbers = list(tree_images.keys())
-    n_frames = len(frames_numbers)
+    # minimal_frames, masks = get_minimal_frames(tree_images, slicer_results, tree_name, tracker_results)
+    minimal_frames = list(tree_images.keys())
+    n_mininal = len(minimal_frames)
+    minimal_frames = minimal_frames[int(n_mininal*0.25): int(n_mininal*0.75):2]
+    # minimal_frames = [minimal_frames[int(n_mininal*0.5)]]
     masks = None
-    start_frame = int(np.floor(n_frames*0.25))
-    end_frame = int(np.ceil(n_frames*0.75))
-    minimal_frames = frames_numbers[start_frame:end_frame:2]
     print(f"get_minimal_frames: { time.time()-s_time }")
     s_time = time.time()
     # masks bags
-    tree_physical_features, tree_images, masks = calc_physical_features(tree_images, slicer_results, minimal_frames, tracker_results,
-                                                    tree_name)
+    tree_physical_features, tree_images, masks, min_y, max_y = calc_physical_features(tree_images, slicer_results,
+                                                                                      minimal_frames,tracker_results,
+                                                                                      tree_name, masks)
     print(tree_physical_features)
     print(f"calc_physical_features: { time.time()-s_time }")
     s_time = time.time()
     tree_loc_features = calc_localization_features(tree_images, tracker_results,
-                                                   tree_name)  # check logic and fruit localization
+                                                   tree_name, min_y, max_y)  # check logic and fruit localization
     print(f"calc_localization_features: { time.time()-s_time }")
     s_time = time.time()
     tree_fruit_features = calc_fruit_features(tree_images, tracker_results, tree_name)
@@ -856,8 +873,51 @@ def get_slicer_data(slice_path, max_w):
     return sliced_data
 
 
-def debug_preprocess(tree_images, max_y):
-    keys = list(tree_images.keys())
+def read_preprocess_results(tracker_path):
+    tracker_full_results = pd.read_csv(tracker_path)
+    tracker_full_results["bbox"] = get_trakcer_bboxes(tracker_full_results)
+    if "class_pred" in tracker_full_results:
+        tracker_full_results.rename({"class_pred": "track_id"}, axis=1, inplace=True)
+    if "frame" in tracker_full_results:
+        tracker_full_results.rename({"frame": "image_id"}, axis=1, inplace=True)
+    return tracker_full_results
+
+
+def read_sort_jai_frames(tree_folder):
+    jai_frames = [file.split(".")[0].split("_")[-1] for file in os.listdir(tree_folder)
+                  if "jpg" in file and "FSI" in file]
+    jai_frames.sort(key=lambda x: int(x))
+    n_frames = len(jai_frames)
+    return jai_frames, n_frames
+
+
+def resize_dicts(tree_images,slicer_results,tracker_results,slice_path, frame,max_y,max_x,max_z,tracker_full_results):
+    jai_h, jai_w = tree_images[frame]["fsi"].shape[:2]
+    sliced_data = get_slicer_data(slice_path, jai_w)
+    r_h, r_w = max_y / jai_h, max_x / jai_w
+    zed_pic = tree_images[frame]["zed"]
+    if np.prod(tree_images[frame]["zed"].shape) == 0:
+        tree_images.pop(frame)
+        tracker_results.pop(frame)
+        return tracker_results, slicer_results, tree_images
+    tree_images[frame]["fsi"] = cv2.resize(tree_images[frame]["fsi"], (max_x, max_y))
+    tree_images[frame]["zed"] = cv2.resize(zed_pic, (max_x, max_y))
+    tree_images[frame]["zed_rgb"] = cv2.resize(tree_images[frame]["zed_rgb"], (max_x, max_y))
+    tree_images[frame]["rgb"] = cv2.resize(tree_images[frame]["rgb"], (max_x, max_y))
+    if max_z > 0:
+        depth_mask = tree_images[frame]["zed"][:, :, 2] > max_z
+        tree_images[frame]["fsi"][depth_mask] = 0
+        tree_images[frame]["zed_rgb"][depth_mask] = 0
+        tree_images[frame]["rgb"][depth_mask] = 0
+        tree_images[frame]["zed"][depth_mask] = np.nan
+    slicer_results[frame] = (int(sliced_data[frame][0] * r_w), int(sliced_data[frame][1] * r_w))
+    tracker_subset = tracker_full_results[tracker_full_results["image_id"] == int(frame)]
+    tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
+                              for row in tracker_subset[["track_id", "bbox"]].iterrows()}
+    return tracker_results, slicer_results, tree_images
+
+
+def preprocess_debug(keys, tree_images, tracker_results, max_y):
     for frame in [keys[0], keys[len(keys)//2], keys[-1]]:
     # for frame in keys:
         frame = str(frame)
@@ -872,8 +932,8 @@ def debug_preprocess(tree_images, max_y):
                        thickness=2)
         fsi = cv2.line(fsi, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
                        thickness=2)
-        # plt.imshow(fsi)
-        # plt.show()
+        plt.imshow(fsi)
+        plt.show()
         for id, track in tracker_results[frame].items():
             zed = cv2.rectangle(zed, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(255, 0, 0),
                                 thickness=2)
@@ -881,33 +941,23 @@ def debug_preprocess(tree_images, max_y):
                        thickness=2)
         zed = cv2.line(zed, (slicer_results[frame][1], 0), (slicer_results[frame][1], max_y), color=(255, 0, 0),
                        thickness=2)
-        # plt.imshow(zed)
-        # plt.show()
+        plt.imshow(zed)
+        plt.show()
         plot_2_imgs(zed, fsi, frame)
-        # plot_2_imgs(xyz[:,:,2], zed, frame)
+        plot_2_imgs(xyz[:,:,2], zed, frame)
 
-def read_tracker_results(tracker_path):
-    tracker_full_results = pd.read_csv(tracker_path)
-    tracker_full_results["bbox"] = get_trakcer_bboxes(tracker_full_results)
-    tracker_full_results.rename({"frame": "image_id"}, axis=1, inplace=True)
-    if "frame" in tracker_full_results.columns:
-        tracker_full_results.rename()
-    return tracker_full_results
 
-def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=None, max_y=None, max_z=0,
-                    debug=False):
-    tracker_full_results = read_tracker_results(tracker_path)
-    jai_frames = [file.split(".")[0].split("_")[-1] for file in os.listdir(tree_folder)
-                  if "jpg" in file and "FSI" in file]
-    jai_frames.sort(key=lambda x: int(x))
+def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=None, max_y=None, max_z=0,debug=False):
+    tracker_full_results = read_preprocess_results(tracker_path)
+    jai_frames, n_frames = read_sort_jai_frames(tree_folder)
     tree_images, slicer_results, tracker_results = {}, {}, {}
+    shapes_x, shapes_y, to_drop = [], [], []
     all_coords = pd.read_csv(path.join(tree_folder, "jai_cors_in_zed.csv"))
     all_coords["frame"] = all_coords["frame"].apply(str)
     if len(all_coords) == 0:
         return {}, {}, {}
-    shapes_x, shapes_y = [], []
-    to_drop = []
     for i, frame in enumerate(jai_frames):
+        print(f"\r{i + 1}/{n_frames} ({(i + 1) / (n_frames) * 100: .2f}%) pictures", end="")
         tree_images, tracker_results, shapes_x, shapes_y, ret = update_tree_images_traker_results(tree_images,
                                                                                              tracker_results, shapes_x,
                                                                                              shapes_y,
@@ -916,40 +966,45 @@ def preprocess_tree(tree_folder, tracker_path, slice_path, zed_shift=0, max_x=No
                                                                                              tracker_full_results)
         if not ret:
             to_drop.append(frame)
+        else:
+            tracker_results, slicer_results, tree_images = resize_dicts(tree_images,slicer_results,tracker_results,
+                                                                        slice_path, frame, max_y, max_x,
+                                                                        max_z, tracker_full_results)
+    print("done reading")
     for frame in to_drop:
         jai_frames.remove(frame)
     if len(tree_images.keys()) == 0:
         return {}, {}, {}
-
-    jai_h, jai_w = tree_images[list(tree_images.keys())[0]]["fsi"].shape[:2]
-    sliced_data = get_slicer_data(slice_path, jai_w)
-    if isinstance(max_x, type(None)):
-        max_x, max_y = np.max(shapes_x), np.max(shapes_y)
-    r_h, r_w = max_y / jai_h, max_x / jai_w
-    #resizing images
-    for i, frame in enumerate(jai_frames):
-        zed_pic = tree_images[frame]["zed"]
-        if np.prod(tree_images[frame]["zed"].shape) == 0:
-            tree_images.pop(frame)
-            tracker_results.pop(frame)
-            continue
-        tree_images[frame]["fsi"] = cv2.resize(tree_images[frame]["fsi"], (max_x, max_y))
-        tree_images[frame]["zed"] = cv2.resize(zed_pic, (max_x, max_y))
-        tree_images[frame]["zed_rgb"] = cv2.resize(tree_images[frame]["zed_rgb"], (max_x, max_y))
-        tree_images[frame]["rgb"] = cv2.resize(tree_images[frame]["rgb"], (max_x, max_y))
-        if max_z > 0:
-            depth_mask = tree_images[frame]["zed"][:, :, 2] > max_z
-            tree_images[frame]["fsi"][depth_mask] = 0
-            tree_images[frame]["zed_rgb"][depth_mask] = 0
-            tree_images[frame]["rgb"][depth_mask] = 0
-            tree_images[frame]["zed"][depth_mask] = np.nan
-        slicer_results[frame] = (int(sliced_data[frame][0]*r_w), int(sliced_data[frame][1]*r_w))
-        tracker_subset = tracker_full_results[tracker_full_results["image_id"] == int(frame)]
-        tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
-                                       for row in tracker_subset[["track_id", "bbox"]].iterrows()}
+    ### old for loop
+    # jai_h, jai_w = tree_images[list(tree_images.keys())[0]]["fsi"].shape[:2]
+    # sliced_data = get_slicer_data(slice_path, jai_w)
+    # if isinstance(max_x, type(None)):
+    #     max_x, max_y = np.max(shapes_x), np.max(shapes_y)
+    # r_h, r_w = max_y / jai_h, max_x / jai_w
+    # for i, frame in enumerate(jai_frames):
+    #     zed_pic = tree_images[frame]["zed"]
+    #     if np.prod(tree_images[frame]["zed"].shape) == 0:
+    #         tree_images.pop(frame)
+    #         tracker_results.pop(frame)
+    #         continue
+    #     tree_images[frame]["fsi"] = cv2.resize(tree_images[frame]["fsi"], (max_x, max_y))
+    #     tree_images[frame]["zed"] = cv2.resize(zed_pic, (max_x, max_y))
+    #     tree_images[frame]["zed_rgb"] = cv2.resize(tree_images[frame]["zed_rgb"], (max_x, max_y))
+    #     tree_images[frame]["rgb"] = cv2.resize(tree_images[frame]["rgb"], (max_x, max_y))
+    #     if max_z > 0:
+    #         depth_mask = tree_images[frame]["zed"][:, :, 2] > max_z
+    #         tree_images[frame]["fsi"][depth_mask] = 0
+    #         tree_images[frame]["zed_rgb"][depth_mask] = 0
+    #         tree_images[frame]["rgb"][depth_mask] = 0
+    #         tree_images[frame]["zed"][depth_mask] = np.nan
+    #     slicer_results[frame] = (int(sliced_data[frame][0]*r_w), int(sliced_data[frame][1]*r_w))
+    #     tracker_subset = tracker_full_results[tracker_full_results["image_id"] == int(frame)]
+    #     tracker_results[frame] = {row[1]["track_id"]: row_resized_bbox(row, r_w, r_h)
+    #                                    for row in tracker_subset[["track_id", "bbox"]].iterrows()}
+    keys = list(tree_images.keys())
     if debug:
-        debug_preprocess(tree_images, max_y)
-
+        preprocess_debug(keys, tree_images, tracker_results, max_y)
+    print("done preprocess")
     return tree_images, slicer_results, tracker_results
 
 
@@ -981,7 +1036,7 @@ def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv
 
 
 def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=True, block_name="", skip_rows=[],
-                         skip_no_load=[], max_z=0):
+                         skip_no_load=[], max_z=0, suffix=""):
     df = pd.DataFrame({})
     for row in os.listdir(plot_path):
         row_path = os.path.join(plot_path, row, "trees")
@@ -995,19 +1050,20 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
         if os.path.isdir(row_path):
             df = pd.concat([df, create_row_features(row_path, zed_shift, max_x, max_y, save_csv, block_name, max_z)])
     if save_csv:
-        df.to_csv(os.path.join(plot_path, f"plot_features_{max_z}_max_z_boxes.csv"))
+        df.to_csv(os.path.join(plot_path, f"plot_features{suffix}"))
     return df
 
 
 if __name__ == '__main__':
     path_to_plot = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122"
-    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R11/trees"
-    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R11"
-    # create_row_features(path_to_row, save_name="row_features_h2_band25.csv")
+    path_to_row = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2/trees"
+    row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2"
+    # create_row_features(path_to_row, save_name="row_features_trans.csv")
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
-    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5)
-    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=[f"R{i}" for i in range(2, 11)])
-    tree = "T41"
+    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R10"], suffix="-5_new_tracker_hidden_features")
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5,
+    #                           skip_rows=[f"R{i}" for i in list(range(2, 8)) + [10, 11]])
+    tree = "T4"
     tree_folder = os.path.join(path_to_row, tree)
     tracker_path = os.path.join(tree_folder, "tracker.csv")
     slice_path = os.path.join(tree_folder, "slices.csv")

@@ -5,7 +5,7 @@ try:
     from vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
 except:
     from vision.feature_extractor.vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
-from vision.tools.image_stitching import get_frames_overlap, plot_2_imgs
+from vision.tools.image_stitching import get_frames_overlap, plot_2_imgs, keep_dets_only
 try:
     from boxing_tools import get_mask_corners, make_bbox_pic
 except:
@@ -206,13 +206,16 @@ def get_pictures(tree_images, frame_number, with_zed=False, specific_pics=None):
     return fsi, rgb, nir.copy(), swir_975.copy()
 
 
-def get_fsi_and_masks(tree_images, minimal_frames):
+def get_fsi_and_masks(tree_images, minimal_frames, dets=None):
     """
     :param tree_images: {"frame": {"fsi":fsi,"rgb":rgb,"zed":zed} for each frame}
     :param minimal_frames: list of frame numbers
     :return: returns list of fsis and corresponding masks
     """
-    fsi_list = [tree_images[frame]["rgb"].astype(np.uint8) for frame in minimal_frames]
+    if isinstance(dets, type(None)):
+        fsi_list = [tree_images[frame]["rgb"].astype(np.uint8) for frame in minimal_frames]
+    else:
+        fsi_list = [make_bbox_pic(tree_images[frame]["rgb"].astype(np.uint8), dets[frame]) for frame in minimal_frames]
     masks = []
     if len(minimal_frames) > 1:
         masks = get_frames_overlap(file_list=fsi_list, method='at')

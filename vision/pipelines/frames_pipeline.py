@@ -9,7 +9,7 @@ import numpy as np
 import json
 from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path
+from vision.misc.help_func import get_repo_dir, scale_dets
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -18,6 +18,7 @@ from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector, scale
 from vision.pipelines.run_args import make_parser
 from vision.tools.translation import translation as T
+from vision.misc.help_func import validate_output_path
 
 
 def run(cfg, args):
@@ -42,7 +43,7 @@ def run(cfg, args):
     # sort by ids
     files_dict = collections.OrderedDict(sorted(files_dict.items()))
 
-    for id_, img_name in tqdm(files_dict.items()):
+    for id_, img_name in files_dict.items():
 
         results_collector.collect_file_name(img_name)
         results_collector.collect_id(id_)
@@ -51,21 +52,20 @@ def run(cfg, args):
 
         det_outputs = detector.detect(frame)
 
-        # find translation
         tx, ty = translation.get_translation(frame, det_outputs)
 
         # track:
-        trk_outputs, trk_windows = detector.track(det_outputs, tx, ty, id_)
+        trk_outputs, track_windows = detector.track(det_outputs, tx, ty, id_)
+
+        results_collector.save_tracker_windows(id_, args, trk_outputs, track_windows)
 
         # collect results:
         results_collector.collect_detections(det_outputs, id_)
         results_collector.collect_tracks(trk_outputs)
 
-        if cfg.debug.is_debug:
-            results_collector.debug(id_, args, trk_outputs, det_outputs, frame, trk_windows=trk_windows)
-
     if args.draw_on_img:
         results_collector.draw_and_save_dir(args.data_dir, args.output_folder, True)
+
     results_collector.dump_to_csv(os.path.join(args.output_folder, "det.csv"))
     results_collector.dump_to_csv(os.path.join(args.output_folder, "tracker.csv"), False)
 
@@ -75,22 +75,21 @@ def run(cfg, args):
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     # config_file = "/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
-    args = OmegaConf.load(repo_dir + runtime_config)
 
-    #args = make_parser()
+    args = make_parser()
     args.eval_batch = 1
     args.draw_on_img = True
+    args.frame_size = [2048, 1536]
     #args.data_dir = "/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2"
-    folder_path = "/media/yotam/easystore/track_detect_analysis"
+    folder_path = "/media/fruitspec-lab/easystore/track_detect_analysis"
     folder_list = [folder for folder in os.listdir(folder_path) if "." not in folder]
-    parent_folder = "/media/yotam/easystore/track_detect_analysis"
-
+    parent_folder = "/media/fruitspec-lab/easystore/track_detect_analysis"
     res = []
     for folder in folder_list:
-
+        if folder == "clean":
+            continue
         args.data_dir = os.path.join(folder_path, folder)
 
         args.output_folder = os.path.join(parent_folder, folder, "det")
@@ -107,5 +106,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(parent_folder, 'res.json'), 'w') as f:
         json.dump(res, f)
+
+    print(f"finished {folder}")
 
 
