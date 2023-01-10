@@ -110,7 +110,7 @@ def get_dimensions(point_cloud, dets, dist_max):
         if det[-3] == 1:
             continue
         crop = get_cropped_point_cloud(det[:4], point_cloud)
-        width = get_width(crop, fixed_z=False, max_z=dist_max)
+        width = get_width(crop, fixed_z=True, max_z=dist_max)
         height = get_height(crop, fixed_z=True, max_z=dist_max)
         distance = get_distance(crop[:, :, 2])
 
