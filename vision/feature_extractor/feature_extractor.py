@@ -2,8 +2,6 @@ import os
 from collections.abc import Iterable
 from os import path
 
-import numpy as np
-import cupy as cp
 import pandas as pd
 from scipy.stats import skew
 from sklearn.cluster import DBSCAN
@@ -94,6 +92,24 @@ def get_additional_vegetation_indexes(rgb, nir, swir_975, fill=None, mask=None):
     clean_arr = {key: cp.asnumpy(vi_functions[key](**input_dict).flatten())
                  for key in vegetation_indexes_keys}
     return {**clean_arr}
+
+
+def get_width_height(ndvi_binary, x_start, x_end, mask, point_cloud):
+    """
+    :param ndvi_binary: binary ndvi
+    :param point_cloud: point_cloud from zed
+    :param x_start: x start of tree
+    :param x_end: x end of tree
+    :param mask: foliage mask
+    :return: widths, heights of picture
+    """
+    ndvi_binary = slice_outside_trees([ndvi_binary], x_start, x_end)
+    ndvi_binary[mask] = 0
+    np.nan_to_num(ndvi_binary, copy=False, nan=0)
+    point_cloud[1 - ndvi_binary] = np.nan
+    widths = np.sum(ndvi_binary, axis=1)
+    heights = np.sum(ndvi_binary, axis=0)
+    return widths, heights
 
 
 def update_tree_foli_fetures(features_dict, new_values, keep_dict=False, replace=False):
@@ -1060,7 +1076,7 @@ if __name__ == '__main__':
     row_path = "/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R2"
     # create_row_features(path_to_row, save_name="row_features_trans.csv")
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", skip_rows=["R10", "R11", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])
-    df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R10"], suffix="-5_new_tracker_hidden_features")
+    # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5, skip_rows=["R10"], suffix="-5_new_tracker_hidden_features")
     # df = create_plot_features(path_to_plot, block_name="CaraCaraNir", max_z=5,
     #                           skip_rows=[f"R{i}" for i in list(range(2, 8)) + [10, 11]])
     tree = "T4"

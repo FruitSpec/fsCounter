@@ -2,6 +2,7 @@ import os
 
 import cv2
 import numpy as np
+np.int = np.int_
 import pandas as pd
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -99,8 +100,13 @@ def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62],
     cropped_zed, y_s, y_e, x_s, x_e = crop_zed_roi(grey_zed, zed_angles, jai_angles, **zed_roi_params)
     tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai = first_translation(cropped_zed, grey_jai, zed_rgb, jai_rgb,
                                                                                y_s, y_e)
-    x1, y1, x2, y2 = get_coordinates_in_zed(im_zed, im_jai, tx, ty, sx, sy)
-    x1, y1, x2, y2 = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed)
+    if np.any([np.isnan(val) for val in [tx, ty, sx, sy]]):
+        x1, y1, x2, y2 = 0, 0, *im_zed.shape[::-1]
+        x2 -= 1
+        y1 -= 1
+    else:
+        x1, y1, x2, y2 = get_coordinates_in_zed(im_zed, im_jai, tx, ty, sx, sy)
+        x1, y1, x2, y2 = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed)
     h_z = zed_rgb.shape[0]
     w_z = zed_rgb.shape[1]
     if use_fine:
@@ -222,8 +228,7 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
     if result_folder == "":
         result_folder = folder_path
     frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
-    df_out = pd.DataFrame({"x1": [], "x2": [], "y1": [], "y2": [],
-                           "tx": [], "ty": [], "sx": [], "sy": [], "frame": [], "zed_shift": []})
+    df_out_list = []
     frames.sort(key=lambda x: int(x))
     consec_less_threshold, consec_more_threshold = 0, 0
     for frame in tqdm(frames):
@@ -236,9 +241,8 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
         corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine, zed_roi_params=zed_roi_params)
         x1, y1, x2, y2 = corr
         # print(f"frame:{frame}, x1:{int(x1)}, tx: {tx}, zed_shift: {zed_shift}")
-        df_out = df_out.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift},
-                               ignore_index=True)
+        df_out_list.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift})
         if plot_res:
             try:
                 img1 = rgb_jai
@@ -252,6 +256,7 @@ def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, z
                 print("resize problem")
         zed_shift, consec_less_threshold, consec_more_threshold = update_zed_shift(tx, zed_shift, consec_less_threshold,
                                                                                consec_more_threshold)
+    df_out = pd.DataFrame.from_records(df_out_list)
     df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
     plt.plot(df_out["tx"])
     plt.ylim(-200, 200)
