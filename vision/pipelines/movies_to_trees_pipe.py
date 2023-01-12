@@ -14,7 +14,7 @@ from vision.misc.help_func import get_repo_dir, scale_dets
 from omegaconf import OmegaConf
 from vision.pipelines.run_args import make_parser
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-
+import json
 
 def update_index(k, index):
     """
@@ -170,13 +170,27 @@ def get_tracker_args(config_file="/vision/pipelines/config/pipeline_config.yaml"
 
 
 def init_log(log_path=""):
-    if log_path == "":
+    if os.path.exists(log_path):
+        with open(log_path) as json_file:
+            log = json.load(json_file)
+    else:
+        # TODO add logic to continue from a stopped tree
         log = {"folder_to_frames": False,
                "align_folder": False,
-               "agg_to_trees": 0,
-               "track_row": 0}
-    else:
-        log = log_path # TODO read after deciding on foramt
+               "agg_to_trees": False,
+               "track_row": False}
+    return log
+
+
+def update_save_log(log_path, log, update_vals):
+    if update_vals:
+        for key, val in update_vals.items():
+            log[key] = val
+    if os.path.exists(log_path):
+        with open(log_path) as json_file:
+            json.dump(log, json_file)
+    return log
+
 
 def track_tree_folder(data_dir, args, cfg):
     args.data_dir = data_dir
@@ -184,6 +198,7 @@ def track_tree_folder(data_dir, args, cfg):
     if not os.path.isdir(args.output_folder):
         os.mkdir(args.output_folder)
     dets, tracks = frames_pipeline_run(cfg, args)
+
 
 def track_row(folder_path):
     args, cfg = get_tracker_args()
@@ -253,8 +268,6 @@ def get_random_slicing(frames_path, rate=50):
     return df
 
 
-
-
 def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
                                             zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
                                             skip_steps=[],
@@ -273,24 +286,30 @@ def preprocess_videos_to_trees_aligmnet_fix(folder_path, zed_shift=0,
                                in the frames to be used for alignment.
         skip_steps (list): A list of steps to skip in the preprocessing process.
     """
+    log_path = os.path.join(folder_path, "row_log.json")
+    log = init_log(log_path)
     print("breaking videos to frames")
-    if not ("folder_to_frames" in skip_steps):
+    if not ("folder_to_frames" in skip_steps and log["folder_to_frames"]):
         folder_to_frames(folder_path)
+        log = update_save_log(log_path, log, {"folder_to_frames": True})
     frames_path = os.path.join(folder_path, "frames")
     if not random_slicing:
         slices = pd.read_csv(os.path.join(folder_path, "all_slices.csv"))
     else:
         slices = get_random_slicing(frames_path)
     print("align all frames")
-    if not ("align_folder" in skip_steps):
+    if not ("align_folder" in skip_steps and log["align_folder"]):
         align_folder(frames_path, plot_res=False, zed_roi_params=zed_roi_params, zed_shift=zed_shift)
+        log = update_save_log(log_path, log, {"align_folder": True})
     print("aggtregating tree frames to folders")
-    if not ("agg_to_trees" in skip_steps):
+    if not ("agg_to_trees" in skip_steps and log["agg_to_trees"]):
         agg_to_trees(frames_path, slices)
+        log = update_save_log(log_path, log, {"agg_to_trees": True})
     print("detecting and tracking for each tree")
     trees_path = os.path.join(folder_path, "trees")
-    if not ("track_row" in skip_steps):
+    if not ("track_row" in skip_steps and log["track_row"]):
         track_row(trees_path)
+        log = update_save_log(log_path, log, {"track_row": True})
 
 
 def preprocess_rows_to_trees(plot_path, zed_shift=0):

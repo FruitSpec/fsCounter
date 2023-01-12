@@ -29,6 +29,7 @@ except:
 import time
 import matplotlib.pyplot as plt
 from vision.tools.image_stitching import plot_2_imgs
+from vision.pipelines.movies_to_trees_pipe import update_save_log
 
 
 global fsi_size
@@ -1052,8 +1053,10 @@ def create_row_features(path_to_row, zed_shift=0, max_x=600, max_y=900, save_csv
 
 
 def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=True, block_name="", skip_rows=[],
-                         skip_no_load=[], max_z=0, suffix=""):
+                         skip_no_load=[], max_z=0, suffix="", log={}):
     df = pd.DataFrame({})
+    log_path = os.path.join(path_to_plot, "plot_log.json")
+    skip_rows = skip_rows+log_path["skip_rows"]
     for row in os.listdir(plot_path):
         row_path = os.path.join(plot_path, row, "trees")
         if row in skip_no_load:
@@ -1065,8 +1068,9 @@ def create_plot_features(plot_path, zed_shift=0, max_x=600, max_y=900, save_csv=
             continue
         if os.path.isdir(row_path):
             df = pd.concat([df, create_row_features(row_path, zed_shift, max_x, max_y, save_csv, block_name, max_z)])
+            log = update_save_log(log_path, log, {"skip_rows": skip_rows + [row]})
     if save_csv:
-        df.to_csv(os.path.join(plot_path, f"plot_features{suffix}"))
+        df.to_csv(os.path.join(plot_path, f"plot_features{suffix}.csv"))
     return df
 
 

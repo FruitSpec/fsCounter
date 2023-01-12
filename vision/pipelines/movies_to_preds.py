@@ -1,4 +1,4 @@
-from vision.pipelines.movies_to_trees_pipe import preprocess_videos_to_trees_aligmnet_fix
+from vision.pipelines.movies_to_trees_pipe import preprocess_videos_to_trees_aligmnet_fix, update_save_log
 import os
 import vision.feature_extractor.feature_extractor as feature_extractor
 import pickle
@@ -8,6 +8,18 @@ from MHS.pre_post_processing import preprocess
 from vision.feature_extractor import feature_extractor as feat_e
 import pickle
 import joblib
+import json
+
+def init_plot_log(log_path=""):
+    if os.path.exists(log_path):
+        with open(log_path) as json_file:
+            log = json.load(json_file)
+    else:
+        # TODO add logic to continue from a stopped tree
+        log = {"preprocess": True,
+               "skip_rows": []}
+    return log
+
 
 
 def get_prediction_df(features_df,scan_date, customer_name, path_to_plot, model = None):
@@ -27,17 +39,22 @@ def get_prediction_df(features_df,scan_date, customer_name, path_to_plot, model 
 def plot_to_preds(path_to_plot, block_name, model=None, zed_shift={"default": 0}, max_z=5,
                   zed_roi_params={"default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}, skip_steps=[],
                   scan_date=0, customer_name="customer_plot", skip_rows=[]):
+    log_path = os.path.join(path_to_plot, "plot_log.json")
+    log = init_plot_log(log_path)
     zed_shift_keys = list(zed_shift.keys())
     skip_steps_keys = list(skip_steps.keys())
     defualt_shift = zed_shift["default"]
-    for row in os.listdir(path_to_plot):
-        row_path = os.path.join(path_to_plot, row)
-        zed_shift_row = zed_shift[row] if row in zed_shift_keys else defualt_shift
-        skip_steps_row = skip_steps[row] if row in skip_steps_keys else []
-        if os.path.isdir(row_path):
-            preprocess_videos_to_trees_aligmnet_fix(row_path, zed_shift=zed_shift_row,
-                                                    zed_roi_params=zed_roi_params, skip_steps=skip_steps_row)
-    features_df = feat_e.create_plot_features(path_to_plot, block_name=block_name, max_z=max_z, skip_rows=skip_rows)
+    if log["preprocess"]:
+        for row in os.listdir(path_to_plot):
+            row_path = os.path.join(path_to_plot, row)
+            zed_shift_row = zed_shift[row] if row in zed_shift_keys else defualt_shift
+            skip_steps_row = skip_steps[row] if row in skip_steps_keys else []
+            if os.path.isdir(row_path):
+                preprocess_videos_to_trees_aligmnet_fix(row_path, zed_shift=zed_shift_row,
+                                                        zed_roi_params=zed_roi_params, skip_steps=skip_steps_row)
+        log = update_save_log(log_path, log, {"preprocess": False})
+    features_df = feat_e.create_plot_features(path_to_plot, block_name=block_name, max_z=max_z,
+                                              skip_rows=skip_rows, log=log)
     pred_frame = get_prediction_df(features_df, scan_date, customer_name, path_to_plot, model=None)
     return pred_frame, features_df
 
@@ -69,8 +86,8 @@ def customer_to_preds(customer_path, customer_cnfg, model=None):
 
 if __name__ == '__main__':
     customer_path = "/media/fruitspec-lab/easystore/test_pred_pipe"
-    skip_rows_dict = {"301022": {"test_plot": {"R2": ["folder_to_frames", "align_folder", "agg_to_trees", "track_row"],
-                                               "R3": ["folder_to_frames", "align_folder", "agg_to_trees", "track_row"]}}}
+    skip_rows_dict = {"301022": {"test_plot": {"R2": [],
+                                               "R3": []}}}
     max_depth_dict = {"301022": {"test_plot": 5}}
     roi_parms_dict = {"301022": dict(x_s=0, x_e=1080, y_s=310, y_e=1670),
                       "default": dict(x_s=0, x_e=1080, y_s=310, y_e=1670)}
