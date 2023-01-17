@@ -1,19 +1,23 @@
 import cv2
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from tqdm import tqdm
 
 from vision.tools.camera import find_gl_by_percentile
 
 
 
-def slice_frame(depth, depth_thrs=70, slice_thrs=0.15, gaussian_kernel=5):
+def slice_frame(depth, window_thrs=0.7):
 
     s, e = find_tree_height_limits(depth)
 
     cropped_depth = depth[s:e, :].copy()
     vec = find_local_minimum(cropped_depth)
+    vec = remove_windows(depth, vec, s, e, signal_thrs=10, window_thrs=window_thrs)
+    if len(vec) > 1:
+        vec = reduce_neighbours(depth, vec, s, e)
 
-
+    return vec
 
 
 def find_local_minimum(cropped_depth, signal_thrs=0.4, gaussian_kernel=5):
@@ -39,7 +43,7 @@ def find_local_minimum(cropped_depth, signal_thrs=0.4, gaussian_kernel=5):
     return reduce_to_center(vec)
 
 
-def remove_windows(depth, vec, start, end, signal_thrs=10, window_thrs=0.5):
+def remove_windows(depth, vec, start, end, signal_thrs=10, window_thrs=0.7):
     final = []
     for index_ in vec:
         mid = (start + end) // 2
@@ -61,27 +65,52 @@ def remove_windows(depth, vec, start, end, signal_thrs=10, window_thrs=0.5):
         elif upper < window_thrs and lower > window_thrs:
             # lower window
             continue
-        else: # gap - valid
+        else:  # gap - valid
             final.append(index_)
 
     return final
 
+def reduce_neighbours(depth, vec, start, end, neighbours_thrs=150):
+    last = vec[0]
+    neighbours = [last]
+    reduced = []
+    for i in vec[1:]:
+        if i - neighbours[-1] < neighbours_thrs:
+            neighbours.append(i)
+        else:
+            score = np.array([])
+            for n in neighbours:
+                score = np.append(score, np.sum(depth[start:end, n]))
+            j = np.argmin(score)
+            reduced.append(neighbours[j])
 
+            neighbours = [i]
+            if i == vec[-1]:  # last
+                reduced.append(i)
 
+    # for loop finished before taking care of neighbours list
+    if len(neighbours) > 1:
+        score = np.array([])
+        for n in neighbours:
+            score = np.append(score, np.sum(depth[start:end, n]))
+        j = np.argmin(score)
+        reduced.append(neighbours[j])
 
-
+    return reduced
 
 
 def reduce_to_center(vec):
     centers = []
-    args = np.where(vec == 1)
+    args = np.argwhere(vec == 1)
+    if len(args) == 0:
+        return centers
     temp = [args[0][0]]
-    for i in range(1, len(list(args[0]))):
-        if args[0][i] - args[0][i - 1] <= 1:
-            temp.append(args[0][i])
+    for i in range(1, len(args)):
+        if args[i][0] - args[i - 1][0] <= 1:
+            temp.append(args[i][0])
         else:
             centers.append(int(np.mean(temp)))
-            temp = [args[0][i]]
+            temp = [args[i][0]]
 
     centers.append(int(np.mean(temp)))
 
@@ -120,20 +149,20 @@ def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, 
 
 
 
-def slice_frame(depth, routh_thrs=4000, grad_kernel=3, number_of_rouths=30, depth_thrs=70, get_best=4, delta_thrs=500):
-
-    pos_grad, neg_grad = get_grad(depth, k_size=grad_kernel)
-
-    # mask using depth - leave only remote areas
-    neg_grad[depth > depth_thrs] = 0
-    pos_grad[depth > depth_thrs] = 0
-
-    n_xs, n_ys, n_mes = extract_rouths(neg_grad, routh_thrs, number_of_rouths, get_best)
-    p_xs, p_ys, p_mes = extract_rouths(pos_grad, routh_thrs, number_of_rouths, get_best)
-
-    gaps = filter_by_delta(n_xs, n_ys, n_mes, p_xs, p_ys, p_mes, delta_thrs)
-
-    return gaps
+# def slice_frame(depth, routh_thrs=4000, grad_kernel=3, number_of_rouths=30, depth_thrs=70, get_best=4, delta_thrs=500):
+#
+#     pos_grad, neg_grad = get_grad(depth, k_size=grad_kernel)
+#
+#     # mask using depth - leave only remote areas
+#     neg_grad[depth > depth_thrs] = 0
+#     pos_grad[depth > depth_thrs] = 0
+#
+#     n_xs, n_ys, n_mes = extract_rouths(neg_grad, routh_thrs, number_of_rouths, get_best)
+#     p_xs, p_ys, p_mes = extract_rouths(pos_grad, routh_thrs, number_of_rouths, get_best)
+#
+#     gaps = filter_by_delta(n_xs, n_ys, n_mes, p_xs, p_ys, p_mes, delta_thrs)
+#
+#     return gaps
 
 
 def extract_rouths(grad, routh_thrs, number_of_rouths, get_best=4):
@@ -377,21 +406,34 @@ def filter_by_delta(n_xs, n_ys, n_mes, p_xs, p_ys, p_mes, delta_thrs=500, abs=Fa
     return gaps
 
 
+def print_lines(frame, depth, lines):
+    out = frame.copy()
+    s, e = find_tree_height_limits(depth)
+    for line in lines:
+        out = cv2.line(out, (line, s), (line, e), (255, 0, 255), 2)
 
-
-
+    return out
 
 
 
 if __name__ == "__main__":
-    f_id = 272
-    fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/depth/depth_frame_{f_id}.jpg"
-    depth = cv2.imread(fp)
-    depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
-    fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/frames/frame_{f_id}.jpg"
-    frame = cv2.imread(fp)
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    f_ids = np.arange(136, 278, 1)
+    #f_ids = [154]
 
-    #s, e = find_tree_height_limits(depth)
-    gaps = slice_frame(depth, grad_kernel=7, depth_thrs=70)
+    for f_id in tqdm(f_ids):
+        fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/depth/depth_frame_{f_id}.jpg"
+        depth = cv2.imread(fp)
+        depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
+        fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/frames/frame_{f_id}.jpg"
+        frame = cv2.imread(fp)
+        #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        #s, e = find_tree_height_limits(depth)
+        gaps = slice_frame(depth, window_thrs=0.7)
+        output = print_lines(frame, depth, gaps)
+        fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/slice/frame_slice_{f_id}.jpg"
+        cv2.imwrite(fp, output)
+
+
+
 
