@@ -2,7 +2,8 @@ import os
 import numpy as np
 import cv2
 import json
-
+import pandas as pd
+import collections
 from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
 from vision.tools.video_wrapper import video_wrapper
@@ -157,7 +158,6 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         params = update_index(k, params)
         write_json(params)
 
-
     # When everything done, release the video capture object
     cam.close()
 
@@ -169,7 +169,7 @@ def preprocess_frame(frame, params):
     height = int(params['height'] // params['resize_factor'])
 
     frame, r = resize_img(frame, height)
-    #if params['rotate']:
+    # if params['rotate']:
     #       frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
     params['frame'] = frame.copy()
     params['r'] = r
@@ -237,8 +237,8 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536):
-    size = int(h // resize_factor)
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+    size = int(w // resize_factor)
     r = min(size / h, size / w)
 
     with open(data_file, 'r') as f:
@@ -257,38 +257,44 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
             else:
                 hash[frame['frame_id']] = [frame]
 
-    cap = cv2.VideoCapture(file_path)
-    if (cap.isOpened() == False):
-        print("Error opening video stream or file")
+    if not on_fly:
+        cap = cv2.VideoCapture(file_path)
+        if (cap.isOpened() == False):
+            print("Error opening video stream or file")
 
-    # Read until video is completed
-    f_id = 0
-    hash_ids = list(hash.keys())
-    pbar = tqdm(total=len(hash_ids))
-    while (cap.isOpened()):
+        # Read until video is completed
+        f_id = 0
+        hash_ids = list(hash.keys())
+        pbar = tqdm(total=len(hash_ids))
+        while (cap.isOpened()):
 
-        ret, frame = cap.read()
-        if ret == True:
-            pbar.update(1)
-            if f_id in hash_ids:
-                for frame_data in hash[f_id]:
-                    if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
-                        os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
-                    cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
-            f_id += 1
-        # Break the loop
-        else:
-            break
-    # When everything done, release the video capture object
-    cap.release()
-
+            ret, frame = cap.read()
+            if ret == True:
+                pbar.update(1)
+                if f_id in hash_ids:
+                    for frame_data in hash[f_id]:
+                        if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+                            os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+                        cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+                f_id += 1
+            # Break the loop
+            else:
+                break
+        # When everything done, release the video capture object
+        cap.release()
+    df_all = []
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
         df.loc[df['start'] != -1, 'start'] = df.loc[df['start'] != -1, 'start'] // r
         df.loc[df['end'] != -1, 'end'] = df.loc[df['end'] != -1, 'end'] // r
-        if not os.path.exists(os.path.join(output_path, f"T{tree_id}")):
-            os.mkdir(os.path.join(output_path, f"T{tree_id}"))
-        df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
+        if on_fly:
+            df_all.append(df)
+        else:
+            if not os.path.exists(os.path.join(output_path, f"T{tree_id}")):
+                os.mkdir(os.path.join(output_path, f"T{tree_id}"))
+            df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
+    if on_fly:
+        return pd.concat(df_all, axis=0)
 
 
 def parse_data_to_trees(data):
@@ -509,14 +515,15 @@ def get_state(loc):
         else:
             state = 6  # end - start
     elif loc['end'] is not None:
-        state = 2 # end
+        state = 2  # end
     else:
-        state = 1 # start
+        state = 1  # start
 
     return state
 
 
 if __name__ == "__main__":
-    file_path = r"/media/yotam/Extreme SSD/syngenta trail/tomato/221222/post0.5m1stm/ZED_1.svo"
-    output_path = r"/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/221222/post0.5m1stm"
-    manual_slicer(file_path, output_path, rotate=True)
+    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/281222/postTiltDown40cm/ZED_1_1st.svo'
+    output_path = '/media/yotam/Extreme SSD/syngenta trail/tomato/281222/postTiltDown40cm'
+    validate_output_path(output_path)
+    manual_slicer(fp, output_path, rotate=2)

@@ -7,15 +7,16 @@ from vision.tools.camera import find_gl_by_percentile
 
 
 
-def slice_frame(depth, window_thrs=0.7):
+def slice_frame(depth, window_thrs=0.7, signal_thrs=0.5, neighbours_thrs=250):
 
     s, e = find_tree_height_limits(depth)
 
     cropped_depth = depth[s:e, :].copy()
-    vec = find_local_minimum(cropped_depth)
-    vec = remove_windows(depth, vec, s, e, signal_thrs=10, window_thrs=window_thrs)
+    vec = find_local_minimum(cropped_depth, signal_thrs=signal_thrs)
+    vec = remove_windows(depth, vec, s, e, window_thrs=window_thrs)
     if len(vec) > 1:
-        vec = reduce_neighbours(depth, vec, s, e)
+        vec = reduce_neighbours(depth, vec, s, e, neighbours_thrs=neighbours_thrs)
+
 
     return vec
 
@@ -61,16 +62,16 @@ def remove_windows(depth, vec, start, end, signal_thrs=10, window_thrs=0.7):
             final.append(index_)
         elif upper > window_thrs and lower < window_thrs:
             # upper window
-            continue
+            final.append(index_)
         elif upper < window_thrs and lower > window_thrs:
             # lower window
             continue
-        else:  # gap - valid
-            final.append(index_)
+        #else:  # gap - valid
+        #    final.append(index_)
 
     return final
 
-def reduce_neighbours(depth, vec, start, end, neighbours_thrs=150):
+def reduce_neighbours(depth, vec, start, end, neighbours_thrs=250):
     last = vec[0]
     neighbours = [last]
     reduced = []
@@ -95,6 +96,9 @@ def reduce_neighbours(depth, vec, start, end, neighbours_thrs=150):
             score = np.append(score, np.sum(depth[start:end, n]))
         j = np.argmin(score)
         reduced.append(neighbours[j])
+
+    if len(reduced) > 2:
+        reduced = [reduced[0], reduced[-1]]
 
     return reduced
 
@@ -418,7 +422,7 @@ def print_lines(frame, depth, lines):
 
 if __name__ == "__main__":
     f_ids = np.arange(136, 278, 1)
-    #f_ids = [154]
+    #f_ids = [164]
 
     for f_id in tqdm(f_ids):
         fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/depth/depth_frame_{f_id}.jpg"
@@ -429,7 +433,7 @@ if __name__ == "__main__":
         #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         #s, e = find_tree_height_limits(depth)
-        gaps = slice_frame(depth, window_thrs=0.7)
+        gaps = slice_frame(depth, window_thrs=0.4)
         output = print_lines(frame, depth, gaps)
         fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/slice/frame_slice_{f_id}.jpg"
         cv2.imwrite(fp, output)
