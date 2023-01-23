@@ -87,7 +87,7 @@ def svo_to_frames(filepath, output_path_name, max_frame=None, rotate=0, min_dept
 
 
 if __name__ == "__main__":
-    fp ="/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/ZED_1.svo"
-    output_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3"
+    fp ="/home/yotam/FruitSpec/Data/dwdg/DWDBCL46/R11/ZED_1.svo"
+    output_path = "/home/yotam/FruitSpec/Sandbox/DWDB_2023/DWDBCL46/R11"
     validate_output_path(output_path)
     svo_to_frames(fp, output_path, 300, 2, 1., 3.5)

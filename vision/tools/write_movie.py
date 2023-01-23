@@ -17,16 +17,16 @@ def write_results_on_movie(frame_path, output_path, range=[0,500], fps=15):
         if 'jpg' in splited[-1]:
             words = splited[0].split('_')
             frame_id = int(words[-1])
-            file_path = os.path.join(output_path, file)
+            file_path = os.path.join(frame_path, file)
             file_dict[frame_id] = file_path
 
     file_dict = collections.OrderedDict(sorted(file_dict.items()))
 
     width, height = 1080, 1920 #1536, 2048
 
-    output_video_name = os.path.join(output_path, 'result_video.avi')
-    output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                   fps, (width, height))
+    output_video_name = os.path.join(output_path, 'result_video.mkv')
+    output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('h', '2', '6', '4'),
+                                   fps, (width, height), True)
 
     for id_, f_path in tqdm(file_dict.items()):
         if id_ < range[0]:
@@ -42,8 +42,8 @@ def write_results_on_movie(frame_path, output_path, range=[0,500], fps=15):
 
 if __name__ == "__main__":
 
-    frame_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/slice"
-    output_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/slice"
+    frame_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/frames"
+    output_path = "/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/frames"
     range = [136, 277]
     fps = 5
     write_results_on_movie(frame_path, output_path, range, fps)

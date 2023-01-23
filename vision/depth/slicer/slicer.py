@@ -122,7 +122,7 @@ def reduce_to_center(vec):
 
 
 
-def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, median_kernel=15):
+def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, median_kernel=15, min_start=750, min_end=1350 ):
     depth = cv2.medianBlur(depth, median_kernel)
 
     w = depth.shape[1]
@@ -148,6 +148,9 @@ def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, 
 
     starts = np.median(first_nonzero(d, axis=1)).astype(np.uint16)
     ends = np.median(last_nonzero(d, axis=1)).astype(np.uint16)
+
+    starts = min(min_start, starts)
+    ends = max(min_end, ends)
 
     return starts, ends
 
@@ -424,6 +427,7 @@ if __name__ == "__main__":
     f_ids = np.arange(136, 278, 1)
     #f_ids = [164]
 
+    data = {}
     for f_id in tqdm(f_ids):
         fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/depth/depth_frame_{f_id}.jpg"
         depth = cv2.imread(fp)
@@ -434,9 +438,12 @@ if __name__ == "__main__":
 
         #s, e = find_tree_height_limits(depth)
         gaps = slice_frame(depth, window_thrs=0.4)
+
         output = print_lines(frame, depth, gaps)
         fp = f"/home/yotam/FruitSpec/Sandbox/slicer_test/caracara_R2_3011/sliced3/slice/frame_slice_{f_id}.jpg"
         cv2.imwrite(fp, output)
+
+        data[f_id] = gaps
 
 
 
