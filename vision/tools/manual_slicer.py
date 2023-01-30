@@ -6,7 +6,7 @@ import pandas as pd
 import collections
 from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
-from vision.tools.video_wrapper import video_wrapper
+# from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
 
 
@@ -257,31 +257,31 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
             else:
                 hash[frame['frame_id']] = [frame]
 
-    if not on_fly:
-        cap = cv2.VideoCapture(file_path)
-        if (cap.isOpened() == False):
-            print("Error opening video stream or file")
-
-        # Read until video is completed
-        f_id = 0
-        hash_ids = list(hash.keys())
-        pbar = tqdm(total=len(hash_ids))
-        while (cap.isOpened()):
-
-            ret, frame = cap.read()
-            if ret == True:
-                pbar.update(1)
-                if f_id in hash_ids:
-                    for frame_data in hash[f_id]:
-                        if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
-                            os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
-                        cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
-                f_id += 1
-            # Break the loop
-            else:
-                break
-        # When everything done, release the video capture object
-        cap.release()
+    # if not on_fly:
+    #     cap = cv2.VideoCapture(file_path)
+    #     if (cap.isOpened() == False):
+    #         print("Error opening video stream or file")
+    #
+    #     # Read until video is completed
+    #     f_id = 0
+    #     hash_ids = list(hash.keys())
+    #     pbar = tqdm(total=len(hash_ids))
+    #     while (cap.isOpened()):
+    #
+    #         ret, frame = cap.read()
+    #         if ret == True:
+    #             pbar.update(1)
+    #             if f_id in hash_ids:
+    #                 for frame_data in hash[f_id]:
+    #                     if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+    #                         os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+    #                     cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+    #             f_id += 1
+    #         # Break the loop
+    #         else:
+    #             break
+    #     # When everything done, release the video capture object
+    #     cap.release()
     df_all = []
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])

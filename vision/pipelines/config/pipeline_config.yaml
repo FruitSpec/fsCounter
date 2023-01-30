@@ -20,7 +20,7 @@ device: cuda
 input_size: [1024, 1024]
 
 detector:
-  confidence: 0.8
+  confidence: 0.7
   nms: 0.6
   num_of_classes: 1
   fp16: true
@@ -49,7 +49,8 @@ translation:
 
 filters:
   distance:
-    threshold: 1.4
+    threshold: 0.9
+
   duplicates:
     iou_threshold: 0.6
   size:

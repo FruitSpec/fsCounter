@@ -2,8 +2,11 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$USER_HOME$/PycharmProjects/FS-ZED/.idea/FS-ZED.iml" filepath="$USER_HOME$/PycharmProjects/FS-ZED/.idea/FS-ZED.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../Comparing/.idea/Comparing.iml" filepath="$PROJECT_DIR$/../Comparing/.idea/Comparing.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../FS-ZED/.idea/FS-ZED.iml" filepath="$PROJECT_DIR$/../FS-ZED/.idea/FS-ZED.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/fsCounter.iml" filepath="$PROJECT_DIR$/.idea/fsCounter.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../data_science/.idea/pythonProject.iml" filepath="$PROJECT_DIR$/../data_science/.idea/pythonProject.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../reporter/.idea/reporter.iml" filepath="$PROJECT_DIR$/../reporter/.idea/reporter.iml" />
     </modules>
   </component>
 </project>

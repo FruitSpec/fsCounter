@@ -5,5 +5,8 @@
     <orderEntry type="jdk" jdkName="Remote Python 3.8.10 (sftp://yotam@54.0.0.22:22/home/yotam/.virtualenvs/fsCounter/bin/python)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="FS-ZED" />
+    <orderEntry type="module" module-name="Comparing" />
+    <orderEntry type="module" module-name="pythonProject" />
+    <orderEntry type="module" module-name="reporter" />
   </component>
 </module>

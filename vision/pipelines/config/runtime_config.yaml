@@ -1,5 +1,5 @@
-movie_path: /media/yotam/Extreme SSD/syngenta trail/tomato/281222/preTiltDown70cm/ZED_2_2nd.svo
-output_folder: /media/yotam/Extreme SSD/syngenta trail/tomato/analysis/281222/2ndpreTiltDown70cm
+movie_path: /media/yotam/Extreme SSD/syngenta trail/tomato/230123/post/14/ZED_1.svo
+output_folder: /media/yotam/Extreme SSD/syngenta trail/tomato/analysis/230123/post/14
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
@@ -9,7 +9,7 @@ depth_maximum: 2.5 # 8 counter
 debug:
   is_debug: true  # master switch
   tracker_windows: false
-  tracker_results: true
+  tracker_results: false
   det_results: false
   raw_frame: false
   depth: false
