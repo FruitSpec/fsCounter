@@ -9,19 +9,16 @@ def convert_to_coco_format(outputs, info_imgs, img_size, class_ids, type_='dets'
     data_list = []
 
     # preprocessing: resize
-    scale = min(
-        img_size[0] / float(info_imgs[0]), img_size[1] / float(info_imgs[1])
-    )
-
-    for output in outputs():
+    # scale = min(img_size[0] / float(info_imgs[0]), img_size[1] / float(info_imgs[1]))
+    for output in outputs:
         if output is None:
             continue
         bboxes = output[0:4]
-        bboxes /= scale
-        scores = output[4] * output[5]
-        cls = output[6]
+        # bboxes /= scale
+        scores = output[4]
+        cls = output[5]
+        track_id = output[6]
         ids = output[7]
-        track_id = output[8]
 
         if type_ == 'tracks' and track_id == -1:
             continue
@@ -31,11 +28,11 @@ def convert_to_coco_format(outputs, info_imgs, img_size, class_ids, type_='dets'
         label = class_ids[int(cls)]
         pred_data = {
             "image_id": int(ids),
-            "category_id": label,
-            "bbox": bboxes.numpy().tolist(),
-            "score": scores.numpy().item(),
+            "category_id": int(label),
+            "bbox": bboxes,
+            "score": float(scores),
             "segmentation": [],
-            "track_id": track_id
+            "track_id": int(track_id)
         }  # COCO json format
         if data_label is not None:
             pred_data["label"] = data_label
@@ -56,11 +53,11 @@ def create_category_dict(category_list):
 def create_images_dict(files, ids, height, width):
     images = []
     for file, id_ in zip(files, ids):
-        image = {"id": id_,
+        image = {"id": int(id_),
                  "license": 1,
                  "file_name": file,
-                 "height": height,
-                 "width": width,
+                 "height": int(height),
+                 "width": int(width),
                  }
         images.append(image)
 
@@ -68,8 +65,8 @@ def create_images_dict(files, ids, height, width):
 
 
 def xyxy2xywh(bboxes):
-    bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 0]
-    bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
+    bboxes[2] = bboxes[2] - bboxes[0]
+    bboxes[3] = bboxes[3] - bboxes[1]
     return bboxes
 
 def generate_coco_format(outputs, info_imgs, ids, img_size,

@@ -6,7 +6,7 @@ import numpy as np
 import collections
 
 from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions,sl_get_dimensions
+from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -38,13 +38,12 @@ def run(cfg, args):
         pbar.update(1)
         frame, depth, point_cloud = cam.get_zed()
         if not cam.res:  # couldn't get frames
-        #     Break the loop
+            #     Break the loop
             break
 
         if is_sturated(frame):
             f_id += 1
             continue
-
 
         # detect:
         det_outputs = detector.detect(frame)
@@ -57,7 +56,6 @@ def run(cfg, args):
 
         # track:
         trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
-
 
         # filter by distance:
         indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
@@ -84,12 +82,8 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-
-    # results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
-
-    # results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
-
+    # detector.release()
 
 def get_id_and_categories(cfg):
     category = []
@@ -106,7 +100,7 @@ def get_colors(trk_results, frame):
     hists = []
     for res in trk_results:
         # TODO
-        h, b = get_hue(frame[max(res[1],0):res[3], max(res[0],0):res[2], :])
+        h, b = get_hue(frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :])
         mean = np.sum(b[:-1] * h) / np.sum(h)
         std = np.sqrt(np.sum(((mean - b[:-1]) ** 2) * h) / np.sum(h))
         colors.append([mean * 2, std * 2])  # multiply by 2 to correct hue to 360 angles
@@ -163,7 +157,6 @@ if __name__ == "__main__":
     repo_dir = get_repo_dir()
     pipeline_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/runtime_config.yaml"
-
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 

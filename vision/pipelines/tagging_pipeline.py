@@ -3,21 +3,23 @@ import sys
 import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
-
+import random
 
 from vision.misc.help_func import get_repo_dir
+
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.tools.translation import translation as T
-from vision.data.results_collector import ResultsCollector, scale
+from vision.data.results_collector import ResultsCollector
 from vision.misc.help_func import validate_output_path
 
 
 def run(cfg, args):
     detector = counter_detection(cfg, args)
-    results_collector = ResultsCollector(rotate=args.rotate)
+    results_collector_track = ResultsCollector(rotate=args.rotate)
+    results_collector_annotate = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     cap = cv2.VideoCapture(args.movie_path)
@@ -26,18 +28,20 @@ def run(cfg, args):
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
 
-    tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     # Read until video is completed
     print(f'Inferencing on {args.movie_path}')
     f_id = -1
     ids = []
     pbar = tqdm(total=tot_frames)
+    track_frames, annotate_frames = check_task(tot_frames, args.task)
     while (cap.isOpened()):
 
         # Capture frame-by-frame
         ret, frame = cap.read()
-        if ret == True:
+        f_id += 1
+        if ret == True and (f_id in track_frames or f_id in annotate_frames):
             pbar.update(1)
             if args.rotate == 2:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -53,45 +57,56 @@ def run(cfg, args):
             # track:
             trk_outputs, trk_windows = detector.track(det_outputs, tx, ty, f_id)
 
-            # collect results:
-            results_collector.collect_detections(det_outputs, f_id)
-            results_collector.collect_tracks(trk_outputs)
+            if args.debug.is_debug and f_id in annotate_frames:
+                # collect results:
+                results_collector_annotate.collect_tracks(trk_outputs)
+                args.output_folder = args.output_folder_annotate
+                results_collector_annotate.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
 
-            if args.debug.is_debug:
-                results_collector.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
+            if args.debug.is_debug and f_id in track_frames:
+                # collect results:
+                results_collector_track.collect_tracks(trk_outputs)
+                args.output_folder = args.output_folder_track
+                results_collector_track.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
+
             ids.append(f_id)
-            f_id += 1
+
 
         # Break the loop
-        else:
+        elif ret == False:
+            break
+
+        elif len(ids) >= len(annotate_frames) and len(ids) >= len(track_frames):
             break
 
     # When everything done, release the video capture object
     cap.release()
-
     # Closes all the frames
     # cv2.destroyAllWindows()
 
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
-    results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
+    results_collector_annotate.dump_to_json(f"{args.output_folder_annotate}/coco.json")
+    results_collector_track.dump_to_json(f"{args.output_folder_track}/coco.json")
 
 
-def get_id_and_categories(cfg):
-    category = []
-    category_ids = []
-    for category, id_ in cfg.classes.items():
-        category.append(category)
-        category_ids.append(id_)
-
-    return category, category_ids
+def check_task(frames, task):
+    f_ann = random.sample(range(frames), task['annotation'])
+    start = random.choice(range(frames))
+    end = start + task['tracking']
+    f_track = range(frames)[start:end]
+    return f_track, f_ann
 
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
+
+    """user"""
     config_file = "/vision/pipelines/config/pipeline_config_DE.yaml"
     runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
     args = OmegaConf.load(repo_dir + runtime_config)
-    args.frame_size = [2048, 1536]
+    args.task = {'annotation': 0, 'tracking': 0}
+
     validate_output_path(args.output_folder)
+    validate_output_path(args.output_folder_track, flag=args.task['tracking'])
+    validate_output_path(args.output_folder_annotate, flag=args.task['annotation'])
     run(cfg, args)

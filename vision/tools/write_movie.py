@@ -25,8 +25,7 @@ def write_results_on_movie(frame_path, output_path, range=[0,500]):
     width, height = 1536, 2048
 
     output_video_name = os.path.join(output_path, 'result_video.avi')
-    output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                   15, (width, height))
+    output_video = cv2
 
     for id_, f_path in tqdm(file_dict.items()):
         if id_ < range[0]:

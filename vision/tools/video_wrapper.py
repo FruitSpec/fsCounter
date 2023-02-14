@@ -15,7 +15,7 @@ class video_wrapper():
 
         else:
             self.mode = 'other'
-            self.cam = cv2.VideoCapture(filepath)
+            self.cam = cv2
             self.runtime = None
             self.mat = None
             self.res = None

@@ -9,7 +9,7 @@ def run(movie_path, output_path,  range=None, rotate=True):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
 
-    cap = cv2.VideoCapture(movie_path)
+    cap = cv2
 
     # Check if camera opened successfully
     if (cap.isOpened() == False):
@@ -102,9 +102,9 @@ def mkv_to_fsi_and_rgb(folder, output_path):
 
 
 
-    cap_rgb = cv2.VideoCapture(channel_rgb_p)
-    cap_800 = cv2.VideoCapture(channel_800_p)
-    cap_975 = cv2.VideoCapture(channel_975_p)
+    cap_rgb = cv2
+    cap_800 = cv2
+    cap_975 = cv2
 
     print('rgb:',cap_rgb.get(cv2.CAP_PROP_FRAME_COUNT))
     print('800: ',cap_800.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -116,10 +116,8 @@ def mkv_to_fsi_and_rgb(folder, output_path):
 
     fsi_video_name = os.path.join(output_path, 'FSI.mkv')
     rgb_video_name = os.path.join(output_path, 'rgb.mkv')
-    fsi = cv2.VideoWriter(fsi_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                   fps, (width, height))
-    rgb = cv2.VideoWriter(rgb_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                          fps, (width, height))
+    fsi = cv2
+    rgb = cv2
 
     i = 0
     while cap_rgb.isOpened():

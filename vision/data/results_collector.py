@@ -4,9 +4,10 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
-
+from json import dump,dumps
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 from vision.misc.help_func import validate_output_path, scale_dets
+from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
 
 
 class ResultsCollector():
@@ -19,6 +20,7 @@ class ResultsCollector():
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
+        self.coco = {"categories": [], "images": [], "annotations": []}
 
     def collect_detections(self, detection_results, img_id):
         if detection_results is not None:
@@ -127,6 +129,10 @@ class ResultsCollector():
             write.writerows(rows)
         print(f'Done writing results to csv')
 
+    def dump_to_json(self, output_file_path):
+        with open(output_file_path, "w", encoding='utf8') as f:
+            dump(self.coco, f)
+
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
             the function draw results on each frame
@@ -138,7 +144,7 @@ class ResultsCollector():
         else:
             hash = self.create_hash(self.detections)
 
-        cap = cv2.VideoCapture(movie_path)
+        cap = cv2
         tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
         if not write_frames:
@@ -146,8 +152,7 @@ class ResultsCollector():
             height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
             fps = cap.get(cv2.CAP_PROP_FPS)
             output_video_name = os.path.join(output_path, 'result_video.mp4')
-            output_video = cv2.VideoWriter(output_video_name, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                           fps, (width, height))
+            output_video = cv2
         # Read until video is completed
         print("writing results")
         ids_in_hash = list(hash.keys())
@@ -201,8 +206,8 @@ class ResultsCollector():
 
     def plot_hist(self, frame, trk_outputs, f_id, output_path, hists):
         for hist, det in zip(hists, trk_outputs):
-            #TODO
-            crop = frame[max(det[1],0):det[3], max(det[0],0):det[2]].copy()
+            # TODO
+            crop = frame[max(det[1], 0):det[3], max(det[0], 0):det[2]].copy()
             crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
             fig, (ax1, ax2) = plt.subplots(1, 2)
             ax1.plot(hist)
@@ -269,6 +274,16 @@ class ResultsCollector():
         if args.debug.hue_histogram:
             validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
             self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)
+        if args.debug.annotate:
+            self.coco["categories"] = [
+                {
+                    "supercategory": "Fruits",
+                    "id": 1,
+                    "name": "orange"
+                }]
+            self.coco["images"].extend(create_images_dict([f'frame_{f_id}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
+            self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
+                                                               [args.frame_size[0], args.frame_size[1]], [1], "dets"))
 
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
@@ -291,7 +306,6 @@ def scale(det_dims, frame_dims):
 
 
 def scale_det(detection, scale_):
-
     # Detection ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
     x1 = int(detection[0] * scale_)
     y1 = int(detection[1] * scale_)

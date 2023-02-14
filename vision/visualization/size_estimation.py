@@ -18,7 +18,7 @@ frames_list = list(df['frame'])
 
 def split_clip_to_frames(fp, clip_file_path, frames_list):
 
-    cap = cv2.VideoCapture(clip_file_path)
+    cap = cv2
 
     # Check if camera opened successfully
     if (cap.isOpened() == False):

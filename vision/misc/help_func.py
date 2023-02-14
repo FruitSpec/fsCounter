@@ -1,5 +1,6 @@
 import os
 
+
 def scale(det_dims, frame_dims):
     r = min(det_dims[0] / frame_dims[0], det_dims[1] / frame_dims[1])
     return (1 / r)
@@ -18,6 +19,8 @@ def scale_det(detection, scale_):
 
     # res ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred, image_id)
     return [x1, y1, x2, y2, obj_conf, class_conf, class_pred]
+
+
 def scale_dets(det_outputs, scale_):
     if det_outputs[0] is None:
         dets = list()
@@ -26,6 +29,7 @@ def scale_dets(det_outputs, scale_):
         dets = list(map(scale_det, det_outputs[0].cpu().numpy(), scales))
 
     return dets
+
 
 def get_repo_dir():
     cwd = os.getcwd()
@@ -37,6 +41,9 @@ def get_repo_dir():
 
     return repo_dir
 
-def validate_output_path(output_folder):
+
+def validate_output_path(output_folder, flag=1):
+    if flag == 0:
+        return
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)

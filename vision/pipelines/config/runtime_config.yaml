@@ -1,5 +1,7 @@
-movie_path: /media/yotam/Extreme SSD/syngenta trail/tomato/230123/post/14/ZED_1.svo
-output_folder: /media/yotam/Extreme SSD/syngenta trail/tomato/analysis/230123/post/14
+movie_path: /media/yotam/Extreme SSD/tasq_samples/Result_FSI.mkv
+output_folder: /media/yotam/Extreme SSD/tasq_samples/output
+output_folder_track: /media/yotam/Extreme SSD/tasq_samples/output/tracking
+output_folder_annotate: /media/yotam/Extreme SSD/tasq_samples/output/annotation
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
@@ -11,9 +13,10 @@ debug:
   tracker_windows: false
   tracker_results: false
   det_results: false
-  raw_frame: false
+  raw_frame: true
   depth: false
   tracker: None
   clusters: false
   hue_histogram: false
+  annotate: true
 

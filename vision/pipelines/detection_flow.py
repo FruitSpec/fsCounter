@@ -12,6 +12,10 @@ from vision.misc.help_func import scale_dets, scale
 from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 
+def release():
+    torch.cuda.empty_cache()
+
+
 class counter_detection():
 
     def __init__(self, cfg, args):
@@ -118,6 +122,11 @@ class counter_detection():
 
         return output
 
-
-
+    def release(self):
+        import gc
+        self.detector.cpu()
+        del self.detector
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("Release GPU!")
 

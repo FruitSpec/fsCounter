@@ -115,7 +115,7 @@ class FsTracker():
                 x1 = tracklets_bboxes[:, 0] - tx
                 x2 = tracklets_bboxes[:, 2] + margin - tx_m
             else:
-                x1 = tracklets_bboxes[:, 0] + margin - tx_m
+                x1 = tracklets_bboxes[:, 0] - margin - tx_m
                 x2 = tracklets_bboxes[:, 2] - tx
 
 
@@ -126,7 +126,7 @@ class FsTracker():
                 y1 = tracklets_bboxes[:, 1] - ty
                 y2 = tracklets_bboxes[:, 3] + margin - ty_m
             else:
-                y1 = tracklets_bboxes[:, 1] + margin - ty_m
+                y1 = tracklets_bboxes[:, 1] - margin - ty_m
                 y2 = tracklets_bboxes[:, 3] - ty
 
 
@@ -205,10 +205,10 @@ class FsTracker():
             margin_coef = (1 - self.det_area) / 2
             margin_x = (bboxes2[:, 2] - bboxes2[:, 0]) * margin_coef
             margin_y = (bboxes2[:, 3] - bboxes2[:, 1]) * margin_coef
-            bboxes2[:, 0] + margin_x
-            bboxes2[:, 2] - margin_x
-            bboxes2[:, 1] + margin_y
-            bboxes2[:, 3] - margin_y
+            bboxes2[:, 0] += margin_x
+            bboxes2[:, 2] -= margin_x
+            bboxes2[:, 1] += margin_y
+            bboxes2[:, 3] -= margin_y
 
         inetr_area = get_intersection(bboxes1, bboxes2)
         if len(inetr_area) > 0:

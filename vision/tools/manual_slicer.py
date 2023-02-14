@@ -326,9 +326,9 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # start new tree
@@ -338,7 +338,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
 
 
         elif last_state == 1:
@@ -373,7 +373,7 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:
-                raise ValueError("Got wrong state 3 after state 2")
+                raise ValueError(f"Got wrong state 3 after state 2 frame: {frame_id}")
             elif state == 4:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -400,13 +400,13 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # add to next tree
                 trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']})
             elif state == 4:  # end - start
-                raise ValueError("Got wrong state 4 after state 3")
+                raise ValueError(f"Got wrong state 4 after state 3 frame: {frame_id}")
             elif state == 5:
                 tree_id += 1
                 trees_data[tree_id] = [
@@ -431,7 +431,7 @@ def parse_data_to_trees(data):
                     tree_id += 1
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:  # start - end
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
@@ -456,9 +456,9 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -482,9 +482,9 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})

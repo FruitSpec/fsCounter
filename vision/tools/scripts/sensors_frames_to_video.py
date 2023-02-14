@@ -21,11 +21,11 @@ def write_video(zed_folder, jai_folder, zed_frames, jai_frames, output_path):
         rgb_jai_list.append(os.path.join(jai_folder, f"rgb_{i}.jpg"))
 
     movie_path = os.path.join(output_path, 'zed_jai.avi')
-    zed_jai = cv2.VideoWriter(movie_path, cv2.VideoWriter_fourcc('M','J','P','G'), 5, (750 * 2, 1000))
+    zed_jai = cv2
     movie_path = os.path.join(output_path, 'depth_jai.avi')
     #fourcc = cv2.VideoWriter_fourcc(*'MP4V')
     #depth_jai = cv2.VideoWriter(movie_path, fourcc, 5, (750 * 2, 1000))
-    depth_jai = cv2.VideoWriter(movie_path, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 5, (750 * 2, 1000))
+    depth_jai = cv2
 
     for i in tqdm(range(len(zed_frame_list))):
         zed = cv2.imread(zed_frame_list[i])
