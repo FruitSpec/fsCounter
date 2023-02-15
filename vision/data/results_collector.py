@@ -4,7 +4,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
-from json import dump,dumps
+from json import dump, dumps
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 from vision.misc.help_func import validate_output_path, scale_dets
 from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
@@ -274,15 +274,18 @@ class ResultsCollector():
         if args.debug.hue_histogram:
             validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
             self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)
-        if args.debug.annotate:
-            self.coco["categories"] = [
-                {
-                    "supercategory": "Fruits",
-                    "id": 1,
-                    "name": "orange"
-                }]
-            self.coco["images"].extend(create_images_dict([f'frame_{f_id}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
-            self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
+
+    def det_to_coco(self, f_id, args, trk_outputs, frame):
+        validate_output_path(os.path.join(args.output_folder, 'frames'))
+        self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+        self.coco["categories"] = [
+            {
+                "supercategory": "Fruits",
+                "id": 1,
+                "name": "orange"
+            }]
+        self.coco["images"].extend(create_images_dict([f'frame_{f_id}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
+        self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
                                                                [args.frame_size[0], args.frame_size[1]], [1], "dets"))
 
     @staticmethod

@@ -61,12 +61,14 @@ def run(cfg, args):
                 # collect results:
                 results_collector_annotate.collect_tracks(trk_outputs)
                 args.output_folder = args.output_folder_annotate
+                results_collector_annotate.det_to_coco(f_id, args, trk_outputs,frame)
                 results_collector_annotate.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
 
             if args.debug.is_debug and f_id in track_frames:
                 # collect results:
                 results_collector_track.collect_tracks(trk_outputs)
                 args.output_folder = args.output_folder_track
+                results_collector_track.det_to_coco(f_id, args, trk_outputs,frame)
                 results_collector_track.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
 
             ids.append(f_id)
