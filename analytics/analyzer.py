@@ -208,8 +208,8 @@ class phenotyping_analyzer(Analyzer):
             if not Analyzer.valid_output(pre, post):
                 df_sum = append_results(df_sum, [self.side, pre[0]] + [None] * 9)
                 continue
-            # dict =  self.get_pre_post(pre[0],pre,post)
-            self.calc_diff_values(pre, post, pre[0])
+            # dict =  self.get_pre_post(pre[3],pre,post)
+            self.calc_diff_values(pre, post, pre[3])
 
 
 class commercial_analyzer(Analyzer):
@@ -254,5 +254,5 @@ class commercial_analyzer(Analyzer):
             except FileNotFoundError:
                 df_sum = append_results(df_sum, [self.side, key] + [None] * 9)
                 continue
-            # dict =  self.get_pre_post(pre[0],pre,post)
+            # dict =  self.get_pre_post(key,pre,post)
             self.calc_diff_values(pre, post, key)
