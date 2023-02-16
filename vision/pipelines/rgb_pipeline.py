@@ -83,7 +83,7 @@ def run(cfg, args):
     # When everything done, release the video capture object
     cam.close()
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
-    # detector.release()
+    detector.release()
 
 def get_id_and_categories(cfg):
     category = []

@@ -63,10 +63,10 @@ def trackers_into_values(df_res, df_tree=None):
     """
 
     def extract_tree_det():
+        tree_frames = df_tree['frame_id'].unique()
+        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
         df_tree['end'].replace([-1], math.inf, inplace=True)
-        plot_det = []
-        margin = 10
-        frames = frames[frames.index == df_tree['frame_id'].unique()]
+        margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
             df_frame = bound_red_fruit(df_frame)
@@ -76,10 +76,7 @@ def trackers_into_values(df_res, df_tree=None):
             df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
             plot_det.append(df)
 
-    frames = df_res.groupby('frame')
-    if df_tree is None:
-        df_res = pd.concat(frames, axis=0)
-    else:
+    if df_tree is not None:
         plot_det = []
         extract_tree_det()
         df_res = pd.concat(plot_det, axis=0)
@@ -92,6 +89,23 @@ def trackers_into_values(df_res, df_tree=None):
 
 
 def predict_weight_values(miu, sigma):
+    # using exponential regression
     weight_miu = 11.475 * np.exp(0.0359 * miu)
     weight_sigma = 11.475 * np.exp(0.0359 * sigma)
     return weight_miu, weight_sigma
+
+
+def append_results(df, data):
+    _df = pd.DataFrame({"side": [data[0]],
+                        "plot_id": [data[1]],
+                        "count": [data[2]],
+                        "avg_size": [data[3]],
+                        "std_size": [data[4]],
+                        "avg_weight": [data[5]],
+                        "std_weight": [data[6]],
+                        "bin1": [data[7]],
+                        "bin2": [data[8]],
+                        "bin3": [data[9]],
+                        "bin4": [data[10]]})
+    df = pd.concat([df, _df], axis=0)
+    return df

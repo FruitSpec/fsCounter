@@ -1,3 +1,5 @@
-pre_path: '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/230123/pre'
-post_path: '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/230123/post'
-output_path: '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/230123'
+fruit_type: tomato
+scan_date: 150223
+analysis_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/analysis/${scan_date}
+output_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/analysis/${scan_date}
+video_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/${scan_date}
