@@ -154,7 +154,12 @@ class phenotyping_analyzer(Analyzer):
                 except Exception:
                     print(f'{scan.split("/")[-1]} - {row} - NOT EXIST!')
                     continue
-                exist_plots = len(slice_to_trees(json_path, None, None)['tree_id'].unique())
+
+                try:
+                    exist_plots = len(slice_to_trees(json_path, None, None)['tree_id'].unique())
+                except ValueError as e:
+                    print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
+
                 GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
                 if GT_plots == exist_plots:
                     print(f'{scan.split("/")[-1]} - {row} - completed!')
