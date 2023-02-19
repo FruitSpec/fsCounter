@@ -1,7 +1,7 @@
 import pyzed.sl as sl
 import cv2
 import numpy as np
-
+from scipy.stats import gaussian_kde
 
 def get_frame(frame_mat, cam):
     cam.retrieve_image(frame_mat, sl.VIEW.LEFT)
@@ -170,3 +170,31 @@ def get_dets_ranges(point_cloud, dets):
         ranges.append(average_det_depth(crop))
 
     return ranges
+
+
+def filter_by_kde(crop_rgb, crop_pc, threshold=0.001):
+    """
+    filters the rgb image based on point cloud density
+    the genereal assumprion is that the close pixels are the fruit.
+    :param crop_rgb: a cropped rgb image
+    :param crop_pc: a cropped point cloud
+    :param threshold: for
+    :return:
+    """
+    crop_rgb = crop_rgb.copy()
+    flat_pc = crop_pc[:, :, 2].flatten()
+    kernel = gaussian_kde(flat_pc[np.isfinite(flat_pc)])
+    distances = np.arange(np.nanmin(crop_pc[:, :, 2]), min(np.nanmax(crop_pc[:, :, 2]), 1), 0.0001)
+    density = kernel(distances)
+    density = density / sum(density)
+    picks = []
+    bottoms = []
+    for ind, val in enumerate(density[1:-1]):
+        if density[ind] > val and density[ind + 2] > val and val > threshold:
+            bottoms.append(ind + 1)
+        if density[ind] < val and density[ind + 2] < val and val > threshold:
+            picks.append(ind + 1)
+    min_dist = distances[picks[0]]
+    thresh_dist = np.min(np.where(np.all([density < threshold, distances> min_dist ], axis=0)))
+    crop_rgb[crop_pc[:, :, 2] > distances[thresh_dist]] = np.nan
+    return crop_rgb

@@ -26,6 +26,38 @@ def keep_dets_only(frame, detections, margin = 0.5):
 
     return canvas
 
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+
+    ax_1_range_x = np.arange(0, img1.shape[1], 25)
+    ax_1_range_y = np.arange(0, img1.shape[0], 25)
+    ax1.set_xticks(ax_1_range_x[::4])
+    ax1.set_yticks(ax_1_range_y[::4])
+    ax1.set_xticklabels(ax_1_range_x[::4])
+    ax1.set_yticklabels(ax_1_range_y[::4])
+    ax1.set_xticks(ax_1_range_x, minor=True)
+    ax1.set_yticks(ax_1_range_y, minor=True)
+
+    ax_2_range_x = np.arange(0, img2.shape[1], 25)
+    ax_2_range_y = np.arange(0, img2.shape[0], 25)
+    ax2.set_xticks(ax_2_range_x[::4])
+    ax2.set_yticks(ax_2_range_y[::4])
+    ax2.set_xticklabels(ax_2_range_x[::4])
+    ax2.set_yticklabels(ax_2_range_y[::4])
+    ax2.set_xticks(ax_2_range_x, minor=True)
+    ax2.set_yticks(ax_2_range_y, minor=True)
+
+    plt.title(title)
+    if save_to != "":
+        plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
+    plt.show()
+
+
 def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
 
     # Define termination criteria

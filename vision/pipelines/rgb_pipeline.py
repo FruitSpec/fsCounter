@@ -85,6 +85,7 @@ def run(cfg, args):
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
     detector.release()
 
+
 def get_id_and_categories(cfg):
     category = []
     category_ids = []
@@ -155,10 +156,36 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/yotam/FruitSpec/Code/Dana/fsCounter/vision/pipelines/config/runtime_config.yaml"
+    pipeline_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
     run(cfg, args)
+
+    # kornia example:
+    # import kornia as K
+    #
+    # torch_img = K.utils.image_to_tensor(det_crop)
+    # torch_img = torch_img[None, ...].float() / 255.
+    # torch_img = K.enhance.adjust_contrast(torch_img, 0.5)
+    # torch_img_gray = K.color.rgb_to_grayscale(torch_img)
+    # processed_img = K.filters.sobel(torch_img_gray, True, 1e-3)  # BxCx2xHxW
+    # plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
+
+    # cropping analysis
+    # import matplotlib.pyplot as plt
+    # from vision.tools.image_stitching import plot_2_imgs
+    # import seaborn as sns
+    #
+    # i = 3
+    # res = trk_outputs[i]
+    # crop_rgb = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+    # crop_pc = point_cloud[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+    # crop_rgb_masked = crop_rgb.copy()
+    # crop_rgb_masked[crop_pc[:, :, 2] > 0.52] = 0
+    # plot_2_imgs(crop_rgb_masked, crop_pc[:, :, 2])
+    # # sns.kdeplot(crop_pc[:,:,2].flatten())
+    # # plt.vlines(0.52,0,60)
+    # # plt.show()

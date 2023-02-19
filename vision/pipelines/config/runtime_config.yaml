@@ -1,7 +1,7 @@
-movie_path: /media/yotam/Extreme SSD/tasq_samples/Result_FSI.mkv
-output_folder: /media/yotam/Extreme SSD/tasq_samples/output
-output_folder_track: /media/yotam/Extreme SSD/tasq_samples/output/tracking
-output_folder_annotate: /media/yotam/Extreme SSD/tasq_samples/output/annotation
+movie_path: /media/fruitspec-lab/262/tomato/analysis/221222/0.8m1sts/ZED_1.svo
+output_folder: /media/fruitspec-lab/262/tomato/output
+output_folder_track: /media/fruitspec-lab/262/tomato/output/tracking
+output_folder_annotate: /media/fruitspec-lab/262/tomato/output/annotation
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
