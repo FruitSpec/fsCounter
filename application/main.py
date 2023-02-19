@@ -1,4 +1,7 @@
 import os
+import usb.core
+import netifaces
+import pypylon
 import signal
 import subprocess
 from time import sleep
@@ -8,7 +11,6 @@ from Analysis import analyzer
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
 from utils.settings import conf
 from GUI.gui_interface import GUIInterface
-
 global manager
 
 
@@ -29,16 +31,60 @@ def transfer_data(sig, frame):
 
 def setup_GUI():
     def connect(sid, environ):
-        pass
+        gps_on = False
+        try:
+            jai_ip = netifaces.ifaddresses('eth2')[netifaces.AF_INET][0]['addr']
+            jai_on = True
+        except Exception:
+            jai_on = False
 
-    def disconnect(sid, environ):
-        pass
+        zed_on = False
+        usbdev = usb.core.find(find_all=True)
+        for dev in usbdev:
+            try:
+                manufacturer = usb.util.get_string(dev, dev.iManufacturer)
+                product = usb.util.get_string(dev, dev.iProduct)
+                if 'STEREOLABS' in manufacturer and 'ZED' in product:
+                    dev.get_active_configuration()
+                    zed_on = True
+                    break
+            except Exception:
+                pass
+        print(jai_on, zed_on)
+        return jai_on, zed_on, gps_on
 
-    def start_camera(sid, environ):
-        pass
+    def disconnect():
+        print("disconnect GUI")
 
-    def stop_camera(sid, environ):
-        pass
+    def start_camera(mode, data=None):
+        if mode == "record":
+            print(data)
+            if 'Default' in data['configType']:
+                weather = data['weather']
+                camera_data = conf["default camera data"][weather]
+                output_types = conf["default output types"]
+            else:
+                camera_data = data["Cameras"]
+                output_types = camera_data["outputTypes"]
+            output_path = os.path.join('/' + data['outputPath'], data['plot'], 'row_' + data['row'])
+
+            recording_params = f" --FPS {camera_data['FPS']} "
+            recording_params += f"--output-dir {output_path} "
+            recording_params += f"--exposure-rgb {camera_data['IntegrationTimeRGB']} "
+            recording_params += f"--exposure-800 {camera_data['IntegrationTime800']} "
+            recording_params += f"--exposure-975 {camera_data['IntegrationTime975']} "
+
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
+            for ot in output_types:
+                recording_params += f'--output-{ot.lower()} '
+            print(recording_params)
+            proc = subprocess.Popen(conf["acquisition start"] + recording_params, shell=True, preexec_fn=os.setsid)
+            return proc.pid
+
+    def stop_camera(pid):
+        if pid > 0:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
 
     GUIInterface.start_GUI(connect, disconnect, start_camera, stop_camera)
 

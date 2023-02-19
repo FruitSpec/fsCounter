@@ -1,6 +1,6 @@
 import logging
 import subprocess
-from application.utils.settings import GUI_conf
+from application.utils.settings import GUI_conf, conf
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
@@ -13,26 +13,22 @@ app = socketio.WSGIApp(sio)
 
 class GUIInterface:
     _connect, _disconnect, _camera_start, _camera_stop = None, None, None, None
+    _recording_pid = -1
 
     @staticmethod
     def start_GUI(connect, disconnect, camera_start, camera_stop):
-        if not GUI_conf["GUI ON"]:
+        if not conf["GUI"]:
             return False
 
-        wsgi_server(wsgi_listen('', GUI_conf["GUI server port"]), app)
+        listener = wsgi_listen(('', GUI_conf["GUI server port"]))
         GUIInterface._connect = connect
         GUIInterface._disconnect = disconnect
         GUIInterface._camera_start = camera_start
         GUIInterface._camera_stop = camera_stop
-        subprocess.Popen(GUI_conf["GUI startup script"], shell=True)
-
-    @staticmethod
-    def set_triggers(connect, disconnect, camera_start, camera_stop):
-        wsgi_server(wsgi_listen(('', 5000)), app)
-        GUIInterface._connect = connect
-        GUIInterface._disconnect = disconnect
-        GUIInterface._camera_start = camera_start
-        GUIInterface._camera_stop = camera_stop
+        subprocess.Popen(GUI_conf["GUI startup script"], shell=True,
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+        wsgi_server(listener, app)
 
     # default events
 
@@ -40,33 +36,38 @@ class GUIInterface:
     @sio.event
     def connect(sid, environ):
         logging.log(logging.INFO, f"GUI CONNECTION ESTABLISHED: {sid}")
-        GUIInterface._connect(sid, environ)
+        jai_on, zed_on, gps_on = GUIInterface._connect(sid, environ)
+        jai_state = "On" if jai_on else "Off"
+        zed_state = "On" if zed_on else "Off"
+        gps_state = "On" if gps_on else "Off"
+        sio.emit('set_camera_state', json.dumps({'JAI': jai_state, "ZED": zed_state}))
+        sio.emit('set_GPS_state', json.dumps({'gps': gps_state}))
 
     @staticmethod
     @sio.event
     def disconnect(sid):
         logging.log(logging.INFO, f"DISCONNECTED GUI: {sid}")
-        GUIInterface._disconnect(sid)
+        GUIInterface._disconnect()
 
     # custom events
 
     @staticmethod
     @sio.event
     def start_recording(sid, data):
-        logging.log(logging.INFO, f"GUI CAMERA START RECEIVED: {sid}")
-        GUIInterface._camera_start(sid, data)
+        logging.info(f"GUI CAMERA START RECORDING RECEIVED: {sid}, data {data}")
+        GUIInterface._recording_pid = GUIInterface._camera_start(mode="record", data=data)
 
     @staticmethod
     @sio.event
-    def start_view(sid, data):
-        logging.log(logging.INFO, f"GUI CAMERA START RECEIVED: {sid}")
-        GUIInterface._camera_start(sid, data)
+    def start_view(sid):
+        logging.log(logging.INFO, f"GUI CAMERA START VIEW RECEIVED: {sid}")
+        GUIInterface._camera_start(mode="view")
 
     @staticmethod
     @sio.event
     def stop_recording(sid, data):
         logging.log(logging.INFO, f"GUI CAMERA STOP RECEIVED: {sid}")
-        GUIInterface._camera_stop(sid, data)
+        GUIInterface._camera_stop(pid=GUIInterface._recording_pid)
 
     @staticmethod
     @sio.event

@@ -1,4 +1,2 @@
-define: &GUI_server_port 5000
-GUI ON: true
-GUI server port: *GUI_server_port
-GUI startup script: "npm run dev --prefix GUI/JAI-Operator-client --port " *GUI_server_port
+GUI server port: 5000
+GUI startup script: "npm run dev --prefix application/GUI/JAI-Operator-client"
