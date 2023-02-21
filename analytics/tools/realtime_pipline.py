@@ -6,15 +6,16 @@ def run_real_time():
 
     # vision.pipeline configuration
     repo_dir = get_repo_dir()
-    pipeline_config = repo_dir + "vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = repo_dir + "vision/pipelines/config/runtime_config.yaml"
+    pipeline_config = repo_dir + "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = repo_dir + "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
     # analytics configuration
     offline_config = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    movies_path = offline_config.movie_path
+    movies_path = offline_config.video_path
     analysis_path = offline_config.output_path
+
 
     # TODO handle release GPU, use multiprocessing
     for scan in os.listdir(movies_path):
@@ -23,6 +24,7 @@ def run_real_time():
                 args.movie_path = os.path.join(movies_path, scan, row, [i for i in os.listdir(os.path.join(movies_path, scan, row)) if i.endswith('.svo')][0])
             except:
                 print(f'{os.path.join(movies_path, scan, row)} SVO not found')
+                continue
 
             # validation
             validate_output_path(os.path.join(analysis_path, scan))

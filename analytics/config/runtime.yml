@@ -1,5 +1,5 @@
 fruit_type: tomato
 scan_date: 230123
-analysis_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/analysis/${scan_date}
-output_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/analysis/${scan_date}
-video_path: /media/yotam/Extreme SSD/syngenta trail/${fruit_type}/${scan_date}
+analysis_path: /home/fruitspec-lab/Downloads/${fruit_type}/analysis/${scan_date}
+output_path: /home/fruitspec-lab/Downloads/${fruit_type}/analysis/${scan_date}
+video_path: /home/fruitspec-lab/Downloads/${fruit_type}/${scan_date}

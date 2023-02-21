@@ -22,6 +22,7 @@ from vision.tools.video_wrapper import video_wrapper
 
 
 def run(cfg, args):
+    print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
@@ -29,7 +30,6 @@ def run(cfg, args):
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
     # Read until video is completed
-    print(f'Inferencing on {args.movie_path}\n')
     number_of_frames = cam.get_number_of_frames()
 
     f_id = 0
@@ -67,7 +67,7 @@ def run(cfg, args):
         # measure:
         colors, hists_hue = get_colors(trk_outputs, frame)
         clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimensions(point_cloud, trk_outputs, cfg.filters.distance.threshold)
+        dimensions = get_dimensions(point_cloud, trk_outputs, cfg.filters.distance.threshold, cfg.dim_method)
         # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
@@ -82,7 +82,7 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures_reg.csv'), type='measures')
     detector.release()
 
 
@@ -163,16 +163,6 @@ if __name__ == "__main__":
 
     validate_output_path(args.output_folder)
     run(cfg, args)
-
-    # kornia example:
-    # import kornia as K
-    #
-    # torch_img = K.utils.image_to_tensor(det_crop)
-    # torch_img = torch_img[None, ...].float() / 255.
-    # torch_img = K.enhance.adjust_contrast(torch_img, 0.5)
-    # torch_img_gray = K.color.rgb_to_grayscale(torch_img)
-    # processed_img = K.filters.sobel(torch_img_gray, True, 1e-3)  # BxCx2xHxW
-    # plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
 
     # cropping analysis
     # import matplotlib.pyplot as plt
