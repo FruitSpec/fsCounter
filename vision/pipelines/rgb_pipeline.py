@@ -82,7 +82,7 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures_reg.csv'), type='measures')
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures_pix_med.csv'), type='measures')
     detector.release()
 
 

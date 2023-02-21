@@ -22,7 +22,8 @@ device: cuda
 
 input_size: [1024, 1024]
 
-dim_method: reg # with what method to get the dimensions, reg - old method, ellipsoid - ellipsoid fitting, pix_size_median - by pixel size median, pix_size_mean - by pixel size mean,
+dim_method: pix_size_median # with what method to get the dimensions, reg - old method, ellipsoid - ellipsoid fitting,
+                    #pix_size_median - by pixel size median, pix_size_mean - by pixel size mean, reg_kde - old method with kde filtering
 
 detector:
   confidence: 0.7

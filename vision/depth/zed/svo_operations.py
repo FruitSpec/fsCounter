@@ -142,7 +142,6 @@ def ellipsoid_fit(filtered_center):
     - semi_axis_2 (float): The length of the semi-intermediate axis of the ellipsoid.
     - semi_axis_3 (float): The length of the semi-minor axis of the ellipsoid.
     """
-    filtered_center[np.abs(filtered_center) > 10] = np.nan # to handle very large values
     A = np.column_stack([filtered_center, np.ones(len(filtered_center))])
     good_rows = np.all(np.isfinite(A), axis=1)
     A = A[good_rows]
@@ -150,7 +149,7 @@ def ellipsoid_fit(filtered_center):
     #   Assemble the f matrix
     f = np.zeros((len(A), 1))
     f[:, 0] = np.sum(A[:, :3] ** 2, axis=1)
-    C, residules, rank, singval = np.linalg.lstsq(A, f)
+    C, residules, rank, singval = np.linalg.lstsq(A, f, rcond=None)
     C = np.abs(C)
     #   solve for the radius
     t = (C[0] * C[0]) + (C[1] * C[1]) + (C[2] * C[2]) + C[3]
@@ -170,12 +169,17 @@ def get_dimensions(point_cloud, dets, dist_max, method="reg"):
             width = get_width(crop, fixed_z=True, max_z=dist_max)
             height = get_height(crop, fixed_z=True, max_z=dist_max)
         elif method == "ellipsoid":
-            filtered_center = filter_xyz_outliers(crop, nstd=2, as_points=True)
+            filtered_center = filter_xyz_outliers(crop[:, :, :3].reshape(-1, 3))
             _, width, height, _ = ellipsoid_fit(filtered_center)
-            if width > 200 or height > 200: #if fruits are too big its probably due to noise
+            if width > 200 or height > 200 or width == 0 or height == 0: #if fruits are too big its probably due to noise
                 width, height = np.nan, np.nan
         elif "pix_size" in method:
             width, height = get_dims_w_pixel_size(crop, det[:4], method.split("_")[-1])
+        elif method == "reg_kde":
+            filtered_center = kde_filtering(crop[:, :, :3].reshape(-1, 3))
+            crop = filtered_center.reshape(crop.shape)
+            width = get_width(crop, fixed_z=True, max_z=dist_max)
+            height = get_height(crop, fixed_z=True, max_z=dist_max)
         distance = get_distance(crop[:, :, 2])
 
         dims.append([height, width, distance])
@@ -236,34 +240,6 @@ def get_dets_ranges(point_cloud, dets):
     return ranges
 
 
-def filter_by_kde(crop_rgb, crop_pc, threshold=0.001):
-    """
-    filters the rgb image based on point cloud density
-    the genereal assumprion is that the close pixels are the fruit.
-    :param crop_rgb: a cropped rgb image
-    :param crop_pc: a cropped point cloud
-    :param threshold: for
-    :return:
-    """
-    crop_rgb = crop_rgb.copy()
-    flat_pc = crop_pc[:, :, 2].flatten()
-    kernel = gaussian_kde(flat_pc[np.isfinite(flat_pc)])
-    distances = np.arange(np.nanmin(crop_pc[:, :, 2]), min(np.nanmax(crop_pc[:, :, 2]), 1), 0.0001)
-    density = kernel(distances)
-    density = density / sum(density)
-    picks = []
-    bottoms = []
-    for ind, val in enumerate(density[1:-1]):
-        if density[ind] > val and density[ind + 2] > val and val > threshold:
-            bottoms.append(ind + 1)
-        if density[ind] < val and density[ind + 2] < val and val > threshold:
-            picks.append(ind + 1)
-    min_dist = distances[picks[0]]
-    thresh_dist = np.min(np.where(np.all([density < threshold, distances> min_dist ], axis=0)))
-    crop_rgb[crop_pc[:, :, 2] > distances[thresh_dist]] = np.nan
-    return crop_rgb
-
-
 def apply_sobol(det_crop, plot_change=False):
     """
     applies sobol filterning on image
@@ -281,33 +257,35 @@ def apply_sobol(det_crop, plot_change=False):
     return processed_img
 
 
-def get_pix_size(dist, fx=1065.98388671875, fy=1065.98388671875,
-                 pixel_mm=0.0002, org_size=np.array([1920, 1080])):
+def get_pix_size(depth, box, fx = 1065.98388671875, fy = 1065.98388671875,
+                 pixel_mm = 0.0002, org_size = np.array([1920,1080])):
     """
     Calculates the size of a pixel in millimeters given a distance from the camera and the intrinsic parameters of the camera.
 
     Args:
-        dist (float): The distance from the camera to the object in millimeters.
+        depth (float): The depth from the camera to the object in meters.
+        box (list): ROI for pixel size int hte following format: x1,y1,x2,y2.
         fx (float): The focal length of the camera in the x direction in pixels. Default is 1065.98388671875.
         fy (float): The focal length of the camera in the y direction in pixels. Default is 1065.98388671875.
         pixel_mm (float): The size of a pixel in millimeters. Default is 0.002.
         org_size (ndarray): The size of the image in pixels. Default is np.array([1920, 1080]).
 
     Returns:
-        size_pix (float): The size of a pixel in the x direction in millimeters.
+        size_pix (float): The size of a pixel
     """
+    x1,y1,x2,y2 = box
     y0, x0 = org_size/2
     focal_len = (fx + fy) / 2 * pixel_mm
-    x_range = np.arange(1, org_size[1]+1)
-    x_pix_dist_from_center = np.abs(np.array([x_range for i in range(org_size[0])]) - x0)
+    x_range = np.arange(x1, x2+1)
+    x_pix_dist_from_center = np.abs(np.array([x_range for i in range(y2-y1)]) - x0)
     x_mm_dist_from_center = (x_pix_dist_from_center * (x_pix_dist_from_center+1)*(pixel_mm**2))
     beta = np.arctan(0.001/(focal_len + (x_mm_dist_from_center/focal_len)))
     gamma = np.arctan((x_mm_dist_from_center+1)*pixel_mm/focal_len)
-    size_pix = (np.tan(gamma) - np.tan(gamma-beta))*dist*2
+    size_pix = (np.tan(gamma) - np.tan(gamma-beta))*depth*2
     return size_pix
 
 
-def cut_center_of_box(image, margin=0.2):
+def cut_center_of_box(image, margin=0.25):
     """
     Cuts the center of the box if NIR is provided, else fills pixels with no fruit with NaN values.
 
@@ -332,21 +310,30 @@ def xyz_center_of_box(image, method="median"):
 
     Args:
     - image: A 3D Numpy array representing a cropped xyz image.
-    - method: A string representing the method to use to calculate the center of the fruit.
+    - method: A string representing the method to use to calculate the center of the fruit. Must be either "median" or "mean".
 
     Returns:
     - A tuple of floats representing the x, y, and z coordinates of the center of the fruit.
     """
-    cut_box = cut_center_of_box(image)
     if method == "median":
+        cut_box = cut_center_of_box(image, 0.025)
         x_median = np.nanmedian(cut_box[:, :, 0])
         y_median = np.nanmedian(cut_box[:, :, 1])
         z_median = np.nanmedian(cut_box[:, :, 2])
-    else:
+    elif method == "mean":
+        cut_box = cut_center_of_box(image, 0.4)
         x_median = np.nanmean(cut_box[:, :, 0])
         y_median = np.nanmean(cut_box[:, :, 1])
         z_median = np.nanmean(cut_box[:, :, 2])
+    else: # calculates only on the edge of the cut box
+        cut_box = cut_center_of_box(image, 0.25).copy()
+        if cut_box.shape[0] > 10 and cut_box.shape[1] > 10:
+            cut_box[5:-5, 5:-5] = np.nan
+        x_median = np.nanmedian(cut_box[:, :, 0])
+        y_median = np.nanmedian(cut_box[:, :, 1])
+        z_median = np.nanmedian(cut_box[:, :, 2])
     return x_median, y_median, z_median
+
 
 
 def dist_to_box_center(image, method="median"):
@@ -363,6 +350,20 @@ def dist_to_box_center(image, method="median"):
     return np.sum(np.array(list(xyz_center_of_box(image, method))) ** 2)
 
 
+def depth_to_box_center(image, method="median"):
+    """
+    Calculates the depth from the camera to the center of the fruit.
+
+    Args:
+    - image: A 3D Numpy array representing a cropped xyz image.
+    - method: A string representing the method to use to calculate the center of the fruit. Must be either "median" or "mean".
+
+    Returns:
+    - A float representing the depth from the camera to the center of the fruit.
+    """
+    return xyz_center_of_box(image, method)[2]
+
+
 def get_dims_w_pixel_size(pc_img, box, center_method="median"):
     """
     Calculates the width and height of a 2D bounding box in millimeters, based on the pixel size of the image.
@@ -370,14 +371,37 @@ def get_dims_w_pixel_size(pc_img, box, center_method="median"):
     Args:
     - pc_img: A 3D Numpy array representing a point cloud image.
     - box: A tuple of integers representing the (x1, y1, x2, y2) coordinates of the bounding box.
-    - center_method: A string representing the method to use to calculate the center of the fruit.
+    - center_method: A string representing the method to use to calculate the center of the fruit. Must be either "median" or "mean".
 
     Returns:
     - A tuple of floats representing the width and height of the bounding box in millimeters.
     """
-    dist = dist_to_box_center(pc_img, center_method)
-    size_pix = get_pix_size(dist)
-    x1, y1, x2, y2 = box
-    width = np.mean(np.sum(size_pix[y1:y2, x1:x2], axis=0))
-    height = np.mean(np.sum(size_pix[y1:y2, x1:x2], axis=1))
+    dist = depth_to_box_center(pc_img, center_method)
+    size_pix = get_pix_size(dist, box)
+    width = np.mean(np.sum(size_pix, axis=0))
+    height = np.mean(np.sum(size_pix, axis=1))
     return width, height
+
+
+def kde_filtering(centers, thresh=0.5):
+    """
+    Applies a Kernel Density Estimation (KDE) filtering on a set of 3D points.
+
+    Args:
+        centers (np.ndarray): A numpy array of shape (n, 3) representing the 3D coordinates of the points to filter.
+        thresh (float): A threshold value to filter out points with low density. Default is 0.5.
+
+    Returns:
+        np.ndarray: A numpy array of shape (n, 3) where each filtered 3D points is replaced with np.nan
+    """
+    finite_logical = np.all(np.isfinite(centers), axis=1)
+    if not sum(finite_logical):
+        return centers
+    finite_centers = centers[finite_logical].copy()
+    kernel = gaussian_kde(finite_centers.T)
+    points_density = np.full(len(centers), np.nan)
+    points_density[finite_logical] = kernel(finite_centers.T)
+    points_density = points_density/np.nansum(points_density)
+    filtered_center = centers.copy()
+    filtered_center[points_density <thresh/ len(finite_logical)] = np.nan
+    return filtered_center
