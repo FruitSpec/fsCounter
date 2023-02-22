@@ -240,7 +240,7 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=1920, w=1080, on_fly=True):
     size = int(w // resize_factor)
     r = min(size / h, size / w)
 
@@ -252,11 +252,6 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     data = collections.OrderedDict(sorted(data.items()))
 
     trees_data = parse_data_to_trees(data)
-    df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
-    df_out[["start", "end"]] = df_out[["start", "end"]]/r
-    df_out[["start", "end"]] = df_out[["start", "end"]].replace((-1)/r, -1)
-    df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
-    return df_out
     hash = {}
     for tree_id, frames in trees_data.items():
         for frame in frames:

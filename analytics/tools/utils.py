@@ -5,8 +5,8 @@ import numpy as np
 from vision.tools.manual_slicer import slice_to_trees
 
 
-def open_measures(path):
-    df = pd.read_csv(os.path.join(path, 'measures.csv'))
+def open_measures(path, measures_name='measures.csv'):
+    df = pd.read_csv(os.path.join(path, measures_name))
     return df
 
 

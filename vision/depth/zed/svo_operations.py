@@ -4,6 +4,7 @@ import numpy as np
 from scipy.stats import gaussian_kde
 import kornia as K
 from vision.tools.image_stitching import plot_2_imgs
+from vision.tools.color import hue_filtering
 def get_frame(frame_mat, cam):
     cam.retrieve_image(frame_mat, sl.VIEW.LEFT)
     frame = frame_mat.get_data()[:, :, : 3]
@@ -56,10 +57,12 @@ def get_dist_vec(pc_mat, bbox2d, dim):
         return mat
 
 
-def get_cropped_point_cloud(bbox, point_cloud, margin=0.2):
+def get_cropped_point_cloud(bbox, point_cloud, margin=0.2, rgb=False):
     # TODO
-
-    crop = point_cloud[max(int(bbox[1]), 0):int(bbox[3]), max(int(bbox[0]), 0): int(bbox[2]), :-1].copy()
+    if not rgb:
+        crop = point_cloud[max(int(bbox[1]), 0):int(bbox[3]), max(int(bbox[0]), 0): int(bbox[2]), :-1].copy()
+    else:
+        crop = point_cloud[max(int(bbox[1]), 0):int(bbox[3]), max(int(bbox[0]), 0): int(bbox[2]), :].copy()
     return crop
 
 
@@ -122,11 +125,16 @@ def filter_xyz_outliers(crop, nstd=2, as_points=True):
     filtered_center = centers.copy()
     for channel in [0, 1, 2]:
         channel_vals = centers[:, channel]
-        max_val = np.abs(np.nanmedian(channel_vals) + nstd * np.nanstd(channel_vals))
-        filtered_center[np.abs(channel_vals) > max_val] = np.nan
+        val_std = np.nanstd(channel_vals)
+        med_val = np.nanmedian(channel_vals)
+        max_val = med_val + nstd * val_std
+        min_val = med_val - nstd * val_std
+        filtered_center[channel_vals > max_val] = np.nan
+        filtered_center[channel_vals < min_val] = np.nan
     if as_points:
         return filtered_center
     return filtered_center.reshape(crop.shape)
+
 
 
 def ellipsoid_fit(filtered_center):
@@ -155,19 +163,26 @@ def ellipsoid_fit(filtered_center):
     t = (C[0] * C[0]) + (C[1] * C[1]) + (C[2] * C[2]) + C[3]
     radius = np.sqrt(t)
     # channels are switched
-    return radius, np.sqrt(C[1]), np.sqrt(C[0]), np.sqrt(C[2])
+    return radius * 100, np.sqrt(C[1]) * 100, np.sqrt(C[0]) * 100, np.sqrt(C[2]) * 100 # cm convertion
 
 
-def get_dimensions(point_cloud, dets, dist_max, method="reg"):
+def get_dimensions(point_cloud, frame,  dets, cfg):
+    dist_max, method, margin = cfg.filters.distance.threshold, cfg.dim_method, cfg.margin
+    hue_filter, depth_filter = cfg.filters.hue, cfg.filters.depth
     dims = []
     for det in dets:
         # in case that is not a full fruit
         if det[-3] == 1:
             continue
         crop = get_cropped_point_cloud(det[:4], point_cloud)
+        if hue_filter:
+            rgb_crop = get_cropped_point_cloud(det[:4], frame, rgb=True)
+            crop[hue_filtering(rgb_crop)] = np.nan
+        if depth_filter:
+            crop = filter_xyz_outliers(crop, 2, False)
         if method == "reg":
-            width = get_width(crop, fixed_z=True, max_z=dist_max)
-            height = get_height(crop, fixed_z=True, max_z=dist_max)
+            width = get_width(crop, margin, fixed_z=True, max_z=dist_max)
+            height = get_height(crop, margin, fixed_z=True, max_z=dist_max)
         elif method == "ellipsoid":
             filtered_center = filter_xyz_outliers(crop[:, :, :3].reshape(-1, 3))
             _, width, height, _ = ellipsoid_fit(filtered_center)
@@ -178,8 +193,8 @@ def get_dimensions(point_cloud, dets, dist_max, method="reg"):
         elif method == "reg_kde":
             filtered_center = kde_filtering(crop[:, :, :3].reshape(-1, 3))
             crop = filtered_center.reshape(crop.shape)
-            width = get_width(crop, fixed_z=True, max_z=dist_max)
-            height = get_height(crop, fixed_z=True, max_z=dist_max)
+            width = get_width(crop, margin, fixed_z=True, max_z=dist_max)
+            height = get_height(crop, margin, fixed_z=True, max_z=dist_max)
         distance = get_distance(crop[:, :, 2])
 
         dims.append([height, width, distance])
@@ -378,8 +393,8 @@ def get_dims_w_pixel_size(pc_img, box, center_method="median"):
     """
     dist = depth_to_box_center(pc_img, center_method)
     size_pix = get_pix_size(dist, box)
-    width = np.mean(np.sum(size_pix, axis=0))
-    height = np.mean(np.sum(size_pix, axis=1))
+    width = np.mean(np.sum(size_pix, axis=0))*100 # to return in cm
+    height = np.mean(np.sum(size_pix, axis=1))*100 # to return in cm
     return width, height
 
 

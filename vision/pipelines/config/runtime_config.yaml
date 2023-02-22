@@ -1,7 +1,7 @@
-movie_path: /home/fruitspec-lab/Downloads/0.8m1sts/ZED_1.svo
-output_folder:  /home/fruitspec-lab/Downloads/0.8m1sts/output
-output_folder_track:  /home/fruitspec-lab/Downloads/0.8m1sts/output/tracking
-output_folder_annotate:  /home/fruitspec-lab/Downloads/0.8m1sts/output/annotation
+movie_path: /home/fruitspec-lab/Downloads/0.5m1sts/ZED_1.svo
+output_folder:  /home/fruitspec-lab/Downloads/0.5m1sts/output
+output_folder_track:  /home/fruitspec-lab/Downloads/0.5m1sts/output/tracking
+output_folder_annotate:  /home/fruitspec-lab/Downloads/0.5m1sts/output/annotation
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE

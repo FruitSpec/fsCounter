@@ -67,7 +67,7 @@ def run(cfg, args):
         # measure:
         colors, hists_hue = get_colors(trk_outputs, frame)
         clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimensions(point_cloud, trk_outputs, cfg.filters.distance.threshold, cfg.dim_method)
+        dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg)
         # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
@@ -82,7 +82,9 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures_pix_med.csv'), type='measures')
+    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
+    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
+    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
     detector.release()
 
 
