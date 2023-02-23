@@ -5,15 +5,16 @@ import numpy as np
 from vision.tools.manual_slicer import slice_to_trees
 
 
-def open_measures(path, measures_name='measures.csv'):
-    df = pd.read_csv(os.path.join(path, measures_name))
+def open_measures(path):
+    df = pd.read_csv(os.path.join(path, 'measures.csv'))
     return df
 
 
 def get_trees(path):
-    trees_slices = slice_to_trees(os.path.join(path, [i for i in os.listdir(path) if 'slice_data' in i][0]), None, None)
+    trees_slices, border_df = slice_to_trees(os.path.join(path, [i for i in os.listdir(path) if 'slice_data' in i][0]), None, None, h=1920, w=1080)
     iter_trees = trees_slices.groupby('tree_id')
-    return iter_trees
+
+    return iter_trees, border_df
 
 
 def bound_red_fruit(df):
@@ -55,7 +56,7 @@ def get_count_value(df):
     return count
 
 
-def trackers_into_values(df_res, df_tree=None):
+def trackers_into_values(df_res, df_tree=None, df_border=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
@@ -64,6 +65,7 @@ def trackers_into_values(df_res, df_tree=None):
 
     def extract_tree_det():
         tree_frames = df_tree['frame_id'].unique()
+        #border_frames = df_border['frame_id'].unique()
         frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
         df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
@@ -75,6 +77,16 @@ def trackers_into_values(df_res, df_tree=None):
             frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
             df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
             plot_det.append(df)
+            if df_border is not None and len(df_border) > 0:
+                border_boxes = df_border[df_border['frame_id'] == frame_id]
+                for index, box in border_boxes.iterrows():
+                    df_b = df_frame[
+                        ((df_frame['x2'] + df_frame['x1'])/2 > box['x1']) &
+                        ((df_frame['x2'] + df_frame['x1'])/2 < box['x2']) &
+                        ((df_frame['y2'] + df_frame['y1'])/2 < box['y2']) &
+                        ((df_frame['y2'] + df_frame['y1'])/2 > box['y1'])]
+                    plot_det.append(df_b)
+
 
     if df_tree is not None:
         plot_det = []
