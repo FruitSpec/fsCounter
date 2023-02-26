@@ -28,14 +28,45 @@ def bound_red_fruit(df):
 
 def get_size_set(df):
     df = df[(df['height'] < 90) & (df['width'] < 90)]
+    df["pix_w"] = df["x2"] - df["x1"]
+    df["pix_h"] = df["y2"] - df["y1"]
+    ratio = df["pix_w"]/df["pix_h"]
+    df = df[(ratio > 0.6) & (1/ratio > 0.6)] # filter fruits with uneven BBOX # remove below 0.6
+    df.loc[(ratio > 0.6) & (ratio < 0.9), "pix_w"] = np.nan #width axis occluded # keep major axis if in 0.6, 0.9
+    df.loc[(ratio > 1.11), "pix_h"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
     df_group = df.groupby('track_id')
-    measures = df_group.apply(lambda x: x.width.max() if x.width.mean() > x.height.mean() else x.height.max())
+    measures = df_group.apply(lambda x: max(np.nanmean(x.width), np.nanmean(x.height)))
     return measures
+
+
+def get_valid_by_color(color):
+    """
+    computes the mode and returns for each observation if it color is valid to keep or nor
+    :param color: pandas sieres contaianing color values
+    :return: boolean series indicating valid observations
+    """
+    counts = color.value_counts()
+    frequent_color = counts.idxmax()
+    return color.isin([frequent_color-1, frequent_color, frequent_color+1])
+
+
+def filter_by_color(df):
+    """
+    filters dataframe of a track id by color
+    :param df: dataframe to filter
+    :return: filtered dataframe or an empty dataframe if track id is invalid by color
+    """
+    valids = get_valid_by_color(df["color"])
+    df = df[valids]
+    if len(df) < 3 and np.mean(valids) < 1:
+        return pd.DataFrame({})
+    return df
 
 
 def get_color_set(df):
     df_group = df.groupby('track_id')
     # TODO more robust desicion rule
+    # filter out noise based on color
     colors = df_group.apply(lambda x: x.color.mean()).dropna().astype(int)
     return colors
 
@@ -57,6 +88,7 @@ def trackers_into_values(df_res, df_tree=None):
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
             df = bound_red_fruit(df_frame)
+            df = filter_by_color
             if df_frame.empty:
                 continue
             if df_tree is not None:
