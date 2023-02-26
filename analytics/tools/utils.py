@@ -18,7 +18,7 @@ def get_trees(path):
 
 def bound_red_fruit(df):
     # filter out clusters that have only green fruits
-    df_red = df[(df['color'] < 60) & (df['color'] > 0)]
+    df_red = df[(df['color'] < 5)]
     if df_red.empty:
         return pd.DataFrame(columns=df.columns)
     min_red = df_red['y1'].min()
@@ -34,19 +34,9 @@ def get_size_set(df):
 
 
 def get_color_set(df):
-    def color(x):
-        if x > 0 and x < 25:
-            return 1
-        elif x > 25 and x < 45:
-            return 2
-        elif x > 45 and x < 65:
-            return 3
-        elif x > 90 and x < 165:
-            return 4
-
-    df = df[(df['color'] < 65) | ((df['color'] > 90) & (df['color'] < 165))]
     df_group = df.groupby('track_id')
-    colors = df_group.apply(lambda x: color(x.color.mean())).dropna().astype(int)
+    # TODO more robust desicion rule
+    colors = df_group.apply(lambda x: x.color.mean()).dropna().astype(int)
     return colors
 
 
@@ -63,23 +53,31 @@ def trackers_into_values(df_res, df_tree=None):
     """
 
     def extract_tree_det():
-        tree_frames = df_tree['frame_id'].unique()
-        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
-        df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
-            df_frame = bound_red_fruit(df_frame)
+            df = bound_red_fruit(df_frame)
             if df_frame.empty:
                 continue
-            frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
-            df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
+            if df_tree is not None:
+                frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
+                df = df[(df['x2'] + margin > frames_bounds['start']) & (df['x1'] < frames_bounds['end'] - margin)]
             plot_det.append(df)
 
+    plot_det = []
     if df_tree is not None:
-        plot_det = []
-        extract_tree_det()
+        tree_frames = df_tree['frame_id'].unique()
+        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
+        df_tree['end'].replace([-1], math.inf, inplace=True)
+    else:
+        frames = df_res.groupby('frame')
+
+    extract_tree_det()
+    try:
         df_res = pd.concat(plot_det, axis=0)
+    except:
+        print("err")
+    # TODO coloer track id filter
 
     counter = get_count_value(df_res)
     measures = get_size_set(df_res)
@@ -106,6 +104,7 @@ def append_results(df, data):
                         "bin1": [data[7]],
                         "bin2": [data[8]],
                         "bin3": [data[9]],
-                        "bin4": [data[10]]})
+                        "bin4": [data[10]],
+                        "bin5": [data[11]]})
     df = pd.concat([df, _df], axis=0)
     return df

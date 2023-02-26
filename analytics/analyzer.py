@@ -41,7 +41,8 @@ class Analyzer():
         sigma_nonPicked = nonPicked_measures.std()
         miu_picked = (1 / picked_ratio) * miu_all - (nonPicked_ratio / picked_ratio) * miu_nonPicked
         # TODO case when value in sqrt equal to 0
-        sigma_picked = np.sqrt((1 / picked_ratio) ** 2 * sigma_all ** 2 - (nonPicked_ratio / picked_ratio) ** 2 * sigma_nonPicked ** 2)
+        sigma_picked = np.sqrt(
+            (1 / picked_ratio) ** 2 * sigma_all ** 2 - (nonPicked_ratio / picked_ratio) ** 2 * sigma_nonPicked ** 2)
 
         # [2] By kde, not robust enough
         # x_values = np.linspace(all_measures.min(), all_measures.max(), num=int(all_measures.max() - all_measures.min()))
@@ -71,8 +72,8 @@ class Analyzer():
         :param picked_count: int, number of picked fruits in a unit
         :return: number of picked fruits for each bin-color
         """
-        hist_all = plt.hist(pre_color, density=False, bins=[1, 2, 3, 4, 5])[0]
-        hist_nonPicked = plt.hist(post_color, density=False, bins=[1, 2, 3, 4, 5])[0]
+        hist_all = plt.hist(pre_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
+        hist_nonPicked = plt.hist(post_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
         plt.close()
         hist_picked = hist_all - hist_nonPicked
         hist_picked = [max(i, 0) for i in hist_picked]
@@ -80,11 +81,13 @@ class Analyzer():
         picked_bins = picked_count * hist_picked
 
         try:
-            bin1, bin2, bin3, bin4 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]))
+            bin1, bin2, bin3, bin4, bin5 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), int(
+                picked_bins[3]), \
+                picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
         except:
-            bin1, bin2, bin3, bin4 = 0, 0, 0, 0
+            bin1, bin2, bin3, bin4, bin5 = 0, 0, 0, 0, 0
 
-        return bin1, bin2, bin3, bin4
+        return bin1, bin2, bin3, bin4, bin5
 
     @staticmethod
     def valid_output(arg1, arg2):
@@ -102,15 +105,18 @@ class Analyzer():
         picked_count = pre[0] - post[0]
         # check relevance to calc diff color and size
         if picked_count < 0:
-            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [None] * 8)
+            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [None] * 9)
             return
         elif picked_count == 0:
-            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [0] * 8)
+            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [0] * 9)
             return
-        (size_value_miu, size_value_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(post[0] / pre[0], pre[1], post[1])
+        (size_value_miu, size_value_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
+            post[0] / pre[0], pre[1], post[1])
         weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
-        bin1, bin2, bin3, bin4 = Analyzer.diff_color(pre[2], post[2], picked_count)
-        self.results = append_results(self.results, [self.side, plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu, weight_sigma, bin1, bin2, bin3, bin4])
+        bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
+        self.results = append_results(self.results,
+                                      [self.side, plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
+                                       weight_sigma, bin1, bin2, bin3, bin4, bin5])
 
     def get_results(self):
         return self.results
@@ -150,7 +156,8 @@ class phenotyping_analyzer(Analyzer):
         for scan in [self.scan_pre, self.scan_post]:
             for row in self.indices:
                 try:
-                    json_path = os.path.join(scan, row, [i for i in os.listdir(os.path.join(scan, row)) if 'slice_data' in i][0])
+                    json_path = os.path.join(scan, row,
+                                             [i for i in os.listdir(os.path.join(scan, row)) if 'slice_data' in i][0])
                 except Exception:
                     print(f'{scan.split("/")[-1]} - {row} - NOT EXIST!')
                     continue
@@ -203,10 +210,11 @@ class phenotyping_analyzer(Analyzer):
         Update self.results with all units' results
         """
         df_sum = pd.DataFrame()
-        for pre, post in zip(self.iter_plots(self.scan_pre, self.indices), self.iter_plots(self.scan_post, self.indices)):
+        for pre, post in zip(self.iter_plots(self.scan_pre, self.indices),
+                             self.iter_plots(self.scan_post, self.indices)):
             # pre ,post - [0]-count, [1]-size, [2]-color , [3]- plot id
             if not Analyzer.valid_output(pre, post):
-                df_sum = append_results(df_sum, [self.side, pre[0]] + [None] * 9)
+                df_sum = append_results(df_sum, [self.side, pre[0]] + [None] * 10)
                 continue
             # dict =  self.get_pre_post(pre[3],pre,post)
             self.calc_diff_values(pre, post, pre[3])
@@ -216,6 +224,7 @@ class commercial_analyzer(Analyzer):
     """
         analysis for commercial fruits needs
     """
+
     def __init__(self, side, measures_name="measures.csv"):
         super(commercial_analyzer, self).__init__()
         if side == 'side1':
@@ -253,7 +262,7 @@ class commercial_analyzer(Analyzer):
                 post = commercial_analyzer.get_aggreagation(self.scan_post, rows, self.measures_name)
             # One of the file measures does not exist
             except FileNotFoundError:
-                df_sum = append_results(df_sum, [self.side, key] + [None] * 9)
+                df_sum = append_results(df_sum, [self.side, key] + [None] * 10)
                 continue
             # dict =  self.get_pre_post(key,pre,post)
             self.calc_diff_values(pre, post, key)

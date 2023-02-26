@@ -2,10 +2,8 @@ import os
 import numpy as np
 import cv2
 import json
-import collections
 import pandas as pd
-from tqdm import tqdm
-
+import collections
 from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
 from vision.tools.video_wrapper import video_wrapper
@@ -48,10 +46,10 @@ def print_lines(params):
     y = int(params['height'] // params['resize_factor'])
 
     if params['data'][params['index']]['start'] is not None:
-        x = int(params['data'][params['index']]['start'])
+        x = params['data'][params['index']]['start']
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
-        x = int(params['data'][params['index']]['end'])
+        x = params['data'][params['index']]['end']
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
@@ -208,7 +206,6 @@ def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
         params['data'][params['index']] = {'start': None, 'end': None}
-
     return params
 
 
@@ -260,32 +257,33 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=1920, w
             else:
                 hash[frame['frame_id']] = [frame]
 
-    if not on_fly:
-        cap = cv2.VideoCapture(file_path)
-        if (cap.isOpened() == False):
-            print("Error opening video stream or file")
-
-        # Read until video is completed
-        f_id = 0
-        hash_ids = list(hash.keys())
-        pbar = tqdm(total=len(hash_ids))
-        while (cap.isOpened()):
-
-            ret, frame = cap.read()
-            if ret == True:
-                pbar.update(1)
-                if f_id in hash_ids:
-                    for frame_data in hash[f_id]:
-                        if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
-                            os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
-                        cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
-                f_id += 1
-            # Break the loop
-            else:
-                break
-        # When everything done, release the video capture object
-        cap.release()
+    # if not on_fly:
+    #     cap = cv2.VideoCapture(file_path)
+    #     if (cap.isOpened() == False):
+    #         print("Error opening video stream or file")
+    #
+    #     # Read until video is completed
+    #     f_id = 0
+    #     hash_ids = list(hash.keys())
+    #     pbar = tqdm(total=len(hash_ids))
+    #     while (cap.isOpened()):
+    #
+    #         ret, frame = cap.read()
+    #         if ret == True:
+    #             pbar.update(1)
+    #             if f_id in hash_ids:
+    #                 for frame_data in hash[f_id]:
+    #                     if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+    #                         os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+    #                     cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+    #             f_id += 1
+    #         # Break the loop
+    #         else:
+    #             break
+    #     # When everything done, release the video capture object
+    #     cap.release()
     df_all = []
+    import shutil
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
         df.loc[df['start'] != -1, 'start'] = df.loc[df['start'] != -1, 'start'] // r
@@ -295,7 +293,10 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=1920, w
         else:
             if not os.path.exists(os.path.join(output_path, f"T{tree_id}")):
                 os.mkdir(os.path.join(output_path, f"T{tree_id}"))
-            df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
+            else:
+                shutil.rmtree(os.path.join(output_path, f"T{tree_id}"))
+                # os.mkdir(os.path.join(output_path, f"T{tree_id}"))
+            # df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
     if on_fly:
         return pd.concat(df_all, axis=0)
 
@@ -329,11 +330,9 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    print(f"{frame_id}: {tree_id}")
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # start new tree
@@ -343,8 +342,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
 
 
         elif last_state == 1:
@@ -379,8 +377,7 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got wrong state 3 after state 2")
+                raise ValueError(f"Got wrong state 3 after state 2 frame: {frame_id}")
             elif state == 4:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -407,15 +404,13 @@ def parse_data_to_trees(data):
                 if tree_id == trees[-1]:
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    print(f"{frame_id}: {tree_id}")
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 # add to next tree
                 trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': -1, 'end': loc['end']})
             elif state == 4:  # end - start
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got wrong state 4 after state 3")
+                raise ValueError(f"Got wrong state 4 after state 3 frame: {frame_id}")
             elif state == 5:
                 tree_id += 1
                 trees_data[tree_id] = [
@@ -428,7 +423,8 @@ def parse_data_to_trees(data):
         # end-start
         elif last_state == 4:
             if state == 0:
-                continue
+                tree_id += 1
+                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': -1})
             elif state == 1:
                 tree_id += 1
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
@@ -439,8 +435,7 @@ def parse_data_to_trees(data):
                     tree_id += 1
                     trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
             elif state == 3:  # start - end
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
@@ -465,22 +460,20 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    print(f"{frame_id}: {tree_id}")
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id+1, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
             elif state == 6:
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
-                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id+1, 'start': loc['start'], 'end': -1}]
+                trees_data[tree_id + 1] = [{'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1}]
 
         elif last_state == 6:
             if state == 0:
@@ -493,11 +486,9 @@ def parse_data_to_trees(data):
                     trees_data[tree_id].append(
                         {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 else:
-                    print(f"{frame_id}: {tree_id}")
-                    raise ValueError("Got tree closing before tree opening")
+                    raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 3:  # start - end
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                raise ValueError(f"Got tree closing before tree opening frame: {frame_id}")
             elif state == 4:  # end - start
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
@@ -528,64 +519,15 @@ def get_state(loc):
         else:
             state = 6  # end - start
     elif loc['end'] is not None:
-        state = 2
+        state = 2  # end
     else:
-        state = 1
+        state = 1  # start
 
     return state
 
 
-def slice_to_csv(data_file, output_path, resize_factor=3, h=2048, w=1536):
-    size = int(h // resize_factor)
-    r = min(size / h, size / w)
-
-    with open(data_file, 'r') as f:
-        loaded_data = json.load(f)
-    data = {}
-    for k, v in loaded_data.items():
-        data[int(k)] = v
-    data = collections.OrderedDict(sorted(data.items()))
-
-    trees_data = parse_data_to_trees(data)
-    return trees_data
-
-
-def change_slice_format(frame_slice, factor=2048/1536):
-    """
-    changes a slicing foramt from old one with rotation bug to new one
-    :param frame_slice: a subdict per frame
-    :param factor: the resize factor
-    :return: resized dict
-    """
-    if not isinstance(frame_slice["start"], type(None)):
-        frame_slice["start"] = frame_slice["start"]*factor
-    if not isinstance(frame_slice["end"], type(None)):
-        frame_slice["end"] = frame_slice["end"]*factor
-    return frame_slice
-
-
-def fix_slices(customer_folder = "/media/fruitspec-lab/cam175/DEWAGD"):
-    """
-    iterates over the subfolders of customer_folder and all the slicing jasons jsons in them and reformats them
-    :param customer_folder: customer folder path (could be any master folder)
-    :return: None
-    """
-    for root, dirs, files in os.walk(customer_folder):
-        for file in files:
-            if file.endswith('.json') and "slice_data" in file and "ZED" not in file:
-                data_file = os.path.join(root, file)
-                with open(data_file) as json_file:
-                    data = json.load(json_file)
-                try:
-                    data = {int(key): change_slice_format(item) for key, item in data.items()}
-                except:
-                    print("problem with ", json_file)
-                with open(data_file, 'w') as json_file:
-                    json.dump(data, json_file)
-
-
 if __name__ == "__main__":
-    fp = '/media/fruitspec-lab/Expansion/Tomato_20_deg/pre/TOMATO_14022320_deg_pre_b_20_ZED_1.svo'
-    output_path = '/media/fruitspec-lab/Expansion/Tomato_20_deg/pre'
-    # validate_output_path(output_path)
+    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/281222/postTiltDown40cm/ZED_1_1st.svo'
+    output_path = '/media/yotam/Extreme SSD/syngenta trail/tomato/281222/postTiltDown40cm'
+    validate_output_path(output_path)
     manual_slicer(fp, output_path, rotate=2)

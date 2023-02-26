@@ -24,11 +24,12 @@ def multi_process_wrapper(cfg, args, movies_path, scan, row, analysis_path):
         return
 
 
-def run_real_time(max_workers=4):
+def run_real_time(max_workers=4, pipeline_config=""):
 
     # vision.pipeline configuration
     repo_dir = get_repo_dir()
-    pipeline_config = repo_dir + "/vision/pipelines/config/pipeline_config.yaml"
+    if pipeline_config == "":
+        pipeline_config = repo_dir + "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = repo_dir + "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
@@ -53,7 +54,11 @@ def run_real_time(max_workers=4):
     s_t = time.time()
     # with ThreadPoolExecutor(max_workers=max_workers) as executor:
     #     results = list(executor.map(multi_process_wrapper, cfgs, args_list, movies_paths, scans, rows, analysis_paths))
-    for i in range(n_files):
-        multi_process_wrapper(cfgs[i], args_list[i], movies_paths[i], scans[i], rows[i], analysis_paths[i])
+    if max_workers == 1:
+        for i in range(n_files):
+            multi_process_wrapper(cfgs[i], args_list[i], movies_paths[i], scans[i], rows[i], analysis_paths[i])
+    else:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            executor.map(multi_process_wrapper, cfgs, args_list, movies_paths, scans, rows, analysis_paths)
     print("total time: ", time.time()-s_t)
 
