@@ -81,10 +81,10 @@ class counter_detection():
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, tx, ty, frame_id=None):
+    def track(self, outputs, tx, ty, frame_id=None, dets_depth=None):
 
         if outputs is not None:
-            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id)
+            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id, dets_depth)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)

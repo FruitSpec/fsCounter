@@ -5,8 +5,10 @@ from tqdm import tqdm
 import numpy as np
 import collections
 
-from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions
+
+
+from vision.misc.help_func import get_repo_dir, validate_output_path
+from vision.depth.zed.svo_operations import sl_get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -20,16 +22,27 @@ from vision.tools.camera import is_sturated
 from vision.tools.color import get_hue
 from vision.tools.video_wrapper import video_wrapper
 
+from vision.tracker.deep_sort.sort.tracker import Tracker
+from vision.tracker.deep_sort.sort import nn_matching
+from vision.tracker.deep_sort import DeepSort
+
 
 def run(cfg, args):
-    print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    #loftr_translation = T(cfg.translation.translation_size, cfg.translation.dets_only, 'LoFTR')
+
+    max_cosine_distance = 0.2
+    nn_budget = None
+    # metric = nn_matching.NearestNeighborDistanceMetric(
+    #     "cosine", max_cosine_distance, nn_budget)
+    deep_sort_tracker = DeepSort("/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/tracker/deep_sort/deep/checkpoint/ckpt.t7")
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
     # Read until video is completed
+    print(f'Inferencing on {args.movie_path}\n')
     number_of_frames = cam.get_number_of_frames()
 
     f_id = 0
@@ -51,24 +64,35 @@ def run(cfg, args):
         # filter by size:
         filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
 
+        outputs_depth = measure_depth(filtered_outputs, point_cloud)
+
         # find translation
         tx, ty = translation.get_translation(frame, filtered_outputs)
 
+        #tx, ty = loftr_translation.get_translation(frame, filtered_outputs)
+
+        #print(f"{translation.mode} translation - tx: {tx}, ty: {ty}")
+        #print(f"{loftr_translation.mode} translation - tx: {tx1}, ty: {ty1}")
+
         # track:
-        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
+        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
+
+        # Update tracker.
+        #xywh_dets, dets_conf = get_dets_as_xywh_conf(filtered_outputs)
+        #trk_outputs_2 = deep_sort_tracker.update(xywh_dets, dets_conf, frame)
 
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
+        # indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+        # indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
+        # trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
 
         # measure:
         colors, hists_hue = get_colors(trk_outputs, frame)
         clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg)
-        # dimensions = sl_get_dimensions(trk_outputs, cam)
+        #dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg.filters.distance.threshold)
+        dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
@@ -82,10 +106,8 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
-    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
-    detector.release()
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
+    #detector.release()
 
 
 def get_id_and_categories(cfg):
@@ -155,16 +177,44 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
 
     return clusters
 
+def get_dets_as_xywh_conf(dets):
+    dets = np.array(dets)
+    x1 = dets[:, 0].copy()
+    y1 = dets[:, 1].copy()
+    x2 = dets[:, 2].copy()
+    y2 = dets[:, 3].copy()
+    w = x2 - x1
+    h = y2 - y1
+    x = (x2 + x1) / 2
+    y = (y2 + y1) / 2
+
+    xywh_transpose = np.array([x, y, w, h])
+
+    conf = dets[:, 4] * dets[:, 5]
+
+    return xywh_transpose.T, conf
+
+
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
+    pipeline_config = "/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
     run(cfg, args)
+
+    # kornia example:
+    # import kornia as K
+    #
+    # torch_img = K.utils.image_to_tensor(det_crop)
+    # torch_img = torch_img[None, ...].float() / 255.
+    # torch_img = K.enhance.adjust_contrast(torch_img, 0.5)
+    # torch_img_gray = K.color.rgb_to_grayscale(torch_img)
+    # processed_img = K.filters.sobel(torch_img_gray, True, 1e-3)  # BxCx2xHxW
+    # plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
 
     # cropping analysis
     # import matplotlib.pyplot as plt

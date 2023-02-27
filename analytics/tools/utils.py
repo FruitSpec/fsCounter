@@ -71,6 +71,9 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
+
+            # add y bound 300
+
             df_frame = bound_red_fruit(df_frame)
             if df_frame.empty:
                 continue

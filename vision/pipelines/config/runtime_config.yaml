@@ -1,7 +1,7 @@
-movie_path: /home/fruitspec-lab/Downloads/0.5m1sts/ZED_1.svo
-output_folder:  /home/fruitspec-lab/Downloads/0.5m1sts/output
-output_folder_track:  /home/fruitspec-lab/Downloads/0.5m1sts/output/tracking
-output_folder_annotate:  /home/fruitspec-lab/Downloads/0.5m1sts/output/annotation
+movie_path: /home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tomato/230123/post/10/ZED_1.svo
+output_folder: /home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ref_assign_depth_4
+output_folder_track: $(output_folder)/tracking
+output_folder_annotate: $(output_folder)/annotation
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
@@ -10,10 +10,10 @@ depth_maximum: 2.5 # 8 counter
 
 debug:
   is_debug: true  # master switch
-  tracker_windows: false
-  tracker_results: false
+  tracker_windows: true
+  tracker_results: true
   det_results: false
-  raw_frame: true
+  raw_frame: flase
   depth: false
   tracker: None
   clusters: false
