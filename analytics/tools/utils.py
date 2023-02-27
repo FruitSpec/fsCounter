@@ -26,16 +26,28 @@ def bound_red_fruit(df):
     return df
 
 
-def get_size_set(df):
+def get_size_helper(sub_df):
+    n_finite_widths = np.sum(np.isfinite(sub_df['width']))
+    n_finite_heights = np.sum(np.isfinite(sub_df['height']))
+    if n_finite_widths > 0 and n_finite_heights > 0:
+        return np.nanmax([np.nanmedian(sub_df['width']), np.nanmedian(sub_df['height'])])
+    if n_finite_widths > 0:
+        return np.nanmedian(sub_df['width'])
+    if n_finite_heights > 0:
+        np.nanmedian(sub_df['height'])
+    return np.nan
+
+
+def get_size_set(df, filter_by_ratio=True):
     df = df[(df['height'] < 90) & (df['width'] < 90)]
-    df["pix_w"] = df["x2"] - df["x1"]
-    df["pix_h"] = df["y2"] - df["y1"]
-    ratio = df["pix_w"]/df["pix_h"]
-    df = df[(ratio > 0.6) & (1/ratio > 0.6)] # filter fruits with uneven BBOX # remove below 0.6
-    df.loc[(ratio > 0.6) & (ratio < 0.9), "pix_w"] = np.nan #width axis occluded # keep major axis if in 0.6, 0.9
-    df.loc[(ratio > 1.11), "pix_h"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
-    df_group = df.groupby('track_id')
-    measures = df_group.apply(lambda x: max(np.nanmean(x.width), np.nanmean(x.height)))
+    if filter_by_ratio:
+        pix_w = df["x2"] - df["x1"]
+        pix_h = df["y2"] - df["y1"]
+        ratio = pix_w/pix_h
+        df.loc[(ratio < 0.6) | (1 / ratio < 0.6), ["width", "height"]] = np.nan # filter fruits with uneven BBOX # remove below 0.6
+        df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan #width axis occluded # keep major axis if in 0.6, 0.9
+        df.loc[(ratio > 1.25), "height"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
+    measures = pd.DataFrame([get_size_helper(df_track) for ind, df_track in df.groupby("track_id")])
     return measures
 
 
@@ -52,22 +64,55 @@ def get_valid_by_color(color):
 
 def filter_by_color(df):
     """
-    filters dataframe of a track id by color
-    :param df: dataframe to filter
-    :return: filtered dataframe or an empty dataframe if track id is invalid by color
+    Filters a DataFrame of objects by color.
+
+    Uses the get_valid_by_color function to determine which objects have valid
+    colors. Filters the DataFrame using the resulting boolean array.
+    If there are fewer than three objects in the DataFrame and the mean of the
+    valid boolean array is less than one, an empty DataFrame is returned.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame of objects with a color column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A filtered DataFrame of objects with a color column.
+
     """
     valids = get_valid_by_color(df["color"])
-    df = df[valids]
     if len(df) < 3 and np.mean(valids) < 1:
         return pd.DataFrame({})
-    return df
+    return df[valids]
+
+
+def filter_df_by_color(df):
+    """
+    Filter a DataFrame of image crops based on the color of the objects in the crops.
+
+    The function groups the DataFrame by "track_id" and applies the filter_by_color function to each group, which
+    filters the crops in the group based on their color. The filtered crops are concatenated into a single DataFrame.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        A DataFrame containing columns "track_id" and "color"
+
+    Returns
+    -------
+    filtered_df : pandas.DataFrame
+        A DataFrame containing the same columns as the input DataFrame, but with only the observations that passed the
+        color filter.
+
+    """
+    return pd.concat([filter_by_color(df_track) for ind, df_track in df.groupby("track_id")], axis=0)
 
 
 def get_color_set(df):
     df_group = df.groupby('track_id')
-    # TODO more robust desicion rule
-    # filter out noise based on color
-    colors = df_group.apply(lambda x: x.color.mean()).dropna().astype(int)
+    colors = df_group.apply(lambda x: np.nanmean(x.color)).dropna().astype(int)
     return colors
 
 
@@ -83,18 +128,19 @@ def trackers_into_values(df_res, df_tree=None):
     :return: counter, measures, colors_class
     """
 
+    df_res = filter_df_by_color(df_res)
+
     def extract_tree_det():
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
-            df = bound_red_fruit(df_frame)
-            df = filter_by_color
+            df_frame = bound_red_fruit(df_frame)
             if df_frame.empty:
                 continue
             if df_tree is not None:
                 frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
-                df = df[(df['x2'] + margin > frames_bounds['start']) & (df['x1'] < frames_bounds['end'] - margin)]
-            plot_det.append(df)
+                df_frame = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
+            plot_det.append(df_frame)
 
     plot_det = []
     if df_tree is not None:
@@ -109,7 +155,6 @@ def trackers_into_values(df_res, df_tree=None):
         df_res = pd.concat(plot_det, axis=0)
     except:
         print("err")
-    # TODO coloer track id filter
 
     counter = get_count_value(df_res)
     measures = get_size_set(df_res)

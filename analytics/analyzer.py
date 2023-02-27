@@ -35,15 +35,19 @@ class Analyzer():
         picked_ratio = 1 - nonPicked_ratio
 
         # [1] By miu,sigma , assume normalization
-        miu_all = all_measures.mean()
-        sigma_all = all_measures.std()
-        miu_nonPicked = nonPicked_measures.mean()
-        sigma_nonPicked = nonPicked_measures.std()
-        miu_picked = (1 / picked_ratio) * miu_all - (nonPicked_ratio / picked_ratio) * miu_nonPicked
+        miu_all = np.nanmean(all_measures)
+        sigma_all = np.nanstd(all_measures)
+        miu_nonPicked = np.nanmean(nonPicked_measures)
+        sigma_nonPicked = np.nanstd(nonPicked_measures)
+        # miu_picked = (1 / picked_ratio) * miu_all - (nonPicked_ratio / picked_ratio) * miu_nonPicked
         # TODO case when value in sqrt equal to 0
-        sigma_picked = np.sqrt(
-            (1 / picked_ratio) ** 2 * sigma_all ** 2 - (nonPicked_ratio / picked_ratio) ** 2 * sigma_nonPicked ** 2)
+        # sigma_picked = np.sqrt(
+        #     (1 / picked_ratio) ** 2 * sigma_all ** 2 - (nonPicked_ratio / picked_ratio) ** 2 * sigma_nonPicked ** 2)
 
+        # Calculation fix
+        miu_picked = (1 / nonPicked_ratio) * miu_all - (picked_ratio / nonPicked_ratio) * miu_nonPicked
+        sigma_picked = np.sqrt(
+            (1 / nonPicked_ratio) ** 2 * sigma_all ** 2 - (picked_ratio / nonPicked_ratio) ** 2 * sigma_nonPicked ** 2)
         # [2] By kde, not robust enough
         # x_values = np.linspace(all_measures.min(), all_measures.max(), num=int(all_measures.max() - all_measures.min()))
         # kde_all = gaussian_kde(all_measures)(x_values)
@@ -55,7 +59,8 @@ class Analyzer():
         # [3] By hist
         hist_all, bins, p = plt.hist(all_measures, density=True)
         hist_nonPicked = plt.hist(nonPicked_measures, density=True, bins=bins)[0]
-        hist_picked = (1 / picked_ratio) * hist_all - (nonPicked_ratio / picked_ratio) * hist_nonPicked
+        # hist_picked = (1 / picked_ratio) * hist_all - (nonPicked_ratio / picked_ratio) * hist_nonPicked
+        hist_picked = (1 / nonPicked_ratio) * hist_all - (picked_ratio/nonPicked_ratio) * hist_nonPicked
         hist_picked = hist_picked / np.sum(hist_picked)
         bins = [(var + bins[i + 1]) / 2 for i, var in enumerate(bins) if i + 1 != len(bins)]
         hist_miu = np.sum(hist_picked * bins)

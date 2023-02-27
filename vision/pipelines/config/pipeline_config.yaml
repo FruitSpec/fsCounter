@@ -56,7 +56,7 @@ translation:
 
 filters:
   distance:
-    threshold: 1
+    threshold: 1.2
   duplicates:
     iou_threshold: 0.6
   size:
