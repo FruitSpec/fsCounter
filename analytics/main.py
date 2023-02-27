@@ -1,9 +1,9 @@
 from analytics.analyzer import *
-
+from analytics.tools.realtime_pipline import run_real_time
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    # run_real_time()
+    run_real_time()
     analysis = [phenotyping_analyzer('side1'),
                 phenotyping_analyzer('side2'),
                 commercial_analyzer('side1'),

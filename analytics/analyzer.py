@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from omegaconf import OmegaConf
 import matplotlib as mpl
+
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from analytics.tools.utils import *
@@ -156,19 +157,20 @@ class phenotyping_analyzer(Analyzer):
                 except Exception:
                     print(f'{scan.split("/")[-1]} - {row} - NOT EXIST!')
                     continue
-
                 try:
-                    trees, _ = slice_to_trees(json_path, None, None)
+                    trees, _ = slice_to_trees(json_path, None, None, h=1920, w=1080)
+                    # trees, _ = slice_to_trees(json_path, file_path=None, output_path=None, h=1920, w=1080, on_fly=False)
                     exist_plots = len(trees['tree_id'].unique())
                 except ValueError as e:
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
-                #
-                # GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
-                # if GT_plots == exist_plots:
-                #     print(f'{scan.split("/")[-1]} - {row} - completed!')
-                # else:
-                #     print(f'{scan.split("/")[-1]} - {row} - {exist_plots}/{GT_plots} - NOT MATCHED')
-                #     flag = False
+                    continue
+
+                GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
+                if GT_plots == exist_plots:
+                    print(f'{scan.split("/")[-1]} - {row} - completed!')
+                else:
+                    print(f'{scan.split("/")[-1]} - {row} - {exist_plots}/{GT_plots} - NOT MATCHED')
+                    flag = False
         return flag
 
     def map_tree_into_plot(self, row, tree, type):
@@ -220,6 +222,7 @@ class commercial_analyzer(Analyzer):
     """
         analysis for commercial fruits needs
     """
+
     def __init__(self, side):
         super(commercial_analyzer, self).__init__()
         if side == 'side1':

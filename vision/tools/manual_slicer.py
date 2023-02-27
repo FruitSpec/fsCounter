@@ -82,7 +82,6 @@ def mouse_callback(event, x, y, flags, params):
     cv2.imshow(params['headline'], frame)
 
 
-
 def print_lines(params):
     frame = params['frame'].copy()
     y = int(params['height'] // params['resize_factor'])
@@ -95,6 +94,7 @@ def print_lines(params):
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
+
 
 def print_rectangles(frame, params):
     left_clusters = params['data'][params['index']]['left_clusters']
@@ -113,8 +113,6 @@ def print_rectangles(frame, params):
             frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0),)
 
     return frame
-
-
 
 
 def print_text(frame, params, text=None):
@@ -324,39 +322,40 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     data = collections.OrderedDict(sorted(data.items()))
 
     trees_data, border_data = parse_data_to_trees(data)
-    # hash = {}
-    # for tree_id, frames in trees_data.items():
-    #     for frame in frames:
-    #         if frame['frame_id'] in list(hash.keys()):
-    #             hash[frame['frame_id']].append(frame)
-    #         else:
-    #             hash[frame['frame_id']] = [frame]
+    hash = {}
+    for tree_id, frames in trees_data.items():
+        for frame in frames:
+            if frame['frame_id'] in list(hash.keys()):
+                hash[frame['frame_id']].append(frame)
+            else:
+                hash[frame['frame_id']] = [frame]
 
-    # if not on_fly:
-    #     cap = cv2.VideoCapture(file_path)
-    #     if (cap.isOpened() == False):
-    #         print("Error opening video stream or file")
-    #
-    #     # Read until video is completed
-    #     f_id = 0
-    #     hash_ids = list(hash.keys())
-    #     pbar = tqdm(total=len(hash_ids))
-    #     while (cap.isOpened()):
-    #
-    #         ret, frame = cap.read()
-    #         if ret == True:
-    #             pbar.update(1)
-    #             if f_id in hash_ids:
-    #                 for frame_data in hash[f_id]:
-    #                     if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
-    #                         os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
-    #                     cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
-    #             f_id += 1
-    #         # Break the loop
-    #         else:
-    #             break
-    #     # When everything done, release the video capture object
-    #     cap.release()
+    if not on_fly:
+        cap = cv2.VideoCapture(file_path)
+        if (cap.isOpened() == False):
+            print("Error opening video stream or file")
+
+        # Read until video is completed
+        f_id = 0
+        hash_ids = list(hash.keys())
+        pbar = tqdm(total=len(hash_ids))
+        while (cap.isOpened()):
+
+            ret, frame = cap.read()
+            if ret == True:
+                pbar.update(1)
+                if f_id in hash_ids:
+                    for frame_data in hash[f_id]:
+                        if not os.path.exists(os.path.join(output_path, f"T{frame_data['tree_id']}")):
+                            os.mkdir(os.path.join(output_path, f"T{frame_data['tree_id']}"))
+                        cv2.imwrite(os.path.join(output_path, f"T{frame_data['tree_id']}", f"frame_{f_id}.jpg"), frame)
+                f_id += 1
+            # Break the loop
+            else:
+                break
+        # When everything done, release the video capture object
+        cap.release()
+
     border_df = pd.DataFrame(data=border_data, columns=['frame_id', 'tree_id', 'x1', 'y1', 'x2', 'y2'])
     border_df['x1'] /= r
     border_df['y1'] /= r

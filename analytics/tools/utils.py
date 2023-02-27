@@ -65,7 +65,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
 
     def extract_tree_det():
         tree_frames = df_tree['frame_id'].unique()
-        #border_frames = df_border['frame_id'].unique()
+        # border_frames = df_border['frame_id'].unique()
         frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
         df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
@@ -81,12 +81,11 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
                 border_boxes = df_border[df_border['frame_id'] == frame_id]
                 for index, box in border_boxes.iterrows():
                     df_b = df_frame[
-                        ((df_frame['x2'] + df_frame['x1'])/2 > box['x1']) &
-                        ((df_frame['x2'] + df_frame['x1'])/2 < box['x2']) &
-                        ((df_frame['y2'] + df_frame['y1'])/2 < box['y2']) &
-                        ((df_frame['y2'] + df_frame['y1'])/2 > box['y1'])]
+                        ((df_frame['x2'] + df_frame['x1']) / 2 > box['x1']) &
+                        ((df_frame['x2'] + df_frame['x1']) / 2 < box['x2']) &
+                        ((df_frame['y2'] + df_frame['y1']) / 2 < box['y2']) &
+                        ((df_frame['y2'] + df_frame['y1']) / 2 > box['y1'])]
                     plot_det.append(df_b)
-
 
     if df_tree is not None:
         plot_det = []
@@ -102,8 +101,13 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
 
 def predict_weight_values(miu, sigma):
     # using exponential regression
-    weight_miu = 11.475 * np.exp(0.0359 * miu)
-    weight_sigma = 11.475 * np.exp(0.0359 * sigma)
+    weight_miu = 6.305 * np.exp(0.045 * miu)
+    weight_sigma = 6.305 * np.exp(0.045 * sigma)
+
+    # using linear regression
+    # weight_miu = 4.04 * miu - 142.06
+    # weight_sigma = 4.04 * sigma - 142.06
+
     return weight_miu, weight_sigma
 
 
