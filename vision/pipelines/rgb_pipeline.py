@@ -6,8 +6,7 @@ import numpy as np
 import collections
 
 
-
-from vision.misc.help_func import get_repo_dir, validate_output_path
+from vision.misc.help_func import get_repo_dir, validate_output_path, copy_configs
 from vision.depth.zed.svo_operations import sl_get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
@@ -82,11 +81,11 @@ def run(cfg, args):
         #trk_outputs_2 = deep_sort_tracker.update(xywh_dets, dets_conf, frame)
 
         # filter by distance:
-        # indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
+        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        # indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        # trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+        indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
+        trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
 
         # measure:
         colors, hists_hue = get_colors(trk_outputs, frame)
@@ -204,30 +203,7 @@ if __name__ == "__main__":
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
+    copy_configs(pipeline_config, runtime_config, args.output_folder)
+
     run(cfg, args)
 
-    # kornia example:
-    # import kornia as K
-    #
-    # torch_img = K.utils.image_to_tensor(det_crop)
-    # torch_img = torch_img[None, ...].float() / 255.
-    # torch_img = K.enhance.adjust_contrast(torch_img, 0.5)
-    # torch_img_gray = K.color.rgb_to_grayscale(torch_img)
-    # processed_img = K.filters.sobel(torch_img_gray, True, 1e-3)  # BxCx2xHxW
-    # plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
-
-    # cropping analysis
-    # import matplotlib.pyplot as plt
-    # from vision.tools.image_stitching import plot_2_imgs
-    # import seaborn as sns
-    #
-    # i = 3
-    # res = trk_outputs[i]
-    # crop_rgb = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_pc = point_cloud[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_rgb_masked = crop_rgb.copy()
-    # crop_rgb_masked[crop_pc[:, :, 2] > 0.52] = 0
-    # plot_2_imgs(crop_rgb_masked, crop_pc[:, :, 2])
-    # # sns.kdeplot(crop_pc[:,:,2].flatten())
-    # # plt.vlines(0.52,0,60)
-    # # plt.show()

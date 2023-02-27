@@ -1,5 +1,5 @@
 import os
-
+import shutil
 
 def scale(det_dims, frame_dims):
     r = min(det_dims[0] / frame_dims[0], det_dims[1] / frame_dims[1])
@@ -47,3 +47,7 @@ def validate_output_path(output_folder, flag=1):
         return
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
+
+def copy_configs(pipeline_config, runtime_config, output_path):
+    shutil.copy(pipeline_config, os.path.join(output_path, "pipeline_config.yaml"))
+    shutil.copy(runtime_config, os.path.join(output_path, "runtime_config.yaml"))
