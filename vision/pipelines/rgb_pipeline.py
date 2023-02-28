@@ -4,7 +4,6 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
 import collections
-
 from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
 from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions
 
@@ -17,7 +16,7 @@ from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
 from vision.tools.camera import is_sturated
-from vision.tools.color import get_hue
+from vision.tools.color import get_hue, get_tomato_color
 from vision.tools.video_wrapper import video_wrapper
 
 
@@ -83,7 +82,8 @@ def run(cfg, args):
     # When everything done, release the video capture object
     cam.close()
     filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
+    margin_suffix = f'_{str(cfg.margin).split(".")[-1]}' if "reg" in cfg.dim_method else ""
+    out_name = f'measures_{cfg.dim_method}{margin_suffix}{filter_suffix}.csv'
     results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
     detector.release()
 
@@ -102,11 +102,11 @@ def get_colors(trk_results, frame):
     colors = []
     hists = []
     for res in trk_results:
-        # TODO
-        h, b = get_hue(frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :])
+        rgb_crop = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+        h, b = get_hue(rgb_crop)
         mean = np.sum(b[:-1] * h) / np.sum(h)
         std = np.sqrt(np.sum(((mean - b[:-1]) ** 2) * h) / np.sum(h))
-        colors.append([mean * 2, std * 2])  # multiply by 2 to correct hue to 360 angles
+        colors.append([get_tomato_color(rgb_crop), std * 2])  # multiply by 2 to correct hue to 360 angles
         hists.append(h)
 
     return colors, hists

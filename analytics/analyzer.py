@@ -1,7 +1,5 @@
 from abc import abstractmethod
 from omegaconf import OmegaConf
-import matplotlib as mpl
-mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from analytics.tools.utils import *
 
@@ -135,7 +133,7 @@ class phenotyping_analyzer(Analyzer):
     analysis for phenotype needs
     """
 
-    def __init__(self, side):
+    def __init__(self, side, measures_name="measures.csv"):
         super(phenotyping_analyzer, self).__init__()
         if side == 'side1':
             self.side = 'side1'
@@ -143,7 +141,7 @@ class phenotyping_analyzer(Analyzer):
         elif side == 'side2':
             self.side = 'side2'
             self.indices = self.map[self.fruit_type].phenotyping.side2
-
+        self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
 
     def validation(self):
@@ -158,17 +156,16 @@ class phenotyping_analyzer(Analyzer):
                     continue
 
                 try:
-                    trees, _ = slice_to_trees(json_path, None, None)
-                    exist_plots = len(trees['tree_id'].unique())
+                    exist_plots = len(slice_to_trees(json_path, None, None)['tree_id'].unique())
                 except ValueError as e:
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
-                #
-                # GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
-                # if GT_plots == exist_plots:
-                #     print(f'{scan.split("/")[-1]} - {row} - completed!')
-                # else:
-                #     print(f'{scan.split("/")[-1]} - {row} - {exist_plots}/{GT_plots} - NOT MATCHED')
-                #     flag = False
+
+                GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
+                if GT_plots == exist_plots:
+                    print(f'{scan.split("/")[-1]} - {row} - completed!')
+                else:
+                    print(f'{scan.split("/")[-1]} - {row} - {exist_plots}/{GT_plots} - NOT MATCHED')
+                    flag = False
         return flag
 
     def map_tree_into_plot(self, row, tree, type):
@@ -190,14 +187,13 @@ class phenotyping_analyzer(Analyzer):
         for row in iter_side:
             row_path = os.path.join(path, row)
             try:
-                df_res = open_measures(row_path)
-                trees, borders = get_trees(row_path)
+                df_res = open_measures(row_path, self.measures_name)
+                trees = get_trees(row_path)
             except FileNotFoundError:
                 yield None, row
                 continue
             for tree_id, df_tree in trees:
-                df_border = borders[borders.tree_id == tree_id]
-                counter, size, color = trackers_into_values(df_res, df_tree, df_border)
+                counter, size, color = trackers_into_values(df_res, df_tree)
                 plot_id = self.map_tree_into_plot(row, tree_id, self.fruit_type)
                 yield (counter, size, color, plot_id)
 
@@ -220,7 +216,7 @@ class commercial_analyzer(Analyzer):
     """
         analysis for commercial fruits needs
     """
-    def __init__(self, side):
+    def __init__(self, side, measures_name="measures.csv"):
         super(commercial_analyzer, self).__init__()
         if side == 'side1':
             self.side = 'side1'
@@ -228,15 +224,16 @@ class commercial_analyzer(Analyzer):
         elif side == 'side2':
             self.side = 'side2'
             self.indices = self.map[self.fruit_type].commercial.side2
+        self.measures_name = measures_name
 
     @staticmethod
-    def get_aggreagation(path, rows):
+    def get_aggreagation(path, rows, measures_name):
         counter = 0
         size = pd.DataFrame()
         color = pd.DataFrame()
 
         for row in rows:
-            df_res = open_measures(os.path.join(path, row))
+            df_res = open_measures(os.path.join(path, row), measures_name)
             _counter, _size, _color = trackers_into_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
@@ -252,8 +249,8 @@ class commercial_analyzer(Analyzer):
         df_sum = pd.DataFrame()
         for key, rows in self.indices.items():
             try:
-                pre = commercial_analyzer.get_aggreagation(self.scan_pre, rows)
-                post = commercial_analyzer.get_aggreagation(self.scan_post, rows)
+                pre = commercial_analyzer.get_aggreagation(self.scan_pre, rows, self.measures_name)
+                post = commercial_analyzer.get_aggreagation(self.scan_post, rows, self.measures_name)
             # One of the file measures does not exist
             except FileNotFoundError:
                 df_sum = append_results(df_sum, [self.side, key] + [None] * 9)
