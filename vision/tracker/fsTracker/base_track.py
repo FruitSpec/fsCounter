@@ -22,6 +22,7 @@ class Track:
         self.accumulated_dist = deque()
         self.accumulated_height = deque()
         self.lost_counter = 0
+        self.depth = np.nan
 
 
     def get_track_search_window(self, search_window, margin=15, multiply=1.25):
@@ -60,7 +61,7 @@ class Track:
 
         return x1, y1, x2, y2
 
-    def add(self, det, id_, frame_size):
+    def add(self, det, depth, id_, frame_size):
         self.track_id = id_
         self.bbox = [det[0], det[1], det[2], det[3]]
         self.is_activated = True
@@ -68,11 +69,12 @@ class Track:
         self.cls = det[6]
         self._count += 1
         self.frame_size = frame_size
+        self.depth = depth
         self.state = TrackState.New
 
 
 
-    def update(self, det):
+    def update(self, det, depth):
         bbox = [det[0], det[1], det[2], det[3]]
         self.accumulated_dist.append(self.bbox[0] - bbox[0])
         self.accumulated_height.append(self.bbox[1] - bbox[1])
@@ -87,5 +89,7 @@ class Track:
         self._count += 1
         self.state = TrackState.Tracked
         self.lost_counter = 0
+        if not np.isnan(depth):
+            self.depth = depth
     def output(self):
         return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]

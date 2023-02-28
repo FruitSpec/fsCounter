@@ -5,8 +5,8 @@ from tqdm import tqdm
 import numpy as np
 import collections
 
-from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions
+from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale, copy_configs
+from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -51,28 +51,31 @@ def run(cfg, args):
         # filter by size:
         filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
 
+        outputs_depth = measure_depth(filtered_outputs, point_cloud)
+
         # find translation
         tx, ty = translation.get_translation(frame, filtered_outputs)
 
         # track:
-        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
+        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
 
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
+        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+        #indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
+        #trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+
 
         # measure:
-        colors, hists_hue = get_colors(trk_outputs, frame)
-        clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg)
+        colors, hists_hue = get_colors(filtered_outputs, frame)
+        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
+        dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
         # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(trk_outputs, clusters, dimensions, colors)
+        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
 
         if args.debug.is_debug:
             depth = None
@@ -164,20 +167,7 @@ if __name__ == "__main__":
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
+    copy_configs(pipeline_config, runtime_config, args.output_folder)
+
     run(cfg, args)
 
-    # cropping analysis
-    # import matplotlib.pyplot as plt
-    # from vision.tools.image_stitching import plot_2_imgs
-    # import seaborn as sns
-    #
-    # i = 3
-    # res = trk_outputs[i]
-    # crop_rgb = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_pc = point_cloud[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_rgb_masked = crop_rgb.copy()
-    # crop_rgb_masked[crop_pc[:, :, 2] > 0.52] = 0
-    # plot_2_imgs(crop_rgb_masked, crop_pc[:, :, 2])
-    # # sns.kdeplot(crop_pc[:,:,2].flatten())
-    # # plt.vlines(0.52,0,60)
-    # # plt.show()
