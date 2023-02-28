@@ -47,7 +47,7 @@ class Analyzer():
         # Calculation fix
         miu_picked = (1 / nonPicked_ratio) * miu_all - (picked_ratio / nonPicked_ratio) * miu_nonPicked
         sigma_picked = np.sqrt(
-            (1 / nonPicked_ratio) ** 2 * sigma_all ** 2 - (picked_ratio / nonPicked_ratio) ** 2 * sigma_nonPicked ** 2)
+            (1 / nonPicked_ratio) ** 2 * sigma_all ** 2 + (picked_ratio / nonPicked_ratio) ** 2 * sigma_nonPicked ** 2)
         # [2] By kde, not robust enough
         # x_values = np.linspace(all_measures.min(), all_measures.max(), num=int(all_measures.max() - all_measures.min()))
         # kde_all = gaussian_kde(all_measures)(x_values)
