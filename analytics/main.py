@@ -46,8 +46,7 @@ def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
     # run_real_time()
     analysis = [phenotyping_analyzer(),
-                # commercial_analyzer()]
-                ]
+                commercial_analyzer()]
     df = pd.DataFrame()
     for obj in analysis:
         if obj.validation() == False:
@@ -58,8 +57,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
     # main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
-    # main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
-    #             finished=['pipeline_config_pix_size_median_hue_depth.yaml'],
-    #             analyze_only=False, skip_both=True)
+    main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
+                finished=[],
+                analyze=False, skip_both=True)

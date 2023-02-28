@@ -3,6 +3,8 @@ import math
 import os
 import numpy as np
 from vision.tools.manual_slicer import slice_to_trees
+from scipy.stats import gaussian_kde
+from sklearn.mixture import GaussianMixture
 
 
 def open_measures(path, measures_name='measures.csv'):
@@ -64,7 +66,7 @@ def get_valid_by_color(color):
     return color.isin([frequent_color-1, frequent_color, frequent_color+1])
 
 
-def filter_by_color(df, min_samp=3):
+def filter_by_color(df):
     """
     Filters a DataFrame of objects by color.
 
@@ -78,9 +80,6 @@ def filter_by_color(df, min_samp=3):
     df : pandas.DataFrame
         DataFrame of objects with a color column.
 
-    min_samp: int
-            track_ids with less then min_samp will be dropped
-
     Returns
     -------
     pandas.DataFrame
@@ -88,15 +87,12 @@ def filter_by_color(df, min_samp=3):
 
     """
     valids = get_valid_by_color(df["color"])
-    df = df[valids]
-    if len(df) < min_samp:
-        return pd.DataFrame({})
-    return df
+    return df[valids]
 
 
 def filter_df_by_color(df):
     """
-    Filter a DataFrame of image crops based on the color of the objects in the crops.
+    Filter a DataFrame of tomatos based on the color of the objects in the crops.
 
     The function groups the DataFrame by "track_id" and applies the filter_by_color function to each group, which
     filters the crops in the group based on their color. The filtered crops are concatenated into a single DataFrame.
@@ -127,14 +123,144 @@ def get_count_value(df):
     return count
 
 
-def trackers_into_values(df_res, df_tree=None, df_border=None):
+def get_intersection_point(df_res):
+    """
+    Calculate the intersection point of a bimodal distribution of distances in a DataFrame.
+
+    The function fits a Gaussian mixture model to the distance data in the input DataFrame, and calculates the
+    intersection point of the two Gaussian distributions in the model by finding the minimum point of the kernel density
+    estimate of the data between the two means.
+
+    Parameters
+    ----------
+    df_res : pandas.DataFrame
+        A DataFrame containing the distance data in a column named "distance".
+
+    Returns
+    -------
+    intersection_point : float
+        The intersection point of the two Gaussian distributions, which represents the threshold between the two modes
+        of the bimodal distribution.
+
+    """
+    gmm = GaussianMixture(n_components=2)
+    clean_dist = df_res["distance"].dropna().to_numpy().reshape(-1, 1)
+    gmm.fit(clean_dist)
+    mean1, mean2 = gmm.means_
+    kernel = gaussian_kde(clean_dist.reshape(-1))
+    vals_between_dists = np.arange(min(mean1, mean2), max(mean1, mean2), 0.05)
+    density_between_dists = kernel(vals_between_dists)
+    intersection_point = vals_between_dists[np.argmin(density_between_dists)]
+    return intersection_point
+
+
+def filter_df_by_dist(df_res):
+    """
+    Filter a DataFrame of based on their distance to an object of interest.
+
+    The function first calculates the intersection point of the bimodal distribution of distances in the input DataFrame
+    using the get_interception_point() function. It then filters the input DataFrame to only include crops with
+    distances below the intersection point.
+
+    Parameters
+    ----------
+    df_res : pandas.DataFrame
+        A DataFrame containing columns "distance" and any other columns with data on the image crops.
+
+    Returns
+    -------
+    filtered_df : pandas.DataFrame
+        A DataFrame containing the same columns as the input DataFrame, but with only the observations that have
+        distances below the intersection point of the bimodal distribution.
+
+    """
+    df_res["distance"].replace(0, np.nan, inplace=True)
+    intersection_point = get_intercetion_point(df_res)
+    return df_res[df_res["distance"] < intersection_point]
+
+def filter_df_by_min_samp(df_res, min_samples=3):
+    """
+    Filter a DataFrame of image crops based on the number of samples in each track.
+
+    The function groups the input DataFrame by "track_id" and filters the groups to only include those with a number
+    of samples greater than or equal to the specified "min_samples" value. The filtered groups are then concatenated
+    into a single DataFrame.
+
+    Parameters
+    ----------
+    df_res : pandas.DataFrame
+        A DataFrame containing columns "track_id" and any other columns with data on the image crops.
+    min_samples : int, optional
+        The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
+
+    Returns
+    -------
+    filtered_df : pandas.DataFrame
+        A DataFrame containing the same columns as the input DataFrame, but with only the observations that are part
+        of tracks with a number of samples greater than or equal to the specified "min_samples" value.
+    """
+    dfs_list = []
+    for ind, df_track in df_res.groupby("track_id"):
+        if len(df_track) > min_samples:
+            dfs_list.append(df_track)
+    return pd.concat(dfs_list, axis=0)
+
+
+def filter_df(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50):
+    """
+    Filter a DataFrame of image crops based on various criteria.
+
+    The function applies up to three filters to the input DataFrame, depending on the values of the "apply_filter_by_color",
+    "apply_filter_by_dist", and "min_samples" parameters. The filters are applied in the order: filter_by_color, filter_by_dist,
+    filter_by_min_samples, filter_by_location. If "apply_filter_by_color" is True, the filter_by_color function is applied to the input DataFrame.
+    If "apply_filter_by_dist" is True, the filter_by_dist function is applied to the input DataFrame. If "min_samples" is
+    greater than 0, the filter_by_min_samp function is applied to the input DataFrame. If "min_x1" > 0,
+     the input DataFrame will be cleaned from values with "x1" larger then min_x1.
+
+    Parameters
+    ----------
+    df_res : pandas.DataFrame
+        A DataFrame containing columns "distance", "track_id", "color", and any other columns with data on the image crops.
+    apply_filter_by_color : bool, optional
+        Whether or not to apply the filter_by_color function to the input DataFrame. Defaults to True.
+    apply_filter_by_dist : bool, optional
+        Whether or not to apply the filter_by_dist function to the input DataFrame. Defaults to True.
+    min_samples : int, optional
+        The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
+    min_x1 : int, optional
+        Every fruit with x1 < "min_x1" will be dropped
+
+    Returns
+    -------
+    filtered_df : pandas.DataFrame
+        A DataFrame containing the same columns as the input DataFrame, but with only the observations that passed the
+        specified filters.
+
+    """
+    if apply_filter_by_color:
+        df_res = filter_df_by_dist(df_res)
+    if apply_filter_by_dist:
+        df_res = filter_df_by_color(df_res)
+    if min_samples > 0:
+        df_res = filter_df_by_min_samp(df_res, min_samples)
+    if min_x1 > 0:
+        df_res = df_res[df_res["x1"] > min_x1]
+    return df_res
+
+
+def trackers_into_values(df_res, df_tree=None, df_border=None, apply_filter_by_color=True, apply_filter_by_dist=True,
+                         min_samples=3, min_x1=50):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
+    :param apply_filter_by_color: Whether or not to apply the filter_by_color function to the input DataFrame. Defaults to True.
+    :param apply_filter_by_dist: Whether or not to apply the filter_by_dist function to the input DataFrame. Defaults to True.
+    :param min_samples: The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
+    :param min_x1: every fruit with x1 lower then this value will be dropped. Defaults to 50.
     :return: counter, measures, colors_class
     """
 
-    # df_res = filter_df_by_color(df_res)
+    df_res = filter_df(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1)
 
     def extract_tree_det():
         margin = 0
