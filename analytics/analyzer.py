@@ -73,8 +73,8 @@ class Analyzer():
         :param picked_count: int, number of picked fruits in a unit
         :return: number of picked fruits for each bin-color
         """
-        hist_all = np.plt.hist(pre_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
-        hist_nonPicked = plt.hist(post_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
+        hist_all, _ = np.histogram(pre_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
+        hist_nonPicked, _ = np.histogram(post_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
         plt.close()
         hist_picked = hist_all - hist_nonPicked
         hist_picked = [max(i, 0) for i in hist_picked]
@@ -84,7 +84,7 @@ class Analyzer():
         try:
             bin1, bin2, bin3, bin4, bin5 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), int(
                 picked_bins[3]), \
-                                           picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
+                picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
         except:
             bin1, bin2, bin3, bin4, bin5 = 0, 0, 0, 0, 0
 
@@ -145,6 +145,7 @@ class phenotyping_analyzer(Analyzer):
         self.indices = self.map[self.fruit_type].phenotyping.rows
         self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
+        self.active_tracks = []
 
     def validation(self):
         flag = True
@@ -188,44 +189,55 @@ class phenotyping_analyzer(Analyzer):
         :return: plots iterator with their processed values
         """
 
-        def get_aggreagation():
+        def get_plot_aggregation():
             counter = 0
             size = pd.DataFrame()
             color = pd.DataFrame()
 
-            for df_res, df_tree, borders in zip([info_1[0], info_2[0]], [df_tree_1, df_tree_2], [info_1[2], info_2[2]]):
+            for ind, (df_res, df_tree, borders) in enumerate(
+                    zip([side_1[0], side_2[0]], [df_tree_1, df_tree_2], [side_1[2], side_2[2]])):
                 df_border = borders[borders.tree_id == tree_id]
                 if not len(df_border):
                     df_border = None
-                _counter, _size, _color = trackers_into_values(df_res, df_tree, df_border)
+                _dist = get_intersection_point(df_res)
+                _counter, _size, _color, _ids = trackers_into_values(df_res,_dist, df_tree, df_border)
+
+                # if ind == 0:
+                #     info_1 = (info_1[0], info_1[1], info_1[2], _ids)
+                # elif ind == 1:
+                #     info_2 = (info_2[0], info_2[1], info_2[2], _ids)
+
                 counter += _counter
                 size = pd.concat([size, _size], axis=0)
                 color = pd.concat([color, _color], axis=0)
 
+                if rows[0] == '9':
+                    break
+
             return (counter, size.values, color.values)
 
-        def get_side(row, reverse=False):
+        def get_side_sets(row, locked_ids=[], reverse=False):
             row_path = os.path.join(path, row)
-            try:
+            if os.path.exists(os.path.join(path, row, self.measures_name)):
                 df_res = open_measures(row_path, self.measures_name)
+                df_res = df_res[~df_res['track_id'].isin(locked_ids)]
                 trees, borders = get_trees(row_path)
-            except FileNotFoundError:
+            else:
                 return None, None, None
             if reverse:
                 trees = reversed(tuple(trees))
             return (df_res, trees, borders)
 
         for rows in zip(self.indices.side1, self.indices.side2):
-            info_1 = get_side(rows[0])
-            info_2 = get_side(rows[1], True)
-            if rows[1] == '9':
-                info_2 = info_1
+            side_1 = get_side_sets(rows[0])
+            side_2 = get_side_sets(rows[1], reverse=True)
 
-            if info_1[0] is None or info_2[0] is None:
+            # in case one/both sides missing , no results
+            if side_1[0] is None or side_2[0] is None:
                 continue
 
-            for (tree_id, df_tree_1), (_, df_tree_2) in zip(info_1[1], info_2[1]):
-                counter, size, color = get_aggreagation()
+            for (tree_id, df_tree_1), (_, df_tree_2) in zip(side_1[1], side_2[1]):
+                counter, size, color = get_plot_aggregation()
                 plot_id = self.map_tree_into_plot(rows[0], tree_id, self.fruit_type)
                 yield (counter, size, color, plot_id)
 
@@ -256,17 +268,23 @@ class commercial_analyzer(Analyzer):
         self.measures_name = measures_name
 
     @staticmethod
-    def get_aggreagation(path, rows, measures_name):
+    def get_aggregation(path, rows, measures_name):
         counter = 0
         size = pd.DataFrame()
         color = pd.DataFrame()
 
         for row in rows:
+            if not os.path.exists(os.path.join(path, row, measures_name)):
+                continue
             df_res = open_measures(os.path.join(path, row), measures_name)
-            _counter, _size, _color = trackers_into_values(df_res)
+            _dist = get_intersection_point(df_res)
+            _counter, _size, _color, _ = trackers_into_values(df_res,_dist)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
             color = pd.concat([color, _color], axis=0)
+
+        if counter == 0 or size.empty or color.empty:
+            raise FileNotFoundError
 
         return (counter, size.values, color.values)
 
@@ -278,8 +296,8 @@ class commercial_analyzer(Analyzer):
         df_sum = pd.DataFrame()
         for key, rows in self.indices.items():
             try:
-                pre = commercial_analyzer.get_aggreagation(self.scan_pre, rows, self.measures_name)
-                post = commercial_analyzer.get_aggreagation(self.scan_post, rows, self.measures_name)
+                pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, self.measures_name)
+                post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
             # One of the file measures does not exist
             except FileNotFoundError:
                 df_sum = append_results(df_sum, [self.side, key] + [None] * 10)

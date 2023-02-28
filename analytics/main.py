@@ -28,10 +28,8 @@ def main_config(
             continue
         suffix = f'{cfg[cfg.index("_", cfg.index("_") + 1):].split(".")[0]}.csv'
         measures_name = f'measures{suffix}'
-        analysis = [phenotyping_analyzer('side1', measures_name),
-                    phenotyping_analyzer('side2', measures_name),
-                    commercial_analyzer('side1', measures_name),
-                    commercial_analyzer('side2', measures_name)]
+        analysis = [#phenotyping_analyzer(measures_name),
+                    commercial_analyzer(measures_name)]
         df = pd.DataFrame()
         for obj in analysis:
             if obj.validation() == False:
@@ -39,7 +37,6 @@ def main_config(
             obj.run()
             df = pd.concat([df, obj.get_results()], axis=0)
         df.to_csv(os.path.join(args.output_path, f'results{suffix}'), index=False)
-    print("finito")
 
 
 def main():
@@ -60,4 +57,4 @@ if __name__ == "__main__":
     # main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
     main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
                 finished=[],
-                analyze=False, skip_both=True)
+                analyze=True, skip_both=False,analyze_only=True)

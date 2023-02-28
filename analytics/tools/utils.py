@@ -47,9 +47,10 @@ def get_size_set(df, filter_by_ratio=True):
     if filter_by_ratio:
         pix_w = df["x2"] - df["x1"]
         pix_h = df["y2"] - df["y1"]
-        ratio = pix_w/pix_h
-        df.loc[(ratio < 0.6) | (1 / ratio < 0.6), ["width", "height"]] = np.nan # filter fruits with uneven BBOX # remove below 0.6
-        df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan #width axis occluded # keep major axis if in 0.6, 0.9
+        ratio = pix_w / pix_h
+        df.loc[(ratio < 0.6) | (1 / ratio < 0.6), ["width",
+                                                   "height"]] = np.nan  # filter fruits with uneven BBOX # remove below 0.6
+        df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
         df.loc[(ratio > 1.25), "height"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
     measures = pd.DataFrame([get_size_helper(df_track) for ind, df_track in df.groupby("track_id")])
     return measures
@@ -63,7 +64,7 @@ def get_valid_by_color(color):
     """
     counts = color.value_counts()
     frequent_color = counts.idxmax()
-    return color.isin([frequent_color-1, frequent_color, frequent_color+1])
+    return color.isin([frequent_color - 1, frequent_color, frequent_color + 1])
 
 
 def filter_by_color(df):
@@ -119,8 +120,9 @@ def get_color_set(df):
 
 
 def get_count_value(df):
-    count = len(df['track_id'].unique())
-    return count
+    ids = df['track_id'].unique()
+    count = len(ids)
+    return count, ids
 
 
 def get_intersection_point(df_res):
@@ -143,6 +145,7 @@ def get_intersection_point(df_res):
         of the bimodal distribution.
 
     """
+    df_res["distance"].replace(0, np.nan, inplace=True)
     gmm = GaussianMixture(n_components=2)
     clean_dist = df_res["distance"].dropna().to_numpy().reshape(-1, 1)
     gmm.fit(clean_dist)
@@ -153,30 +156,6 @@ def get_intersection_point(df_res):
     intersection_point = vals_between_dists[np.argmin(density_between_dists)]
     return intersection_point
 
-
-def filter_df_by_dist(df_res):
-    """
-    Filter a DataFrame of based on their distance to an object of interest.
-
-    The function first calculates the intersection point of the bimodal distribution of distances in the input DataFrame
-    using the get_interception_point() function. It then filters the input DataFrame to only include crops with
-    distances below the intersection point.
-
-    Parameters
-    ----------
-    df_res : pandas.DataFrame
-        A DataFrame containing columns "distance" and any other columns with data on the image crops.
-
-    Returns
-    -------
-    filtered_df : pandas.DataFrame
-        A DataFrame containing the same columns as the input DataFrame, but with only the observations that have
-        distances below the intersection point of the bimodal distribution.
-
-    """
-    df_res["distance"].replace(0, np.nan, inplace=True)
-    intersection_point = get_intercetion_point(df_res)
-    return df_res[df_res["distance"] < intersection_point]
 
 def filter_df_by_min_samp(df_res, min_samples=3):
     """
@@ -206,7 +185,8 @@ def filter_df_by_min_samp(df_res, min_samples=3):
     return pd.concat(dfs_list, axis=0)
 
 
-def filter_df(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50):
+def filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50,
+                    dist_threshold=''):
     """
     Filter a DataFrame of image crops based on various criteria.
 
@@ -229,6 +209,8 @@ def filter_df(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min
         The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
     min_x1 : int, optional
         Every fruit with x1 < "min_x1" will be dropped
+    dist_threshold : int
+        filter values upper the value
 
     Returns
     -------
@@ -238,7 +220,7 @@ def filter_df(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min
 
     """
     if apply_filter_by_color:
-        df_res = filter_df_by_dist(df_res)
+        df_res = df_res[df_res["distance"] < dist_threshold]
     if apply_filter_by_dist:
         df_res = filter_df_by_color(df_res)
     if min_samples > 0:
@@ -248,19 +230,15 @@ def filter_df(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min
     return df_res
 
 
-def trackers_into_values(df_res, df_tree=None, df_border=None, apply_filter_by_color=True, apply_filter_by_dist=True,
-                         min_samples=3, min_x1=50):
+def trackers_into_values(df_res, dist_threshold, df_tree=None, df_border=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
-    :param apply_filter_by_color: Whether or not to apply the filter_by_color function to the input DataFrame. Defaults to True.
-    :param apply_filter_by_dist: Whether or not to apply the filter_by_dist function to the input DataFrame. Defaults to True.
-    :param min_samples: The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
-    :param min_x1: every fruit with x1 lower then this value will be dropped. Defaults to 50.
-    :return: counter, measures, colors_class
+    :return: counter, measures, colors_class, extract_ids
     """
 
-    df_res = filter_df(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1)
+    df_res = filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50,
+                             dist_threshold=dist_threshold)
 
     def extract_tree_det():
         margin = 0
@@ -271,16 +249,17 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, apply_filter_by_c
                 continue
             if df_tree is not None:
                 frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
-                df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
+                df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (
+                        df_frame['x1'] < frames_bounds['end'] - margin)]
                 plot_det.append(df)
                 if df_border is not None:
                     border_boxes = df_border[df_border['frame_id'] == frame_id]
                     for index, box in border_boxes.iterrows():
                         df_b = df_frame[
-                            ((df_frame['x2'] + df_frame['x1'])/2 > box['x1']) &
-                            ((df_frame['x2'] + df_frame['x1'])/2 < box['x2']) &
-                            ((df_frame['y2'] + df_frame['y1'])/2 < box['y2']) &
-                            ((df_frame['y2'] + df_frame['y1'])/2 > box['y1'])]
+                            ((df_frame['x2'] + df_frame['x1']) / 2 > box['x1']) &
+                            ((df_frame['x2'] + df_frame['x1']) / 2 < box['x2']) &
+                            ((df_frame['y2'] + df_frame['y1']) / 2 < box['y2']) &
+                            ((df_frame['y2'] + df_frame['y1']) / 2 > box['y1'])]
                         plot_det.append(df_b)
             else:
                 plot_det.append(df_frame)
@@ -295,11 +274,11 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, apply_filter_by_c
     extract_tree_det()
     df_res = pd.concat(plot_det, axis=0)
 
-    counter = get_count_value(df_res)
+    counter, extract_ids = get_count_value(df_res)
     measures = get_size_set(df_res)
     colors_class = get_color_set(df_res)
 
-    return counter, measures, colors_class
+    return counter, measures, colors_class, extract_ids
 
 
 def predict_weight_values(miu, sigma):
