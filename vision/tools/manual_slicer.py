@@ -2,6 +2,7 @@ import os
 import numpy as np
 import cv2
 import json
+import pandas as pd
 import collections
 import pandas as pd
 from tqdm import tqdm
@@ -10,6 +11,7 @@ from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
+from vision.visualization.drawer import draw_rectangle
 
 
 def mouse_callback(event, x, y, flags, params):
@@ -323,14 +325,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data = parse_data_to_trees(data)
-    hash = {}
-    for tree_id, frames in trees_data.items():
-        for frame in frames:
-            if frame['frame_id'] in list(hash.keys()):
-                hash[frame['frame_id']].append(frame)
-            else:
-                hash[frame['frame_id']] = [frame]
+    trees_data, border_data = parse_data_to_trees(data)
 
     if not on_fly:
         cap = cv2.VideoCapture(file_path)
@@ -357,8 +352,13 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
                 break
         # When everything done, release the video capture object
         cap.release()
+
+    border_df = pd.DataFrame(data=border_data, columns=['frame_id', 'tree_id', 'x1', 'y1', 'x2', 'y2'])
+    border_df['x1'] /= r
+    border_df['y1'] /= r
+    border_df['x2'] /= r
+    border_df['y2'] /= r
     df_all = []
-    import shutil
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
         df.loc[df['start'] != -1, 'start'] = df.loc[df['start'] != -1, 'start'] // r
@@ -368,10 +368,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         else:
             if not os.path.exists(os.path.join(output_path, f"T{tree_id}")):
                 os.mkdir(os.path.join(output_path, f"T{tree_id}"))
-            else:
-                shutil.rmtree(os.path.join(output_path, f"T{tree_id}"))
-                # os.mkdir(os.path.join(output_path, f"T{tree_id}"))
-            # df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
+            df.to_csv(os.path.join(output_path, f"T{tree_id}", f"slices.csv"))
     if on_fly:
         return pd.concat(df_all, axis=0), border_df
 
@@ -641,17 +638,17 @@ def get_state(loc):
         else:
             state = 6  # end - start
     elif loc['end'] is not None:
-        state = 2
+        state = 2  # end
     else:
-        state = 1
+        state = 1  # start
 
     return state
 
 
 if __name__ == "__main__":
-    fp = '/media/fruitspec-lab/Expansion/Tomato_20_deg/pre/TOMATO_14022320_deg_pre_b_20_ZED_1.svo'
-    output_path = '/media/fruitspec-lab/Expansion/Tomato_20_deg/pre'
-    # validate_output_path(output_path)
+    fp = '/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tomato/230123/post/10/ZED_1.svo'
+    output_path = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing'
+    validate_output_path(output_path)
     manual_slicer(fp, output_path, rotate=2)
 
     data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"

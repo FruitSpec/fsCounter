@@ -3,6 +3,8 @@ import os
 from omegaconf import OmegaConf
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import time
+
+
 def multi_process_wrapper(cfg, args, movies_path, scan, row, analysis_path):
     try:
         args.movie_path = os.path.join(movies_path, scan, row,
@@ -39,8 +41,6 @@ def run_real_time(max_workers=4, pipeline_config=""):
     movies_path = offline_config.video_path
     analysis_path = offline_config.output_path
 
-
-    # TODO handle release GPU
     scans, rows = [], []
     for scan in os.listdir(movies_path):
         for row in os.listdir(os.path.join(movies_path, scan)):

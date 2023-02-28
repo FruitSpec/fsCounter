@@ -1,5 +1,7 @@
 from abc import abstractmethod
 from omegaconf import OmegaConf
+import matplotlib as mpl
+mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from analytics.tools.utils import *
 
@@ -154,11 +156,13 @@ class phenotyping_analyzer(Analyzer):
                 except Exception:
                     print(f'{scan.split("/")[-1]} - {row} - NOT EXIST!')
                     continue
-
                 try:
-                    exist_plots = len(slice_to_trees(json_path, None, None)['tree_id'].unique())
+                    trees, _ = slice_to_trees(json_path, None, None, h=1920, w=1080)
+                    # trees, _ = slice_to_trees(json_path, file_path=None, output_path=None, h=1920, w=1080, on_fly=False)
+                    exist_plots = len(trees['tree_id'].unique())
                 except ValueError as e:
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
+                    continue
 
                 GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
                 if GT_plots == exist_plots:
@@ -187,13 +191,14 @@ class phenotyping_analyzer(Analyzer):
         for row in iter_side:
             row_path = os.path.join(path, row)
             try:
-                df_res = open_measures(row_path, self.measures_name)
-                trees = get_trees(row_path)
+                df_res = open_measures(row_path)
+                trees, borders = get_trees(row_path)
             except FileNotFoundError:
                 yield None, row
                 continue
             for tree_id, df_tree in trees:
-                counter, size, color = trackers_into_values(df_res, df_tree)
+                df_border = borders[borders.tree_id == tree_id]
+                counter, size, color = trackers_into_values(df_res, df_tree, df_border)
                 plot_id = self.map_tree_into_plot(row, tree_id, self.fruit_type)
                 yield (counter, size, color, plot_id)
 

@@ -132,12 +132,13 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     df_res = filter_df_by_color(df_res)
 
     def extract_tree_det():
+        tree_frames = df_tree['frame_id'].unique()
+        #border_frames = df_border['frame_id'].unique()
+        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
+        df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
-
-            # add y bound 300
-
             df_frame = bound_red_fruit(df_frame)
             if df_frame.empty:
                 continue
@@ -176,8 +177,13 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
 
 def predict_weight_values(miu, sigma):
     # using exponential regression
-    weight_miu = 11.475 * np.exp(0.0359 * miu)
-    weight_sigma = 11.475 * np.exp(0.0359 * sigma)
+    weight_miu = 6.305 * np.exp(0.045 * miu)
+    weight_sigma = 6.305 * np.exp(0.045 * sigma)
+
+    # using linear regression
+    # weight_miu = 4.04 * miu - 142.06
+    # weight_sigma = 4.04 * sigma - 142.06
+
     return weight_miu, weight_sigma
 
 
