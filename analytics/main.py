@@ -62,5 +62,5 @@ def main():
 if __name__ == "__main__":
     # main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
     main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
-                finished=['pipeline_config_pix_size_median_hue_depth.yaml'],
-                analyze_only=False, skip_both=True)
+                finished=[],
+                analyze=False, skip_both=True)

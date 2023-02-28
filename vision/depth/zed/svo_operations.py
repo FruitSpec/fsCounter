@@ -80,7 +80,7 @@ def measure_depth(detections, point_cloud):
 def get_distance(crop):
     h, w = crop.shape
     filter_ = 0.2
-    if h < 4 or w < 4 or h == 0 or w == 0:
+    if h < 4 or w < 4:
         return np.inf
     crop = crop[int(h * filter_): h - int(h * filter_), int(w * filter_):w - int(w * filter_)]
     return np.nanmedian(crop)
@@ -204,7 +204,7 @@ def get_dimensions(point_cloud, frame,  dets, cfg):
             crop = filtered_center.reshape(crop.shape)
             width = get_width(crop, margin, fixed_z=True, max_z=dist_max)
             height = get_height(crop, margin, fixed_z=True, max_z=dist_max)
-        distance = get_distance(crop[:, :, 2])
+        distance = np.nansum(np.array(xyz_center_of_box(crop, method.split("_")[-1]))**2)
 
         dims.append([height, width, distance])
 
