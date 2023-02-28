@@ -20,7 +20,7 @@ def main_config(
         cfg_path = os.path.join(configs_folder, cfg)
         if not cfg in finished and not analyze_only:
             s_t = time.time()
-            run_real_time(2, cfg_path)
+            run_real_time(3, cfg_path)
             print("total time: ", time.time() - s_t)
         elif skip_both:
             continue
@@ -60,5 +60,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
-    # main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report", analyze_only=True)
+    # main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
+    main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
+                finished=['pipeline_config_pix_size_median_hue_depth.yaml'],
+                analyze_only=False, skip_both=True)

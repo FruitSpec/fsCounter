@@ -14,16 +14,17 @@ def multi_process_wrapper(cfg, args, movies_path, scan, row, analysis_path):
         print(f'{os.path.join(movies_path, scan, row)} SVO not found')
         return
 
-    try:
-        validate_output_path(os.path.join(analysis_path, scan))
-        validate_output_path(os.path.join(analysis_path, scan, row))
-        # set output path
-        args.output_folder = os.path.join(analysis_path, scan, row)
-        run_rgb_pipeline(cfg, args)
+    # try:
+    validate_output_path(os.path.join(analysis_path, scan))
+    validate_output_path(os.path.join(analysis_path, scan, row))
+    # set output path
+    args.output_folder = os.path.join(analysis_path, scan, row)
+    run_rgb_pipeline(cfg, args)
 
-    except:
-        print(f'{os.path.join(movies_path, scan, row)} error with rgb pipeline')
-        return
+    # except Exception as e:
+    #     print(f"Error occurred: {str(e)}")
+    #     print(f'{os.path.join(movies_path, scan, row)} error with rgb pipeline')
+    #     return
 
 
 def run_real_time(max_workers=4, pipeline_config=""):

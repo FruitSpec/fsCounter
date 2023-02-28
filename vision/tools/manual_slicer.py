@@ -314,7 +314,7 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=1920, w=1080, on_fly=True):
     size = int(h // resize_factor)
     r = min(size / h, size / w)
 

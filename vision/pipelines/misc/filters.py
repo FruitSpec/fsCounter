@@ -17,7 +17,8 @@ def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
-                filtered.append(d_id)
+                #filtered.append(d_id)
+                filtered.append(dets[d_id])
 
     return filtered
 

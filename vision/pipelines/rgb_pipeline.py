@@ -57,24 +57,25 @@ def run(cfg, args):
         tx, ty = translation.get_translation(frame, filtered_outputs)
 
         # track:
-        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
+        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
 
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
+        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+        #indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
+        #trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+
 
         # measure:
-        colors, hists_hue = get_colors(trk_outputs, frame)
-        clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
+        colors, hists_hue = get_colors(filtered_outputs, frame)
+        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
         dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg)
-        # dimensions = sl_get_dimensions(trk_outputs, cam)
+        # dimensions = sl_get_dimensions(filtered_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(trk_outputs, clusters, dimensions, colors)
+        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
 
         if args.debug.is_debug:
             depth = None
@@ -85,7 +86,8 @@ def run(cfg, args):
     # When everything done, release the video capture object
     cam.close()
     filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
+    margin_suffix = f'_{str(cfg.margin).split(".")[-1]}' if "reg" in cfg.dim_method else ""
+    out_name = f'measures_{cfg.dim_method}{margin_suffix}{filter_suffix}.csv'
     results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
     detector.release()
 

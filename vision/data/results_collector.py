@@ -69,7 +69,7 @@ class ResultsCollector():
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
             temp.append(clusters[i])
-            #temp += dimensions[i]
+            temp += dimensions[i]
             temp += colors[i]
 
             results.append(temp)

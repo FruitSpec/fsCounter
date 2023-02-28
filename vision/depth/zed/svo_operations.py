@@ -401,7 +401,7 @@ def get_dims_w_pixel_size(pc_img, box, center_method="median"):
     Calculates the width and height of a 2D bounding box in millimeters, based on the pixel size of the image.
 
     Args:
-    - pc_img: A 3D Numpy array representing a point cloud image.
+    - pc_img: A 3D Numpy array representing a cropped point cloud image.
     - box: A tuple of integers representing the (x1, y1, x2, y2) coordinates of the bounding box.
     - center_method: A string representing the method to use to calculate the center of the fruit. Must be either "median" or "mean".
 

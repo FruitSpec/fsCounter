@@ -11,7 +11,8 @@ def open_measures(path, measures_name='measures.csv'):
 
 
 def get_trees(path):
-    trees_slices, border_df = slice_to_trees(os.path.join(path, [i for i in os.listdir(path) if 'slice_data' in i][0]), None, None, h=1920, w=1080)
+    trees_slices, border_df = slice_to_trees(os.path.join(path, [i for i in os.listdir(path) if 'slice_data' in i][0]),
+                                             None, None, h=1920, w=1080)
     iter_trees = trees_slices.groupby('tree_id')
 
     return iter_trees, border_df
@@ -63,7 +64,7 @@ def get_valid_by_color(color):
     return color.isin([frequent_color-1, frequent_color, frequent_color+1])
 
 
-def filter_by_color(df):
+def filter_by_color(df, min_samp=3):
     """
     Filters a DataFrame of objects by color.
 
@@ -77,6 +78,9 @@ def filter_by_color(df):
     df : pandas.DataFrame
         DataFrame of objects with a color column.
 
+    min_samp: int
+            track_ids with less then min_samp will be dropped
+
     Returns
     -------
     pandas.DataFrame
@@ -84,9 +88,10 @@ def filter_by_color(df):
 
     """
     valids = get_valid_by_color(df["color"])
-    if len(df) < 3 and np.mean(valids) < 1:
+    df = df[valids]
+    if len(df) < min_samp:
         return pd.DataFrame({})
-    return df[valids]
+    return df
 
 
 def filter_df_by_color(df):
@@ -132,10 +137,6 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     df_res = filter_df_by_color(df_res)
 
     def extract_tree_det():
-        tree_frames = df_tree['frame_id'].unique()
-        #border_frames = df_border['frame_id'].unique()
-        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
-        df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
@@ -146,7 +147,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
                 frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
                 df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (df_frame['x1'] < frames_bounds['end'] - margin)]
                 plot_det.append(df)
-                if df_border is not None and len(df_border) > 0:
+                if df_border is not None:
                     border_boxes = df_border[df_border['frame_id'] == frame_id]
                     for index, box in border_boxes.iterrows():
                         df_b = df_frame[
