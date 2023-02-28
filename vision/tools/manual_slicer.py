@@ -48,36 +48,41 @@ def mouse_callback(event, x, y, flags, params):
         else:
             params["data"][params['index']]['end'] = x
 
-    if event == cv2.EVENT_LBUTTONUP and flags == cv2.EVENT_FLAG_ALTKEY + 1:
+    if event == cv2.EVENT_LBUTTONUP:
         params['left_clusters'] = False
-        count = params["data"][params['index']]['left_clusters']['count']
-        if count in list(params["data"][params['index']]['right_clusters'].keys()):
-            params["data"][params['index']]['left_clusters'][count][2] = x
-            params["data"][params['index']]['left_clusters'][count][3] = y
-            params["data"][params['index']]['left_clusters']['count'] += 1
-    if event == cv2.EVENT_RBUTTONUP and flags == cv2.EVENT_FLAG_ALTKEY + 2:
-        params['right_clusters'] = False
-        count = params["data"][params['index']]['right_clusters']['count']
-        if count in list(params["data"][params['index']]['right_clusters'].keys()):
-            params["data"][params['index']]['right_clusters'][count][2] = x
-            params["data"][params['index']]['right_clusters'][count][3] = y
-            params["data"][params['index']]['right_clusters']['count'] += 1
-
-    if event == cv2.EVENT_MOUSEMOVE and (flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2):
-        count = params["data"][params['index']]['right_clusters']['count']
-
-        if params['left_clusters']:
+        if flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2:
             count = params["data"][params['index']]['left_clusters']['count']
             if count in list(params["data"][params['index']]['left_clusters'].keys()):
-                count = params["data"][params['index']]['left_clusters']['count']
                 params["data"][params['index']]['left_clusters'][count][2] = x
                 params["data"][params['index']]['left_clusters'][count][3] = y
-        if params['right_clusters']:
+                params["data"][params['index']]['left_clusters']['count'] += 1
+    if event == cv2.EVENT_RBUTTONUP:
+        params['right_clusters'] = False
+        if flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2:
             count = params["data"][params['index']]['right_clusters']['count']
             if count in list(params["data"][params['index']]['right_clusters'].keys()):
-                count = params["data"][params['index']]['right_clusters']['count']
                 params["data"][params['index']]['right_clusters'][count][2] = x
                 params["data"][params['index']]['right_clusters'][count][3] = y
+                params["data"][params['index']]['right_clusters']['count'] += 1
+
+    if event == cv2.EVENT_MOUSEMOVE:
+        if (flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2):
+
+            if params['left_clusters']:
+                count = params["data"][params['index']]['left_clusters']['count']
+                if count in list(params["data"][params['index']]['left_clusters'].keys()):
+                    count = params["data"][params['index']]['left_clusters']['count']
+                    params["data"][params['index']]['left_clusters'][count][2] = x
+                    params["data"][params['index']]['left_clusters'][count][3] = y
+            if params['right_clusters']:
+                count = params["data"][params['index']]['right_clusters']['count']
+                if count in list(params["data"][params['index']]['right_clusters'].keys()):
+                    count = params["data"][params['index']]['right_clusters']['count']
+                    params["data"][params['index']]['right_clusters'][count][2] = x
+                    params["data"][params['index']]['right_clusters'][count][3] = y
+        else:
+            params['left_clusters'] = False
+            params['right_clusters'] = False
 
     frame = print_lines(params)
     frame = print_text(frame, params)
@@ -315,7 +320,9 @@ def load_json(filepath, output_path):
 
 
 def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
-    size = int(h // resize_factor)
+    size_h = int(h // resize_factor)
+    size_w = int(w // resize_factor)
+    size = max(size_h, size_w)
     r = min(size / h, size / w)
 
     with open(data_file, 'r') as f:
@@ -646,8 +653,8 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = '/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tomato/230123/post/10/ZED_1.svo'
-    output_path = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing'
+    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
+    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
     validate_output_path(output_path)
     manual_slicer(fp, output_path, rotate=2)
 
