@@ -1,4 +1,5 @@
 fruit_type: tomato
+#scan_date: 150223
 scan_date: 230123
 analysis_path: /home/fruitspec-lab/Downloads/${fruit_type}/analysis/${scan_date}
 output_path: /home/fruitspec-lab/Downloads/${fruit_type}/analysis/${scan_date}

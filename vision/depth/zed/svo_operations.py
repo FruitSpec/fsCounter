@@ -133,18 +133,16 @@ def filter_xyz_outliers(crop, nstd=2, as_points=True):
             where n is the number of valid 3D points. Otherwise, it is a numpy array of the same shape as the input crop.
     """
     centers = crop.reshape(-1, 3)
-    filtered_center = centers.copy()
-    for channel in [0, 1, 2]:
-        channel_vals = centers[:, channel]
-        val_std = np.nanstd(channel_vals)
-        med_val = np.nanmedian(channel_vals)
-        max_val = med_val + nstd * val_std
-        min_val = med_val - nstd * val_std
-        filtered_center[channel_vals > max_val] = np.nan
-        filtered_center[channel_vals < min_val] = np.nan
+    filtered_centers = centers.copy()
+    channel_medians = np.nanmedian(centers, axis=0)
+    channel_stddevs = np.nanstd(centers, axis=0)
+    channel_max = channel_medians + nstd * channel_stddevs
+    channel_min = channel_medians - nstd * channel_stddevs
+    valid_mask = np.all((centers >= channel_min) & (centers <= channel_max), axis=1)
+    filtered_centers[~valid_mask] = np.nan
     if as_points:
-        return filtered_center
-    return filtered_center.reshape(crop.shape)
+        return filtered_centers
+    return filtered_centers.reshape(crop.shape)
 
 
 
@@ -283,8 +281,8 @@ def apply_sobol(det_crop, plot_change=False):
     return processed_img
 
 
-def get_pix_size(depth, box, fx = 1065.98388671875, fy = 1065.98388671875,
-                 pixel_mm = 0.0002, org_size = np.array([1920,1080])):
+def get_pix_size(depth, box, fx=1065.98388671875, fy=1065.98388671875,
+                 pixel_mm=0.0002, org_size=np.array([1920, 1080])):
     """
     Calculates the size of a pixel in millimeters given a distance from the camera and the intrinsic parameters of the camera.
 
@@ -297,18 +295,26 @@ def get_pix_size(depth, box, fx = 1065.98388671875, fy = 1065.98388671875,
         org_size (ndarray): The size of the image in pixels. Default is np.array([1920, 1080]).
 
     Returns:
-        size_pix (float): The size of a pixel
+        size_pix_x (ndarray): The size of a pixel
+        size_pix_y (ndarray): The size of a pixel
     """
-    x1,y1,x2,y2 = box
-    y0, x0 = org_size/2
+    x1, y1, x2, y2 = box
+    y0, x0 = org_size / 2
     focal_len = (fx + fy) / 2 * pixel_mm
-    x_range = np.arange(x1, x2+1)
-    x_pix_dist_from_center = np.abs(np.array([x_range for i in range(y2-y1)]) - x0)
-    x_mm_dist_from_center = (x_pix_dist_from_center * (x_pix_dist_from_center+1)*(pixel_mm**2))
-    beta = np.arctan(0.001/(focal_len + (x_mm_dist_from_center/focal_len)))
-    gamma = np.arctan((x_mm_dist_from_center+1)*pixel_mm/focal_len)
-    size_pix = (np.tan(gamma) - np.tan(gamma-beta))*depth*2
-    return size_pix
+    x_range = np.arange(x1, x2 + 1)
+    x_pix_dist_from_center = np.abs(np.array([x_range for i in range(y2 - y1)]) - x0)
+    x_mm_dist_from_center = (x_pix_dist_from_center * (x_pix_dist_from_center + 1) * (pixel_mm ** 2))
+    beta = np.arctan(0.001 / (focal_len + (x_mm_dist_from_center / focal_len)))
+    gamma = np.arctan((x_mm_dist_from_center + 1) * pixel_mm / focal_len)
+    size_pix_x = (np.tan(gamma) - np.tan(gamma - beta)) * depth * 2
+
+    y_range = np.arange(y1, y2 + 1)
+    y_pix_dist_from_center = np.abs(np.array([y_range for i in range(x2 - x1)]) - y0).T
+    y_mm_dist_from_center = (y_pix_dist_from_center * (y_pix_dist_from_center + 1) * (pixel_mm ** 2))
+    beta = np.arctan(0.001 / (focal_len + (y_mm_dist_from_center / focal_len)))
+    gamma = np.arctan((y_mm_dist_from_center + 1) * pixel_mm / focal_len)
+    size_pix_y = (np.tan(gamma) - np.tan(gamma - beta)) * depth * 2
+    return size_pix_x, size_pix_y
 
 
 def cut_center_of_box(image, margin=0.25):
@@ -403,9 +409,11 @@ def get_dims_w_pixel_size(pc_img, box, center_method="median"):
     - A tuple of floats representing the width and height of the bounding box in millimeters.
     """
     dist = depth_to_box_center(pc_img, center_method)
-    size_pix = get_pix_size(dist, box)
-    width = np.mean(np.sum(size_pix, axis=0))*100 # to return in cm
-    height = np.mean(np.sum(size_pix, axis=1))*100 # to return in cm
+    size_pix_x, size_pix_y = get_pix_size(dist, box)
+    height_indx = np.argmax(np.sum(1 - np.isnan(pc_img[:, :, 1]), axis=1))
+    width_indx = np.argmax(np.sum(1 - np.isnan(pc_img[:, :, 1]), axis=0))
+    width = np.sum(size_pix_x[:, width_indx]) * 100 # to return in cm
+    height = np.sum(size_pix_y[height_indx, :]) * 100# to return in cm
     return width, height
 
 

@@ -3,6 +3,7 @@ import csv
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 from json import dump, dumps
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
@@ -68,7 +69,7 @@ class ResultsCollector():
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
             temp.append(clusters[i])
-            temp += dimensions[i]
+            #temp += dimensions[i]
             temp += colors[i]
 
             results.append(temp)
@@ -121,12 +122,14 @@ class ResultsCollector():
         else:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
             rows = self.tracks
+        df_out = pd.DataFrame(rows, columns=fields)
+        df_out.to_csv(output_file_path, index=False)
 
-        with open(output_file_path, 'w') as f:
-            # using csv.writer method from CSV package
-            write = csv.writer(f)
-            write.writerow(fields)
-            write.writerows(rows)
+        # with open(output_file_path, 'w') as f:
+        #     # using csv.writer method from CSV package
+        #     write = csv.writer(f)
+        #     write.writerow(fields)
+        #     write.writerows(rows)
         print(f'Done writing results to csv')
 
     def dump_to_json(self, output_file_path):

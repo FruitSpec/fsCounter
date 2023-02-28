@@ -14,7 +14,7 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
     images = []
     annotations = []
 
-    cat = create_category_dict(categories)
+    #cat = create_category_dict(categories)
     for file in tqdm(files):
         cur_coco = load_coco_file(os.path.join(folder, file))
         cur_images = cur_coco['images'].copy()
