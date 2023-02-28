@@ -41,12 +41,6 @@ class Analyzer():
         sigma_all = np.nanstd(all_measures)
         miu_nonPicked = np.nanmean(nonPicked_measures)
         sigma_nonPicked = np.nanstd(nonPicked_measures)
-        # miu_picked = (1 / picked_ratio) * miu_all - (nonPicked_ratio / picked_ratio) * miu_nonPicked
-        # TODO case when value in sqrt equal to 0
-        # sigma_picked = np.sqrt(
-        #     (1 / picked_ratio) ** 2 * sigma_all ** 2 - (nonPicked_ratio / picked_ratio) ** 2 * sigma_nonPicked ** 2)
-
-        # Calculation fix
         miu_picked = (1 / nonPicked_ratio) * miu_all - (picked_ratio / nonPicked_ratio) * miu_nonPicked
         sigma_picked = np.sqrt(
             (1 / nonPicked_ratio) ** 2 * sigma_all ** 2 + (picked_ratio / nonPicked_ratio) ** 2 * sigma_nonPicked ** 2)
@@ -59,17 +53,17 @@ class Analyzer():
         # kde_sigma = np.sqrt(np.sum(kde_picked * (x_values - kde_miu) ** 2))
 
         # [3] By hist
-        hist_all, bins, p = plt.hist(all_measures, density=True)
-        hist_nonPicked = plt.hist(nonPicked_measures, density=True, bins=bins)[0]
-        # hist_picked = (1 / picked_ratio) * hist_all - (nonPicked_ratio / picked_ratio) * hist_nonPicked
-        hist_picked = (1 / nonPicked_ratio) * hist_all - (picked_ratio/nonPicked_ratio) * hist_nonPicked
-        hist_picked = hist_picked / np.sum(hist_picked)
-        bins = [(var + bins[i + 1]) / 2 for i, var in enumerate(bins) if i + 1 != len(bins)]
-        hist_miu = np.sum(hist_picked * bins)
-        hist_sigma = np.sqrt(np.sum(hist_picked * (bins - hist_miu) ** 2))
+        # hist_all, bins, p = plt.hist(all_measures, density=True)
+        # hist_nonPicked = plt.hist(nonPicked_measures, density=True, bins=bins)[0]
+        # # hist_picked = (1 / picked_ratio) * hist_all - (nonPicked_ratio / picked_ratio) * hist_nonPicked
+        # hist_picked = (1 / nonPicked_ratio) * hist_all - (picked_ratio/nonPicked_ratio) * hist_nonPicked
+        # hist_picked = hist_picked / np.sum(hist_picked)
+        # bins = [(var + bins[i + 1]) / 2 for i, var in enumerate(bins) if i + 1 != len(bins)]
+        # hist_miu = np.sum(hist_picked * bins)
+        # hist_sigma = np.sqrt(np.sum(hist_picked * (bins - hist_miu) ** 2))
 
-        plt.close()
-        return (miu_picked, sigma_picked), (None, None), (hist_miu, hist_sigma)
+        # plt.close()
+        return (miu_picked, sigma_picked), (None, None), (None, None)
 
     @staticmethod
     def diff_color(pre_color, post_color, picked_count):
@@ -79,7 +73,7 @@ class Analyzer():
         :param picked_count: int, number of picked fruits in a unit
         :return: number of picked fruits for each bin-color
         """
-        hist_all = plt.hist(pre_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
+        hist_all = np.plt.hist(pre_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
         hist_nonPicked = plt.hist(post_color, density=False, bins=[1, 2, 3, 4, 5, 6])[0]
         plt.close()
         hist_picked = hist_all - hist_nonPicked
@@ -90,7 +84,7 @@ class Analyzer():
         try:
             bin1, bin2, bin3, bin4, bin5 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), int(
                 picked_bins[3]), \
-                picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
+                                           picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
         except:
             bin1, bin2, bin3, bin4, bin5 = 0, 0, 0, 0, 0
 
@@ -146,14 +140,9 @@ class phenotyping_analyzer(Analyzer):
     analysis for phenotype needs
     """
 
-    def __init__(self, side, measures_name="measures.csv"):
+    def __init__(self, measures_name="measures.csv"):
         super(phenotyping_analyzer, self).__init__()
-        if side == 'side1':
-            self.side = 'side1'
-            self.indices = self.map[self.fruit_type].phenotyping.side1
-        elif side == 'side2':
-            self.side = 'side2'
-            self.indices = self.map[self.fruit_type].phenotyping.side2
+        self.indices = self.map[self.fruit_type].phenotyping.rows
         self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
 
@@ -170,9 +159,10 @@ class phenotyping_analyzer(Analyzer):
                     continue
 
                 try:
-                    exist_plots = len(slice_to_trees(json_path, None, None)[0]['tree_id'].unique())
+                    exist_plots = len(slice_to_trees(json_path, None, None, w=1080, h=1920)[0]['tree_id'].unique())
                 except ValueError as e:
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
+                    continue
 
                 GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
                 if GT_plots == exist_plots:
@@ -192,26 +182,51 @@ class phenotyping_analyzer(Analyzer):
             return 0000
         return res
 
-    def iter_plots(self, path, iter_side):
+    def iter_plots(self, path):
         """
         :param path: path to the real-time files
-        :param iter_side: list of rows numbers that belong to a row side in greenhouse
         :return: plots iterator with their processed values
         """
-        for row in iter_side:
+
+        def get_aggreagation():
+            counter = 0
+            size = pd.DataFrame()
+            color = pd.DataFrame()
+
+            for df_res, df_tree, borders in zip([info_1[0], info_2[0]], [df_tree_1, df_tree_2], [info_1[2], info_2[2]]):
+                df_border = borders[borders.tree_id == tree_id]
+                if not len(df_border):
+                    df_border = None
+                _counter, _size, _color = trackers_into_values(df_res, df_tree, df_border)
+                counter += _counter
+                size = pd.concat([size, _size], axis=0)
+                color = pd.concat([color, _color], axis=0)
+
+            return (counter, size.values, color.values)
+
+        def get_side(row, reverse=False):
             row_path = os.path.join(path, row)
             try:
                 df_res = open_measures(row_path, self.measures_name)
                 trees, borders = get_trees(row_path)
             except FileNotFoundError:
-                yield None, row
+                return None, None, None
+            if reverse:
+                trees = reversed(tuple(trees))
+            return (df_res, trees, borders)
+
+        for rows in zip(self.indices.side1, self.indices.side2):
+            info_1 = get_side(rows[0])
+            info_2 = get_side(rows[1], True)
+            if rows[1] == '9':
+                info_2 = info_1
+
+            if info_1[0] is None or info_2[0] is None:
                 continue
-            for tree_id, df_tree in trees:
-                df_border = borders[borders.tree_id == tree_id]
-                if not len(df_border):
-                    df_border = None
-                counter, size, color = trackers_into_values(df_res, df_tree, df_border)
-                plot_id = self.map_tree_into_plot(row, tree_id, self.fruit_type)
+
+            for (tree_id, df_tree_1), (_, df_tree_2) in zip(info_1[1], info_2[1]):
+                counter, size, color = get_aggreagation()
+                plot_id = self.map_tree_into_plot(rows[0], tree_id, self.fruit_type)
                 yield (counter, size, color, plot_id)
 
     def run(self):
@@ -220,8 +235,8 @@ class phenotyping_analyzer(Analyzer):
         Update self.results with all units' results
         """
         df_sum = pd.DataFrame()
-        for pre, post in zip(self.iter_plots(self.scan_pre, self.indices),
-                             self.iter_plots(self.scan_post, self.indices)):
+        for pre, post in zip(self.iter_plots(self.scan_pre),
+                             self.iter_plots(self.scan_post)):
             # pre ,post - [0]-count, [1]-size, [2]-color , [3]- plot id
             if not Analyzer.valid_output(pre, post):
                 df_sum = append_results(df_sum, [self.side, pre[0]] + [None] * 10)
@@ -234,14 +249,10 @@ class commercial_analyzer(Analyzer):
     """
         analysis for commercial fruits needs
     """
-    def __init__(self, side, measures_name="measures.csv"):
+
+    def __init__(self, measures_name="measures.csv"):
         super(commercial_analyzer, self).__init__()
-        if side == 'side1':
-            self.side = 'side1'
-            self.indices = self.map[self.fruit_type].commercial.side1
-        elif side == 'side2':
-            self.side = 'side2'
-            self.indices = self.map[self.fruit_type].commercial.side2
+        self.indices = self.map[self.fruit_type].commercial.rows
         self.measures_name = measures_name
 
     @staticmethod
