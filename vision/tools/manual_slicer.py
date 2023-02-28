@@ -49,21 +49,21 @@ def mouse_callback(event, x, y, flags, params):
             params["data"][params['index']]['end'] = x
 
     if event == cv2.EVENT_LBUTTONUP:
-        params['left_clusters'] = False
-        if flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2:
+        if params['left_clusters']:
             count = params["data"][params['index']]['left_clusters']['count']
             if count in list(params["data"][params['index']]['left_clusters'].keys()):
                 params["data"][params['index']]['left_clusters'][count][2] = x
                 params["data"][params['index']]['left_clusters'][count][3] = y
                 params["data"][params['index']]['left_clusters']['count'] += 1
+        params['left_clusters'] = False
     if event == cv2.EVENT_RBUTTONUP:
-        params['right_clusters'] = False
-        if flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2:
+        if params['right_clusters']:
             count = params["data"][params['index']]['right_clusters']['count']
             if count in list(params["data"][params['index']]['right_clusters'].keys()):
                 params["data"][params['index']]['right_clusters'][count][2] = x
                 params["data"][params['index']]['right_clusters'][count][3] = y
                 params["data"][params['index']]['right_clusters']['count'] += 1
+        params['right_clusters'] = False
 
     if event == cv2.EVENT_MOUSEMOVE:
         if (flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2):
