@@ -14,7 +14,7 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
     images = []
     annotations = []
 
-    cat = create_category_dict(categories)
+    #cat = create_category_dict(categories)
     for file in tqdm(files):
         cur_coco = load_coco_file(os.path.join(folder, file))
         cur_images = cur_coco['images'].copy()
@@ -35,14 +35,14 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
         for ann in cur_ann:
             new_ann = {"id": ann_id,
                        "image_id": old_img_id_to_new[ann['image_id']],
-                       "category_id": 0,
+                       "category_id": ann["category_id"],
                        "bbox": ann["bbox"],
                        "area": ann['area'],
                        "segmentation": [],
                        "iscrowd": 0}
             ann_id += 1
             annotations.append(new_ann)
-
+        cat = cur_coco['categories']
     info = {"year": 2022,
             "version": ver,
             "description": "FruitSpec data from tasq",
@@ -99,10 +99,13 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
 def create_subset(subset_images, orig_anns):
 
     old_img_id_to_new = {}
+    updated_subset_images = []
     img_id = 0
     for image in subset_images:
         old_img_id_to_new[image['id']] = img_id
-        image['id'] = img_id
+        t_image = image.copy()
+        t_image['id'] = img_id
+        updated_subset_images.append(t_image)
         img_id += 1
 
     orig_imgs_keys = list(old_img_id_to_new.keys())
@@ -116,7 +119,7 @@ def create_subset(subset_images, orig_anns):
             subset_ann.append(t_ann)
             ann_ids += 1
 
-    return subset_images, subset_ann
+    return updated_subset_images, subset_ann
 
 
 def copy_images(coco_images, input_folder, output_folder):
@@ -133,22 +136,22 @@ def copy_images(coco_images, input_folder, output_folder):
 
 
 if __name__ == "__main__":
-    folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files"
-    output_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files"
+    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223/json"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223"
     categories = ['fruit']
     ver = 1
 
-    #aggraegate_coco_files(folder, output_folder, categories, ver)
+    aggraegate_coco_files(folder, output_folder, categories, ver)
 
-    coco_fp = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files/coco.json"
-    images_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/images"
-    output_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data"
-    #split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1)
+    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223/coco.json"
+    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223/images"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223"
+    split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1)
 
     expected_dims = [1920, 1080]
     rotation = 'clockwise'
-    align_iamges("/home/yotam/FruitSpec/Data/Syngenta/VEG_RGB_Tasq_V2_coco/train2017", expected_dims, rotation)
-    align_iamges("/home/yotam/FruitSpec/Data/Syngenta/VEG_RGB_Tasq_V2_coco/val2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223/train2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tasq_data_270223/val2017", expected_dims, rotation)
 
 
 

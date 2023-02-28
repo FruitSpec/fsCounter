@@ -4,8 +4,9 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
 import collections
-from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions
+
+from vision.misc.help_func import get_repo_dir, validate_output_path, copy_configs
+from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -50,6 +51,8 @@ def run(cfg, args):
         # filter by size:
         filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
 
+        outputs_depth = measure_depth(filtered_outputs, point_cloud)
+
         # find translation
         tx, ty = translation.get_translation(frame, filtered_outputs)
 
@@ -82,8 +85,7 @@ def run(cfg, args):
     # When everything done, release the video capture object
     cam.close()
     filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    margin_suffix = f'_{str(cfg.margin).split(".")[-1]}' if "reg" in cfg.dim_method else ""
-    out_name = f'measures_{cfg.dim_method}{margin_suffix}{filter_suffix}.csv'
+    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
     results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
     detector.release()
 
@@ -164,20 +166,7 @@ if __name__ == "__main__":
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
+    copy_configs(pipeline_config, runtime_config, args.output_folder)
+
     run(cfg, args)
 
-    # cropping analysis
-    # import matplotlib.pyplot as plt
-    # from vision.tools.image_stitching import plot_2_imgs
-    # import seaborn as sns
-    #
-    # i = 3
-    # res = trk_outputs[i]
-    # crop_rgb = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_pc = point_cloud[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
-    # crop_rgb_masked = crop_rgb.copy()
-    # crop_rgb_masked[crop_pc[:, :, 2] > 0.52] = 0
-    # plot_2_imgs(crop_rgb_masked, crop_pc[:, :, 2])
-    # # sns.kdeplot(crop_pc[:,:,2].flatten())
-    # # plt.vlines(0.52,0,60)
-    # # plt.show()

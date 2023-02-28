@@ -1,12 +1,9 @@
 #movie_path: /home/fruitspec-lab/Downloads/tomato/230123/pre/5/ZED_1.svo
 #output_folder:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/output
-#output_folder_track:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/tracking
-#output_folder_annotate:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/annotation
-
 movie_path: /home/fruitspec-lab/Downloads/0.8m1stm/ZED_1.svo
 output_folder:  /home/fruitspec-lab/Downloads/0.8m1stm/output
-output_folder_track:  /home/fruitspec-lab/Downloads/0.8m1stm/tracking
-output_folder_annotate:  /home/fruitspec-lab/Downloads/0.8m1stm/annotation
+output_folder_track: $(output_folder)/tracking
+output_folder_annotate: $(output_folder)/annotation
 
 frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE

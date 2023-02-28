@@ -66,6 +66,17 @@ def get_cropped_point_cloud(bbox, point_cloud, margin=0.2, rgb=False):
     return crop
 
 
+def measure_depth(detections, point_cloud):
+
+    dets_depth = []
+    for det in detections:
+        cr_pc = get_cropped_point_cloud(det[:4], point_cloud)
+        h, w = cr_pc.shape[:2]
+        mean_z = np.nanmean(cr_pc[int(h * 3/8):int(h * 5/8), int(w * 3/8):int(w * 5/8), 2])
+        dets_depth.append(mean_z)
+
+    return dets_depth
+
 def get_distance(crop):
     h, w = crop.shape
     filter_ = 0.2

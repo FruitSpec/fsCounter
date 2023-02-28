@@ -1,7 +1,7 @@
 # config.yaml
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py  # tomatoes # Lab2
 exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py # Lab 1
-
+#exp_file: /home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter_1/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py  # tomatoes lab3
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py  # counter
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py       # baseline
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py # pepper
@@ -16,7 +16,7 @@ exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/ex
 #ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_30_oct_2022_1Class_aug_tasq/best_ckpt.pth # new RGB tomatoes 1 class 29/11
 #ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 #Lab 2
 ckpt_file: /home/fruitspec-lab/FruitSpec/weights/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 Lab 1
-
+#ckpt_file: /home/fruitspec-lab-3/FruitSpec/weights/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 lab3
 
 device: cuda
 
@@ -40,10 +40,10 @@ classes:
 
 tracker:
   minimal_max_distance: 10
-  major: 3 #3
-  minor: 0.5 #2.5
-  max_losses: 5  # 10
-  score_weights: [0.25, 1.0, 0.25, 1] # [0.25, 1.0, 0.25, 0.0] # [0.25, 1.0, 0.25, 1]
+  major: 1.2 #3
+  minor: 0.8 #2.5
+  max_losses: 3  # 10
+  score_weights: [0.5, 1, 1, 0] # [0.25, 1.0, 0.25, 0.0] # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center
   det_area: 0.7
   translation_size: 640
@@ -56,7 +56,7 @@ translation:
 
 filters:
   distance:
-    threshold: 1.2
+    threshold: 1
   duplicates:
     iou_threshold: 0.6
   size:
