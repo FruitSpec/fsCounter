@@ -21,9 +21,9 @@ from vision.tools.camera import is_sturated
 from vision.tools.color import get_hue
 from vision.tools.video_wrapper import video_wrapper
 
-from vision.tracker.deep_sort.sort.tracker import Tracker
-from vision.tracker.deep_sort.sort import nn_matching
-from vision.tracker.deep_sort import DeepSort
+#from vision.tracker.deep_sort.sort.tracker import Tracker
+#from vision.tracker.deep_sort.sort import nn_matching
+#from vision.tracker.deep_sort import DeepSort
 
 
 def run(cfg, args):
@@ -32,11 +32,11 @@ def run(cfg, args):
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
     #loftr_translation = T(cfg.translation.translation_size, cfg.translation.dets_only, 'LoFTR')
 
-    max_cosine_distance = 0.2
-    nn_budget = None
+   # max_cosine_distance = 0.2
+  #  nn_budget = None
     # metric = nn_matching.NearestNeighborDistanceMetric(
     #     "cosine", max_cosine_distance, nn_budget)
-    deep_sort_tracker = DeepSort("/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/tracker/deep_sort/deep/checkpoint/ckpt.t7")
+ #   deep_sort_tracker = DeepSort("/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/tracker/deep_sort/deep/checkpoint/ckpt.t7")
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
@@ -81,21 +81,22 @@ def run(cfg, args):
         #trk_outputs_2 = deep_sort_tracker.update(xywh_dets, dets_conf, frame)
 
         # filter by distance:
-        indices_in_distance = filter_by_distance(filtered_outputs, point_cloud, cfg.filters.distance.threshold)
+        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # sort out
-        indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+        #indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
+        #trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
+
 
         # measure:
-        colors, hists_hue = get_colors(trk_outputs, frame)
-        clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
+        colors, hists_hue = get_colors(filtered_outputs, frame)
+        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
         #dimensions = get_dimensions(point_cloud, frame, trk_outputs, cfg.filters.distance.threshold)
-        dimensions = sl_get_dimensions(trk_outputs, cam)
+        dimensions = sl_get_dimensions(filtered_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(trk_outputs, clusters, dimensions, colors)
+        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
 
         if args.debug.is_debug:
             depth = None
@@ -197,8 +198,8 @@ def get_dets_as_xywh_conf(dets):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/runtime_config.yaml"
+    pipeline_config = "/home/yotam/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/home/yotam/FruitSpec/Code/Matan/fsCounter/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
