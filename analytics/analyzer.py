@@ -150,7 +150,7 @@ class phenotyping_analyzer(Analyzer):
         flag = True
         # validate manual slicers
         for scan in [self.scan_pre, self.scan_post]:
-            for row in self.indices:
+            for row in self.indices.side1 + self.indices.side2:
                 try:
                     json_path = os.path.join(scan, row,
                                              [i for i in os.listdir(os.path.join(scan, row)) if 'slice_data' in i][0])

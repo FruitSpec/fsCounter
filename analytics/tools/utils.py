@@ -134,7 +134,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     :return: counter, measures, colors_class
     """
 
-    df_res = filter_df_by_color(df_res)
+    # df_res = filter_df_by_color(df_res)
 
     def extract_tree_det():
         margin = 0
