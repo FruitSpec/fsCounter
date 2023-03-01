@@ -5,6 +5,7 @@ import numpy as np
 from vision.tools.manual_slicer import slice_to_trees
 from scipy.stats import gaussian_kde
 from sklearn.mixture import GaussianMixture
+import matplotlib.pyplot as plt
 
 
 def open_measures(path, measures_name='measures.csv'):
@@ -128,7 +129,7 @@ def get_count_value(df):
     return count, ids
 
 
-def get_intersection_point(df_res):
+def get_intersection_point(df_res, max_dist=3, debug=False):
     """
     Calculate the intersection point of a bimodal distribution of distances in a DataFrame.
 
@@ -141,6 +142,9 @@ def get_intersection_point(df_res):
     df_res : pandas.DataFrame
         A DataFrame containing the distance data in a column named "distance".
 
+    max_dist: float
+        every fruit farther than max_dist will be dropped
+
     Returns
     -------
     intersection_point : float
@@ -148,15 +152,26 @@ def get_intersection_point(df_res):
         of the bimodal distribution.
 
     """
-    # df_res["distance"].replace([0], np.nan, inplace=True)
+    df_res["distance"].replace(0, np.nan, inplace=True)
     gmm = GaussianMixture(n_components=2)
-    clean_dist = df_res["distance"].dropna().to_numpy().reshape(-1, 1)
+    clean_dist = df_res["distance"][df_res["distance"] < max_dist].dropna().to_numpy().reshape(-1, 1)
     gmm.fit(clean_dist)
-    mean1, mean2 = gmm.means_
+    left_distribution_index = np.argmin(gmm.means_)
+    mean1, mean2 = gmm.means_[[left_distribution_index, 1-left_distribution_index]]
+    std1, std2 = np.sqrt(gmm.covariances_.flatten())[[left_distribution_index, 1-left_distribution_index]]
     kernel = gaussian_kde(clean_dist.reshape(-1))
-    vals_between_dists = np.arange(min(mean1, mean2), max(mean1, mean2), 0.05)
+    vals_between_dists = np.arange(mean1, mean2, 0.05)
     density_between_dists = kernel(vals_between_dists)
     intersection_point = vals_between_dists[np.argmin(density_between_dists)]
+    #  intersection_point = mean1 + 2*std1
+    if debug:
+        counts = plt.hist(clean_dist, bins=50, color="blue")
+        max_y = np.max(counts[0])
+        plt.vlines(intersection_point, 0, max_y, color="black")
+        plt.vlines(mean1 + 2 * std1, 0, max_y, color="purple")
+        plt.vlines(mean1 + 3 * std1, 0, max_y, color="purple", linestyle="--")
+        plt.show()
+
     return intersection_point
 
 
@@ -241,13 +256,11 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     :return: counter, measures, colors_class, extract_ids
     """
 
-    df_res = filter_trackers(df_res, apply_filter_by_color=False, apply_filter_by_dist=True, min_samples=2, min_x1=50)
-
     def extract_tree_det():
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
-            df_frame = bound_red_fruit(df_frame)
+            # df_frame = bound_red_fruit(df_frame)
             if df_frame.empty:
                 continue
             if df_tree is not None:
@@ -277,6 +290,8 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
         # commercial analysis
         frames = df_res.groupby('frame')
     extract_tree_det()
+    if not len(plot_det):
+        return 0, pd.DataFrame({np.nan}) , pd.DataFrame({np.nan}), []
     df_res = pd.concat(plot_det, axis=0)
 
     counter, extract_ids = get_count_value(df_res)
@@ -286,16 +301,19 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     return counter, measures, colors_class, extract_ids
 
 
-def predict_weight_values(miu, sigma):
+def predict_weight_values(miu, sigma, observation=[]):
     # using exponential regression
     # weight_miu = 6.305 * np.exp(0.045 * miu)
     # weight_sigma = 6.305 * np.exp(0.045 * sigma)
 
     # using linear regression
-    weight_miu = 4.04 * miu - 142.06
-    weight_sigma = 4.04 * sigma
+    if not len(observation):
+        weight_miu = 14.493 * np.exp(0.034 * miu)
+        weight_sigma = 14.493 * np.exp(0.034 * sigma)
 
-    return weight_miu, weight_sigma
+        return weight_miu, weight_sigma
+
+    return 14.493 * np.exp(0.034 * observation)
 
 
 def append_results(df, data):
@@ -312,3 +330,35 @@ def append_results(df, data):
                         "bin5": [data[10]]})
     df = pd.concat([df, _df], axis=0)
     return df
+
+
+def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_dist=True, min_samples=2,
+                                 min_x1=0):
+    res = []
+    blocks = os.listdir(blocks_folder)
+    for block in blocks:
+        if not os.path.isdir(os.path.join(blocks_folder, block)):
+            continue
+        row_path = os.path.join(blocks_folder, block)
+        if not np.any(["slice_data" in file for file in os.listdir(row_path)]):
+            continue
+        df_res = open_measures(row_path, "measures_pix_size_median_hue_depth.csv")
+        df_res = filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples,
+                                 min_x1)
+        trees, borders = get_trees(row_path)
+        for tree_id, df_tree in trees:
+            counter, size, color, ids_ = trackers_into_values(df_res, df_tree)
+            res.append({"tree_id": tree_id, "count": counter, "block": block})
+
+    res = pd.DataFrame(data=res, columns=['tree_id', 'count', 'block'])
+    suffix = f"{'_color' if apply_filter_by_color else ''}{'_dist' if apply_filter_by_dist else ''}_samp{min_samples}_x{min_x1}"
+    res.to_csv(os.path.join(blocks_folder, f"res{suffix}.csv"))
+    print(f"finished {suffix}")
+
+if __name__ == "__main__":
+    blocks_folder = "/home/fruitspec-lab/Downloads/tomato/analysis/window_trial/pre"
+    for apply_filter_by_color in [True, False]:
+        for apply_filter_by_dist in [True, False]:
+            for min_samples in range(5):
+                for min_x1 in range(0,100,25):
+                    run_on_blocks(blocks_folder, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1)

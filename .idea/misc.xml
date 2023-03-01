@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.8.10 (sftp://yotam@54.0.0.22:22/home/yotam/.virtualenvs/fsCounter/bin/python)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="FsCounter" project-jdk-type="Python SDK" />
 </project>

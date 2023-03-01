@@ -1,7 +1,7 @@
-#movie_path: /home/fruitspec-lab/Downloads/tomato/230123/pre/5/ZED_1.svo
-#output_folder:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/output
-movie_path: /home/fruitspec-lab/Downloads/0.8m1stm/ZED_1.svo
-output_folder:  /home/fruitspec-lab/Downloads/0.8m1stm/output
+movie_path: /home/fruitspec-lab/Downloads/tomato/230123/pre/5/ZED_1.svo
+output_folder:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/output
+#movie_path: /home/fruitspec-lab/Downloads/0.8m1stm/ZED_1.svo
+#output_folder:  /home/fruitspec-lab/Downloads/0.8m1stm/output
 output_folder_track: $(output_folder)/tracking
 output_folder_annotate: $(output_folder)/annotation
 
@@ -11,14 +11,14 @@ depth_minimum: 0.1 # 1 counter
 depth_maximum: 2.5 # 8 counter
 
 debug:
-  is_debug: true  # master switch
+  is_debug: false  # master switch
   tracker_windows: false
   tracker_results: false
   det_results: false
-  raw_frame: true
+  raw_frame: false
   depth: false
   tracker: None
   clusters: false
   hue_histogram: false
-  annotate: true
+  annotate: false
 

@@ -26,6 +26,18 @@ class Analyzer():
         return True
 
     @staticmethod
+    def diff_size_by_normal(nonPicked_ratio, all_measures, nonPicked_measures):
+        picked_ratio = 1 - nonPicked_ratio
+        miu_all = np.nanmean(all_measures)
+        sigma_all = np.nanstd(all_measures)
+        miu_nonPicked = np.nanmean(nonPicked_measures)
+        sigma_nonPicked = np.nanstd(nonPicked_measures)
+        miu_picked = (1 / picked_ratio) * miu_all - (nonPicked_ratio/ picked_ratio) * miu_nonPicked
+        sigma_picked = np.sqrt(
+            (1 / picked_ratio) ** 2 * sigma_all ** 2 + (nonPicked_ratio/ picked_ratio) ** 2 * sigma_nonPicked ** 2)
+        return miu_picked, sigma_picked
+
+    @staticmethod
     def diff_size(nonPicked_ratio, all_measures, nonPicked_measures):
         """
         :param nonPicked_ratio: number of fruit ratio between post-number and pre-number
@@ -34,16 +46,13 @@ class Analyzer():
         :return: miu and sigma of picked size measures by 3 different calculations
         """
 
-        picked_ratio = 1 - nonPicked_ratio
+        miu_picked, sigma_picked = Analyzer.diff_size_by_normal(nonPicked_ratio, all_measures, nonPicked_measures)
+        all_measures_weight = predict_weight_values(0, 0, all_measures)
+        nonPicked_measures_weight = predict_weight_values(0, 0, nonPicked_measures)
+        weight_miu, weight_sigma = Analyzer.diff_size_by_normal(nonPicked_ratio, all_measures_weight,
+                                                                nonPicked_measures_weight)
 
-        # [1] By miu,sigma , assume normalization
-        miu_all = np.nanmean(all_measures)
-        sigma_all = np.nanstd(all_measures)
-        miu_nonPicked = np.nanmean(nonPicked_measures)
-        sigma_nonPicked = np.nanstd(nonPicked_measures)
-        miu_picked = (1 / nonPicked_ratio) * miu_all - (picked_ratio / nonPicked_ratio) * miu_nonPicked
-        sigma_picked = np.sqrt(
-            (1 / nonPicked_ratio) ** 2 * sigma_all ** 2 + (picked_ratio / nonPicked_ratio) ** 2 * sigma_nonPicked ** 2)
+
         # [2] By kde, not robust enough
         # x_values = np.linspace(all_measures.min(), all_measures.max(), num=int(all_measures.max() - all_measures.min()))
         # kde_all = gaussian_kde(all_measures)(x_values)
@@ -63,7 +72,7 @@ class Analyzer():
         # hist_sigma = np.sqrt(np.sum(hist_picked * (bins - hist_miu) ** 2))
 
         # plt.close()
-        return (miu_picked, sigma_picked), (None, None), (None, None)
+        return (miu_picked, sigma_picked, weight_miu, weight_sigma), (None, None), (None, None)
 
     @staticmethod
     def diff_color(pre_color, post_color, picked_count):
@@ -75,7 +84,6 @@ class Analyzer():
         """
         hist_all, _ = np.histogram(pre_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
         hist_nonPicked, _ = np.histogram(post_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
-        plt.close()
         hist_picked = hist_all - hist_nonPicked
         hist_picked = [max(i, 0) for i in hist_picked]
         hist_picked = hist_picked / np.sum(hist_picked)
@@ -111,9 +119,9 @@ class Analyzer():
         elif picked_count == 0:
             self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
             return
-        (size_value_miu, size_value_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
+        (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
             post[0] / pre[0], pre[1], post[1])
-        weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
+        # weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
         bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
         self.results = append_results(self.results,
                                       [plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
@@ -218,6 +226,8 @@ class phenotyping_analyzer(Analyzer):
             row_path = os.path.join(path, row)
             if os.path.exists(os.path.join(path, row, self.measures_name)):
                 df_res = open_measures(row_path, self.measures_name)
+                df_res = filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=2,
+                                         min_x1=50)
                 trees, borders = get_trees(row_path)
             else:
                 print(f"NO MEASURES FILE - {os.path.join(path, row, self.measures_name)} - PLOTS' ROW REMOVED ")
@@ -230,7 +240,7 @@ class phenotyping_analyzer(Analyzer):
             self.active_tracks = [[], []]
             side_1 = get_side_sets(rows[0])
             side_2 = get_side_sets(rows[1], reverse=True)
-            # side_1 ,side_2 - [0]-df_measures, [1]-df_tree, [2]-borders
+            # side_1 ,side_2 - [0]-df_measures, [1]-treesGroupBy, [2]-borders
 
             # in case one/both sides missing , no results
             if side_1[0] is None or side_2[0] is None:
@@ -278,6 +288,8 @@ class commercial_analyzer(Analyzer):
                 print(f"NO MEASURES FILE - {os.path.join(path, row, measures_name)} - REMOVED ")
                 continue
             df_res = open_measures(os.path.join(path, row), measures_name)
+            df_res = filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=2,
+                                     min_x1=50)
             _counter, _size, _color, _ = trackers_into_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
