@@ -1,18 +1,16 @@
 import os
 import sys
-
 import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
-import numpy as np
 
-from vision.misc.help_func import get_repo_dir, scale_dets
 
+from vision.misc.help_func import get_repo_dir
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.run_args import make_parser
+from vision.tools.translation import translation as T
 from vision.data.results_collector import ResultsCollector, scale
 from vision.misc.help_func import validate_output_path
 
@@ -20,14 +18,14 @@ from vision.misc.help_func import validate_output_path
 def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     cap = cv2.VideoCapture(args.movie_path)
 
     # Check if camera opened successfully
     if (cap.isOpened() == False):
         print("Error opening video stream or file")
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+
     tot_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
     # Read until video is completed
@@ -36,7 +34,6 @@ def run(cfg, args):
     ids = []
     pbar = tqdm(total=tot_frames)
     while (cap.isOpened()):
-
 
         # Capture frame-by-frame
         ret, frame = cap.read()

@@ -50,12 +50,10 @@ class counter_detection():
     def init_tracker(cfg, args):
 
         return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
                          det_area=cfg.tracker.det_area,
                          max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
                          major = cfg.tracker.major,
                          minor=cfg.tracker.minor,
                          debug_folder=args.debug.tracker)
@@ -77,10 +75,10 @@ class counter_detection():
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, tx, ty, frame_id=None):
+    def track(self, outputs, tx, ty, frame_id=None, dets_depth=None):
 
         if outputs is not None:
-            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id)
+            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id, dets_depth)
             tracking_results = []
             for target in online_targets:
                 target.append(frame_id)

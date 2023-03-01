@@ -1,12 +1,14 @@
 import os
 import csv
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
-
+from json import dump, dumps
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.depth.zed.svo_operations import get_dimentions
 from vision.misc.help_func import validate_output_path, scale_dets
+from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
 
 
 class ResultsCollector():
@@ -19,6 +21,7 @@ class ResultsCollector():
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
+        self.coco = {"categories": [], "images": [], "annotations": []}
 
     def collect_detections(self, detection_results, img_id):
         if detection_results is not None:
@@ -60,13 +63,13 @@ class ResultsCollector():
 
         return tracking_results
 
-    def collect_results(self, tracking_results, clusters, dimentsions, colors):
+    def collect_results(self, tracking_results, clusters, dimensions, colors):
 
         results = []
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
             temp.append(clusters[i])
-            temp += dimentsions[i]
+            temp += dimensions[i]
             temp += colors[i]
 
             results.append(temp)
@@ -74,8 +77,6 @@ class ResultsCollector():
         self.results += results
 
         return results
-    def collect_size_measure(self, point_cloud_mat, tracking_results):
-        self.measures += get_dimentions(point_cloud_mat, tracking_results)
 
     def collect_file_name(self, file_anme):
         self.file_names.append(file_anme)
@@ -116,18 +117,19 @@ class ResultsCollector():
                       "image_id", "class_pred"]
             rows = self.detections
         elif type == 'measures':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "color", "color_std"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "distance", "color", "color_std"]
             rows = self.results
         else:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
             rows = self.tracks
+        df_out = pd.DataFrame(rows, columns=fields)
+        df_out.to_csv(output_file_path, index=False)
 
-        with open(output_file_path, 'w') as f:
-            # using csv.writer method from CSV package
-            write = csv.writer(f)
-            write.writerow(fields)
-            write.writerows(rows)
         print(f'Done writing results to csv')
+
+    def dump_to_json(self, output_file_path):
+        with open(output_file_path, "w", encoding='utf8') as f:
+            dump(self.coco, f)
 
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
@@ -201,6 +203,20 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
+    def plot_hist(self, frame, trk_outputs, f_id, output_path, hists):
+        for hist, det in zip(hists, trk_outputs):
+            # TODO
+            crop = frame[max(det[1], 0):det[3], max(det[0], 0):det[2]].copy()
+            crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.plot(hist)
+            try:
+                ax2.imshow(crop)
+            except:
+                continue
+            fig.savefig(os.path.join(output_path, f'{det[6]}_hue_{f_id}.jpg'))
+            plt.close()
+
     def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -236,7 +252,7 @@ class ResultsCollector():
 
         return hash
 
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, hists, depth=None, trk_windows=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
@@ -254,6 +270,23 @@ class ResultsCollector():
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+        if args.debug.hue_histogram:
+            validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
+            self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)
+
+    def det_to_coco(self, f_id, args, trk_outputs, frame):
+        validate_output_path(os.path.join(args.output_folder, 'frames'))
+        self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+        self.coco["categories"] = [
+            {
+                "supercategory": "Fruits",
+                "id": 1,
+                "name": "orange"
+            }]
+        self.coco["images"].extend(create_images_dict([f'frame_{f_id}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
+        self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
+                                                               [args.frame_size[0], args.frame_size[1]], [1], "dets"))
+
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
@@ -275,7 +308,6 @@ def scale(det_dims, frame_dims):
 
 
 def scale_det(detection, scale_):
-
     # Detection ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
     x1 = int(detection[0] * scale_)
     y1 = int(detection[1] * scale_)

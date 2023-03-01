@@ -99,10 +99,13 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
 def create_subset(subset_images, orig_anns):
 
     old_img_id_to_new = {}
+    updated_subset_images = []
     img_id = 0
     for image in subset_images:
         old_img_id_to_new[image['id']] = img_id
-        image['id'] = img_id
+        t_image = image.copy()
+        t_image['id'] = img_id
+        updated_subset_images.append(t_image)
         img_id += 1
 
     orig_imgs_keys = list(old_img_id_to_new.keys())
@@ -116,7 +119,7 @@ def create_subset(subset_images, orig_anns):
             subset_ann.append(t_ann)
             ann_ids += 1
 
-    return subset_images, subset_ann
+    return updated_subset_images, subset_ann
 
 
 def copy_images(coco_images, input_folder, output_folder):
