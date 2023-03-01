@@ -54,12 +54,10 @@ class counter_detection():
     def init_tracker(cfg, args):
 
         return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
                          det_area=cfg.tracker.det_area,
                          max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
                          major = cfg.tracker.major,
                          minor=cfg.tracker.minor,
                          debug_folder=args.debug.tracker)

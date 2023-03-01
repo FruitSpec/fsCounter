@@ -71,13 +71,11 @@ def mouse_callback(event, x, y, flags, params):
             if params['left_clusters']:
                 count = params["data"][params['index']]['left_clusters']['count']
                 if count in list(params["data"][params['index']]['left_clusters'].keys()):
-                    count = params["data"][params['index']]['left_clusters']['count']
                     params["data"][params['index']]['left_clusters'][count][2] = x
                     params["data"][params['index']]['left_clusters'][count][3] = y
             if params['right_clusters']:
                 count = params["data"][params['index']]['right_clusters']['count']
                 if count in list(params["data"][params['index']]['right_clusters'].keys()):
-                    count = params["data"][params['index']]['right_clusters']['count']
                     params["data"][params['index']]['right_clusters'][count][2] = x
                     params["data"][params['index']]['right_clusters'][count][3] = y
         else:

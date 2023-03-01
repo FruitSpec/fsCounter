@@ -88,7 +88,7 @@ def run(cfg, args):
     filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
     out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
     results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
-    detector.release()
+    #detector.release()
 
 
 def get_id_and_categories(cfg):
@@ -161,8 +161,8 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
+    pipeline_config = os.path.join(repo_dir, "vision/pipelines/config/pipeline_config.yaml")
+    runtime_config = os.path.join(repo_dir, "vision/pipelines/config/runtime_config.yaml")
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 

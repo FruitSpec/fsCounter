@@ -132,10 +132,6 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     df_res = filter_df_by_color(df_res)
 
     def extract_tree_det():
-        tree_frames = df_tree['frame_id'].unique()
-        #border_frames = df_border['frame_id'].unique()
-        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
-        df_tree['end'].replace([-1], math.inf, inplace=True)
         margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
@@ -202,3 +198,24 @@ def append_results(df, data):
                         "bin5": [data[11]]})
     df = pd.concat([df, _df], axis=0)
     return df
+
+def run_on_blocks(blocks_folder):
+    res = []
+    blocks = os.listdir(blocks_folder)
+    for block in blocks:
+        if not os.path.isdir(os.path.join(blocks_folder, block)):
+            continue
+        row_path = os.path.join(blocks_folder, block)
+        df_res = open_measures(row_path)
+        trees, borders = get_trees(row_path)
+        for tree_id, df_tree in trees:
+            counter, size, color = trackers_into_values(df_res, df_tree)
+            res.append({"tree_id": tree_id, "count": counter, "block": block})
+
+    res = pd.DataFrame(data=res, columns=['tree_id', 'count', 'block'])
+    res.to_csv(os.path.join(blocks_folder, "res.csv"))
+
+
+if __name__ == "__main__":
+    blocks_folder = "/home/yotam/FruitSpec/Sandbox/Syngenta/tomatoes/optimize/test"
+    run_on_blocks(blocks_folder)
