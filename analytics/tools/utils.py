@@ -48,10 +48,13 @@ def get_size_set(df, filter_by_ratio=True):
         pix_w = df["x2"] - df["x1"]
         pix_h = df["y2"] - df["y1"]
         ratio = pix_w / pix_h
+        # filter fruits with uneven BBOX # remove below 0.6
         df.loc[(ratio < 0.6) | (1 / ratio < 0.6), ["width",
-                                                   "height"]] = np.nan  # filter fruits with uneven BBOX # remove below 0.6
-        df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
-        df.loc[(ratio > 1.25), "height"] = np.nan  # width axis occluded # keep major axis if in 0.6, 0.9
+                                                   "height"]] = np.nan
+        # width axis occluded # keep major axis if in 0.6, 0.9
+        df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan
+        # width axis occluded # keep major axis if in 0.6, 0.9
+        df.loc[(ratio > 1.25), "height"] = np.nan
     measures = pd.DataFrame([get_size_helper(df_track) for ind, df_track in df.groupby("track_id")])
     return measures
 
@@ -145,7 +148,7 @@ def get_intersection_point(df_res):
         of the bimodal distribution.
 
     """
-    df_res["distance"].replace(0, np.nan, inplace=True)
+    # df_res["distance"].replace([0], np.nan, inplace=True)
     gmm = GaussianMixture(n_components=2)
     clean_dist = df_res["distance"].dropna().to_numpy().reshape(-1, 1)
     gmm.fit(clean_dist)
@@ -185,8 +188,7 @@ def filter_df_by_min_samp(df_res, min_samples=3):
     return pd.concat(dfs_list, axis=0)
 
 
-def filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50,
-                    dist_threshold=''):
+def filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1):
     """
     Filter a DataFrame of image crops based on various criteria.
 
@@ -219,9 +221,11 @@ def filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=Tru
         specified filters.
 
     """
-    if apply_filter_by_color:
-        df_res = df_res[df_res["distance"] < dist_threshold]
     if apply_filter_by_dist:
+        _dist = get_intersection_point(df_res)
+        print(f"DIST THRESHOLD {_dist}")
+        df_res = df_res[df_res["distance"] < _dist]
+    if apply_filter_by_color:
         df_res = filter_df_by_color(df_res)
     if min_samples > 0:
         df_res = filter_df_by_min_samp(df_res, min_samples)
@@ -230,15 +234,14 @@ def filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=Tru
     return df_res
 
 
-def trackers_into_values(df_res, dist_threshold, df_tree=None, df_border=None):
+def trackers_into_values(df_res, df_tree=None, df_border=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
     :return: counter, measures, colors_class, extract_ids
     """
 
-    df_res = filter_trackers(df_res, apply_filter_by_color=True, apply_filter_by_dist=True, min_samples=3, min_x1=50,
-                             dist_threshold=dist_threshold)
+    df_res = filter_trackers(df_res, apply_filter_by_color=False, apply_filter_by_dist=True, min_samples=2, min_x1=50)
 
     def extract_tree_det():
         margin = 0
@@ -266,10 +269,12 @@ def trackers_into_values(df_res, dist_threshold, df_tree=None, df_border=None):
 
     plot_det = []
     if df_tree is not None:
+        # phenotyping analysis
         tree_frames = df_tree['frame_id'].unique()
         frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
         df_tree['end'].replace([-1], math.inf, inplace=True)
     else:
+        # commercial analysis
         frames = df_res.groupby('frame')
     extract_tree_det()
     df_res = pd.concat(plot_det, axis=0)
@@ -283,28 +288,27 @@ def trackers_into_values(df_res, dist_threshold, df_tree=None, df_border=None):
 
 def predict_weight_values(miu, sigma):
     # using exponential regression
-    weight_miu = 6.305 * np.exp(0.045 * miu)
-    weight_sigma = 6.305 * np.exp(0.045 * sigma)
+    # weight_miu = 6.305 * np.exp(0.045 * miu)
+    # weight_sigma = 6.305 * np.exp(0.045 * sigma)
 
     # using linear regression
-    # weight_miu = 4.04 * miu - 142.06
-    # weight_sigma = 4.04 * sigma - 142.06
+    weight_miu = 4.04 * miu - 142.06
+    weight_sigma = 4.04 * sigma
 
     return weight_miu, weight_sigma
 
 
 def append_results(df, data):
-    _df = pd.DataFrame({"side": [data[0]],
-                        "plot_id": [data[1]],
-                        "count": [data[2]],
-                        "avg_size": [data[3]],
-                        "std_size": [data[4]],
-                        "avg_weight": [data[5]],
-                        "std_weight": [data[6]],
-                        "bin1": [data[7]],
-                        "bin2": [data[8]],
-                        "bin3": [data[9]],
-                        "bin4": [data[10]],
-                        "bin5": [data[11]]})
+    _df = pd.DataFrame({"plot_id": [data[0]],
+                        "count": [data[1]],
+                        "avg_size": [data[2]],
+                        "std_size": [data[3]],
+                        "avg_weight": [data[4]],
+                        "std_weight": [data[5]],
+                        "bin1": [data[6]],
+                        "bin2": [data[7]],
+                        "bin3": [data[8]],
+                        "bin4": [data[9]],
+                        "bin5": [data[10]]})
     df = pd.concat([df, _df], axis=0)
     return df

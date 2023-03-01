@@ -106,17 +106,17 @@ class Analyzer():
         picked_count = pre[0] - post[0]
         # check relevance to calc diff color and size
         if picked_count < 0:
-            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [None] * 9)
+            self.results = append_results(self.results, [plot_id, picked_count] + [None] * 9)
             return
         elif picked_count == 0:
-            self.results = append_results(self.results, [self.side, plot_id, picked_count] + [0] * 9)
+            self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
             return
         (size_value_miu, size_value_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
             post[0] / pre[0], pre[1], post[1])
         weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
         bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
         self.results = append_results(self.results,
-                                      [self.side, plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
+                                      [plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
                                        weight_sigma, bin1, bin2, bin3, bin4, bin5])
 
     def get_results(self):
@@ -145,7 +145,7 @@ class phenotyping_analyzer(Analyzer):
         self.indices = self.map[self.fruit_type].phenotyping.rows
         self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
-        self.active_tracks = []
+        self.active_tracks = None
 
     def validation(self):
         flag = True
@@ -199,13 +199,11 @@ class phenotyping_analyzer(Analyzer):
                 df_border = borders[borders.tree_id == tree_id]
                 if not len(df_border):
                     df_border = None
-                _dist = get_intersection_point(df_res)
-                _counter, _size, _color, _ids = trackers_into_values(df_res,_dist, df_tree, df_border)
-
-                # if ind == 0:
-                #     info_1 = (info_1[0], info_1[1], info_1[2], _ids)
-                # elif ind == 1:
-                #     info_2 = (info_2[0], info_2[1], info_2[2], _ids)
+                # condition on same track_id in 2 plots
+                df_det = df_res[~df_res['track_id'].isin(self.active_tracks[ind])]
+                _counter, _size, _color, _ids = trackers_into_values(df_det, df_tree, df_border)
+                # ids to not use on the next plot process
+                self.active_tracks[ind] = _ids
 
                 counter += _counter
                 size = pd.concat([size, _size], axis=0)
@@ -216,21 +214,23 @@ class phenotyping_analyzer(Analyzer):
 
             return (counter, size.values, color.values)
 
-        def get_side_sets(row, locked_ids=[], reverse=False):
+        def get_side_sets(row, reverse=False):
             row_path = os.path.join(path, row)
             if os.path.exists(os.path.join(path, row, self.measures_name)):
                 df_res = open_measures(row_path, self.measures_name)
-                df_res = df_res[~df_res['track_id'].isin(locked_ids)]
                 trees, borders = get_trees(row_path)
             else:
+                print(f"NO MEASURES FILE - {os.path.join(path, row, self.measures_name)} - PLOTS' ROW REMOVED ")
                 return None, None, None
             if reverse:
                 trees = reversed(tuple(trees))
             return (df_res, trees, borders)
 
         for rows in zip(self.indices.side1, self.indices.side2):
+            self.active_tracks = [[], []]
             side_1 = get_side_sets(rows[0])
             side_2 = get_side_sets(rows[1], reverse=True)
+            # side_1 ,side_2 - [0]-df_measures, [1]-df_tree, [2]-borders
 
             # in case one/both sides missing , no results
             if side_1[0] is None or side_2[0] is None:
@@ -251,7 +251,7 @@ class phenotyping_analyzer(Analyzer):
                              self.iter_plots(self.scan_post)):
             # pre ,post - [0]-count, [1]-size, [2]-color , [3]- plot id
             if not Analyzer.valid_output(pre, post):
-                df_sum = append_results(df_sum, [self.side, pre[0]] + [None] * 10)
+                df_sum = append_results(df_sum, [pre[0]] + [None] * 10)
                 continue
             # dict =  self.get_pre_post(pre[3],pre,post)
             self.calc_diff_values(pre, post, pre[3])
@@ -275,10 +275,10 @@ class commercial_analyzer(Analyzer):
 
         for row in rows:
             if not os.path.exists(os.path.join(path, row, measures_name)):
+                print(f"NO MEASURES FILE - {os.path.join(path, row, measures_name)} - REMOVED ")
                 continue
             df_res = open_measures(os.path.join(path, row), measures_name)
-            _dist = get_intersection_point(df_res)
-            _counter, _size, _color, _ = trackers_into_values(df_res,_dist)
+            _counter, _size, _color, _ = trackers_into_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
             color = pd.concat([color, _color], axis=0)
@@ -300,7 +300,7 @@ class commercial_analyzer(Analyzer):
                 post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
             # One of the file measures does not exist
             except FileNotFoundError:
-                df_sum = append_results(df_sum, [self.side, key] + [None] * 10)
+                df_sum = append_results(df_sum, [key] + [None] * 10)
                 continue
             # dict =  self.get_pre_post(key,pre,post)
             self.calc_diff_values(pre, post, key)

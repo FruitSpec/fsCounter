@@ -28,7 +28,7 @@ def main_config(
             continue
         suffix = f'{cfg[cfg.index("_", cfg.index("_") + 1):].split(".")[0]}.csv'
         measures_name = f'measures{suffix}'
-        analysis = [#phenotyping_analyzer(measures_name),
+        analysis = [phenotyping_analyzer(measures_name),
                     commercial_analyzer(measures_name)]
         df = pd.DataFrame()
         for obj in analysis:
