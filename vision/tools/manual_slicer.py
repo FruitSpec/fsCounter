@@ -97,10 +97,10 @@ def print_lines(params):
 
     if params['data'][params['index']]['start'] is not None:
         x = params['data'][params['index']]['start']
-        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
+        frame = cv2.line(frame, (int(x), 0), (int(x), y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
         x = params['data'][params['index']]['end']
-        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
+        frame = cv2.line(frame, (int(x), 0), (int(x), y), (255, 0, 255), 2)
 
     return frame
 
@@ -655,9 +655,10 @@ def get_state(loc):
 
 if __name__ == "__main__":
     fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
+    fp = '/home/yotam/FruitSpec/Data/DWDB_Jan_2023/DWDBLE33/R11A/Result_FSI_1.mkv'
+    output_path = '/home/yotam/FruitSpec/Sandbox/manual_silcer_testing'
     validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=2)
+    manual_slicer(fp, output_path, rotate=1)
 
     data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
     #slice_to_trees(data_file, None, None, h=1920, w=1080)
