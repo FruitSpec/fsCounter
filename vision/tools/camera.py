@@ -15,10 +15,38 @@ def is_sturated(img, percentile=0.8, threshold=245):
 
     return b[ind] >= threshold
 
+def fsi_from_channels(rgb, c_800, c_975, lower=0.02, upper=0.98, min_int=25, max_int=235):
+    clahe = cv2.createCLAHE(5, (10, 10))
+    rgb = stretch_rgb(rgb, lower, upper, min_int, max_int, clahe)
+    c_800 = stretch_and_clahe(c_800, lower, upper, min_int, max_int, clahe)
+    c_975 = stretch_and_clahe(c_975, lower, upper, min_int, max_int, clahe)
+
+    fsi = rgb.copy()
+    fsi[:, :, 0] = c_800.copy()
+    fsi[:, :, 1] = c_975.copy()
+
+    return fsi
+
+def stretch_and_clahe(channel, lower, upper, min_int, max_int, clahe):
+    channel = stretch(channel, lower, upper, min_int, max_int)
+    channel = clahe.apply(channel)
+
+    return channel
+
+
+def stretch_rgb(rgb, lower, upper, min_int, max_int, clahe):
+    out = rgb.copy()
+    out[:, :, 0] = stretch_and_clahe(rgb[:, :, 0].copy(), lower, upper, min_int, max_int, clahe)
+    out[:, :, 1] = stretch_and_clahe(rgb[:, :, 1].copy(), lower, upper, min_int, max_int, clahe)
+    out[:, :, 2] = stretch_and_clahe(rgb[:, :, 2].copy(), lower, upper, min_int, max_int, clahe)
+
+    return out
+
+
 def stretch(img, lower, upper, min_int, max_int):
 
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
-    h, b = np.histogram(diff.flatten())
+    h, b = np.histogram(normalized_img.flatten(), 255)
     total = np.sum(h)
     accumulated = np.cumsum(h).astype(np.float32) / total
 
@@ -32,7 +60,15 @@ def stretch(img, lower, upper, min_int, max_int):
             break
     upper_threshold = b[i]
 
+    gain = (max_int - min_int) / upper_threshold
 
+    offset = min_int
+
+    stretched_img = normalized_img * gain + offset
+    stretched_img = np.clip(stretched_img, 0, 255)
+
+    type_ = np.uint8
+    return stretched_img.astype(type_)
 def jai_to_channels(jai_frame):
 
     rgb = cv2.demosaicing(jai_frame[:,:,0], cv2.COLOR_BAYER_BG2RGB)
