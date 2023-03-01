@@ -31,9 +31,10 @@ def mouse_callback(event, x, y, flags, params):
             params["data"][params['index']]['end'] = max(x - 10, 0)
             #params["data"][params['index']]['end'] = min(x + 10, int(params['width'] // params['resize_factor']))
         if flags == cv2.EVENT_FLAG_ALTKEY + 1: # or flags == cv2.EVENT_FLAG_ALTKEY + 1:  # second part is due to bug of cv2
-            params['left_clusters'] = True
-            count = params["data"][params['index']]['left_clusters']['count']
-            params["data"][params['index']]['left_clusters'][count] = [x, y, x, y]
+            params['right_clusters'] = True
+            count = params["data"][params['index']]['right_clusters']['count']
+            params["data"][params['index']]['right_clusters'][count] = [x, y, x, y]
+
         else:
             params["data"][params['index']]['start'] = x
 
@@ -42,13 +43,14 @@ def mouse_callback(event, x, y, flags, params):
             params["data"][params['index']]['start'] = x
             params["data"][params['index']]['end'] = max(x - 10, 0)
         elif flags == cv2.EVENT_FLAG_ALTKEY + 2:
-            params['right_clusters'] = True
-            count = params["data"][params['index']]['right_clusters']['count']
-            params["data"][params['index']]['right_clusters'][count] = [x, y, x, y]
+            params['left_clusters'] = True
+            count = params["data"][params['index']]['left_clusters']['count']
+            params["data"][params['index']]['left_clusters'][count] = [x, y, x, y]
+
         else:
             params["data"][params['index']]['end'] = x
 
-    if event == cv2.EVENT_LBUTTONUP:
+    if event == cv2.EVENT_RBUTTONUP:
         if params['left_clusters']:
             count = params["data"][params['index']]['left_clusters']['count']
             if count in list(params["data"][params['index']]['left_clusters'].keys()):
@@ -56,7 +58,7 @@ def mouse_callback(event, x, y, flags, params):
                 params["data"][params['index']]['left_clusters'][count][3] = y
                 params["data"][params['index']]['left_clusters']['count'] += 1
         params['left_clusters'] = False
-    if event == cv2.EVENT_RBUTTONUP:
+    if event == cv2.EVENT_LBUTTONUP:
         if params['right_clusters']:
             count = params["data"][params['index']]['right_clusters']['count']
             if count in list(params["data"][params['index']]['right_clusters'].keys()):
@@ -103,20 +105,21 @@ def print_lines(params):
     return frame
 
 def print_rectangles(frame, params):
-    left_clusters = params['data'][params['index']]['left_clusters']
-    right_clusters = params['data'][params['index']]['right_clusters']
-
-    for key, values in left_clusters.items():
-        if key != 'count':
-            start_point = (values[0], values[1])
-            end_point = (values[2], values[3])
-            frame = draw_rectangle(frame, start_point, end_point, (255, 0, 255),)
-
-    for key, values in right_clusters.items():
-        if key != 'count':
-            start_point = (values[0], values[1])
-            end_point = (values[2], values[3])
-            frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0),)
+    index_keys = list(params['data'][params['index']].keys())
+    if 'left_clusters' in index_keys:
+        left_clusters = params['data'][params['index']]['left_clusters']
+        for key, values in left_clusters.items():
+            if key != 'count':
+                start_point = (values[0], values[1])
+                end_point = (values[2], values[3])
+                frame = draw_rectangle(frame, start_point, end_point, (255, 0, 255), )
+    if 'right_clusters' in index_keys:
+        right_clusters = params['data'][params['index']]['right_clusters']
+        for key, values in right_clusters.items():
+            if key != 'count':
+                start_point = (values[0], values[1])
+                end_point = (values[2], values[3])
+                frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0), )
 
     return frame
 
