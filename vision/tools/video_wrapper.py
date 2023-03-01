@@ -2,6 +2,7 @@ import cv2
 import pyzed.sl as sl
 import numpy as np
 
+
 class video_wrapper():
 
     def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5):
@@ -21,7 +22,6 @@ class video_wrapper():
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
 
-
     @staticmethod
     def get_rotation(rotate):
         if rotate == 1:
@@ -32,7 +32,6 @@ class video_wrapper():
             rotation = None
 
         return rotation
-
 
     def get_zed(self, frame_number=None):
 
@@ -48,7 +47,6 @@ class video_wrapper():
 
         return frame, depth, point_cloud
 
-
     def grab(self, frame_number=None):
         if self.mode == 'svo':
             if frame_number is not None:
@@ -61,8 +59,6 @@ class video_wrapper():
 
         else:
             Warning('Grab Not implemented for file type')
-
-
 
     def get_frame(self, frame_number=None):
         if self.mode == 'svo':
@@ -90,7 +86,7 @@ class video_wrapper():
                 cam_run_p = self.cam.get_init_parameters()
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
-                depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / cam_run_p.depth_maximum_distance
+                depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
                 bool_mask = np.where(np.isnan(depth), True, False)
                 depth[bool_mask] = 0
 
@@ -113,7 +109,6 @@ class video_wrapper():
             Warning('point_cloud Not implemented for file type')
 
         return point_cloud
-
 
     def get_number_of_frames(self):
         if self.mode == 'svo':
@@ -161,7 +156,6 @@ class video_wrapper():
         else:
             self.cam.release()
 
-
     def is_open(self):
         pass
 
@@ -176,7 +170,7 @@ class video_wrapper():
         input_type.set_from_svo_file(filepath)
         init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
         init_params.depth_mode = sl.DEPTH_MODE.ULTRA
-        #init_params.depth_mode = sl.DEPTH_MODE.QUALITY
+        # init_params.depth_mode = sl.DEPTH_MODE.QUALITY
         init_params.coordinate_units = sl.UNIT.METER
         init_params.depth_minimum_distance = depth_minimum
         init_params.depth_maximum_distance = depth_maximum
@@ -191,8 +185,8 @@ class video_wrapper():
         cam.enable_positional_tracking(positional_tracking_parameters)
         detection_parameters = sl.ObjectDetectionParameters()
         detection_parameters.detection_model = sl.DETECTION_MODEL.CUSTOM_BOX_OBJECTS
-        detection_parameters.enable_tracking = True
-        detection_parameters.enable_mask_output = True
+        detection_parameters.enable_tracking = False
+        detection_parameters.enable_mask_output = False
         cam.enable_object_detection(detection_parameters)
         if status != sl.ERROR_CODE.SUCCESS:
             print(repr(status))

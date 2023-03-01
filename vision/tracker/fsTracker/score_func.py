@@ -66,7 +66,7 @@ def relativity_score(trk_boxes, detections, relatives=10, score_rel=3):
 
     res = np.stack(res, axis=1)
 
-    res /= res.max()
+    res /= max(res.max(), 1E-6)
 
     return 1 - res
     #return res
@@ -154,6 +154,16 @@ def confidence_score(trk_score, dets_score):
 
     return 1 - np.abs(trk_score.T - dets_score)
 
+def z_score(trk_depth, dets_depth):
+
+    trk_score = np.expand_dims(trk_depth, axis=0)
+    dets_score = np.expand_dims(dets_depth, axis=0)
+
+    z_diff = np.abs(trk_score.T - dets_score)
+    z_diff = z_diff / (np.nanmax(z_diff) - np.nanmin(z_diff))
+    z_diff[np.isnan(z_diff)] = 0.5  # in case of nan, the output score will be 0.5
+
+    return 1 - z_diff
     # score = []
     # for det in dets:
     #     det_conf = det[4] * det[5]

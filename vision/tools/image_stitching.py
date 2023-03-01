@@ -12,7 +12,7 @@ def keep_dets_only(frame, detections, margin = 0.5):
     else:
         dets = []
     h, w = frame.shape[:2]
-    bool_arr = np.zeros((h, w), dtype=np.bool)
+    bool_arr = np.zeros((h, w), dtype=bool)
     for det in dets:
         margin_h = ((det[3] - det[1]) * margin / 2)
         margin_w = ((det[2] - det[0]) * margin / 2)

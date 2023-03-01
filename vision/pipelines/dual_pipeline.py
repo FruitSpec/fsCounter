@@ -15,6 +15,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector, scale
+from vision.tools.translation import translation as T
 from vision.depth.zed.clip_depth_viewer import init_cam
 from vision.tracker.fsTracker.score_func import get_intersection
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_duplicates, filter_by_size

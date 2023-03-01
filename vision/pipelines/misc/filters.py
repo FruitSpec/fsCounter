@@ -2,27 +2,25 @@ import cv2
 import numpy as np
 
 from vision.tracker.fsTracker.score_func import get_intersection
+from vision.depth.zed.svo_operations import get_distance
 
 
-def filter_by_distance(dets, depth, threshold=150, percentile=0.4, factor=2.5):
-    filtered_dets = []
+def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.5):
+    filtered = []
     range_ = []
     for det in dets:
-        crop = depth[det[1]:det[3] - 1, det[0]:det[2] - 1]
-        h, w = crop.shape
-        if w == 0 or h == 0:
-            range_.append(0)
-        else:
-            range_.append(np.nanmean(crop))
+        crop = point_cloud[det[1]: det[3], det[0]:det[2], 2]
+        range_.append(get_distance(crop))
 
     if range_:  # not empty
-        bool_vec = np.array(range_) > threshold
+        bool_vec = np.array(range_) < threshold
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
-                filtered_dets.append(dets[d_id])
+                filtered.append(dets[d_id])
 
-    return filtered_dets
+    return filtered
+
 
 def filter_by_intersection(dets_outputs, threshold=0.8):
     filtered = []
@@ -38,7 +36,7 @@ def filter_by_intersection(dets_outputs, threshold=0.8):
         tot_duplicants = []
         valid_dets = []
         for i in range(inter.shape[1]):
-            #inter[i, :] = 0
+            # inter[i, :] = 0
             vec = inter[:, i]
             vec[i] = 0
             dup = vec > threshold
@@ -52,17 +50,12 @@ def filter_by_intersection(dets_outputs, threshold=0.8):
     return filtered
 
 
-
 def filter_by_duplicates(dets_outputs, iou_threshold=0.9):
     dets = np.array(dets_outputs)
     scores = dets[:, 4] * dets[:, 5]
     dets = dets[:, :4]
 
     inter = get_intersection(dets, dets)
-
-
-
-
 
     area = (dets[:, 3] - dets[:, 1]) * (dets[:, 2] - dets[:, 0])
 
@@ -116,7 +109,7 @@ def filter_by_height(det_outputs, depth, bias=0, y_crop=200):
         y_loc = np.argmax(grad_y, axis=0)
         y_threshold = np.mean(y_loc[y_loc > 0]) + y_crop + bias
 
-        for det in det_outputs:
+        for d_id, det in enumerate(det_outputs):
             if det[1] > y_threshold:
                 filtered.append(det)
 

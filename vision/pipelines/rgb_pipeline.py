@@ -1,33 +1,28 @@
-import copy
-
 import os
 import sys
-import pyzed.sl as sl
-import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
 import collections
 
-from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path, scale
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud
+from vision.misc.help_func import get_repo_dir, validate_output_path, copy_configs
+from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height
+from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
-from vision.depth.zed.svo_operations import get_dimentions
 from vision.tools.translation import translation as T
 from vision.tools.camera import is_sturated
-from vision.tools.color import get_hue
+from vision.tools.color import get_hue, get_tomato_color
 from vision.tools.video_wrapper import video_wrapper
 
 
-
 def run(cfg, args):
+    print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
@@ -35,7 +30,6 @@ def run(cfg, args):
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
     # Read until video is completed
-    print(f'Inferencing on {args.movie_path}\n')
     number_of_frames = cam.get_number_of_frames()
 
     f_id = 0
@@ -54,40 +48,42 @@ def run(cfg, args):
         # detect:
         det_outputs = detector.detect(frame)
 
-        # filter by size and distance:
-        filtered_outputs = filter_by_distance(det_outputs, depth, cfg.filters.distance.threshold)
-        filtered_outputs = filter_by_size(filtered_outputs, cfg.filters.size.size_threshold)
+        # filter by size:
+        filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
+
+        outputs_depth = measure_depth(filtered_outputs, point_cloud)
 
         # find translation
         tx, ty = translation.get_translation(frame, filtered_outputs)
 
-        # filter by height:
-        filtered_outputs = filter_by_height(filtered_outputs, depth, cfg.filters.height.bias, cfg.filters.height.y_crop)
-
         # track:
-        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id)
+        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
+
+        # filter by distance:
+        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
 
         # measure:
-        colors = get_colors(trk_outputs, frame)
-        clusters = get_clusters(trk_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimentions(point_cloud, trk_outputs)
+        colors, hists_hue = get_colors(filtered_outputs, frame)
+        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
+        dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
+        # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(trk_outputs, clusters, dimensions, colors)
+        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
 
         if args.debug.is_debug:
-            results_collector.debug(f_id, args, frame_results, det_outputs, frame, depth, trk_windows)
+            depth = None
+            results_collector.debug(f_id, args, frame_results, det_outputs, frame, hists_hue, depth, trk_windows)
 
         f_id += 1
 
     # When everything done, release the video capture object
     cam.close()
-
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'))
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
-
-    # results_collector.write_results_on_movie(args.movie_path, args.output_folder, write_tracks=True, write_frames=True)
+    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
+    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
+    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
+    #detector.release()
 
 
 def get_id_and_categories(cfg):
@@ -101,15 +97,18 @@ def get_id_and_categories(cfg):
 
 
 def get_colors(trk_results, frame):
-        colors = []
-        for res in trk_results:
-            h, b = get_hue(frame[res[1]:res[3], res[0]:res[2], :])
+    colors = []
+    hists = []
+    for res in trk_results:
+        rgb_crop = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+        h, b = get_hue(rgb_crop)
+        mean = np.sum(b[:-1] * h) / np.sum(h)
+        std = np.sqrt(np.sum(((mean - b[:-1]) ** 2) * h) / np.sum(h))
+        colors.append([get_tomato_color(rgb_crop), std * 2])  # multiply by 2 to correct hue to 360 angles
+        hists.append(h)
 
-            mean = np.sum(b[:-1] * h) / np.sum(h)
-            std = np.sqrt(np.sum(((mean - b[:-1])**2) * h) / np.sum(h))
-            colors.append([mean * 2, std * 2])  # multiply by 2 to correct hue to 360 angles
+    return colors, hists
 
-        return colors
 
 def get_clusters(trk_results, max_single_fruit_dist=200):
     if len(trk_results) == 0:
@@ -155,21 +154,15 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
     return clusters
 
 
-
-
-
-
-
-
-
-
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/home/yotam/FruitSpec/Code/fsCounter/vision/pipelines/config/runtime_config.yaml"
-    # config_file = "/config/pipeline_config.yaml"
-    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    pipeline_config = os.path.join(repo_dir, "vision/pipelines/config/pipeline_config.yaml")
+    runtime_config = os.path.join(repo_dir, "vision/pipelines/config/runtime_config.yaml")
+    cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
     validate_output_path(args.output_folder)
+    copy_configs(pipeline_config, runtime_config, args.output_folder)
+
     run(cfg, args)
+

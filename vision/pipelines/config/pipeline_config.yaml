@@ -19,6 +19,10 @@ device: cuda
 
 input_size: [1024, 1024]
 
+dim_method: pix_size_median # with what method to get the dimensions, reg - old method, ellipsoid - ellipsoid fitting,
+                    #pix_size_median - by pixel size median, pix_size_mean - by pixel size mean, reg_kde - old method with kde filtering
+margin: 0.2 # the lower the margin the more pixels we take from the center
+
 detector:
   confidence: 0.4
   nms: 0.65
@@ -49,14 +53,16 @@ translation:
 
 filters:
   distance:
-    threshold: 140
+    threshold: 1
   duplicates:
     iou_threshold: 0.6
   size:
-    size_threshold: 1000
+    size_threshold: 2500
   height:
     bias: -100
     y_crop: 200
+  hue: true # flag for using hue filter
+  depth: true # flag for using dynamic depth filter
 
 clusters:
   min_single_fruit_distance: 150
