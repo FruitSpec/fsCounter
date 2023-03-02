@@ -41,7 +41,7 @@ def main_config(
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    # run_real_time()
+    run_real_time()
     analysis = [phenotyping_analyzer(),
                 commercial_analyzer()]
     df = pd.DataFrame()
@@ -54,7 +54,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
-    main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report",
-                finished=[],
-                analyze=True, skip_both=False, analyze_only=False)
+    main()

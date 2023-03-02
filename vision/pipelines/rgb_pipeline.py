@@ -80,10 +80,7 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    margin_suffix = f'_{str(cfg.margin).split(".")[-1]}' if "reg" in cfg.dim_method else ""
-    out_name = f'measures_{cfg.dim_method}{margin_suffix}{filter_suffix}.csv'
-    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
     detector.release()
 
 
