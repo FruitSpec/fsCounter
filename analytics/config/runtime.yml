@@ -1,6 +1,6 @@
 fruit_type: tomato
 scan_date: '010323'
-main_path_com: /media/yotam/Extreme SSD/syngenta trail
+main_path_com: /home/fruitspec-lab/Downloads
 analysis_path: ${main_path_com}/${fruit_type}/analysis/${scan_date}
 output_path: ${main_path_com}/${fruit_type}/analysis/${scan_date}
 video_path: ${main_path_com}/${fruit_type}/${scan_date}

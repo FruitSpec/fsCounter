@@ -257,7 +257,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     """
 
     def extract_tree_det():
-        margin = 50
+        margin = 0
         for frame_id, df_frame in frames:
             # filtter out first red fruit and above
             # df_frame = bound_red_fruit(df_frame)
@@ -342,7 +342,7 @@ def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_di
         if not np.any(["slice_data" in file for file in os.listdir(row_path)]):
             continue
         df_res = open_measures(row_path, "measures_pix_size_median_hue_depth.csv")
-        df_res = df_res[df_res['y1'] > 400]
+        df_res = df_res[df_res['y1'] > 300]
         df_res = filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples,
                                  min_x1)
         trees, borders = get_trees(row_path)
@@ -351,19 +351,20 @@ def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_di
             res.append({"tree_id": tree_id, "count": counter, "block": block})
 
     res = pd.DataFrame(data=res, columns=['tree_id', 'count', 'block'])
-    suffix = f"{'_color' if apply_filter_by_color else ''}{'_dist' if apply_filter_by_dist else ''}_samp{min_samples}_x{min_x1}"
-    res.to_csv(os.path.join(blocks_folder, f"res{suffix}.csv"))
     return res
 
 
 if __name__ == "__main__":
+    gt_df = pd.DataFrame([84, 86, 64, 77, 84, 86, 64, 77, 59, 52, 50, 55], columns=['gt'])
+    df_sum = pd.DataFrame()
     blocks_folder = "/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/100123/window_trial/pre"
     for apply_filter_by_color in [True, False]:
-        for apply_filter_by_dist in [True, False]:
-            for min_samples in range(5):
-                for min_x1 in range(0, 100, 25):
-                    df = run_on_blocks(blocks_folder, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1)
-                    if len(df[df['count'] < 80]) > 3:
-                        suffix = f"{'_color' if apply_filter_by_color else ''}{'_dist' if apply_filter_by_dist else ''}_samp{min_samples}_x{min_x1}"
-                        print(suffix)
-                        print(df)
+        for min_samples in range(1, 5):
+            for min_x1 in range(0, 100, 25):
+                df = run_on_blocks(blocks_folder, apply_filter_by_color, True, min_samples, min_x1)
+                df = pd.concat([df, gt_df], axis=1)
+                df['error'] = abs(df['gt'] - df['count']) / df['gt']
+                suffix = f"{'_color' if apply_filter_by_color else ''}{'_dist' if True else ''}_samp{min_samples}_x{min_x1}"
+                df.to_csv(os.path.join(blocks_folder, f"res{suffix}.csv"))
+                df_sum = df_sum.append({'config': suffix, 'mean_error': round(df.loc[0:7, 'error'].mean(), 2), 'std_error': round(df.loc[0:7, 'error'].std(), 2)},ignore_index=True)
+    d=3

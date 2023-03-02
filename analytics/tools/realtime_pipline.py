@@ -27,7 +27,7 @@ def multi_process_wrapper(cfg, args, movies_path, scan, row, analysis_path):
     #     return
 
 
-def run_real_time(max_workers=4, pipeline_config=""):
+def run_real_time(max_workers=1, pipeline_config=""):
 
     # vision.pipeline configuration
     repo_dir = get_repo_dir()
