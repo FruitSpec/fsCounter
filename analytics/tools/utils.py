@@ -289,8 +289,8 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
 
 
 def predict_weight_values(miu, sigma, observation=[]):
-    a = 11.083
-    b = 0.038
+    a = 13.44
+    b = 0.034
     # using exponential regression
     if not len(observation):
         weight_miu = a * np.exp(b * miu)
