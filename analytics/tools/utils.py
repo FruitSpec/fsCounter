@@ -17,7 +17,6 @@ def get_trees(path):
     trees_slices, border_df = slice_to_trees(os.path.join(path, [i for i in os.listdir(path) if 'slice_data' in i][0]),
                                              None, None, h=1920, w=1080)
     iter_trees = trees_slices.groupby('tree_id')
-
     return iter_trees, border_df
 
 
@@ -175,7 +174,7 @@ def get_intersection_point(df_res, max_dist=3, debug=False):
     return intersection_point
 
 
-def filter_df_by_min_samp(df_res, min_samples=3):
+def filter_df_by_min_samp(df_res):
     """
     Filter a DataFrame of image crops based on the number of samples in each track.
 
@@ -198,12 +197,12 @@ def filter_df_by_min_samp(df_res, min_samples=3):
     """
     dfs_list = []
     for ind, df_track in df_res.groupby("track_id"):
-        if len(df_track) > min_samples:
+        if len(df_track) > 3:
             dfs_list.append(df_track)
     return pd.concat(dfs_list, axis=0)
 
 
-def filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples, min_x1):
+def filter_trackers(df_res, dist_threshold):
     """
     Filter a DataFrame of image crops based on various criteria.
 
@@ -218,16 +217,6 @@ def filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_sam
     ----------
     df_res : pandas.DataFrame
         A DataFrame containing columns "distance", "track_id", "color", and any other columns with data on the image crops.
-    apply_filter_by_color : bool, optional
-        Whether or not to apply the filter_by_color function to the input DataFrame. Defaults to True.
-    apply_filter_by_dist : bool, optional
-        Whether or not to apply the filter_by_dist function to the input DataFrame. Defaults to True.
-    min_samples : int, optional
-        The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
-    min_x1 : int, optional
-        Every fruit with x1 < "min_x1" will be dropped
-    dist_threshold : int
-        filter values upper the value
 
     Returns
     -------
@@ -236,16 +225,14 @@ def filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_sam
         specified filters.
 
     """
-    if apply_filter_by_dist:
+    if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
         # print(f"{round(_dist,3)}  {name}")
-        df_res = df_res[df_res["distance"] < _dist]
-    if apply_filter_by_color:
-        df_res = filter_df_by_color(df_res)
-    if min_samples > 0:
-        df_res = filter_df_by_min_samp(df_res, min_samples)
-    if min_x1 > 0:
-        df_res = df_res[df_res["x1"] > min_x1]
+    else:
+        _dist = dist_threshold
+    df_res = df_res[df_res["distance"] < _dist]
+    df_res = filter_df_by_min_samp(df_res)
+    df_res = df_res[df_res["x1"] > 50]
     return df_res
 
 
@@ -330,8 +317,7 @@ def append_results(df, data):
     return df
 
 
-def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_dist=True, min_samples=2,
-                  min_x1=0):
+def run_on_blocks(blocks_folder):
     res = []
     blocks = os.listdir(blocks_folder)
 
@@ -341,10 +327,8 @@ def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_di
         row_path = os.path.join(blocks_folder, block)
         if not np.any(["slice_data" in file for file in os.listdir(row_path)]):
             continue
-        df_res = open_measures(row_path, "measures_pix_size_median_hue_depth.csv")
-        df_res = df_res[df_res['y1'] > 300]
-        df_res = filter_trackers(df_res, apply_filter_by_color, apply_filter_by_dist, min_samples,
-                                 min_x1)
+        df_res = open_measures(row_path, "measures.csv")
+        df_res = filter_trackers(df_res, dist_threshold=0)
         trees, borders = get_trees(row_path)
         for tree_id, df_tree in trees:
             counter, size, color, ids_ = trackers_into_values(df_res, df_tree)
@@ -355,16 +339,4 @@ def run_on_blocks(blocks_folder, apply_filter_by_color=False, apply_filter_by_di
 
 
 if __name__ == "__main__":
-    gt_df = pd.DataFrame([84, 86, 64, 77, 84, 86, 64, 77, 59, 52, 50, 55], columns=['gt'])
-    df_sum = pd.DataFrame()
-    blocks_folder = "/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/100123/window_trial/pre"
-    for apply_filter_by_color in [True, False]:
-        for min_samples in range(1, 5):
-            for min_x1 in range(0, 100, 25):
-                df = run_on_blocks(blocks_folder, apply_filter_by_color, True, min_samples, min_x1)
-                df = pd.concat([df, gt_df], axis=1)
-                df['error'] = abs(df['gt'] - df['count']) / df['gt']
-                suffix = f"{'_color' if apply_filter_by_color else ''}{'_dist' if True else ''}_samp{min_samples}_x{min_x1}"
-                df.to_csv(os.path.join(blocks_folder, f"res{suffix}.csv"))
-                df_sum = df_sum.append({'config': suffix, 'mean_error': round(df.loc[0:7, 'error'].mean(), 2), 'std_error': round(df.loc[0:7, 'error'].std(), 2)},ignore_index=True)
-    d=3
+   run_on_blocks('')
