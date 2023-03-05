@@ -231,7 +231,7 @@ class phenotyping_analyzer(Analyzer):
 
                 # filter according plot's implications
                 if row == '9':
-                    df_res = filter_trackers(df_res, dist_threshold=1)
+                    df_res = filter_trackers(df_res, dist_threshold=0)
                 else:
                     df_res = filter_trackers(df_res, dist_threshold=0)
 

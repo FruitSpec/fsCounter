@@ -197,7 +197,7 @@ def filter_df_by_min_samp(df_res):
     """
     dfs_list = []
     for ind, df_track in df_res.groupby("track_id"):
-        if len(df_track) > 3:
+        if len(df_track) > 2:
             dfs_list.append(df_track)
     return pd.concat(dfs_list, axis=0)
 
@@ -227,12 +227,13 @@ def filter_trackers(df_res, dist_threshold):
     """
     if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
-        # print(f"{round(_dist,3)}  {name}")
+        # print(f"{round(_dist, 3)}")
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
+    # df_res = filter_df_by_color(df_res)
     df_res = filter_df_by_min_samp(df_res)
-    df_res = df_res[df_res["x1"] > 50]
+    # df_res = df_res[df_res["x1"] > 50]
     return df_res
 
 
@@ -302,17 +303,21 @@ def predict_weight_values(miu, sigma, observation=[]):
 
 
 def append_results(df, data):
+    total_weight_kg = None
+    if data[4] != None and data[1] != None:
+        total_weight_kg = round((data[4] * data[1]) / 1000, 2)
     _df = pd.DataFrame({"plot_id": [data[0]],
                         "count": [data[1]],
-                        "avg_size": [data[2]],
-                        "std_size": [data[3]],
-                        "avg_weight": [data[4]],
-                        "std_weight": [data[5]],
                         "bin1": [data[6]],
                         "bin2": [data[7]],
                         "bin3": [data[8]],
                         "bin4": [data[9]],
-                        "bin5": [data[10]]})
+                        "bin5": [data[10]],
+                        "total_weight_kg": [total_weight_kg],
+                        "weight_avg_gr": [data[4]],
+                        "weight_std": [data[5]],
+                        "size_avg_mm": [data[2]],
+                        "size_std": [data[3]]})
     df = pd.concat([df, _df], axis=0)
     return df
 
@@ -339,4 +344,4 @@ def run_on_blocks(blocks_folder):
 
 
 if __name__ == "__main__":
-   run_on_blocks('')
+    run_on_blocks('')
