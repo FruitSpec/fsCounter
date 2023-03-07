@@ -1,0 +1,19 @@
+movie_path: /media/fruitspec-lab-3/cam172/customers/DEWAGD/200123/DWDBCN51/R5A
+output_folder: /home/fruitspec-lab-3/FruitSpec/Sandbox/FSI_Stretch
+#movie_path:
+
+frame_size:  [2048, 1536] #[1920, 1080] #
+rotate: 1 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
+depth_minimum: 0.1 # 1 counter
+depth_maximum: 2.5 # 8 counter
+
+debug:
+  is_debug: true  # master switch
+  tracker_windows: false
+  tracker_results: true
+  det_results: false
+  raw_frame: false
+  depth: false
+  tracker: None
+  clusters: false
+
