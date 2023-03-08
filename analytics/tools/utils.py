@@ -290,6 +290,8 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
     colors_class = get_color_set(df_res)
 
     if analyzer:
+        df_res['plot_id'] = analyzer.current_values['plot_id']
+        df_res['row'] = analyzer.current_values['row']
         analyzer.set_df_debug_plots(df_res)
     return counter, measures, colors_class
 

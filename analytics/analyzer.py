@@ -218,7 +218,7 @@ class phenotyping_analyzer(Analyzer):
                     df_border = None
                 # condition on same track_id in 2 plots
                 df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
-                # df_det = df_res
+                self.current_values = {'row': rows[ind], 'plot_id': plot_id}
                 _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
 
                 counter += _counter
@@ -227,13 +227,6 @@ class phenotyping_analyzer(Analyzer):
 
                 if rows[0] == '9':
                     break
-
-                # debug
-                movie_path = os.path.join(path.replace('analysis', ''), rows[ind])  # hard coded
-                output_folder = os.path.join(path, rows[ind]) # hard coded
-                debug_plots(df=self.df_debug_plots, movie_path=movie_path, output_folder=output_folder)
-                self.df_debug_plots = pd.DataFrame()
-
             return (counter, size.values, color.values)
 
         def get_side_sets(row, reverse=False):
@@ -266,9 +259,11 @@ class phenotyping_analyzer(Analyzer):
                 continue
 
             for (tree_id, df_tree_1), (_, df_tree_2) in zip(side_1[1], side_2[1]):
-                counter, size, color = get_plot_aggregation()
                 plot_id = self.map_tree_into_plot(rows[0], tree_id, self.fruit_type)
+                counter, size, color = get_plot_aggregation()
                 yield (counter, size, color, plot_id)
+        # debug
+        debug_plots(df=self.df_debug_plots)
 
     def run(self):
         """
