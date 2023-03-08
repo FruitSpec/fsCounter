@@ -174,7 +174,7 @@ def get_intersection_point(df_res, max_dist=3, debug=False):
     return intersection_point
 
 
-def filter_df_by_min_samp(df_res):
+def filter_df_by_min_samp(df_res, min_tracks):
     """
     Filter a DataFrame of image crops based on the number of samples in each track.
 
@@ -197,7 +197,7 @@ def filter_df_by_min_samp(df_res):
     """
     dfs_list = []
     for ind, df_track in df_res.groupby("track_id"):
-        if len(df_track) > 2:
+        if len(df_track) > min_tracks:
             dfs_list.append(df_track)
     return pd.concat(dfs_list, axis=0)
 
@@ -225,19 +225,21 @@ def filter_trackers(df_res, dist_threshold):
         specified filters.
 
     """
+
+    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
     if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
         # print(f"{round(_dist, 3)}")
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
+    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223
     # df_res = filter_df_by_color(df_res)
-    df_res = filter_df_by_min_samp(df_res)
     # df_res = df_res[df_res["x1"] > 50]
     return df_res
 
 
-def trackers_into_values(df_res, df_tree=None, df_border=None):
+def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
@@ -283,10 +285,13 @@ def trackers_into_values(df_res, df_tree=None, df_border=None):
     df_res = pd.concat(plot_det, axis=0)
 
     counter, extract_ids = get_count_value(df_res)
+    analyzer.set_active_tracks(extract_ids)
     measures = get_size_set(df_res)
     colors_class = get_color_set(df_res)
 
-    return counter, measures, colors_class, extract_ids
+    if analyzer:
+        analyzer.set_df_debug_plots(df_res)
+    return counter, measures, colors_class
 
 
 def predict_weight_values(miu, sigma, observation=[]):
@@ -336,7 +341,7 @@ def run_on_blocks(blocks_folder):
         df_res = filter_trackers(df_res, dist_threshold=0)
         trees, borders = get_trees(row_path)
         for tree_id, df_tree in trees:
-            counter, size, color, ids_ = trackers_into_values(df_res, df_tree)
+            counter, size, color = trackers_into_values(df_res, df_tree)
             res.append({"tree_id": tree_id, "count": counter, "block": block})
 
     res = pd.DataFrame(data=res, columns=['tree_id', 'count', 'block'])

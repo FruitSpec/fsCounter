@@ -1,7 +1,5 @@
-import pandas as pd
-
 from analytics.analyzer import *
-from analytics.tools.realtime_pipline import run_real_time
+# from analytics.tools.realtime_pipline import run_real_time
 
 
 def accuracy(df, args):
@@ -17,13 +15,15 @@ def accuracy(df, args):
     acc_df['error_count'] = (acc_df['GT-Count'] - acc_df['count']) / acc_df['GT-Count']
     acc_df['error_weight'] = (acc_df['GT-Weight'] - acc_df['weight_avg_gr']) / acc_df['GT-Weight']
     acc_df.to_csv(os.path.join(args.output_path, 'accuracy.csv'), index=False)
+    # print(acc_df[['plot_id','error_count']])
 
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
     # run_real_time()
-    analysis = [phenotyping_analyzer(),
-                commercial_analyzer()]
+    analysis = [phenotyping_analyzer()
+                #commercial_analyzer()
+                ]
     df = pd.DataFrame()
     for obj in analysis:
         if obj.validation() == False:

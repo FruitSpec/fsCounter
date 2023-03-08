@@ -1,3 +1,4 @@
+import pandas as pd
 from abc import abstractmethod
 
 import numpy as np
@@ -6,6 +7,7 @@ from omegaconf import OmegaConf
 # mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from analytics.tools.utils import *
+from analytics.tools.debug_pp import debug_plots
 
 
 class Analyzer():
@@ -55,7 +57,6 @@ class Analyzer():
         nonPicked_measures = nonPicked_measures_weight
         weight_miu, weight_sigma = diff_size_by_normal()
 
-
         # [2] By kde, not robust enough
         # x_values = np.linspace(all_measures.min(), all_measures.max(), num=int(all_measures.max() - all_measures.min()))
         # kde_all = gaussian_kde(all_measures)(x_values)
@@ -93,7 +94,7 @@ class Analyzer():
         try:
             bin1, bin2, bin3, bin4, bin5 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), int(
                 picked_bins[3]), \
-                picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
+                                           picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
         except:
             bin1, bin2, bin3, bin4, bin5 = 0, 0, 0, 0, 0
 
@@ -153,7 +154,8 @@ class phenotyping_analyzer(Analyzer):
         self.indices = self.map[self.fruit_type].phenotyping.rows
         self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
-        self.active_tracks = None
+        self.active_tracks = []
+        self.df_debug_plots = pd.DataFrame()
 
     def validation(self):
         flag = True
@@ -192,6 +194,13 @@ class phenotyping_analyzer(Analyzer):
             return 0000
         return res
 
+    def set_df_debug_plots(self, df):
+        self.df_debug_plots = pd.concat([self.df_debug_plots, df], axis=0)
+
+    def set_active_tracks(self, _ids):
+        # ids to not use on the next plot process
+        self.active_tracks = _ids
+
     def iter_plots(self, path):
         """
         :param path: path to the real-time files
@@ -203,16 +212,14 @@ class phenotyping_analyzer(Analyzer):
             size = pd.DataFrame()
             color = pd.DataFrame()
 
-            for ind, (df_res, df_tree, borders) in enumerate(
-                    zip([side_1[0], side_2[0]], [df_tree_1, df_tree_2], [side_1[2], side_2[2]])):
+            for ind, (df_res, df_tree, borders) in enumerate(zip([side_1[0], side_2[0]], [df_tree_1, df_tree_2], [side_1[2], side_2[2]])):
                 df_border = borders[borders.tree_id == tree_id]
                 if not len(df_border):
                     df_border = None
                 # condition on same track_id in 2 plots
-                df_det = df_res[~df_res['track_id'].isin(self.active_tracks[ind])]
-                _counter, _size, _color, _ids = trackers_into_values(df_det, df_tree, df_border)
-                # ids to not use on the next plot process
-                self.active_tracks[ind] = _ids
+                df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
+                # df_det = df_res
+                _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
 
                 counter += _counter
                 size = pd.concat([size, _size], axis=0)
@@ -220,6 +227,12 @@ class phenotyping_analyzer(Analyzer):
 
                 if rows[0] == '9':
                     break
+
+                # debug
+                movie_path = os.path.join(path.replace('analysis', ''), rows[ind])  # hard coded
+                output_folder = os.path.join(path, rows[ind]) # hard coded
+                debug_plots(df=self.df_debug_plots, movie_path=movie_path, output_folder=output_folder)
+                self.df_debug_plots = pd.DataFrame()
 
             return (counter, size.values, color.values)
 
@@ -231,7 +244,7 @@ class phenotyping_analyzer(Analyzer):
 
                 # filter according plot's implications
                 if row == '9':
-                    df_res = filter_trackers(df_res, dist_threshold=0)
+                    df_res = filter_trackers(df_res, dist_threshold=0.9)
                 else:
                     df_res = filter_trackers(df_res, dist_threshold=0)
 
@@ -243,7 +256,7 @@ class phenotyping_analyzer(Analyzer):
             return (df_res, trees, borders)
 
         for rows in zip(self.indices.side1, self.indices.side2):
-            self.active_tracks = [[], []]
+            self.active_tracks = []
             side_1 = get_side_sets(rows[0])
             side_2 = get_side_sets(rows[1], reverse=True)
             # side_1 ,side_2 - [0]-df_measures, [1]-treesGroupBy, [2]-borders
@@ -295,7 +308,7 @@ class commercial_analyzer(Analyzer):
                 continue
             df_res = open_measures(os.path.join(path, row), measures_name)
             df_res = filter_trackers(df_res, dist_threshold=0)
-            _counter, _size, _color, _ = trackers_into_values(df_res)
+            _counter, _size, _color = trackers_into_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
             color = pd.concat([color, _color], axis=0)

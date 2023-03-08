@@ -221,20 +221,19 @@ class ResultsCollector():
             fig.savefig(os.path.join(output_path, f'{det[6]}_hue_{f_id}.jpg'))
             plt.close()
 
-    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
-
-        # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = self.draw_dets(frame, dets, t_index=t_index)
+    # for debugging SYNGENTA
+    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6,color=None):
+        frame = self.draw_dets(frame, dets, t_index=t_index, color=color)
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
-        # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
         cv2.imwrite(output_file_name, frame)
 
-    def draw_dets(self, frame, dets, t_index=6):
+    def draw_dets(self, frame, dets, t_index=6, color=None):
 
         for det in dets:
             track_id = det[t_index]
             color_id = int(track_id) % 15  # 15 is the number of colors in list
-            color = get_color(color_id)
+            color = get_color(color_id) if color is None else color
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
             frame = draw_highlighted_test(frame, f'ID:{track_id}', (det[0], det[1]), frame.shape[1], color, text_color,

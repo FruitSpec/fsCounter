@@ -6,13 +6,13 @@ import numpy as np
 import collections
 
 from vision.misc.help_func import get_repo_dir, validate_output_path, copy_configs
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions, measure_depth
+from vision.depth.zed.svo_operations import get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
+from vision.pipelines.misc.filters import filter_by_size
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
