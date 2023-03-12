@@ -2,14 +2,14 @@ output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/pepper/3
 rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 zed:
-  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/ZED_1.svo
+  movie_path: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/FSI_Stretch/wetransfer_clahe-first-exp_2023-03-09_1309/clahe_def_exp/ZED_1.svo
   frame_size: [1920, 1080]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 0.1 # 1 counter
   depth_maximum: 2.5 # 8 counter
 
 jai:
-  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/291122/PRE/4/Result_FSI_1.mkv
+  movie_path: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/FSI_Stretch/wetransfer_clahe-first-exp_2023-03-09_1309/clahe_def_exp/Result_FSI_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 

@@ -18,14 +18,14 @@ def is_sturated(img, percentile=0.8, threshold=245):
 def fsi_from_channels(rgb, c_800, c_975, lower=0.02, upper=0.98, min_int=25, max_int=235):
     clahe = cv2.createCLAHE(5, (10, 10))
     rgb = stretch_rgb(rgb, lower, upper, min_int, max_int, clahe)
-    c_800 = stretch_and_clahe(c_800, lower, upper, min_int, max_int, clahe)
-    c_975 = stretch_and_clahe(c_975, lower, upper, min_int, max_int, clahe)
+    c_800 = stretch_and_clahe(c_800[:, :, 0], lower, upper, min_int, max_int, clahe)
+    c_975 = stretch_and_clahe(c_975[:, :, 0], lower, upper, min_int, max_int, clahe)
 
     fsi = rgb.copy()
     fsi[:, :, 0] = c_800.copy()
     fsi[:, :, 1] = c_975.copy()
 
-    return fsi
+    return fsi, rgb
 
 def stretch_and_clahe(channel, lower, upper, min_int, max_int, clahe):
     channel = stretch(channel, lower, upper, min_int, max_int)
