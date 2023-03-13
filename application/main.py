@@ -27,8 +27,6 @@ def transfer_data(sig, frame):
             manager[recv_module].transfer_data(data, sender_module)
         except DataError:
             continue
-
-
 def setup_GUI():
     def connect(sid, environ):
         gps_on = False
@@ -50,7 +48,6 @@ def setup_GUI():
                     break
             except Exception:
                 pass
-        print(jai_on, zed_on)
         return jai_on, zed_on, gps_on
 
     def disconnect():
@@ -58,7 +55,6 @@ def setup_GUI():
 
     def start_camera(mode, data=None):
         if mode == "record":
-            print(data)
             if 'Default' in data['configType']:
                 weather = data['weather']
                 camera_data = conf["default camera data"][weather]
@@ -78,7 +74,6 @@ def setup_GUI():
                 os.makedirs(output_path)
             for ot in output_types:
                 recording_params += f'--output-{ot.lower()} '
-            print(recording_params)
             proc = subprocess.Popen(conf["acquisition start"] + recording_params, shell=True, preexec_fn=os.setsid)
             return proc.pid
 
