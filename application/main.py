@@ -11,6 +11,8 @@ from Analysis import analyzer
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
 from utils.settings import conf
 from GUI.gui_interface import GUIInterface
+import jaized
+
 global manager
 
 
@@ -27,6 +29,8 @@ def transfer_data(sig, frame):
             manager[recv_module].transfer_data(data, sender_module)
         except DataError:
             continue
+
+
 def setup_GUI():
     def connect(sid, environ):
         gps_on = False
