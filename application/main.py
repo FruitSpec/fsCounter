@@ -33,6 +33,8 @@ def transfer_data(sig, frame):
 
 def setup_GUI():
     def connect(sid, environ):
+        jz = jaized.JaiZed()
+        jz.connect_cameras_wra()
         gps_on = False
         try:
             jai_ip = netifaces.ifaddresses('eth2')[netifaces.AF_INET][0]['addr']
@@ -52,6 +54,8 @@ def setup_GUI():
                     break
             except Exception:
                 pass
+        if jai_on and zed_on:
+
         return jai_on, zed_on, gps_on
 
     def disconnect():
@@ -78,7 +82,6 @@ def setup_GUI():
                 os.makedirs(output_path)
             for ot in output_types:
                 recording_params += f'--output-{ot.lower()} '
-            proc = subprocess.Popen(conf["acquisition start"] + recording_params, shell=True, preexec_fn=os.setsid)
             return proc.pid
 
     def stop_camera(pid):
