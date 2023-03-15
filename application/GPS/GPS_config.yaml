@@ -1,3 +1,5 @@
-kml path: "./Blocks.kml"
+kml bucket name: "fruitspec-prod-caliper"
+s3 kml file name: "Blocks.kml"
+kml path: "~/Desktop/Blocks.kml"
 global polygon: "global"
 led blink sleep time: 1.5

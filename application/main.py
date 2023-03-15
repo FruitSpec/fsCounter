@@ -33,8 +33,6 @@ def transfer_data(sig, frame):
 
 def setup_GUI():
     def connect(sid, environ):
-        jz = jaized.JaiZed()
-        jz.connect_cameras_wra()
         gps_on = False
         try:
             jai_ip = netifaces.ifaddresses('eth2')[netifaces.AF_INET][0]['addr']
@@ -54,8 +52,6 @@ def setup_GUI():
                     break
             except Exception:
                 pass
-        if jai_on and zed_on:
-
         return jai_on, zed_on, gps_on
 
     def disconnect():
@@ -70,23 +66,33 @@ def setup_GUI():
             else:
                 camera_data = data["Cameras"]
                 output_types = camera_data["outputTypes"]
-            output_path = os.path.join('/' + data['outputPath'], data['plot'], 'row_' + data['row'])
 
-            recording_params = f" --FPS {camera_data['FPS']} "
-            recording_params += f"--output-dir {output_path} "
-            recording_params += f"--exposure-rgb {camera_data['IntegrationTimeRGB']} "
-            recording_params += f"--exposure-800 {camera_data['IntegrationTime800']} "
-            recording_params += f"--exposure-975 {camera_data['IntegrationTime975']} "
+            output_types = [ot.lower() for ot in output_types]
 
-            if not os.path.exists(output_path):
-                os.makedirs(output_path)
-            for ot in output_types:
-                recording_params += f'--output-{ot.lower()} '
-            return proc.pid
+            fps = int(camera_data['FPS'])
+            exposure_rgb = int(camera_data['IntegrationTimeRGB'])
+            exposure_800 = int(camera_data['IntegrationTime800'])
+            exposure_975 = int(camera_data['IntegrationTime975'])
+            output_dir = os.path.join('/' + data['outputPath'], data['plot'], 'row_' + data['row'])
+            output_fsi = 'fsi' in output_types
+            output_rgb = 'rgb' in output_types
+            output_800 = '800' in output_types
+            output_975 = '975' in output_types
+            output_svo = 'svo' in output_types
+            view = False
 
-    def stop_camera(pid):
-        if pid > 0:
-            os.killpg(os.getpgid(pid), signal.SIGTERM)
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            jz_recorder = jaized.JaiZed()
+            jz_recorder.connect_cameras(fps, exposure_rgb, exposure_800, exposure_975, output_dir,
+                                        output_fsi, output_rgb, output_800, output_975,  output_svo,  view)
+            jz_recorder.start_acquisition()
+            return jz_recorder
+
+    def stop_camera(jz_recorder):
+        jz_recorder.stop_acquisition()
+        jz_recorder.disconnect_cameras()
 
     GUIInterface.start_GUI(connect, disconnect, start_camera, stop_camera)
 

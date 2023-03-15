@@ -13,7 +13,7 @@ app = socketio.WSGIApp(sio)
 
 class GUIInterface:
     _connect, _disconnect, _camera_start, _camera_stop = None, None, None, None
-    _recording_pid = -1
+    _recorder = -1
 
     @staticmethod
     def start_GUI(connect, disconnect, camera_start, camera_stop):
@@ -55,7 +55,7 @@ class GUIInterface:
     @sio.event
     def start_recording(sid, data):
         logging.info(f"GUI CAMERA START RECORDING RECEIVED: {sid}, data {data}")
-        GUIInterface._recording_pid = GUIInterface._camera_start(mode="record", data=data)
+        GUIInterface._recorder = GUIInterface._camera_start(mode="record", data=data)
 
     @staticmethod
     @sio.event
@@ -67,7 +67,7 @@ class GUIInterface:
     @sio.event
     def stop_recording(sid, data):
         logging.log(logging.INFO, f"GUI CAMERA STOP RECEIVED: {sid}")
-        GUIInterface._camera_stop(pid=GUIInterface._recording_pid)
+        GUIInterface._camera_stop(GUIInterface._recorder)
 
     @staticmethod
     @sio.event
