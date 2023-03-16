@@ -80,13 +80,16 @@ def setup_GUI():
             output_975 = '975' in output_types
             output_svo = 'svo' in output_types
             view = False
+            use_clahe_stretch = False
+            debug_mode = True
 
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
             jz_recorder = jaized.JaiZed()
             jz_recorder.connect_cameras(fps, exposure_rgb, exposure_800, exposure_975, output_dir,
-                                        output_fsi, output_rgb, output_800, output_975,  output_svo,  view)
+                                        output_fsi, output_rgb, output_800, output_975, output_svo, view,
+                                        use_clahe_stretch, debug_mode)
             jz_recorder.start_acquisition()
             return jz_recorder
 
