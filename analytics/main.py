@@ -1,6 +1,6 @@
 from analytics.analyzer import *
 # from analytics.tools.realtime_pipline import run_real_time
-
+from analytics.tools.debug_pp import debug_plots
 
 def accuracy(df, args):
     """
@@ -30,6 +30,8 @@ def main():
             continue
         obj.run()
         df = pd.concat([df, obj.get_results()], axis=0)
+        # debug
+        debug_plots(df=obj.df_debug_plots)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
     accuracy(df, args)
 

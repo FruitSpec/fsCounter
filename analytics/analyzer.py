@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 # mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 from analytics.tools.utils import *
-from analytics.tools.debug_pp import debug_plots
+
 
 
 class Analyzer():
@@ -218,7 +218,7 @@ class phenotyping_analyzer(Analyzer):
                     df_border = None
                 # condition on same track_id in 2 plots
                 df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
-                self.current_values = {'row': rows[ind], 'plot_id': plot_id}
+                self.current_values = {'row': rows[ind], 'plot_id': plot_id,'scan':path.split('/')[-1]}
                 _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
 
                 counter += _counter
@@ -262,8 +262,7 @@ class phenotyping_analyzer(Analyzer):
                 plot_id = self.map_tree_into_plot(rows[0], tree_id, self.fruit_type)
                 counter, size, color = get_plot_aggregation()
                 yield (counter, size, color, plot_id)
-        # debug
-        debug_plots(df=self.df_debug_plots)
+
 
     def run(self):
         """
