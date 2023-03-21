@@ -5,7 +5,8 @@ from datetime import datetime
 
 today = datetime.utcnow().strftime('%d-%m-%Y')
 
-data_conf = OmegaConf.load(os.path.abspath("application/DataManager/Data_config.yaml"))
+analysis_conf = OmegaConf.load(os.path.abspath("application/DataManager/analysis_config.yaml"))
+data_conf = OmegaConf.load(os.path.abspath("application/DataManager/data_config.yaml"))
 GPS_conf = OmegaConf.load(os.path.abspath("application/GPS/GPS_config.yaml"))
 GUI_conf = OmegaConf.load(os.path.abspath("application/GUI/GUI_config.yaml"))
 conf = OmegaConf.load(os.path.abspath("application/utils/config.yaml"))
