@@ -19,22 +19,20 @@ from application.GPS.led_settings import LedSettings, LedColor
 class GPSSampler(Module):
     kml_flag = False
     global_polygon = GPS_conf["global polygon"]
-    shutdown_event = threading.Event()
-    shutdown_done_event = threading.Event()
     locator = None
-    is_latest = False
+    sample_thread = None
     previous_plot, current_plot = GPS_conf["global polygon"], GPS_conf["global polygon"]
 
     @staticmethod
     def init_module(sender, receiver, main_pid):
         GPSSampler.get_kml(once=True)
-        GPSSampler.sender = sender
-        GPSSampler.receiver = receiver
-        GPSSampler.main_pid = main_pid
-        signal.signal(signal.SIGTERM, GPSSampler.shutdown)
-        signal.signal(signal.SIGUSR1, GPSSampler.receive_data)
+        super(GPSSampler, GPSSampler).init_module(sender, receiver, main_pid)
+        super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
+
         GPSSampler.set_locator()
-        GPSSampler.sample_gps()  # non-blocking call
+        GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
+        GPSSampler.sample_thread.start()
+        GPSSampler.sample_thread.join()
 
     @staticmethod
     def get_kml(once=False):
@@ -55,10 +53,9 @@ class GPSSampler(Module):
         t = threading.Thread(target=GPSSampler.get_kml(), daemon=True)
         t.start()
         time.sleep(1)
-        while not (GPSSampler.is_latest or GPSSampler.shutdown_event.is_set()):
+        while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
             try:
                 GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
-                GPSSampler.is_latest = True
             except Exception:
                 time.sleep(30)
 
@@ -68,80 +65,76 @@ class GPSSampler(Module):
 
     @staticmethod
     def sample_gps():
-        def sample():
-            logging.info("GPS - START")
-            parser = NavParser("", is_file=False)
-            ser = None
-            while not GPSSampler.shutdown_event.is_set():
-                try:
-                    ser = serial.Serial("/dev/ttyUSB1", timeout=1, )
-                    ser.flushOutput()
-                    ser.flushInput()
-                    logging.info(f"GPS - SERIAL PORT INIT - SUCCESS")
-                    break
-                except serial.SerialException:
-                    logging.info(f"GPS - SERIAL PORT ERROR - RETRYING IN 5...")
-                    time.sleep(5)
-            err_count = 0
-            while not GPSSampler.shutdown_event.is_set():
-                data = ""
-                while ser.in_waiting > 0:
-                    data += ser.readline().decode('utf-8')
-                if not data:
-                    continue
-                scan_date = datetime.utcnow().strftime("%d%m%y")
-                timestamp = datetime.utcnow().strftime("%H:%M:%S")
-                try:
-                    parser.read_string(data)
-                    point = parser.get_most_recent_point()
-                    lat, long = point.get_lat(), point.get_long()
-                    GPSSampler.previous_plot = GPSSampler.current_plot
-                    GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+        logging.info("GPS - START")
+        parser = NavParser("", is_file=False)
+        ser = None
+        while not GPSSampler.shutdown_event.is_set():
+            try:
+                ser = serial.Serial("/dev/ttyUSB1", timeout=1, )
+                ser.flushOutput()
+                ser.flushInput()
+                logging.info(f"GPS - SERIAL PORT INIT - SUCCESS")
+                break
+            except serial.SerialException:
+                logging.info(f"GPS - SERIAL PORT ERROR - RETRYING IN 5...")
+                time.sleep(5)
+        err_count = 0
+        while not GPSSampler.shutdown_event.is_set():
+            data = ""
+            while ser.in_waiting > 0:
+                data += ser.readline().decode('utf-8')
+            if not data:
+                continue
+            scan_date = datetime.utcnow().strftime("%d%m%y")
+            timestamp = datetime.utcnow().strftime("%H:%M:%S")
+            try:
+                parser.read_string(data)
+                point = parser.get_most_recent_point()
+                lat, long = point.get_lat(), point.get_long()
+                GPSSampler.previous_plot = GPSSampler.current_plot
+                GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
-                    if GPSSampler.current_plot == GPSSampler.global_polygon:
-                        LedSettings.turn_on(LedColor.ORANGE)
+                if GPSSampler.current_plot == GPSSampler.global_polygon:
+                    LedSettings.turn_on(LedColor.ORANGE)
+                else:
+                    LedSettings.turn_on(LedColor.GREEN)
+
+                gps_data = (GPS_conf["customer code"], scan_date, lat, long, GPSSampler.current_plot, timestamp)
+                GPSSampler.send_data(gps_data, ModulesEnum.DataManager)
+
+                if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                    # stepped into new block
+                    if GPSSampler.previous_plot == GPSSampler.global_polygon:
+                        GPSSampler.step_in()
+
+                    # stepped out from block
+                    elif GPSSampler.current_plot == GPSSampler.global_polygon:
+                        GPSSampler.step_out()
+
+                    # moved from one block to another
                     else:
-                        LedSettings.turn_on(LedColor.GREEN)
+                        GPSSampler.step_out()
+                        time.sleep(0.2)
+                        GPSSampler.step_in()
+                err_count = 0
 
-                    gps_data = (GPS_conf["customer code"], scan_date, lat, long, GPSSampler.current_plot, timestamp)
-                    GPSSampler.send_data(gps_data, ModulesEnum.DataManager)
+            except ValueError as e:
+                err_count += 1
+                if err_count in {1, 10, 30} or err_count % 60 == 0:
+                    logging.error(f"GPS - {err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
+                # release the last detected block into Global if it is over 300 sec without GPS
+                if err_count > 300 and GPSSampler.current_plot != GPSSampler.global_polygon:
+                    GPSSampler.current_plot = GPSSampler.global_polygon
+                    GPSSampler.step_out(turn_orange=False)
+                LedSettings.turn_on(LedColor.RED)
+            except Exception:
+                logging.exception("GPS - SAMPLE UNEXPECTED EXCEPTION")
+                LedSettings.turn_on(LedColor.RED)
 
-                    if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
-                        # stepped into new block
-                        if GPSSampler.previous_plot == GPSSampler.global_polygon:
-                            GPSSampler.step_in()
-
-                        # stepped out from block
-                        elif GPSSampler.current_plot == GPSSampler.global_polygon:
-                            GPSSampler.step_out()
-
-                        # moved from one block to another
-                        else:
-                            GPSSampler.step_out()
-                            time.sleep(0.2)
-                            GPSSampler.step_in()
-                    err_count = 0
-
-                except ValueError as e:
-                    err_count += 1
-                    if err_count in {1, 10, 30} or err_count % 60 == 0:
-                        logging.error(f"GPS - {err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
-                    # release the last detected block into Global if it is over 300 sec without GPS
-                    if err_count > 300 and GPSSampler.current_plot != GPSSampler.global_polygon:
-                        GPSSampler.current_plot = GPSSampler.global_polygon
-                        GPSSampler.step_out(turn_orange=False)
-                    LedSettings.turn_on(LedColor.RED)
-                except Exception:
-                    logging.exception("GPS - SAMPLE UNEXPECTED EXCEPTION")
-                    LedSettings.turn_on(LedColor.RED)
-
-            ser.close()
-            logging.info("GPS - END")
-            LedSettings.turn_off()
-            GPSSampler.shutdown_done_event.set()
-
-        t = threading.Thread(target=sample, daemon=True)
-        t.start()
+        ser.close()
+        logging.info("GPS - END")
+        LedSettings.turn_off()
+        GPSSampler.shutdown_done_event.set()
 
     # @staticmethod
     # def block_switch():
@@ -156,8 +149,9 @@ class GPSSampler(Module):
     @staticmethod
     def step_in():
         logging.info(f"GPS - STEP IN {GPSSampler.current_plot}")
-        GPSSampler.send_data(GPSSampler.current_plot, ModulesEnum.DataManager)
+        GPSSampler.send_data(GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
 
     @staticmethod
     def step_out():
         logging.info(f"GPS - STEP OUT {GPSSampler.previous_plot}")
+        GPSSampler.send_data(GPSSampler.global_polygon, ModulesEnum.Analysis)

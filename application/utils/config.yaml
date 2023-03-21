@@ -4,21 +4,4 @@ counter number: 2
 logs path: "~/Desktop/counter_logs/"
 log name: "log"
 GUI: true
-default camera data:
-  clear:
-    FPS: 15
-    IntegrationTimeRGB: 500
-    IntegrationTime800: 1000
-    IntegrationTime975: 2000
-  partly cloudy:
-    FPS: 15
-    IntegrationTimeRGB: 700
-    IntegrationTime800: 1200
-    IntegrationTime975: 2200
-  cloudy:
-    FPS: 15
-    IntegrationTimeRGB: 800
-    IntegrationTime800: 1500
-    IntegrationTime975: 2500
-default output types: ["FSI", "RGB", "800", "975", "SVO"]
 customer code: "TNKBLL"

@@ -3,6 +3,7 @@ import threading
 from builtins import staticmethod
 import time
 from datetime import datetime
+import signal
 import logging
 import boto3
 import pandas as pd
@@ -25,14 +26,18 @@ class DataManager(Module):
     @staticmethod
     def init_module(sender, receiver, main_pid):
         logging.info("DATA MANAGER - START")
-        DataManager.sender = sender
-        DataManager.receiver = receiver
-        DataManager.main_pid = main_pid
+
+        super(DataManager, DataManager).init_module(sender, receiver, main_pid)
+        super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
+
         DataManager.s3_client = boto3.client("s3")
         DataManager.update_output_thread = threading.Thread(target=DataManager.update_output, daemon=True)
         DataManager.internet_scan_thread = threading.Thread(target=DataManager.internet_scan, daemon=True)
+
         DataManager.update_output_thread.start()
         DataManager.internet_scan_thread.start()
+        DataManager.update_output_thread.join()
+        DataManager.internet_scan_thread.join()
 
     @staticmethod
     def start_new_file():

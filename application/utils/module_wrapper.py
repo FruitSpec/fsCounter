@@ -6,6 +6,8 @@ import threading
 from builtins import staticmethod
 from multiprocessing import Process, Pipe
 
+from typing import List
+
 
 class DataError(Exception):
     """ raised when there is no data to receive """
@@ -15,6 +17,7 @@ class DataError(Exception):
 
 class ModulesEnum(enum.Enum):
     GPS = "GPS"
+    GUI = "GUI"
     DataManager = "Data Manager"
     Analysis = "Analysis"
 
@@ -30,7 +33,7 @@ class ModuleManager:
         self._process = Process(target=target, args=args, daemon=True)
         self.pid = self._process.pid
 
-    def get_transferred_data(self):
+    def retrieve_transferred_data(self):
         if self.receiver.poll():
             return self.receiver.recv()
         raise DataError
@@ -60,12 +63,15 @@ class Module:
         Module.sender = sender
         Module.receiver = receiver
         Module.main_pid = main_pid
-        signal.signal(signal.SIGTERM, Module.shutdown)
-        signal.signal(signal.SIGUSR1, Module.receive_data)
 
     @staticmethod
-    def send_data(data, receiver: ModulesEnum):
-        Module.sender.send((data, receiver))
+    def set_signals(shutdown_func, receive_data_func):
+        signal.signal(signal.SIGTERM, shutdown_func)
+        signal.signal(signal.SIGUSR1, receive_data_func)
+
+    @staticmethod
+    def send_data(data, *receivers: ModulesEnum):
+        Module.sender.send((data, receivers))
         os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod

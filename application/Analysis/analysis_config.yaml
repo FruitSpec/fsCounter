@@ -1,0 +1,25 @@
+autonomous easy config: true
+default weather: clear
+default acquisition parameters:
+  clear:
+    FPS: 15
+    IntegrationTimeRGB: 500
+    IntegrationTime800: 1000
+    IntegrationTime975: 2000
+  partly cloudy:
+    FPS: 15
+    IntegrationTimeRGB: 700
+    IntegrationTime800: 1200
+    IntegrationTime975: 2200
+  cloudy:
+    FPS: 15
+    IntegrationTimeRGB: 800
+    IntegrationTime800: 1500
+    IntegrationTime975: 2500
+  output types: ["FSI", "RGB", "800", "975", "SVO"]
+custom acquisition parameters:
+  FPS: 15
+  IntegrationTimeRGB: 800
+  IntegrationTime800: 1500
+  IntegrationTime975: 2500
+  output types: ["FSI", "RGB", "800", "975", "SVO"]
