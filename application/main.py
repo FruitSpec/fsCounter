@@ -6,7 +6,7 @@ import signal
 import subprocess
 from time import sleep
 from GPS import location_awareness
-from DataManager import uploader
+from DataManager import data_manager
 from Analysis import analyzer
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
 from utils.settings import conf
@@ -25,8 +25,8 @@ def shutdown():
 def transfer_data(sig, frame):
     for sender_module in ModulesEnum:
         try:
-            data, recv_module = manager[sender_module].get_data()
-            manager[recv_module].transfer_data(data, sender_module)
+            data, recv_module = manager[sender_module].get_transferred_data()
+            manager[recv_module].receive_transferred_data(data, sender_module)
         except DataError:
             continue
 
@@ -108,6 +108,7 @@ def main():
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
     main_pid = os.getpid()
+
     manager[ModulesEnum.GPS].set_process(target=location_awareness.GPSSampler.init_module, main_pid=main_pid)
     manager[ModulesEnum.DataManager].set_process(target=uploader.init_module, main_pid=main_pid)
     manager[ModulesEnum.Analysis].set_process(target=analyzer.init_module, main_pid=main_pid)

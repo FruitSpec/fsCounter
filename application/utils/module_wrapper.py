@@ -1,4 +1,5 @@
 import enum
+import time
 import os
 import signal
 import threading
@@ -29,12 +30,12 @@ class ModuleManager:
         self._process = Process(target=target, args=args, daemon=True)
         self.pid = self._process.pid
 
-    def get_data(self):
+    def get_transferred_data(self):
         if self.receiver.poll():
             return self.receiver.recv()
         raise DataError
 
-    def transfer_data(self, data, sender_module):
+    def receive_transferred_data(self, data, sender_module):
         self.sender.send((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
@@ -45,20 +46,21 @@ class ModuleManager:
         self._process.join()
 
     def shutdown(self):
-        os.kill(self.pid, signal.SIGKILL)
+        os.kill(self.pid, signal.SIGTERM)
 
 
 class Module:
     """ An abstraction class for all modules """
     main_pid, sender, receiver = -1, None, None
     shutdown_event = threading.Event()
+    shutdown_done_event = threading.Event()
 
     @staticmethod
     def init_module(sender, receiver, main_pid):
         Module.sender = sender
         Module.receiver = receiver
         Module.main_pid = main_pid
-        signal.signal(signal.SIGKILL, Module.shutdown)
+        signal.signal(signal.SIGTERM, Module.shutdown)
         signal.signal(signal.SIGUSR1, Module.receive_data)
 
     @staticmethod
@@ -72,9 +74,8 @@ class Module:
         pass
 
     @staticmethod
-    def shutdown():
+    def shutdown(sig, frame):
         Module.shutdown_event.set()
-
-
-
+        while not Module.shutdown_done_event.is_set():
+            time.sleep(5)
 

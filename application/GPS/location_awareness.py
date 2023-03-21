@@ -1,7 +1,6 @@
 import signal
 import threading
 from builtins import staticmethod
-import os
 
 import boto3
 
@@ -21,43 +20,47 @@ class GPSSampler(Module):
     kml_flag = False
     global_polygon = GPS_conf["global polygon"]
     shutdown_event = threading.Event()
+    shutdown_done_event = threading.Event()
+    locator = None
     is_latest = False
-    
+    previous_plot, current_plot = GPS_conf["global polygon"], GPS_conf["global polygon"]
+
     @staticmethod
     def init_module(sender, receiver, main_pid):
-        GPSSampler.get_kml()
+        GPSSampler.get_kml(once=True)
         GPSSampler.sender = sender
         GPSSampler.receiver = receiver
         GPSSampler.main_pid = main_pid
         signal.signal(signal.SIGTERM, GPSSampler.shutdown)
         signal.signal(signal.SIGUSR1, GPSSampler.receive_data)
-        GPSSampler.previous_plot, GPSSampler.plot_code = GPS_conf["global polygon"], GPS_conf["global polygon"]
-        GPSSampler.locator, GPSSampler.is_latest = None, False
-        GPSSampler.try_set_locator()
-        if GPSSampler.is_latest:
-            t2 = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
-            t2.start()
+        GPSSampler.set_locator()
+        GPSSampler.sample_gps()  # non-blocking call
 
     @staticmethod
-    def get_kml():
+    def get_kml(once=False):
         while not GPSSampler.kml_flag:
             try:
                 s3_client = boto3.client('s3')
                 kml_aws_path = tools.s3_path_join(conf['customer code'], GPS_conf['s3 kml file name'])
                 s3_client.download_file(GPS_conf["kml bucket name"], kml_aws_path, GPS_conf["kml path"])
                 GPSSampler.kml_flag = True
-                logging.info("LATEST KML FILE RETRIEVED")
+                logging.info("GPS - LATEST KML FILE RETRIEVED")
             except Exception:
+                if once:
+                    break
                 time.sleep(30)
 
     @staticmethod
-    def try_set_locator():
-        if not GPSSampler.is_latest:
+    def set_locator():
+        t = threading.Thread(target=GPSSampler.get_kml(), daemon=True)
+        t.start()
+        time.sleep(1)
+        while not (GPSSampler.is_latest or GPSSampler.shutdown_event.is_set()):
             try:
                 GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
                 GPSSampler.is_latest = True
             except Exception:
-                pass
+                time.sleep(30)
 
     @staticmethod
     def receive_data(sig, frame):
@@ -66,7 +69,7 @@ class GPSSampler(Module):
     @staticmethod
     def sample_gps():
         def sample():
-            logging.info("START GPS")
+            logging.info("GPS - START")
             parser = NavParser("", is_file=False)
             ser = None
             while not GPSSampler.shutdown_event.is_set():
@@ -81,7 +84,6 @@ class GPSSampler(Module):
                     time.sleep(5)
             err_count = 0
             while not GPSSampler.shutdown_event.is_set():
-                GPSSampler.try_set_locator()
                 data = ""
                 while ser.in_waiting > 0:
                     data += ser.readline().decode('utf-8')
@@ -93,57 +95,69 @@ class GPSSampler(Module):
                     parser.read_string(data)
                     point = parser.get_most_recent_point()
                     lat, long = point.get_lat(), point.get_long()
-                    GPSSampler.previous_plot = GPSSampler.plot_code
-                    GPSSampler.plot_code = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                    GPSSampler.previous_plot = GPSSampler.current_plot
+                    GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
-                    if GPSSampler.plot_code == GPSSampler.global_polygon:
+                    if GPSSampler.current_plot == GPSSampler.global_polygon:
                         LedSettings.turn_on(LedColor.ORANGE)
                     else:
                         LedSettings.turn_on(LedColor.GREEN)
 
-                    gps_data = (GPS_conf["customer code"], scan_date, lat, long, GPSSampler.plot_code, timestamp)
+                    gps_data = (GPS_conf["customer code"], scan_date, lat, long, GPSSampler.current_plot, timestamp)
                     GPSSampler.send_data(gps_data, ModulesEnum.DataManager)
 
-                    if GPSSampler.plot_code != GPSSampler.previous_plot:  # Switched to another block
+                    if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                        # stepped into new block
+                        if GPSSampler.previous_plot == GPSSampler.global_polygon:
+                            GPSSampler.step_in()
 
-                        logging.info(f"BLOCK SWITCH: FROM {GPSSampler.previous_plot} TO {GPSSampler.plot_code}")
-
-                        if GPSSampler.previous_plot == GPSSampler.global_polygon:  # stepped into new block
-                            GPSSampler.block_switch()
-                            GPSSampler.step_into()
-
-                        elif GPSSampler.plot_code == GPSSampler.global_polygon:  # stepped out from block
+                        # stepped out from block
+                        elif GPSSampler.current_plot == GPSSampler.global_polygon:
                             GPSSampler.step_out()
 
-                        else:  # moved from one block to another
-                            GPSSampler.block_switch()
+                        # moved from one block to another
+                        else:
                             GPSSampler.step_out()
                             time.sleep(0.2)
-                            # enable GPSSampler.streamer.capture to change file name for svo and writing samples
-                            # to the correct block
-                            GPSSampler.step_into()
+                            GPSSampler.step_in()
                     err_count = 0
 
                 except ValueError as e:
                     err_count += 1
                     if err_count in {1, 10, 30} or err_count % 60 == 0:
-                        logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
+                        logging.error(f"GPS - {err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
                     # release the last detected block into Global if it is over 300 sec without GPS
-                    if err_count > 300 and GPSSampler.plot_code != GPSSampler.global_polygon:
-                        GPSSampler.plot_code = GPSSampler.global_polygon
+                    if err_count > 300 and GPSSampler.current_plot != GPSSampler.global_polygon:
+                        GPSSampler.current_plot = GPSSampler.global_polygon
                         GPSSampler.step_out(turn_orange=False)
                     LedSettings.turn_on(LedColor.RED)
                 except Exception:
-                    logging.exception("GPS SAMPLE UNEXPECTED EXCEPTION")
+                    logging.exception("GPS - SAMPLE UNEXPECTED EXCEPTION")
                     LedSettings.turn_on(LedColor.RED)
 
             ser.close()
-            logging.info("END GPS")
+            logging.info("GPS - END")
             LedSettings.turn_off()
+            GPSSampler.shutdown_done_event.set()
 
         t = threading.Thread(target=sample, daemon=True)
         t.start()
 
+    # @staticmethod
+    # def block_switch():
+    #     path = os.path.join(settings.output_path, self.save_path)
+    #     GPSSampler.update_file_index(path)  # update file index
+    #     if not os.path.exists(path):  # create path if needed
+    #         Path(path).mkdir(parents=True, exist_ok=True)
+    #     os.kill(settings.server_pid, signal.SIGUSR1)
+    #     globals.path_sender.send((path, self.file_index))
+    #     logging.info(f"CLIENT MANUAL BLOCK SWITCH - PATH: {path} FILE INDEX: {self.file_index}")
+        
     @staticmethod
-    def shutdown(sig, frame):
-        GPSSampler.shutdown_event.set()
+    def step_in():
+        logging.info(f"GPS - STEP IN {GPSSampler.current_plot}")
+        GPSSampler.send_data(GPSSampler.current_plot, ModulesEnum.DataManager)
+
+    @staticmethod
+    def step_out():
+        logging.info(f"GPS - STEP OUT {GPSSampler.previous_plot}")

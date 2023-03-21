@@ -24,7 +24,8 @@ class LedSettings:
 
     @staticmethod
     def turn_on(color: LedColor):
-        if color == LedSettings._color and LedSettings._state != LedState.OFF: return
+        if color == LedSettings._color and LedSettings._state != LedState.OFF:
+            return
         LedSettings.turn_off()
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.ON
