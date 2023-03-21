@@ -1,0 +1,8 @@
+global polygon: "global"
+update interval: 10
+upload interval: 5 * 60
+scanner path: ~/Desktop/scan.csv
+file prefix: 0
+use feather: true
+request timeout: 10
+output path: ~/Desktop
