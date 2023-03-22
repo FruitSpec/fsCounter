@@ -243,7 +243,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
-    :return: counter, measures, colors_class, extract_ids
+    :return: counter, measures, colors_class
     """
 
     def extract_tree_det():
@@ -281,7 +281,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
         frames = df_res.groupby('frame')
     extract_tree_det()
     if not len(plot_det):
-        return 0, pd.DataFrame({np.nan}), pd.DataFrame({np.nan}), []
+        return 0, pd.DataFrame({np.nan}), pd.DataFrame({np.nan})
     df_res = pd.concat(plot_det, axis=0)
 
     counter, extract_ids = get_count_value(df_res)
