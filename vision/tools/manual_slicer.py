@@ -651,8 +651,8 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/010323/pre/19/ZED_1.svo'
-    output_path = '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/010323/pre/19'
+    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/010323/post/8/ZED_1.svo'
+    output_path = '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/010323/post/8'
     validate_output_path(output_path)
     manual_slicer(fp, output_path, rotate=2)
 

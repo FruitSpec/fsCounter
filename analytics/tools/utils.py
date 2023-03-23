@@ -55,7 +55,7 @@ def get_size_set(df, filter_by_ratio=True):
         df.loc[(ratio > 0.6) & (ratio < 0.8), "width"] = np.nan
         # width axis occluded # keep major axis if in 0.6, 0.9
         df.loc[(ratio > 1.25), "height"] = np.nan
-    measures = pd.DataFrame([get_size_helper(df_track) for ind, df_track in df.groupby("track_id")])
+    measures = pd.Series([get_size_helper(df_track) for ind, df_track in df.groupby("track_id")])
     return measures
 
 

@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 from analytics.tools.utils import *
 
 
-
 class Analyzer():
     def __init__(self):
         self.map = OmegaConf.load(os.getcwd() + '/tools/mapping.yml')
@@ -37,7 +36,6 @@ class Analyzer():
         :param nonPicked_measures: size measures of post scan
         :return: miu and sigma of picked size (+weight) measures by 3 different calculations
         """
-
         def diff_size_by_normal():
             picked_ratio = 1 - nonPicked_ratio
             miu_all = np.nanmean(all_measures)
@@ -94,7 +92,7 @@ class Analyzer():
         try:
             bin1, bin2, bin3, bin4, bin5 = int(picked_bins[0]), int(picked_bins[1]), int(picked_bins[2]), int(
                 picked_bins[3]), \
-                                           picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
+                picked_count - (int(picked_bins[0]) + int(picked_bins[1]) + int(picked_bins[2]) + int(picked_bins[3]))
         except:
             bin1, bin2, bin3, bin4, bin5 = 0, 0, 0, 0, 0
 
@@ -122,7 +120,7 @@ class Analyzer():
             self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
             return
         (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
-            post[0] / pre[0], pre[1], post[1])
+            post[0] / pre[0], pd.DataFrame(pre[1]), pd.DataFrame(post[1]))
         bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
         self.results = append_results(self.results,
                                       [plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
@@ -161,7 +159,7 @@ class phenotyping_analyzer(Analyzer):
         flag = True
         # validate manual slicers
         for scan in [self.scan_pre, self.scan_post]:
-            for row in self.indices.side1 + self.indices.side2:
+            for row in self.indices:
                 try:
                     json_path = os.path.join(scan, row,
                                              [i for i in os.listdir(os.path.join(scan, row)) if 'slice_data' in i][0])
@@ -201,35 +199,13 @@ class phenotyping_analyzer(Analyzer):
         # ids to not use on the next plot process
         self.active_tracks = _ids
 
-    def iter_plots(self, path):
+    def get_dict_plots(self, path):
         """
         :param path: path to the real-time files
-        :return: plots iterator with their processed values
+        :return: dictionary of plots with their processed values
         """
 
-        def get_plot_aggregation():
-            counter = 0
-            size = pd.DataFrame()
-            color = pd.DataFrame()
-
-            for ind, (df_res, df_tree, borders) in enumerate(zip([side_1[0], side_2[0]], [df_tree_1, df_tree_2], [side_1[2], side_2[2]])):
-                df_border = borders[borders.tree_id == tree_id]
-                if not len(df_border):
-                    df_border = None
-                # condition on same track_id in 2 plots
-                df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
-                self.current_values = {'row': rows[ind], 'plot_id': plot_id,'scan':path.split('/')[-1]}
-                _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
-
-                counter += _counter
-                size = pd.concat([size, _size], axis=0)
-                color = pd.concat([color, _color], axis=0)
-
-                if rows[0] == '9':
-                    break
-            return (counter, size.values, color.values)
-
-        def get_side_sets(row, reverse=False):
+        def get_sets(row):
             row_path = os.path.join(path, row)
             if os.path.exists(os.path.join(path, row, self.measures_name)):
                 df_res = open_measures(row_path, self.measures_name)
@@ -244,25 +220,36 @@ class phenotyping_analyzer(Analyzer):
             else:
                 print(f"NO MEASURES FILE - {os.path.join(path, row, self.measures_name)} - PLOTS' ROW REMOVED ")
                 return None, None, None
-            if reverse:
-                trees = reversed(tuple(trees))
+
             return (df_res, trees, borders)
 
-        for rows in zip(self.indices.side1, self.indices.side2):
+        dict_plots = {}
+        for row in self.indices:
             self.active_tracks = []
-            side_1 = get_side_sets(rows[0])
-            side_2 = get_side_sets(rows[1], reverse=True)
-            # side_1 ,side_2 - [0]-df_measures, [1]-treesGroupBy, [2]-borders
-
-            # in case one/both sides missing , no results
-            if side_1[0] is None or side_2[0] is None:
+            df_res, trees, borders = get_sets(row)
+            # In case there is no data for the current row
+            if df_res is None:
                 continue
 
-            for (tree_id, df_tree_1), (_, df_tree_2) in zip(side_1[1], side_2[1]):
-                plot_id = self.map_tree_into_plot(rows[0], tree_id, self.fruit_type)
-                counter, size, color = get_plot_aggregation()
-                yield (counter, size, color, plot_id)
+            for tree_id, df_tree in trees:
+                plot_id = self.map_tree_into_plot(row, tree_id, self.fruit_type)
 
+                df_border = borders[borders.tree_id == tree_id]
+                if not len(df_border):
+                    df_border = None
+
+                # condition on same track_id in 2 plots
+                df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
+                self.current_values = {'row': row, 'plot_id': plot_id, 'scan': path.split('/')[-1]}
+                _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
+
+                if not plot_id in dict_plots:
+                    dict_plots[plot_id] = {'count': 0, 'size': [], 'color': []}
+                dict_plots[plot_id]['count'] += _counter
+                dict_plots[plot_id]['size'] += _size.values.tolist()
+                dict_plots[plot_id]['color'] += _color.values.tolist()
+
+        return dict_plots
 
     def run(self):
         """
@@ -270,9 +257,13 @@ class phenotyping_analyzer(Analyzer):
         Update self.results with all units' results
         """
         df_sum = pd.DataFrame()
-        for pre, post in zip(self.iter_plots(self.scan_pre),
-                             self.iter_plots(self.scan_post)):
+        plots_pre = self.get_dict_plots(self.scan_pre)
+        plots_post = self.get_dict_plots(self.scan_post)
+
+        for pre_item, post_item in zip(plots_pre.items(), plots_post.items()):
             # pre ,post - [0]-count, [1]-size, [2]-color , [3]- plot id
+            pre = (pre_item[1]['count'], pre_item[1]['size'], pre_item[1]['color'], pre_item[0])
+            post = (post_item[1]['count'], post_item[1]['size'], post_item[1]['color'], post_item[0])
             if not Analyzer.valid_output(pre, post):
                 df_sum = append_results(df_sum, [pre[0]] + [None] * 10)
                 continue
