@@ -243,7 +243,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
     """
     :param df_res: df of all detections in a file
     :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
-    :return: counter, measures, colors_class, extract_ids
+    :return: counter, measures, colors_class
     """
 
     def extract_tree_det():
