@@ -5,19 +5,17 @@ from vision.tools.video_wrapper import video_wrapper
 from vision.data.results_collector import ResultsCollector
 from vision.misc.help_func import validate_output_path
 
-path = '/media/yotam/Extreme SSD/syngenta trail/tomato/010323'
 
-
-def debug_plots(df):
+def debug_plots(df, raw_path, output_path):
     for scan, scan_df in df.groupby('scan'):
         for row, row_df in scan_df.groupby('row'):
-            row_path = os.path.join(path, scan, row)
+            row_path = os.path.join(raw_path, scan, row)
             if not os.path.exists(row_path):
                 continue
             movie_path = os.path.join(row_path, [i for i in os.listdir(os.path.join(row_path)) if
-                                                 i.endswith('.svo')][0])  # hard coded
+                                                 i.endswith('.svo')][0])
 
-            output_folder = os.path.join('/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/010323', scan, row)  # hard coded
+            output_folder = os.path.join(output_path, scan, row)
             cam = video_wrapper(movie_path, 2, 0.1, 2.5)  # hard coded
             results_collector = ResultsCollector(rotate=2)  # hard coded
             # Read until video is completed
