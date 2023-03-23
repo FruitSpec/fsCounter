@@ -130,9 +130,15 @@ class video_wrapper():
         if self.mode == 'svo':
             ci = self.cam.get_camera_information()
             # camera is rotated - width is height
-            height = ci.camera_configuration.camera_resolution.width
+            if self.to_rotate:
+                height = ci.camera_configuration.camera_resolution.width
+            else:
+                height = ci.camera_configuration.camera_resolution.height
         else:
-            height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            if self.to_rotate:
+                height = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            else:
+                height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         return height
 
@@ -140,9 +146,15 @@ class video_wrapper():
         if self.mode == 'svo':
             ci = self.cam.get_camera_information()
             # camera is rotated - height is width
-            width = ci.camera_configuration.camera_resolution.height
+            if self.to_rotate:
+                width = ci.camera_configuration.camera_resolution.height
+            else:
+                width = ci.camera_configuration.camera_resolution.width
         else:
-            width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            if self.to_rotate:
+                width = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            else:
+                width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
         return width
 
     def rotate(self, frame):
