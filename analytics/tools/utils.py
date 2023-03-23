@@ -281,7 +281,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
         frames = df_res.groupby('frame')
     extract_tree_det()
     if not len(plot_det):
-        return 0, pd.DataFrame({np.nan}), pd.DataFrame({np.nan}), []
+        return 0, pd.DataFrame({np.nan}), pd.DataFrame({np.nan})
     df_res = pd.concat(plot_det, axis=0)
 
     counter, extract_ids = get_count_value(df_res)

@@ -222,7 +222,7 @@ class ResultsCollector():
             plt.close()
 
     # for debugging SYNGENTA
-    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6,color=None):
+    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6, color=None):
         frame = self.draw_dets(frame, dets, t_index=t_index, color=color)
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
 
@@ -234,10 +234,11 @@ class ResultsCollector():
             track_id = det[t_index]
             color_id = int(track_id) % 15  # 15 is the number of colors in list
             color = get_color(color_id) if color is None else color
+            thickness = 5 if color == (0, 64, 255) else 3
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
             frame = draw_highlighted_test(frame, f'ID:{track_id}', (det[0], det[1]), frame.shape[1], color, text_color,
-                                          True, 10, 3)
+                                          True, 10, thickness)
 
         return frame
 

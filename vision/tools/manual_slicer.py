@@ -29,11 +29,12 @@ def mouse_callback(event, x, y, flags, params):
         if flags == cv2.EVENT_FLAG_CTRLKEY or flags == cv2.EVENT_FLAG_CTRLKEY + 1:  # second part is due to bug of cv2
             params["data"][params['index']]['start'] = x
             params["data"][params['index']]['end'] = max(x - 10, 0)
-            #params["data"][params['index']]['end'] = min(x + 10, int(params['width'] // params['resize_factor']))
-        if flags == cv2.EVENT_FLAG_ALTKEY + 1: # or flags == cv2.EVENT_FLAG_ALTKEY + 1:  # second part is due to bug of cv2
-            params['left_clusters'] = True
-            count = params["data"][params['index']]['left_clusters']['count']
-            params["data"][params['index']]['left_clusters'][count] = [x, y, x, y]
+            # params["data"][params['index']]['end'] = min(x + 10, int(params['width'] // params['resize_factor']))
+        if flags == cv2.EVENT_FLAG_ALTKEY + 1:  # or flags == cv2.EVENT_FLAG_ALTKEY + 1:  # second part is due to bug of cv2
+            params['right_clusters'] = True
+            count = params["data"][params['index']]['right_clusters']['count']
+            params["data"][params['index']]['right_clusters'][count] = [x, y, x, y]
+
         else:
             params["data"][params['index']]['start'] = x
 
@@ -42,48 +43,51 @@ def mouse_callback(event, x, y, flags, params):
             params["data"][params['index']]['start'] = x
             params["data"][params['index']]['end'] = max(x - 10, 0)
         elif flags == cv2.EVENT_FLAG_ALTKEY + 2:
-            params['right_clusters'] = True
-            count = params["data"][params['index']]['right_clusters']['count']
-            params["data"][params['index']]['right_clusters'][count] = [x, y, x, y]
+            params['left_clusters'] = True
+            count = params["data"][params['index']]['left_clusters']['count']
+            params["data"][params['index']]['left_clusters'][count] = [x, y, x, y]
+
         else:
             params["data"][params['index']]['end'] = x
 
-    if event == cv2.EVENT_LBUTTONUP and flags == cv2.EVENT_FLAG_ALTKEY + 1:
-        params['left_clusters'] = False
-        count = params["data"][params['index']]['left_clusters']['count']
-        if count in list(params["data"][params['index']]['right_clusters'].keys()):
-            params["data"][params['index']]['left_clusters'][count][2] = x
-            params["data"][params['index']]['left_clusters'][count][3] = y
-            params["data"][params['index']]['left_clusters']['count'] += 1
-    if event == cv2.EVENT_RBUTTONUP and flags == cv2.EVENT_FLAG_ALTKEY + 2:
-        params['right_clusters'] = False
-        count = params["data"][params['index']]['right_clusters']['count']
-        if count in list(params["data"][params['index']]['right_clusters'].keys()):
-            params["data"][params['index']]['right_clusters'][count][2] = x
-            params["data"][params['index']]['right_clusters'][count][3] = y
-            params["data"][params['index']]['right_clusters']['count'] += 1
-
-    if event == cv2.EVENT_MOUSEMOVE and (flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2):
-        count = params["data"][params['index']]['right_clusters']['count']
-
+    if event == cv2.EVENT_RBUTTONUP:
         if params['left_clusters']:
             count = params["data"][params['index']]['left_clusters']['count']
             if count in list(params["data"][params['index']]['left_clusters'].keys()):
-                count = params["data"][params['index']]['left_clusters']['count']
                 params["data"][params['index']]['left_clusters'][count][2] = x
                 params["data"][params['index']]['left_clusters'][count][3] = y
+                params["data"][params['index']]['left_clusters']['count'] += 1
+        params['left_clusters'] = False
+    if event == cv2.EVENT_LBUTTONUP:
         if params['right_clusters']:
             count = params["data"][params['index']]['right_clusters']['count']
             if count in list(params["data"][params['index']]['right_clusters'].keys()):
-                count = params["data"][params['index']]['right_clusters']['count']
                 params["data"][params['index']]['right_clusters'][count][2] = x
                 params["data"][params['index']]['right_clusters'][count][3] = y
+                params["data"][params['index']]['right_clusters']['count'] += 1
+        params['right_clusters'] = False
+
+    if event == cv2.EVENT_MOUSEMOVE:
+        if (flags == cv2.EVENT_FLAG_ALTKEY + 1 or flags == cv2.EVENT_FLAG_ALTKEY + 2):
+
+            if params['left_clusters']:
+                count = params["data"][params['index']]['left_clusters']['count']
+                if count in list(params["data"][params['index']]['left_clusters'].keys()):
+                    params["data"][params['index']]['left_clusters'][count][2] = x
+                    params["data"][params['index']]['left_clusters'][count][3] = y
+            if params['right_clusters']:
+                count = params["data"][params['index']]['right_clusters']['count']
+                if count in list(params["data"][params['index']]['right_clusters'].keys()):
+                    params["data"][params['index']]['right_clusters'][count][2] = x
+                    params["data"][params['index']]['right_clusters'][count][3] = y
+        else:
+            params['left_clusters'] = False
+            params['right_clusters'] = False
 
     frame = print_lines(params)
     frame = print_text(frame, params)
     frame = print_rectangles(frame, params)
     cv2.imshow(params['headline'], frame)
-
 
 
 def print_lines(params):
@@ -92,32 +96,32 @@ def print_lines(params):
 
     if params['data'][params['index']]['start'] is not None:
         x = params['data'][params['index']]['start']
-        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
+        frame = cv2.line(frame, (int(x), 0), (int(x), y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
         x = params['data'][params['index']]['end']
-        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
+        frame = cv2.line(frame, (int(x), 0), (int(x), y), (255, 0, 255), 2)
 
     return frame
+
 
 def print_rectangles(frame, params):
-    left_clusters = params['data'][params['index']]['left_clusters']
-    right_clusters = params['data'][params['index']]['right_clusters']
-
-    for key, values in left_clusters.items():
-        if key != 'count':
-            start_point = (values[0], values[1])
-            end_point = (values[2], values[3])
-            frame = draw_rectangle(frame, start_point, end_point, (255, 0, 255),)
-
-    for key, values in right_clusters.items():
-        if key != 'count':
-            start_point = (values[0], values[1])
-            end_point = (values[2], values[3])
-            frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0),)
+    index_keys = list(params['data'][params['index']].keys())
+    if 'left_clusters' in index_keys:
+        left_clusters = params['data'][params['index']]['left_clusters']
+        for key, values in left_clusters.items():
+            if key != 'count':
+                start_point = (values[0], values[1])
+                end_point = (values[2], values[3])
+                frame = draw_rectangle(frame, start_point, end_point, (255, 0, 255), )
+    if 'right_clusters' in index_keys:
+        right_clusters = params['data'][params['index']]['right_clusters']
+        for key, values in right_clusters.items():
+            if key != 'count':
+                start_point = (values[0], values[1])
+                end_point = (values[2], values[3])
+                frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0), )
 
     return frame
-
-
 
 
 def print_text(frame, params, text=None):
@@ -160,7 +164,7 @@ def update_index(k, params):
         index = index
         params["data"][params['index']]['start'] = None
         params["data"][params['index']]['end'] = None
-        params["data"][params['index']]['left_clusters'] = {'count':0}
+        params["data"][params['index']]['left_clusters'] = {'count': 0}
         params["data"][params['index']]['right_clusters'] = {'count': 0}
         params['find_translation'] = False
 
@@ -277,7 +281,7 @@ def get_updated_location_in_index(frame, params):
 def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
-        #params['data'][params['index']] = {'start': None, 'end': None}
+        # params['data'][params['index']] = {'start': None, 'end': None}
         params['data'][params['index']] = {'start': None,
                                            'end': None,
                                            "left_clusters": {'count': 0},
@@ -314,8 +318,10 @@ def load_json(filepath, output_path):
     return data
 
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=1920, w=1080, on_fly=True):
-    size = int(h // resize_factor)
+def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+    size_h = int(h // resize_factor)
+    size_w = int(w // resize_factor)
+    size = max(size_h, size_w)
     r = min(size / h, size / w)
 
     with open(data_file, 'r') as f:
@@ -623,7 +629,6 @@ def update_border_data(border_data, loc, frame_id, tree_id):
     return border_data
 
 
-
 def get_state(loc):
     if loc['start'] is None and loc['end'] is None:
         state = 0
@@ -646,12 +651,10 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = '/home/fruitspec-lab-3/FruitSpec/Data/Syngenta/tomato/230123/post/10/ZED_1.svo'
-    output_path = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing'
+    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/010323/pre/19/ZED_1.svo'
+    output_path = '/media/yotam/Extreme SSD/syngenta trail/tomato/analysis/010323/pre/19'
     validate_output_path(output_path)
     manual_slicer(fp, output_path, rotate=2)
 
     data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
-
-
+    # slice_to_trees(data_file, None, None, h=1920, w=1080)
