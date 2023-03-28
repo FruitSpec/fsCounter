@@ -24,9 +24,9 @@ class GPSSampler(Module):
     previous_plot, current_plot = GPS_conf["global polygon"], GPS_conf["global polygon"]
 
     @staticmethod
-    def init_module(sender, receiver, main_pid):
+    def init_module(sender, receiver, main_pid, module_name):
         GPSSampler.get_kml(once=True)
-        super(GPSSampler, GPSSampler).init_module(sender, receiver, main_pid)
+        super(GPSSampler, GPSSampler).init_module(sender, receiver, main_pid, module_name)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
 
         GPSSampler.set_locator()
@@ -44,6 +44,7 @@ class GPSSampler(Module):
                 GPSSampler.kml_flag = True
                 logging.info("GPS - LATEST KML FILE RETRIEVED")
             except Exception:
+                logging.info("GPS - KML FILE NOT RETRIEVED")
                 if once:
                     break
                 time.sleep(30)
@@ -56,7 +57,9 @@ class GPSSampler(Module):
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
             try:
                 GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
+                logging.info("GPS - LOCATOR INITIALIZED")
             except Exception:
+                logging.info("GPS - LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
                 time.sleep(30)
 
     @staticmethod

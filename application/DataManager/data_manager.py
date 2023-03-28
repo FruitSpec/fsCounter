@@ -24,10 +24,10 @@ class DataManager(Module):
     scan_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
 
     @staticmethod
-    def init_module(sender, receiver, main_pid):
+    def init_module(sender, receiver, main_pid, module_name):
         logging.info("DATA MANAGER - START")
 
-        super(DataManager, DataManager).init_module(sender, receiver, main_pid)
+        super(DataManager, DataManager).init_module(sender, receiver, main_pid, module_name)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client("s3")
@@ -104,11 +104,12 @@ class DataManager(Module):
 
     @staticmethod
     def write_data_locally():
-        DataManager.fruits_data_lock.acquire(blocking=True)
-        fruits_df = pd.DataFrame(data=DataManager.fruits_data)
-        is_first = not os.path.exists(DataManager.current_path)
-        fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
-        DataManager.fruits_data_lock.release()
+        if DataManager.current_path:
+            DataManager.fruits_data_lock.acquire(blocking=True)
+            fruits_df = pd.DataFrame(data=DataManager.fruits_data)
+            is_first = not os.path.exists(DataManager.current_path)
+            fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
+            DataManager.fruits_data_lock.release()
 
     @staticmethod
     def update_output():

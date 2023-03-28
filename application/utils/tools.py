@@ -9,8 +9,7 @@ import speedtest
 from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import EndpointConnectionError
-
-from settings import conf, data_conf, GPS_conf, analysis_conf, GUI_conf
+from application.utils.settings import conf, data_conf, GPS_conf, analysis_conf, GUI_conf
 
 
 def s3_path_join(*args):

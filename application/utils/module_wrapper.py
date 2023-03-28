@@ -21,6 +21,12 @@ class ModulesEnum(enum.Enum):
     DataManager = "Data Manager"
     Analysis = "Analysis"
 
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
 
 class ModuleManager:
     def __init__(self):
@@ -28,10 +34,9 @@ class ModuleManager:
         self.pid = -1
         self.sender, self.receiver = Pipe()
 
-    def set_process(self, *args, target, main_pid):
-        args = (self.sender, self.receiver, main_pid) + args
+    def set_process(self, target, main_pid, module_name):
+        args = (self.sender, self.receiver, main_pid, module_name)
         self._process = Process(target=target, args=args, daemon=True)
-        self.pid = self._process.pid
 
     def retrieve_transferred_data(self):
         if self.receiver.poll():
@@ -39,11 +44,16 @@ class ModuleManager:
         raise DataError
 
     def receive_transferred_data(self, data, sender_module):
+        print("receive_transferred_data - signaling to pid ", self.pid)
         self.sender.send((data, sender_module))
+        print("Here 1")
         os.kill(self.pid, signal.SIGUSR1)
+        print("Here 2")
 
     def start(self):
         self._process.start()
+        self.pid = self._process.pid
+        print(self.pid)
 
     def join(self):
         self._process.join()
@@ -54,15 +64,16 @@ class ModuleManager:
 
 class Module:
     """ An abstraction class for all modules """
-    main_pid, sender, receiver = -1, None, None
+    main_pid, sender, receiver, module_name = -1, None, None, None
     shutdown_event = threading.Event()
     shutdown_done_event = threading.Event()
 
     @staticmethod
-    def init_module(sender, receiver, main_pid):
+    def init_module(sender, receiver, main_pid, module_name):
         Module.sender = sender
         Module.receiver = receiver
         Module.main_pid = main_pid
+        Module.module_name = module_name
 
     @staticmethod
     def set_signals(shutdown_func, receive_data_func):
@@ -76,6 +87,8 @@ class Module:
 
     @staticmethod
     def receive_data(sig, frame):
+        print("Module receive_data:")
+
         """ every module has to implement that on his own """
         pass
 

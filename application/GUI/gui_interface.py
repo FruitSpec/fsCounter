@@ -4,7 +4,7 @@ import threading
 from enum import Enum
 
 from application.utils.module_wrapper import ModulesEnum, Module
-from application.utils.settings import GUI_conf, conf
+from application.utils.settings import GUI_conf, conf, analysis_conf
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
@@ -28,7 +28,7 @@ class GUIInterface(Module):
     sio = socketio.Server(cors_allowed_origins='*')
 
     @staticmethod
-    def init_module(sender, receiver, main_pid):
+    def init_module(sender, receiver, main_pid, module_name):
         def setup_server():
             app = socketio.WSGIApp(GUIInterface.sio)
             wsgi_server(GUIInterface.listener, app)
@@ -36,7 +36,7 @@ class GUIInterface(Module):
         if not conf["GUI"]:
             return False
 
-        super(GUIInterface, GUIInterface).init_module(sender, receiver, main_pid)
+        super(GUIInterface, GUIInterface).init_module(sender, receiver, main_pid, module_name)
         super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf["GUI server port"]))
@@ -88,33 +88,6 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def start_recording(sid, data):
-        if 'Default' in data['configType']:
-            weather = data['weather']
-            camera_data = conf["default camera data"][weather]
-            output_types = conf["default output types"]
-        else:
-            camera_data = data["Cameras"]
-            output_types = camera_data["outputTypes"]
-
-        output_types = [ot.lower() for ot in output_types]
-
-        fps = int(camera_data['FPS'])
-        exposure_rgb = int(camera_data['IntegrationTimeRGB'])
-        exposure_800 = int(camera_data['IntegrationTime800'])
-        exposure_975 = int(camera_data['IntegrationTime975'])
-        output_dir = os.path.join('/' + data['outputPath'], data['plot'], 'row_' + data['row'])
-        output_fsi = 'fsi' in output_types
-        output_rgb = 'rgb' in output_types
-        output_800 = '800' in output_types
-        output_975 = '975' in output_types
-        output_svo = 'svo' in output_types
-        view = False
-        use_clahe_stretch = False
-        debug_mode = True
-
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
         logging.info(f"GUI CAMERA START RECORDING RECEIVED: {sid}, data {data}")
         data_dict = {
             "action": "start",
