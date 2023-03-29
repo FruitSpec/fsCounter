@@ -22,9 +22,10 @@ def accuracy(df, args):
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
     # run_real_time()
-    analysis = [phenotyping_analyzer()
-                # commercial_analyzer()
-                ]
+    analysis = [
+        phenotyping_analyzer(),
+        commercial_analyzer(args.customer)
+    ]
     df = pd.DataFrame()
     for obj in analysis:
         if obj.validation() == False:

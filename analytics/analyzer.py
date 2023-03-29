@@ -149,7 +149,7 @@ class phenotyping_analyzer(Analyzer):
 
     def __init__(self, measures_name="measures.csv"):
         super(phenotyping_analyzer, self).__init__()
-        self.indices = self.map[self.fruit_type].phenotyping.rows
+        self.indices = self.map[self.fruit_type].syngenta.phenotyping.rows
         self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
         self.active_tracks = []
@@ -174,7 +174,7 @@ class phenotyping_analyzer(Analyzer):
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
                     continue
 
-                GT_plots = self.map[self.fruit_type].phenotyping.plot_per_row[row]
+                GT_plots = self.map[self.fruit_type].syngenta.phenotyping.plot_per_row[row]
                 if GT_plots == exist_plots:
                     print(f'{scan.split("/")[-1]} - {row} - completed!')
                 else:
@@ -276,9 +276,9 @@ class commercial_analyzer(Analyzer):
         analysis for commercial fruits needs
     """
 
-    def __init__(self, measures_name="measures.csv"):
+    def __init__(self, customer,measures_name="measures.csv"):
         super(commercial_analyzer, self).__init__()
-        self.indices = self.map[self.fruit_type].commercial.rows
+        self.indices = self.map[self.fruit_type][customer].commercial.rows
         self.measures_name = measures_name
 
     @staticmethod
