@@ -63,12 +63,11 @@ class ResultsCollector():
 
         return tracking_results
 
-    def collect_results(self, tracking_results, clusters, dimensions, colors):
+    def collect_results(self, tracking_results, dimensions, colors):
 
         results = []
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
-            temp.append(clusters[i])
             temp += dimensions[i]
             temp += colors[i]
 
@@ -273,7 +272,7 @@ class ResultsCollector():
             self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), 8)
         if args.debug.hue_histogram:
             validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
             self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)

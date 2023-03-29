@@ -44,6 +44,7 @@ class video_wrapper():
             Warning('Not implemented for file type')
             frame = None
             depth = None
+            point_cloud = None
 
         return frame, depth, point_cloud
 

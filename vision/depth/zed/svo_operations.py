@@ -181,7 +181,7 @@ def get_dimensions(point_cloud, frame,  dets, cfg):
     dims = []
     for det in dets:
         # in case that is not a full fruit
-        if det[-3] == 1:
+        if det[-4] == 1:
             continue
         crop = get_cropped_point_cloud(det[:4], point_cloud)
         if hue_filter:
@@ -198,7 +198,8 @@ def get_dimensions(point_cloud, frame,  dets, cfg):
             if width > 200 or height > 200 or width == 0 or height == 0: #if fruits are too big its probably due to noise
                 width, height = np.nan, np.nan
         elif "pix_size" in method:
-            width, height = get_dims_w_pixel_size(crop, det[:4], method.split("_")[-1])
+
+            width, height = get_dims_w_pixel_size(crop, np.array(det[:4]).astype(int), method.split("_")[-1])
         elif method == "reg_kde":
             filtered_center = kde_filtering(crop[:, :, :3].reshape(-1, 3))
             crop = filtered_center.reshape(crop.shape)

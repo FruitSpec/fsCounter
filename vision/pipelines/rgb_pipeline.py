@@ -12,6 +12,7 @@ repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
+from vision.pipelines.ops.fruit_cluster import FruitCluster
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
@@ -26,6 +27,7 @@ def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    fs = FruitCluster()
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
@@ -60,7 +62,10 @@ def run(cfg, args):
         trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
 
         # filter by distance:
-        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+        filtered_outputs, ranges = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+
+        # clutser:
+        filtered_outputs = fs.cluster(filtered_outputs, ranges)
 
         # sort out
         #indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
@@ -69,13 +74,13 @@ def run(cfg, args):
 
         # measure:
         colors, hists_hue = get_colors(filtered_outputs, frame)
-        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
         dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
         # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
+
+        frame_results = results_collector.collect_results(filtered_outputs, dimensions, colors)
 
         if args.debug.is_debug:
             depth = None
@@ -105,7 +110,7 @@ def get_colors(trk_results, frame):
     colors = []
     hists = []
     for res in trk_results:
-        rgb_crop = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+        rgb_crop = frame[max(int(res[1]), 0):int(res[3]), max(int(res[0]), 0):int(res[2]), :]
         h, b = get_hue(rgb_crop)
         mean = np.sum(b[:-1] * h) / np.sum(h)
         std = np.sqrt(np.sum(((mean - b[:-1]) ** 2) * h) / np.sum(h))
@@ -113,50 +118,6 @@ def get_colors(trk_results, frame):
         hists.append(h)
 
     return colors, hists
-
-
-def get_clusters(trk_results, max_single_fruit_dist=200):
-    if len(trk_results) == 0:
-        return []
-    trk_results = np.array(trk_results)
-    dist = compute_dist_on_vec(trk_results, trk_results)
-
-    t_ids = np.array([trk[-2] for trk in trk_results])
-    neighbors = []
-    for t_dist in dist:
-        t_id_neighbors = t_ids[t_dist < max_single_fruit_dist]
-        neighbors.append(t_id_neighbors)
-
-    cluster_id = 0
-    clusters = {}
-    for t_id, t_id_neighbors in enumerate(neighbors):
-        clusters_list = list(clusters.keys())
-        id_found = False
-        for c in clusters_list:
-            for n in t_id_neighbors:
-                if n in clusters[c]:
-                    id_found = True
-                    for t_n in t_id_neighbors:
-                        if t_n in clusters[c]:
-                            continue
-                        clusters[c].append(t_n)
-                    break
-            if id_found:
-                break
-
-        if not id_found:
-            clusters[cluster_id] = list(t_id_neighbors)
-            cluster_id += 1
-
-    id_to_cluster = {}
-    for k, ids in clusters.items():
-        for id_ in ids:
-            id_to_cluster[id_] = k
-
-    id_to_cluster = collections.OrderedDict(sorted(id_to_cluster.items()))
-    clusters = list(id_to_cluster.values())
-
-    return clusters
 
 
 if __name__ == "__main__":
