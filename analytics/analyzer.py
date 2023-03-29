@@ -36,6 +36,7 @@ class Analyzer():
         :param nonPicked_measures: size measures of post scan
         :return: miu and sigma of picked size (+weight) measures by 3 different calculations
         """
+
         def diff_size_by_normal():
             picked_ratio = 1 - nonPicked_ratio
             miu_all = np.nanmean(all_measures)
@@ -119,11 +120,31 @@ class Analyzer():
         elif picked_count == 0:
             self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
             return
-        (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (hist_miu, hist_sigma) = Analyzer.diff_size(
+        (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (
+            hist_miu, hist_sigma) = Analyzer.diff_size(
             post[0] / pre[0], pd.DataFrame(pre[1]), pd.DataFrame(post[1]))
         bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
         self.results = append_results(self.results,
                                       [plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
+                                       weight_sigma, bin1, bin2, bin3, bin4, bin5])
+
+    def calc_single_values(self, pre, plot_id):
+        count = pre[0]
+        size_value_miu = np.nanmean(pre[1])
+        size_value_sigma = np.nanstd(pre[1])
+        weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
+        color_hist, _ = np.histogram(pre[2], normed=False, bins=[1, 2, 3, 4, 5, 6])
+        color_hist = [max(i, 0) for i in color_hist]
+        color_hist = color_hist / np.sum(color_hist)
+        count_color_bins = count * color_hist
+        bin1, bin2, bin3, bin4, bin5 = int(count_color_bins[0]), int(count_color_bins[1]), int(
+            count_color_bins[2]), int(
+            count_color_bins[3]), \
+            count - (int(count_color_bins[0]) + int(count_color_bins[1]) + int(count_color_bins[2]) + int(
+                count_color_bins[3]))
+
+        self.results = append_results(self.results,
+                                      [plot_id, count, size_value_miu, size_value_sigma, weight_miu,
                                        weight_sigma, bin1, bin2, bin3, bin4, bin5])
 
     def get_results(self):
@@ -276,8 +297,9 @@ class commercial_analyzer(Analyzer):
         analysis for commercial fruits needs
     """
 
-    def __init__(self, customer,measures_name="measures.csv"):
+    def __init__(self, customer, measures_name="measures.csv"):
         super(commercial_analyzer, self).__init__()
+        self.customer = customer
         self.indices = self.map[self.fruit_type][customer].commercial.rows
         self.measures_name = measures_name
 
@@ -303,19 +325,27 @@ class commercial_analyzer(Analyzer):
 
         return (counter, size.values, color.values)
 
+    def run_pre_post(self, pre, key):
+        post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
+        # One of the file measures does not exist
+
+        self.calc_diff_values(pre, post, key)
+
     def run(self):
         """
         Execute all commercial units according mapping_config, extract its count,size,color values after diff
         Update self.results with all units' results
         """
-        df_sum = pd.DataFrame()
         for key, rows in self.indices.items():
             try:
                 pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, self.measures_name)
-                post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
+                if self.customer == 'syngenta':
+                    self.run_pre_post(pre, key)
+                else:
+                    self.calc_single_values(pre, key)
+
             # One of the file measures does not exist
             except FileNotFoundError:
-                df_sum = append_results(df_sum, [key] + [None] * 10)
+                self.results = append_results(self.results, [key] + [None] * 10)
                 continue
             # dict =  self.get_pre_post(key,pre,post)
-            self.calc_diff_values(pre, post, key)

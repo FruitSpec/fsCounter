@@ -229,14 +229,14 @@ def filter_trackers(df_res, dist_threshold):
 
     """
 
-    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
+    # df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
     if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
         # print(f"{round(_dist, 3)}")
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
-    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223
+    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323
     # df_res = filter_df_by_color(df_res)
     # df_res = df_res[df_res["x1"] > 50]
     return df_res
@@ -288,29 +288,30 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
     df_res = pd.concat(plot_det, axis=0)
 
     counter, extract_ids = get_count_value(df_res)
-    analyzer.set_active_tracks(extract_ids)
+
     measures = get_size_set(df_res)
     colors_class = get_color_set(df_res)
 
     if analyzer:
-        df_res['scan']= analyzer.current_values['scan']
+        df_res['scan'] = analyzer.current_values['scan']
         df_res['plot_id'] = analyzer.current_values['plot_id']
         df_res['row'] = analyzer.current_values['row']
         analyzer.set_df_debug_plots(df_res)
+        analyzer.set_active_tracks(extract_ids)
     return counter, measures, colors_class
 
 
 def predict_weight_values(miu, sigma, observation=[]):
-    a = 13.44
-    b = 0.034
+    a = 0.0562
+    b = 70.965
     # using exponential regression
     if not len(observation):
-        weight_miu = a * np.exp(b * miu)
-        weight_sigma = a * np.exp(b * sigma)
+        weight_miu = a * miu + b
+        weight_sigma = a * sigma + b
 
         return weight_miu, weight_sigma
 
-    return a * np.exp(b * observation)
+    return a * observation + b
 
 
 def append_results(df, data):

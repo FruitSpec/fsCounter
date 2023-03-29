@@ -23,7 +23,7 @@ def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
     # run_real_time()
     analysis = [
-        phenotyping_analyzer(),
+        # phenotyping_analyzer(),
         commercial_analyzer(args.customer)
     ]
     df = pd.DataFrame()
@@ -33,7 +33,7 @@ def main():
         obj.run()
         df = pd.concat([df, obj.get_results()], axis=0)
         # debug
-        debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
+        # debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
     accuracy(df, args)
 
