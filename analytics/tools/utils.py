@@ -33,12 +33,15 @@ def bound_red_fruit(df):
 def get_size_helper(sub_df):
     n_finite_widths = np.sum(np.isfinite(sub_df['width']))
     n_finite_heights = np.sum(np.isfinite(sub_df['height']))
+
+    # return the surface of a fruit
     if n_finite_widths > 0 and n_finite_heights > 0:
-        return np.nanmax([np.nanmedian(sub_df['width']), np.nanmedian(sub_df['height'])])
-    if n_finite_widths > 0:
-        return np.nanmedian(sub_df['width'])
-    if n_finite_heights > 0:
-        np.nanmedian(sub_df['height'])
+        return np.nanmedian(sub_df['width']) * np.nanmedian(sub_df['height'])
+
+    # if n_finite_widths > 0:
+    #     return np.nanmedian(sub_df['width'])
+    # if n_finite_heights > 0:
+    #     np.nanmedian(sub_df['height'])
     return np.nan
 
 

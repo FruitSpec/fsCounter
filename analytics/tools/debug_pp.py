@@ -33,13 +33,16 @@ def debug_plots(df, raw_path, output_path):
                 frame_results = row_df[row_df['frame'] == f_id]
 
                 flag = 0
+                prev_plot_id = None
                 for plot_id, df_plot in frame_results.groupby('plot_id'):
                     # switch every plot
-                    flag = ~flag
+                    if prev_plot_id == None or prev_plot_id == plot_id:
+                        flag = ~flag
                     color = color_ls[flag]
                     dets = df_plot[['x1', 'y1', 'x2', 'y2', 'track_id']].values.tolist()
                     validate_output_path(os.path.join(output_folder, 'trk_results'))
                     results_collector.draw_and_save(frame.copy(), dets, f_id, os.path.join(output_folder, 'trk_results'), t_index=4, color=color)
+                    prev_plot_id = plot_id
                 f_id += 1
 
             # When everything done, release the video capture object
