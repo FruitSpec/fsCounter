@@ -1,5 +1,5 @@
 from analytics.analyzer import *
-# from analytics.tools.realtime_pipline import run_real_time
+from analytics.tools.realtime_pipline import run_real_time
 from analytics.tools.debug_pp import debug_plots
 
 
@@ -21,9 +21,9 @@ def accuracy(df, args):
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    # run_real_time()
+    run_real_time()
     analysis = [
-        # phenotyping_analyzer(),
+        phenotyping_analyzer(),
         commercial_analyzer(args.customer)
     ]
     df = pd.DataFrame()

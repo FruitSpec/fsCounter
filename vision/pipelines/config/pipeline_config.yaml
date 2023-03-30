@@ -27,8 +27,8 @@ dim_method: pix_size_median # with what method to get the dimensions, reg - old 
 margin: 0.2 # the lower the margin the more pixels we take from the center
 
 detector:
-  confidence: 0.7
-  nms: 0.6
+  confidence: 0.85
+  nms: 0.7
   num_of_classes: 1
   fp16: true
   fuse: false
