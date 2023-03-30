@@ -307,7 +307,7 @@ def predict_weight_values(miu, sigma, observation=[]):
     # using exponential regression
     if not len(observation):
         weight_miu = a * miu + b
-        weight_sigma = a * sigma + b
+        weight_sigma = a * sigma
 
         return weight_miu, weight_sigma
 
