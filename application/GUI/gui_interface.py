@@ -14,7 +14,7 @@ import netifaces
 import json
 
 
-class DeviceStates(Enum):
+class DeviceStates:
     ON = "On"
     OFF = "Off"
 
@@ -50,37 +50,28 @@ class GUIInterface(Module):
     # default events
 
     @staticmethod
-    def set_connections():
-        GUIInterface.set_GPS_state(DeviceStates.OFF)
-        try:
-            jai_ip = netifaces.ifaddresses('eth2')[netifaces.AF_INET][0]['addr']
-            jai_state = DeviceStates.ON
-        except Exception:
-            jai_state = DeviceStates.OFF
-
-        zed_state = DeviceStates.OFF
-        usbdev = usb.core.find(find_all=True)
-        for dev in usbdev:
-            try:
-                manufacturer = usb.util.get_string(dev, dev.iManufacturer)
-                product = usb.util.get_string(dev, dev.iProduct)
-                if 'STEREOLABS' in manufacturer and 'ZED' in product:
-                    dev.get_active_configuration()
-                    zed_state = DeviceStates.ON
-                    break
-            except Exception:
-                pass
-        GUIInterface.set_cameras_state(jai_state, zed_state)
+    @sio.event
+    def receive_data(sid, environ):
+        data, sender_module = GUIInterface.receiver.recv()
+        action, data = data["action"], data["data"]
+        if sender_module == ModulesEnum.Analysis:
+            GUIInterface.zed_state = GUIInterface.jai_state = DeviceStates.ON if data else DeviceStates.OFF
+            logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
+                                      f" ZED -> {GUIInterface.zed_state}")
 
     @staticmethod
     @sio.event
     def connect(sid, environ):
-        logging.info(f"GUI CONNECTION ESTABLISHED: {sid}")
-        GUIInterface.set_connections()
+        logging.info(f"CONNECTION ESTABLISHED: {sid}")
+        states = json.dumps({
+            'JAI': GUIInterface.jai_state,
+            "ZED": GUIInterface.zed_state
+        })
+        GUIInterface.sio.emit('set_camera_state', states)
 
     @staticmethod
     @sio.event
-    def disconnect(sid):
+    def disconnect_gui(sid):
         logging.info(f"DISCONNECTED GUI: {sid}")
 
     # custom events
@@ -88,50 +79,36 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def start_recording(sid, data):
-        logging.info(f"GUI CAMERA START RECORDING RECEIVED: {sid}, data {data}")
-        data_dict = {
-            "action": "start",
-            "data": data
-        }
-        GUIInterface.send_data(data_dict, ModulesEnum.Analysis)
+        logging.info(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
+        GUIInterface.send_data("start", data, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def start_view(sid):
-        logging.log(logging.INFO, f"GUI CAMERA START VIEW RECEIVED: {sid}")
-        data_dict = {"action": "view"}
-        GUIInterface.send_data(data_dict, ModulesEnum.Analysis)
+        logging.log(logging.INFO, f"CAMERA START VIEW RECEIVED: {sid}")
+        GUIInterface.send_data("view", None, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def stop_recording(sid, data):
-        logging.log(logging.INFO, f"GUI CAMERA STOP RECEIVED: {sid}")
-        data_dict = {"action": "stop"}
-        GUIInterface.send_data(data_dict, ModulesEnum.Analysis)
+        logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
+        GUIInterface.send_data("stop", None, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def stop_view(sid, data):
-        logging.log(logging.INFO, f"GUI CAMERA STOP RECEIVED: {sid}")
-        data_dict = {"action": "stop"}
-        GUIInterface.send_data(data_dict, ModulesEnum.Analysis)
+        logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
+        GUIInterface.send_data("stop", None, ModulesEnum.Analysis)
 
     @staticmethod
     def set_GPS_state(state):
-        logging.log(logging.INFO, f"GUI SET GPS STATE TO {state}")
+        logging.log(logging.INFO, f"SET GPS STATE TO {state}")
         GUIInterface.gps_state = state
-        GUIInterface.sio.emit('set_GPS_state', json.dumps({'gps': state.value}))
-
-    @staticmethod
-    def set_cameras_state(jai_state, zed_state):
-        logging.log(logging.INFO, f"GUI SET CAMERAS STATE: JAI -> {jai_state} | ZED -> {zed_state}")
-        GUIInterface.jai_state = jai_state
-        GUIInterface.zed_state = zed_state
-        GUIInterface.sio.emit('set_camera_state', json.dumps({'JAI': jai_state.value, "ZED": zed_state.value}))
+        GUIInterface.sio.emit('set_GPS_state', json.dumps({'gps': state}))
 
     @staticmethod
     def set_camera_custom_config(FPS, integration_time, output_fsi, output_rgb, output_800, output_975, output_svo):
-        logging.log(logging.INFO, f"GUI SET CAMERA CONFIG")
+        logging.log(logging.INFO, f"SET CAMERA CONFIG")
         camera_config = {
             'FPS': FPS,
             'integration time': integration_time,
@@ -146,6 +123,6 @@ class GUIInterface(Module):
 
     @staticmethod
     def set_camera_easy_config(weather):
-        logging.log(logging.INFO, f"GUI SET CAMERA CONFIG")
+        logging.log(logging.INFO, f"SET CAMERA CONFIG")
         # trigger gui
         GUIInterface.sio.emit('get_camera_state', json.dumps({'weather': weather}))

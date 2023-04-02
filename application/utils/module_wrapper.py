@@ -3,14 +3,16 @@ import time
 import os
 import signal
 import threading
+import logging
 from builtins import staticmethod
-from multiprocessing import Process, Pipe
+from multiprocessing import Process, Pipe, current_process
 
 from typing import List
 
 
 class DataError(Exception):
     """ raised when there is no data to receive """
+
     def __init__(self):
         super().__init__("No Data")
 
@@ -18,8 +20,8 @@ class DataError(Exception):
 class ModulesEnum(enum.Enum):
     GPS = "GPS"
     GUI = "GUI"
-    DataManager = "Data Manager"
-    Analysis = "Analysis"
+    DataManager = "DATA MANAGER"
+    Analysis = "ANALYSIS"
 
     def __hash__(self):
         return hash(self.value)
@@ -27,16 +29,21 @@ class ModulesEnum(enum.Enum):
     def __eq__(self, other):
         return self.value == other.value
 
+    def __str__(self):
+        return self.value
+
 
 class ModuleManager:
     def __init__(self):
         self._process = None
         self.pid = -1
+        self.module_name = None
         self.sender, self.receiver = Pipe()
 
     def set_process(self, target, main_pid, module_name):
+        self.module_name = module_name
         args = (self.sender, self.receiver, main_pid, module_name)
-        self._process = Process(target=target, args=args, daemon=True)
+        self._process = Process(target=target, args=args, daemon=True, name=module_name.value)
 
     def retrieve_transferred_data(self):
         if self.receiver.poll():
@@ -44,16 +51,13 @@ class ModuleManager:
         raise DataError
 
     def receive_transferred_data(self, data, sender_module):
-        print("receive_transferred_data - signaling to pid ", self.pid)
         self.sender.send((data, sender_module))
-        print("Here 1")
         os.kill(self.pid, signal.SIGUSR1)
-        print("Here 2")
 
     def start(self):
         self._process.start()
         self.pid = self._process.pid
-        print(self.pid)
+        logging.info(f"{self.module_name} PID: {self.pid}")
 
     def join(self):
         self._process.join()
@@ -81,14 +85,16 @@ class Module:
         signal.signal(signal.SIGUSR1, receive_data_func)
 
     @staticmethod
-    def send_data(data, *receivers: ModulesEnum):
+    def send_data(action, data, *receivers: ModulesEnum):
+        data = {
+            "action": action,
+            "data": data
+        }
         Module.sender.send((data, receivers))
         os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod
     def receive_data(sig, frame):
-        print("Module receive_data:")
-
         """ every module has to implement that on his own """
         pass
 
@@ -97,4 +103,3 @@ class Module:
         Module.shutdown_event.set()
         while not Module.shutdown_done_event.is_set():
             time.sleep(5)
-

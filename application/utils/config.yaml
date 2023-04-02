@@ -1,7 +1,7 @@
 upload bucket name: fsCounter
 upload prefix: uploads
-counter number: 2
+counter number: 4
 logs path: "~/Desktop/counter_logs/"
 log name: "log"
 GUI: true
-customer code: "TNKBLL"
+customer code: "MOTCHA"

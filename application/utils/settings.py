@@ -3,7 +3,7 @@ import os
 import logging
 from datetime import datetime
 
-today = datetime.utcnow().strftime('%d-%m-%Y')
+today = datetime.now().strftime('%d-%m-%Y')
 
 analysis_conf = OmegaConf.load(os.path.abspath("application/Analysis/analysis_config.yaml"))
 data_conf = OmegaConf.load(os.path.abspath("application/DataManager/data_config.yaml"))
@@ -16,9 +16,11 @@ conf["log name"] = os.path.join(log_path, f"{conf['counter number']}_{conf['log 
 if not os.path.exists(log_path):
     os.makedirs(log_path)
 
-logFormatter = logging.Formatter("%(levelname)s %(asctime)s %(processName)s %(message)s")
-fileHandler = logging.FileHandler(conf["log name"])
-fileHandler.setFormatter(logFormatter)
-rootLogger = logging.getLogger()
-rootLogger.addHandler(fileHandler)
-rootLogger.setLevel(logging.INFO)
+
+def set_logger():
+    log_formatter = logging.Formatter("%(asctime)s | %(levelname)s/%(processName)s | %(message)s", "%H:%M:%S")
+    file_handler = logging.FileHandler(conf["log name"])
+    file_handler.setFormatter(log_formatter)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.INFO)

@@ -25,8 +25,6 @@ class DataManager(Module):
 
     @staticmethod
     def init_module(sender, receiver, main_pid, module_name):
-        logging.info("DATA MANAGER - START")
-
         super(DataManager, DataManager).init_module(sender, receiver, main_pid, module_name)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
@@ -66,7 +64,7 @@ class DataManager(Module):
             DataManager.scan_lock.acquire(blocking=True)
             scan_df = pd.concat([DataManager.scan_df, tmp_df], axis=0)
             scan_df.drop_duplicates(inplace=True)
-            logging.info(f"DATA MANAGER - PREVIOUS FILE {DataManager.current_plot}/{filename} ADDED TO SCAN DF")
+            logging.info(f"PREVIOUS FILE {DataManager.current_plot}/{filename} ADDED TO SCAN DF")
             DataManager.scan_lock.release()
 
         if DataManager.current_path:
@@ -81,17 +79,25 @@ class DataManager(Module):
     @staticmethod
     def receive_data(sig, frame):
         data, sender_module = DataManager.receiver.recv()
-        if sender_module == ModulesEnum.GPS and data != DataManager.current_plot:
-            # entering a new block which is not the latest block we've been to
-            logging.info(f"DATA MANAGER - NEW BLOCK ENTRANCE - {data}")
-            DataManager.write_data_locally()
-            DataManager.fruits_data_lock.acquire(blocking=True)
-            DataManager.previous_plot = DataManager.current_plot
-            DataManager.current_plot = data
-            DataManager.start_new_file()
-            DataManager.fruits_data_lock.release()
+        action, data = data["action"], data["data"]
+        if sender_module == ModulesEnum.GPS:
+            if action == "block switch" and data != DataManager.current_plot:
+                # entering a new block which is not the latest block we've been to
+                logging.info(f"NEW BLOCK ENTRANCE - {data}")
+                DataManager.write_fruits_data_locally(release=False)
+                DataManager.previous_plot = DataManager.current_plot
+                DataManager.current_plot = data
+                DataManager.start_new_file()
+                DataManager.fruits_data_lock.release()
+            elif action == "nav data":
+                # write nav data to nav file
+                logging.info(f"WRITING NAV DATA TO FILE")
+                nav_path = tools.get_nav_path()
+                nav_df = pd.DataFrame(data)
+                is_first = not os.path.exists(nav_path)
+                nav_df.to_csv(nav_path, header=is_first)
         elif sender_module == ModulesEnum.Analysis:
-            logging.info(f"DATA MANAGER - FRUIT DATA RECEIVED")
+            logging.info(f"FRUIT DATA RECEIVED")
             DataManager.fruits_data_lock.acquire(blocking=True)
             if not data["fruit id"]:
                 DataManager.start_new_file()
@@ -103,18 +109,19 @@ class DataManager(Module):
             DataManager.fruits_data_lock.release()
 
     @staticmethod
-    def write_data_locally():
+    def write_fruits_data_locally(release=True):
         if DataManager.current_path:
             DataManager.fruits_data_lock.acquire(blocking=True)
             fruits_df = pd.DataFrame(data=DataManager.fruits_data)
             is_first = not os.path.exists(DataManager.current_path)
             fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
-            DataManager.fruits_data_lock.release()
+            if release:
+                DataManager.fruits_data_lock.release()
 
     @staticmethod
     def update_output():
         while not DataManager.shutdown_event.wait(data_conf["update interval"]):
-            DataManager.write_data_locally()
+            DataManager.write_fruits_data_locally()
 
     @staticmethod
     def internet_scan():
@@ -126,7 +133,7 @@ class DataManager(Module):
                 logging.info(f"INTERNET SCAN - START - UPLOAD SPEED = {upload_in_kbps} KB/s")
                 # tools.s3_upload_previous_nav_log()
             except speedtest.SpeedtestException:
-                logging.info(f"DATA MANAGER - INTERNET SCAN - NO CONNECTION")
+                logging.info(f"INTERNET SCAN - NO CONNECTION")
             finally:
                 DataManager.scan_files(upload_timeout=data_conf["upload interval"] - 30)
                 t1 = time.time()
@@ -134,11 +141,11 @@ class DataManager(Module):
                 next_execution_time = max(0.1, data_conf["upload interval"] - (t1 - t0))
                 if DataManager.shutdown_event.wait(next_execution_time):
                     break
-        logging.info("DATA MANAGER - INTERNET SCAN - FINISHED")
+        logging.info("INTERNET SCAN - FINISHED")
 
     @staticmethod
     def scan_files(upload_timeout):
-        logging.info("DATA MANAGER - SCANNING FILES...")
+        logging.info("SCANNING FILES...")
         file_suffix = "feather" if data_conf["use feather"] else "csv"
         try:
             try:
@@ -156,7 +163,7 @@ class DataManager(Module):
                 scan_csv_df = DataManager.scan_df
 
             removed_indices, removed_files = [], []
-            logging.info(f"DATA MANAGER - SCANNING {len(scan_csv_df)} FILES")
+            logging.info(f"SCANNING {len(scan_csv_df)} FILES")
 
             # go through the files of every customer-plot-date separately
             plots_df_gr = scan_csv_df.groupby(["customer code", "plot code", "scan date"])
@@ -171,18 +178,18 @@ class DataManager(Module):
 
                 indices = [tools.index_from_fruits(filename) for filename in plot_df["filename"]]
                 if upload_timeout <= 0.1:
-                    logging.info(f"DATA MANAGER - SCAN - UPLOAD TIMEOUT - STOP UPLOADING")
+                    logging.info(f"SCAN - UPLOAD TIMEOUT - STOP UPLOADING")
                     break
                 # try to upload all files in current chunk. valid_indices are the
                 success, valid_indices = tools.upload_to_s3(customer_code, plot_code, scan_date, indices, upload_timeout)
-                logging.info(f"DATA MANAGER - SCAN - UPLOAD TIMEOUT STATUS - {upload_timeout} SECONDS")
+                logging.info(f"SCAN - UPLOAD TIMEOUT STATUS - {upload_timeout} SECONDS")
                 if not success:
                     break
                 if not valid_indices:
                     continue
                 try:
                     response = tools.send_request_to_server(customer_code, plot_code, scan_date, valid_indices)
-                    logging.info(f"DATA MANAGER - REQUEST (TRYING) - CUSTOMER: {customer_code}, PLOT: {plot_code}, "
+                    logging.info(f"REQUEST (TRYING) - CUSTOMER: {customer_code}, PLOT: {plot_code}, "
                                  f"INDICES: {valid_indices}")
                     if not response.ok:
                         logging.error("DATA MANAGER - REQUEST FAILED")
@@ -191,9 +198,9 @@ class DataManager(Module):
                         remove_from_valid = [(customer_code, plot_code, scan_date, f"fruits_{i}.{file_suffix}")
                                              for i in valid_indices]
                         removed_files += remove_from_valid
-                        logging.info("DATA MANAGER - REQUEST SUCCESS")
+                        logging.info("REQUEST SUCCESS")
                 except RequestException:
-                    logging.error("DATA MANAGER - REQUEST FAILED")
+                    logging.error("REQUEST FAILED")
                     continue
                 finally:
                     t1 = time.time()
@@ -208,6 +215,6 @@ class DataManager(Module):
                 scan_csv_df.drop_duplicates(inplace=True)
             scan_csv_df.to_csv(data_conf["scanner path"], mode="w", index=False, header=True)
         except Exception:
-            logging.exception("DATA MANAGER - SCANNING ERROR")
+            logging.exception("SCANNING ERROR")
         finally:
-            logging.info("DATA MANAGER - SCAN FINISHED")
+            logging.info("SCAN FINISHED")

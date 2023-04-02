@@ -42,9 +42,9 @@ class GPSSampler(Module):
                 kml_aws_path = tools.s3_path_join(conf['customer code'], GPS_conf['s3 kml file name'])
                 s3_client.download_file(GPS_conf["kml bucket name"], kml_aws_path, GPS_conf["kml path"])
                 GPSSampler.kml_flag = True
-                logging.info("GPS - LATEST KML FILE RETRIEVED")
+                logging.info("LATEST KML FILE RETRIEVED")
             except Exception:
-                logging.info("GPS - KML FILE NOT RETRIEVED")
+                logging.info("KML FILE NOT RETRIEVED")
                 if once:
                     break
                 time.sleep(30)
@@ -57,18 +57,19 @@ class GPSSampler(Module):
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
             try:
                 GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
-                logging.info("GPS - LOCATOR INITIALIZED")
+                logging.info("LOCATOR INITIALIZED")
             except Exception:
-                logging.info("GPS - LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
+                logging.info("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
                 time.sleep(30)
 
     @staticmethod
     def receive_data(sig, frame):
         data, sender_module = GPSSampler.receiver.recv()
+        action, data = data["action"], data["data"]
 
     @staticmethod
     def sample_gps():
-        logging.info("GPS - START")
+        logging.info("START")
         parser = NavParser("", is_file=False)
         ser = None
         while not GPSSampler.shutdown_event.is_set():
@@ -76,20 +77,22 @@ class GPSSampler(Module):
                 ser = serial.Serial("/dev/ttyUSB1", timeout=1, )
                 ser.flushOutput()
                 ser.flushInput()
-                logging.info(f"GPS - SERIAL PORT INIT - SUCCESS")
+                logging.info(f"SERIAL PORT INIT - SUCCESS")
                 break
             except serial.SerialException:
-                logging.info(f"GPS - SERIAL PORT ERROR - RETRYING IN 5...")
+                logging.info(f"SERIAL PORT ERROR - RETRYING IN 5...")
                 time.sleep(5)
         err_count = 0
+        sample_count = 0
+        gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
-            scan_date = datetime.utcnow().strftime("%d%m%y")
-            timestamp = datetime.utcnow().strftime("%H:%M:%S")
+            scan_date = datetime.now().strftime("%d%m%y")
+            timestamp = datetime.now().strftime("%H:%M:%S")
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
@@ -101,9 +104,19 @@ class GPSSampler(Module):
                     LedSettings.turn_on(LedColor.ORANGE)
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
+                sample_count += 1
+                gps_data.append(
+                    {
+                        "timestamp": timestamp,
+                        "latitude": lat,
+                        "longitude": long,
+                        "plot": GPSSampler.current_plot
+                    }
+                )
 
-                gps_data = (GPS_conf["customer code"], scan_date, lat, long, GPSSampler.current_plot, timestamp)
-                GPSSampler.send_data(gps_data, ModulesEnum.DataManager)
+                if sample_count % 30 == 0:
+                    GPSSampler.send_data("nav data", gps_data, ModulesEnum.DataManager)
+                    gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
@@ -124,18 +137,18 @@ class GPSSampler(Module):
             except ValueError as e:
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
-                    logging.error(f"GPS - {err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
+                    logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
                 # release the last detected block into Global if it is over 300 sec without GPS
                 if err_count > 300 and GPSSampler.current_plot != GPSSampler.global_polygon:
                     GPSSampler.current_plot = GPSSampler.global_polygon
-                    GPSSampler.step_out(turn_orange=False)
+                    GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
             except Exception:
-                logging.exception("GPS - SAMPLE UNEXPECTED EXCEPTION")
+                logging.exception("SAMPLE UNEXPECTED EXCEPTION")
                 LedSettings.turn_on(LedColor.RED)
 
         ser.close()
-        logging.info("GPS - END")
+        logging.info("END")
         LedSettings.turn_off()
         GPSSampler.shutdown_done_event.set()
 
@@ -148,13 +161,13 @@ class GPSSampler(Module):
     #     os.kill(settings.server_pid, signal.SIGUSR1)
     #     globals.path_sender.send((path, self.file_index))
     #     logging.info(f"CLIENT MANUAL BLOCK SWITCH - PATH: {path} FILE INDEX: {self.file_index}")
-        
+
     @staticmethod
     def step_in():
-        logging.info(f"GPS - STEP IN {GPSSampler.current_plot}")
-        GPSSampler.send_data(GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
+        logging.info(f"STEP IN {GPSSampler.current_plot}")
+        GPSSampler.send_data("block switch", GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
 
     @staticmethod
     def step_out():
-        logging.info(f"GPS - STEP OUT {GPSSampler.previous_plot}")
-        GPSSampler.send_data(GPSSampler.global_polygon, ModulesEnum.Analysis)
+        logging.info(f"STEP OUT {GPSSampler.previous_plot}")
+        GPSSampler.send_data("block switch", GPSSampler.global_polygon, ModulesEnum.Analysis)

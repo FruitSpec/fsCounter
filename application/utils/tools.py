@@ -29,8 +29,13 @@ def is_csv(filename):
     return filename[-3:] == "csv"
 
 
+def get_nav_path():
+    today = datetime.now().strftime("%d%m%y")
+    return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.nav')
+
+
 def get_fruits_path(plot, index=-1, ext="csv", get_dir=False):
-    today = datetime.utcnow().strftime("%d%m%y")
+    today = datetime.now().strftime("%d%m%y")
     plot_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today)
     if get_dir:
         return plot_dir

@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 from builtins import staticmethod
@@ -30,7 +31,9 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def connect_cameras():
-        AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps, AcquisitionManager.debug_mode)
+        is_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
+                                                                      AcquisitionManager.debug_mode)
+        AcquisitionManager.send_data("is connected", is_connected, ModulesEnum.GUI)
 
     @staticmethod
     def set_acquisition_parameters(data=None):
@@ -74,12 +77,11 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def receive_data(sig, frame):
-        print("AcquisitionManager receive_data:")
         data, sender_module = AcquisitionManager.receiver.recv()
-        print(data)
-        print(sender_module)
+        action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
             if data != GPS_conf["global polygon"]:
+                logging.info("START RECORDING FROM GPS")
                 AcquisitionManager.set_acquisition_parameters()
                 AcquisitionManager.jz_recorder.\
                     start_acquisition(AcquisitionManager.fps, AcquisitionManager.exposure_rgb,
@@ -89,13 +91,12 @@ class AcquisitionManager(Module):
                                       AcquisitionManager.output_975, AcquisitionManager.output_svo,
                                       AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
                                       AcquisitionManager.debug_mode)
-                print("acquisition started")
             else:
+                logging.info("STOP RECORDING FROM GPS")
                 AcquisitionManager.jz_recorder.stop_acquisition()
         elif sender_module == ModulesEnum.GUI:
-            if data["action"] == "start":
-                print("starting acquisition...")
-                data = data["data"]
+            if action == "start":
+                logging.info("START RECORDING FROM GUI")
                 AcquisitionManager.set_acquisition_parameters(data)
                 AcquisitionManager.jz_recorder.start_acquisition(
                     AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
@@ -103,8 +104,8 @@ class AcquisitionManager(Module):
                     AcquisitionManager.output_rgb, AcquisitionManager.output_800, AcquisitionManager.output_975,
                     AcquisitionManager.output_svo, AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
                     AcquisitionManager.debug_mode),
-                print("acquisition started")
-            elif data["action"] == "stop":
+            elif action == "stop":
                 AcquisitionManager.jz_recorder.stop_acquisition()
-                print("acquisition stopped")
+                logging.info("STOP RECORDING FROM GUI")
+
 
