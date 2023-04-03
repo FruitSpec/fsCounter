@@ -38,10 +38,10 @@ def get_size_helper(sub_df):
     if n_finite_widths > 0 and n_finite_heights > 0:
         # return max(np.nanmedian(sub_df['width']), np.nanmedian(sub_df['height']))
         return np.nanmedian(sub_df['width']) * np.nanmedian(sub_df['height'])
-    if n_finite_widths > 0:
-        return np.nanmedian(sub_df['width'])
-    if n_finite_heights > 0:
-        return np.nanmedian(sub_df['height'])
+    # if n_finite_widths > 0:
+    #     return np.nanmedian(sub_df['width'])
+    # if n_finite_heights > 0:
+    #     return np.nanmedian(sub_df['height'])
     return np.nan
 
 
@@ -236,7 +236,7 @@ def filter_trackers(df_res, dist_threshold):
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
-    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323
+    df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323,200323 - foliage
     # df_res = filter_df_by_color(df_res)
     # df_res = df_res[df_res["x1"] > 50]
     return df_res
@@ -303,7 +303,7 @@ def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
 
 def predict_weight_values(miu, sigma, observation=[]):
     a = 0.0562
-    b = 70.965
+    b = -70.965
     # using exponential regression
     if not len(observation):
         weight_miu = a * miu + b

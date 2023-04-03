@@ -83,8 +83,8 @@ class Analyzer():
         :param picked_count: int, number of picked fruits in a unit
         :return: number of picked fruits for each bin-color
         """
-        hist_all, _ = np.histogram(pre_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
-        hist_nonPicked, _ = np.histogram(post_color, normed=False, bins=[1, 2, 3, 4, 5, 6])
+        hist_all, _ = np.histogram(pre_color, density=False, bins=[1, 2, 3, 4, 5, 6])
+        hist_nonPicked, _ = np.histogram(post_color, density=False, bins=[1, 2, 3, 4, 5, 6])
         hist_picked = hist_all - hist_nonPicked
         hist_picked = [max(i, 0) for i in hist_picked]
         hist_picked = hist_picked / np.sum(hist_picked)
@@ -120,10 +120,15 @@ class Analyzer():
         elif picked_count == 0:
             self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
             return
-        (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (
-            hist_miu, hist_sigma) = Analyzer.diff_size(
-            post[0] / pre[0], pd.DataFrame(pre[1]), pd.DataFrame(post[1]))
-        bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
+        try:
+            (size_value_miu, size_value_sigma, weight_miu, weight_sigma), (kde_miu, kde_sigma), (
+                hist_miu, hist_sigma) = Analyzer.diff_size(
+                post[0] / pre[0], pd.DataFrame(pre[1]), pd.DataFrame(post[1]))
+            bin1, bin2, bin3, bin4, bin5 = Analyzer.diff_color(pre[2], post[2], picked_count)
+        except Exception as e:
+            self.results = append_results(self.results, [plot_id, picked_count] + [0] * 9)
+            print(f"{plot_id} : {repr(e)}")
+            return
         self.results = append_results(self.results,
                                       [plot_id, picked_count, size_value_miu, size_value_sigma, weight_miu,
                                        weight_sigma, bin1, bin2, bin3, bin4, bin5])
@@ -325,22 +330,25 @@ class commercial_analyzer(Analyzer):
 
         return (counter, size.values, color.values)
 
-    def run_pre_post(self, pre, key):
-        post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
-        # One of the file measures does not exist
 
-        self.calc_diff_values(pre, post, key)
 
     def run(self):
         """
         Execute all commercial units according mapping_config, extract its count,size,color values after diff
         Update self.results with all units' results
         """
+
+        def run_pre_post():
+            post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
+            # One of the file measures does not exist
+
+            self.calc_diff_values(pre, post, key)
+
         for key, rows in self.indices.items():
             try:
                 pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, self.measures_name)
                 if self.customer == 'syngenta':
-                    self.run_pre_post(pre, key)
+                    run_pre_post()
                 else:
                     self.calc_single_values(pre, key)
 

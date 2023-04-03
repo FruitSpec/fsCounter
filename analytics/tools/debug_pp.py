@@ -8,10 +8,13 @@ from vision.misc.help_func import validate_output_path
 
 def debug_plots(df, raw_path, output_path):
     for scan, scan_df in df.groupby('scan'):
+        if scan == 'post':
+            continue
         for row, row_df in scan_df.groupby('row'):
             row_path = os.path.join(raw_path, scan, row)
             if not os.path.exists(row_path):
                 continue
+            print(f"Processing... {row_path}")
             movie_path = os.path.join(row_path, [i for i in os.listdir(os.path.join(row_path)) if
                                                  i.endswith('.svo')][0])
 
@@ -23,6 +26,8 @@ def debug_plots(df, raw_path, output_path):
             color_ls = [(0, 64, 255), (194, 24, 7)]
 
             f_id = 0
+            prev_plot_id = None
+            flag = 0
             pbar = tqdm(total=number_of_frames)
             while True:
                 pbar.update(1)
@@ -32,11 +37,10 @@ def debug_plots(df, raw_path, output_path):
                     break
                 frame_results = row_df[row_df['frame'] == f_id]
 
-                flag = 0
-                prev_plot_id = None
+
                 for plot_id, df_plot in frame_results.groupby('plot_id'):
                     # switch every plot
-                    if prev_plot_id == None or prev_plot_id == plot_id:
+                    if prev_plot_id != plot_id:
                         flag = ~flag
                     color = color_ls[flag]
                     dets = df_plot[['x1', 'y1', 'x2', 'y2', 'track_id']].values.tolist()
