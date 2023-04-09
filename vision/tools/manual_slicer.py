@@ -426,8 +426,10 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
+                trees_data[tree_id + 1] = [
+                    {'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
+                border_data = update_border_data(border_data, loc, frame_id, tree_id)
 
 
         elif last_state == 1:
@@ -655,12 +657,11 @@ def get_state(loc):
 
 if __name__ == "__main__":
     fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    fp = '/home/yotam/FruitSpec/Data/DWDB_Jan_2023/DWDBLE33/R11A/Result_FSI_1.mkv'
-    output_path = '/home/yotam/FruitSpec/Sandbox/manual_silcer_testing'
+    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/slicer_bug/3'
     validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=1)
+    manual_slicer(fp, output_path, rotate=2)
 
-    data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
+    data_file = "/home/yotam/FruitSpec/Sandbox/Syngenta/slicer_bug/3/ZED_2_slice_data.json"
+    trees, border = slice_to_trees(data_file, None, None, h=1920, w=1080)
 
 
