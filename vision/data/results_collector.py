@@ -1,14 +1,18 @@
 import os
 import csv
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from json import dump, dumps
+import collections
+
+
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.misc.help_func import validate_output_path, scale_dets
-from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
+from vision.depth.zed.svo_operations import get_dimensions
+from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
+from vision.depth.slicer.slicer_flow import post_process
+from vision.tools.video_wrapper import video_wrapper
+
 
 
 class ResultsCollector():
@@ -21,15 +25,21 @@ class ResultsCollector():
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
-        self.coco = {"categories": [], "images": [], "annotations": []}
+        self.alignment = []
+        self.jai_zed = {}
+        self.trees = {}
+        self.hash = {}
+        self.jai_width = 1536
+        self.jai_height = 2048
 
-    def collect_detections(self, detection_results, img_id):
-        if detection_results is not None:
-            output = []
-            for det in detection_results:
-                det.append(img_id)
-                output.append(det)
-            self.detections += output
+    def collect_detections(self, batch_results, img_id):
+        for i, detection_results in enumerate(batch_results):
+            if detection_results is not None:
+                output = []
+                for det in detection_results:
+                    det.append(img_id + i)
+                    output.append(det)
+                self.detections += output
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -49,27 +59,20 @@ class ResultsCollector():
 
         return track_ids
 
-    def collect_tracks(self, tracking_results):
+    def collect_tracks(self, batch_results):
 
-        # output_len = len(tracking_results[2])
+        for tracking_results in batch_results:
+            self.tracks += tracking_results
 
-        # frame_ids = [tracking_results[0] for _ in range(output_len)]
-        # bboxes = tracking_results[1]
-        # tracker_ids = tracking_results[2]
-        # tracker_score = tracking_results[3]
+        #return tracking_results
 
-        # output = list(map(self.single_tracking_to_list, frame_ids, tracker_ids, tracker_score, bboxes))
-        self.tracks += tracking_results
-
-        return tracking_results
-
-    def collect_results(self, tracking_results, clusters, dimensions, colors):
+    def collect_results(self, tracking_results, clusters, dimentsions, colors):
 
         results = []
         for i in range(len(tracking_results)):
             temp = tracking_results[i]
             temp.append(clusters[i])
-            temp += dimensions[i]
+            temp += dimentsions[i]
             temp += colors[i]
 
             results.append(temp)
@@ -77,6 +80,8 @@ class ResultsCollector():
         self.results += results
 
         return results
+    def collect_size_measure(self, point_cloud_mat, tracking_results):
+        self.measures += get_dimentions(point_cloud_mat, tracking_results)
 
     def collect_file_name(self, file_anme):
         self.file_names.append(file_anme)
@@ -111,25 +116,25 @@ class ResultsCollector():
         return [x1, y1, x2, y2, tracker_score, track_id, frame_id]
 
     def dump_to_csv(self, output_file_path, type='detections'):
-
         if type == 'detections':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf",
-                      "image_id", "class_pred"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "image_id", "class_pred"]
             rows = self.detections
         elif type == 'measures':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height", "width", "distance", "color", "color_std"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",
+                      "width", "color", "color_std"]
             rows = self.results
+        elif type == "alignment":
+            pd.DataFrame.from_records(self.alignment).to_csv(output_file_path)
+            return
         else:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
             rows = self.tracks
-        df_out = pd.DataFrame(rows, columns=fields)
-        df_out.to_csv(output_file_path, index=False)
-
+        with open(output_file_path, 'w') as f:
+            # using csv.writer method from CSV package
+            write = csv.writer(f)
+            write.writerow(fields)
+            write.writerows(rows)
         print(f'Done writing results to csv')
-
-    def dump_to_json(self, output_file_path):
-        with open(output_file_path, "w", encoding='utf8') as f:
-            dump(self.coco, f)
 
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
@@ -199,23 +204,9 @@ class ResultsCollector():
                 dets = []
 
             frame = cv2.imread(os.path.join(data_dir, self.file_names[i]))
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            #frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             self.draw_and_save(frame, dets, id_, output_path)
-
-    def plot_hist(self, frame, trk_outputs, f_id, output_path, hists):
-        for hist, det in zip(hists, trk_outputs):
-            # TODO
-            crop = frame[max(det[1], 0):det[3], max(det[0], 0):det[2]].copy()
-            crop = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-            fig, (ax1, ax2) = plt.subplots(1, 2)
-            ax1.plot(hist)
-            try:
-                ax2.imshow(crop)
-            except:
-                continue
-            fig.savefig(os.path.join(output_path, f'{det[6]}_hue_{f_id}.jpg'))
-            plt.close()
 
     def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
 
@@ -233,7 +224,7 @@ class ResultsCollector():
             color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
-            frame = draw_highlighted_test(frame, f'ID:{track_id}', (det[0], det[1]), frame.shape[1], color, text_color,
+            frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
                                           True, 10, 3)
 
         return frame
@@ -252,7 +243,7 @@ class ResultsCollector():
 
         return hash
 
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, hists, depth=None, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
@@ -270,23 +261,6 @@ class ResultsCollector():
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
-        if args.debug.hue_histogram:
-            validate_output_path(os.path.join(args.output_folder, 'hue_hist'))
-            self.plot_hist(frame, trk_outputs, f_id, os.path.join(args.output_folder, 'hue_hist'), hists)
-
-    def det_to_coco(self, f_id, args, trk_outputs, frame):
-        validate_output_path(os.path.join(args.output_folder, 'frames'))
-        self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
-        self.coco["categories"] = [
-            {
-                "supercategory": "Fruits",
-                "id": 1,
-                "name": "orange"
-            }]
-        self.coco["images"].extend(create_images_dict([f'frame_{f_id}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
-        self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
-                                                               [args.frame_size[0], args.frame_size[1]], [1], "dets"))
-
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
@@ -301,6 +275,377 @@ class ResultsCollector():
         validate_output_path(os.path.join(args.output_folder, 'windows'))
         cv2.imwrite(os.path.join(args.output_folder, 'windows', f"windows_frame_{f_id}.jpg"), canvas)
 
+    def collect_alignment(self, alignment_results, f_id):
+        for r in alignment_results:
+            x1, y1, x2, y2 = r[0]
+            tx = r[1]
+            ty = r[2]
+            sx = r[3]
+            sy = r[4]
+            zed_shift = r[5]
+            tx = tx if not np.isnan(tx) else 0
+            ty = ty if not np.isnan(ty) else 0
+            self.alignment.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                                    "tx": int(tx), "ty": int(ty), "sx": sx, "sy": sy, "frame": f_id, "zed_shift": zed_shift})
+            self.jai_zed[f_id] = f_id + zed_shift
+
+        pass
+
+    def dump_to_trees(self, output_path, sliced_data, save=True):
+        hash = self.create_frame_to_trees_hash(sliced_data)
+        hash_ids = list(hash.keys())
+        trees = {}
+
+        for track in self.tracks:
+            frame_id = track[-1]
+            if not frame_id in hash_ids:
+                continue
+            cur_trees = hash[frame_id]
+            for tree in cur_trees:
+                tree_ids = list(trees.keys())
+                if tree in tree_ids:
+                    trees[tree].append(track)
+                else:
+                    trees[tree] = [track]
+
+        # saved for later use of other results dumps
+        self.hash = hash
+        self.trees = trees
+#        if save:
+#            write_json(os.path.join(output_path, "trees_det.json"), trees)
+
+    def convert_tracker_results(self, frames):
+        """
+        ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
+        filters the tracker results to given frames and converts to feature extractor moudle format
+        :param frames: frames for tree
+        :return: trakcer results in new format and old format
+        """
+        tracker_full_results = np.array(self.tracks)
+        frames_tracker_results = tracker_full_results[np.isin(tracker_full_results[:, 7], frames), :]
+        tracker_results = {}
+        for i, frame in enumerate(frames):
+            tracker_results[frame] = {int(row[6]): ((int(row[0]), int(row[1])), (int(row[2]), int(row[3]))) for row in frames_tracker_results}
+        return tracker_results, frames_tracker_results
+
+    def get_pc_for_jai(self, frame, zed_cam, aligemnet_df):
+        """
+        cuts a point cloud to jai_in_zed_coords and resizes it to jai size
+        this is a preprocess phase so that the point cloud and jai frame will be aligned
+        :param frame: int! indicating the frame number of jai image
+        :param zed_cam: zed camera video_wrapper object
+        :param aligemnet_df: alignment dataframe
+        :return: point cloud aligned to jai
+        """
+        point_cloud = zed_cam.get_zed(self.jai_zed[str(frame)])[2]
+        point_cloud_shape = point_cloud.shape
+        x1, y1, x2, y2 = aligemnet_df[aligemnet_df["frame"] == frame].values[0].astype(int)[:4]
+        x1, y1, x2, y2 = max(x1, 0), max(y1, 0), min(x2, point_cloud_shape[0]-1), min(y2, point_cloud_shape[1]-1)
+        point_cloud_for_jai = point_cloud[y1:y2, x1:x2]
+        return cv2.resize(point_cloud_for_jai, (self.jai_width, self.jai_height))
+
+
+    def save_filtered_cv(self, output_path, sliced_df, zed_cam, max_z=5):
+        """
+        will calculate cv per tree with depth filtering
+        :param output_path: where to write the files to
+        :param sliced_df: a dataframe containing slicing data
+        :param zed_cam: zed video wrapper object
+        :param max_z: max allowed distance
+        :return:
+        """
+        trees = sliced_df["tree_id"].unique()
+        slicer_results = get_slicer_data(sliced_df, self.jai_width, tree_id=-1)
+        aligemnet_df = pd.DataFrame.from_records(self.alignment)
+        cvs = []
+        res_df = pd.DataFrame([])
+        for tree in tqdm(trees):
+            frames = sliced_df[sliced_df["tree_id"] == tree]["frame_id"].values.astype(int).tolist()
+            tracker_results, frames_tracker_results = self.convert_tracker_results(frames)
+            slicer_results_tree = {frame: slicer_results[str(frame)] for frame in frames}
+            tree_images = {frame: {"zed": self.get_pc_for_jai(frame, zed_cam, aligemnet_df), "nir": None, "swir975": None
+                                   } for frame in frames}
+            tracker_results = filter_tracker_results(tracker_results, slicer_results_tree, tree_images, max_z)
+            cvs.append(tracker_results["cv"])
+            tracker_frame = pd.DataFrame(frames_tracker_results, columns=['x1', 'y1', 'x2', 'y2', "score", "class",
+                                                                          "track_id", "frame_id"])
+            tracker_frame["tree_id"] = tree
+            res_df = pd.concat([res_df, tracker_frame])
+        df = pd.DataFrame({'tree_id': trees, 'cv': cvs})
+        df.to_csv(os.path.join(output_path, 'trees_cv.csv'))
+
+        res_df.to_csv(os.path.join(output_path, 'trees_sliced_track.csv'))
+        return df
+
+    def save_trees_sliced_track(self, output_path, sliced_df):
+        """
+        will create trees_sliced_track dataframe
+        :param output_path: where to write the files to
+        :param sliced_df: a dataframe containing slicing data
+        :return:
+        """
+        trees = sliced_df["tree_id"].unique()
+        res_df = pd.DataFrame({})
+        for tree in tqdm(trees):
+            frames = sliced_df[sliced_df["tree_id"] == tree]["frame_id"].values.astype(int).tolist()
+            tracker_results, frames_tracker_results = self.convert_tracker_results(frames)
+            tracker_frame = pd.DataFrame(frames_tracker_results, columns = ['x1', 'y1', 'x2', 'y2', "score", "class",
+                                                 "track_id", "frame_id"])
+            tracker_frame["tree_id"] = tree
+            res_df = pd.concat([res_df, tracker_frame])
+
+        res_df.to_csv(os.path.join(output_path, 'trees_sliced_track.csv'))
+        return res_df
+
+    def dump_to_cv(self, output_path, sliced_df):
+
+        if len(self.trees.keys()) == 0:
+            self.dump_to_trees("", sliced_df, save=False)
+
+        filtered_trees = {}
+        trees = list(self.trees.keys())
+
+        for tree in trees:
+            filtered_tree_data = []
+            tree_data = self.trees[tree].copy()
+            tree_slice = sliced_df[sliced_df['tree_id'] == tree]
+
+            for track in tree_data:
+                frame_slice_data = tree_slice[tree_slice['frame_id'] == track[-1]]
+                if frame_slice_data['start'].values[0] == -1 and frame_slice_data['end'].values[0] == -1:
+                    filtered_tree_data.append(track)
+                elif frame_slice_data['start'].values[0] == -1:  # only end exist
+                    if frame_slice_data['end'].values[0] > track[0]:
+                        filtered_tree_data.append(track)
+                elif frame_slice_data['end'].values[0] == -1:  # only start exist
+                    if frame_slice_data['start'].values[0] < track[2]:
+                        filtered_tree_data.append(track)
+                else:
+                    if frame_slice_data['start'].values[0] < track[2] and frame_slice_data['end'].values[0] > track[0]:
+                        filtered_tree_data.append(track)
+
+            filtered_trees[tree] = filtered_tree_data
+
+        tree_cv = self.filtered_trees_to_cv(filtered_trees)
+
+        df = pd.DataFrame(data=tree_cv, columns=['tree_id', 'cv'])
+        df.to_csv(os.path.join(output_path, 'trees_cv.csv'))
+
+        res = []
+        filtered_trees_ids = list(filtered_trees.keys())
+        for tree in filtered_trees_ids:
+            tree_data = filtered_trees[tree]
+            for track in tree_data:
+                res.append({"x1": track[0],
+                            "y1": track[1],
+                            "x2": track[2],
+                            "y2": track[3],
+                            "score": track[4],
+                            "class": track[5],
+                            "track_id": track[6],
+                            "frame_id": track[7],
+                            "tree_id": tree}
+                           )
+        res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', "score", "class",
+                                                 "track_id", "frame_id", "tree_id"])
+        res_df.to_csv(os.path.join(output_path, 'trees_sliced_track.csv'))
+
+        #write_json(os.path.join(output_path, 'trees_sliced_track.json'), filtered_trees)
+        return filtered_trees
+
+    @staticmethod
+    def filtered_trees_to_cv(filtered_trees):
+        trees = list(filtered_trees.keys())
+        tree_cv = []
+        for tree in trees:
+            tree_ids = []
+            tree_tracks = filtered_trees[tree]
+            for track in tree_tracks:
+                if track[-2] not in tree_ids: # add only once every id in tree
+                    tree_ids.append(track[-2])
+            tree_cv.append({'tree_id': tree, 'cv': len(tree_ids)})
+
+        return tree_cv
+
+    def save_det_images(self, output_path, filtered_trees, jai_movie_path, jai_rotate):
+
+        jai_cam = video_wrapper(jai_movie_path, jai_rotate)
+
+        # Read until video is completed
+        print(f'writing results on {jai_movie_path}\n')
+        tree_ids = list(filtered_trees.keys())
+        pbar = tqdm(total=len(tree_ids))
+        for tree in tree_ids:
+            tree_output_path = os.path.join(output_path, f"T{tree}")
+            validate_output_path(tree_output_path)
+            pbar.update(1)
+            index = -1
+            tree_data = filtered_trees[tree]
+            cur_frame_dets = []
+            for track in tree_data:
+                if track[-1] != index:
+                    if len(cur_frame_dets) > 0:
+                        self.draw_and_save(jai_frame, cur_frame_dets, int(index), tree_output_path)
+                    index = track[-1]
+                    fsi_ret, jai_frame = jai_cam.get_frame(index)
+
+                    if not fsi_ret:  # couldn't get frames
+                        # Break the loop
+                        break
+                    cur_frame_dets = [track]
+                else:
+                    cur_frame_dets.append(track)
+
+        jai_cam.close()
+
+
+    def dump_state(self, output_path):
+
+        write_json(os.path.join(output_path, 'alignment.json'), self.alignment)
+        write_json(os.path.join(output_path, 'jai_zed.json'), self.jai_zed)
+
+    def dump_feature_extractor(self, output_path):
+        """
+        this function is a wrapper for dumping data to files for the feature extraction pipline
+        :param output_path: where to output to
+        :return: None
+        """
+        self.dump_state(output_path)
+        self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
+        self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
+        self.dump_to_csv(os.path.join(output_path, 'jai_cors_in_zed.csv'), type="alignment")
+
+    def converted_slice_data(self, sliced_data):
+        converted_sliced_data = {}
+
+        zed_frame_to_coor = self.alignment_hash()
+        zed_frame_to_coor_keys = list(zed_frame_to_coor.keys())
+        zed_frame_ids = list(sliced_data.keys())
+        zed_jai_hash = self.convert_to_zed_to_jai(self.jai_zed)
+        zed_jai_hash_keys = list(zed_jai_hash.keys())
+        for zed_frame_id in zed_frame_ids:
+            if not ((zed_frame_id in zed_jai_hash_keys) and (zed_frame_id in zed_frame_to_coor_keys)):
+                continue
+            jai_frame_id = zed_jai_hash[zed_frame_id]
+            zed_coor = zed_frame_to_coor[zed_frame_id]
+            slice_coor = sliced_data[zed_frame_id]
+            tx = zed_coor[0]
+            if len(slice_coor) == 0:
+                continue
+            factor = self.jai_width / (zed_coor[1] - zed_coor[0])
+            new_slice_cor = []
+            for slice in slice_coor:
+                if slice < zed_coor[0]:  # outside roi
+                    new_slice_cor.append(10)  # put slice at frame start
+                elif slice > zed_coor[1]:
+                    new_slice_cor.append(self.jai_width - 10) # put slice at frame end
+                else:
+                    new_slice_cor.append((slice - tx) * factor)
+            converted_sliced_data[jai_frame_id] = new_slice_cor
+
+        return converted_sliced_data
+
+
+
+    @staticmethod
+    def convert_to_zed_to_jai(jai_zed_hash):
+        zed_jai_hash = {}
+        jai_frame_ids = list(jai_zed_hash.keys())
+
+        for j_f in jai_frame_ids:
+            zed_frame_id = jai_zed_hash[j_f]
+            zed_jai_hash[zed_frame_id] = j_f
+
+        zed_jai_hash = collections.OrderedDict(sorted(zed_jai_hash.items()))
+
+        return zed_jai_hash
+
+
+
+    @staticmethod
+    def create_frame_to_trees_hash(sliced_data):
+        hash = {}
+        frame_list = list(sliced_data['frame_id'])
+        for frame_id in frame_list:
+            sub = sliced_data[sliced_data['frame_id'] == frame_id]
+            hash[frame_id] = list(pd.unique(sub['tree_id']))
+
+        return hash
+
+    def alignment_hash(self):
+
+        hash = {}
+        for res in self.alignment:
+            hash[res['frame']] = [res['x1'], res['x2']]
+
+        return hash
+
+    def set_alignment(self, alignment):
+        """
+        sets alignment argument from out source data
+        :param alignment: path or file, if path will read json from path, else will set file
+        :return: None
+        """
+        if isinstance(alignment, str):
+            self.alignment = read_json(alignment)
+        else:
+            self.alignment = alignment
+
+    def set_jai_zed(self, jai_zed):
+        """
+        sets jai_zed argument from out source data
+        :param jai_zed: path or file, if path will read json from path, else will set file
+        :return: None
+        """
+        if isinstance(jai_zed, str):
+            self.jai_zed = read_json(jai_zed)
+        else:
+            self.jai_zed = jai_zed
+
+    def set_detections(self, detections):
+        """
+        sets detections argument from out source data
+        detections should be a list of list, and keeps the original data type [int,int,int,int,float,float,float,int]
+        :param detections: path or file, if path will read dataframe from path, else will set file
+        :return: None
+        """
+        if isinstance(detections, str):
+            detections = pd.read_csv(detections)
+            rows_dict = detections.to_dict(orient="records")
+            self.detections = [[row[col] for col in detections.columns] for row in rows_dict]
+        else:
+            self.detections = detections
+
+    def set_tracks(self, tracks):
+        """
+        sets detections argument from out source data
+        tracks should be a list of list, and keeps the original data type [int,int,int,int,float,float,int,int]
+        :param tracks: path or file, if path will read dataframe from path, else will set file
+        :return: None
+        """
+        if isinstance(tracks, str):
+            tracks = pd.read_csv(tracks)
+            rows_dict = tracks.to_dict(orient="records")
+            self.tracks = [[row[col] for col in tracks.columns] for row in rows_dict]
+        else:
+            self.tracks = tracks
+
+    def set_self_params(self, read_from, parmas=["alignment", "jai_zed", "detections", "tracks"]):
+        """
+        sets the paramaters from out source data
+        :param read_from: folder to read from
+        :param parmas: paramaters to set
+        :return:
+        """
+        if "alignment" in parmas:
+            self.set_alignment(os.path.join(read_from, 'alignment.json')) # list of dicts
+        if "jai_zed" in parmas:
+            self.set_jai_zed(os.path.join(read_from, 'jai_zed.json')) # dict
+        if "detections" in parmas:
+            self.set_detections(os.path.join(read_from, 'detections.csv')) # list of lists
+        if "tracks" in parmas:
+            self.set_tracks(os.path.join(read_from, 'tracks.csv')) # list of lists
+
 
 def scale(det_dims, frame_dims):
     r = min(det_dims[0] / frame_dims[0], det_dims[1] / frame_dims[1])
@@ -308,6 +653,7 @@ def scale(det_dims, frame_dims):
 
 
 def scale_det(detection, scale_):
+
     # Detection ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
     x1 = int(detection[0] * scale_)
     y1 = int(detection[1] * scale_)
@@ -319,3 +665,89 @@ def scale_det(detection, scale_):
 
     # res ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred, image_id)
     return [x1, y1, x2, y2, obj_conf, class_conf, class_pred]
+
+def filter_tracker_results(tracker_results, slicer_results, tree_images, max_z):
+    """
+    filters the tracker results based on slicing and max depth allowed
+    :param tracker_results: tracker results dictionary
+    :param slicer_results: slicer results dictionary
+    :param tree_images: tree images dictionary
+    :param max_z: max depth allowed
+    :return: filter dictionary
+    """
+    tracker_results = filter_outside_tree_boxes(tracker_results, slicer_results)
+    if max_z > 0:
+        tracker_results = filter_outside_zed_boxes(tracker_results, tree_images, max_z)
+    tracker_results["cv"] = len(
+        {id for frame in set(tracker_results.keys()) - {"cv"} for id in tracker_results[frame].keys()})
+    return tracker_results
+
+def filter_outside_zed_boxes(tracker_results, tree_images, max_z):
+    """
+    removes detections that are too far
+    :param tracker_results: dict of the tracker results
+    :param slicer_results: dict of the slicer results
+    :param max_z: maxsimum depth allowed
+    :return: updated tracker_results
+    """
+    for frame in tree_images.keys():
+        frame_images = tree_images[frame]
+        boxes = tracker_results[frame]
+        to_pop = []
+        for id, box in boxes.items():
+            t, b, l, r = box[0][1], box[1][1], box[0][0], box[1][0]
+            z = np.nanmean(frame_images["zed"][t:b, l:r, 2])
+            if z > max_z or np.isnan(z):
+                to_pop.append(id)
+        for id in to_pop:
+            boxes.pop(id)
+    return tracker_results
+
+def filter_outside_tree_boxes(tracker_results, slicer_results):
+    """
+    removes detections that are not on the tree
+    :param tracker_results: dict of the tracker results
+    :param slicer_results: dict of the slicer results
+    :return: updated tracker_results
+    """
+    for frame in tracker_results.keys():
+        if frame == "cv":
+            continue
+        x_start, x_end = slicer_results[frame]
+        x_0 = np.array([box[0][0] for box in tracker_results[frame].values()])
+        x_1 = np.array([box[1][0] for box in tracker_results[frame].values()])
+        for id in np.array(list(tracker_results[frame].keys()))[np.all([x_0 > x_start, x_1 < x_end], axis=0) == False]:
+            tracker_results[frame].pop(id)
+    return tracker_results
+def get_slicer_data(slice_path, max_w, tree_id=-1):
+    """
+    reads slicer data
+    :param slice_path: path to slices.csv
+    :param max_w: max width of picture
+    :param tree_id: if -1 will use old pipe, else will use new pipe
+    :return: dataframe contaiting the slices data
+    """
+    if isinstance(slice_path, str):
+        sliced_data = pd.read_csv(slice_path)
+    else:
+        sliced_data = slice_path
+    if tree_id != -1:
+        sliced_data = sliced_data[sliced_data["tree_id"] == tree_id]
+    if "starts" in sliced_data.keys():
+        sliced_data["start"] = sliced_data["starts"]
+    if "ends" in sliced_data.keys():
+        sliced_data["end"] = sliced_data["ends"]
+    sliced_data["start"].replace(-1, 0, inplace=True)
+    sliced_data["end"].replace(-1, max_w, inplace=True)
+    sliced_data = dict(zip(sliced_data["frame_id"].apply(str),
+                           tuple(zip(sliced_data["start"].apply(int), sliced_data["end"].apply(int)))))
+    return sliced_data
+
+if __name__ == "__main__":
+    slice_data_path = "/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/DWDBCN51_test/200123/DWDBCN51/R13/ZED_1_slice_data.json"
+    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/DWDBCN51_test/200123/DWDBCN51/R13/"
+    slice_data = load_json(slice_data_path)
+    slice_df = post_process(slice_data=slice_data)
+
+    rc = ResultsCollector()
+    rc.create_frame_to_trees_hash(slice_df)

@@ -51,3 +51,35 @@ def validate_output_path(output_folder, flag=1):
 def copy_configs(pipeline_config, runtime_config, output_path):
     shutil.copy(pipeline_config, os.path.join(output_path, "pipeline_config.yaml"))
     shutil.copy(runtime_config, os.path.join(output_path, "runtime_config.yaml"))
+
+
+def read_json(filepath):
+    """
+    this function reads a json from filepath
+    :param filepath: path to file
+    :return: the read json
+    """
+    with open(filepath, 'r') as f:
+        loaded_data = json.load(f)
+    return loaded_data
+
+
+def load_json(filepath):
+    """
+    this function reads the json file and converts the keys to ints
+    :param filepath: path to file
+    :return: the converted json
+    """
+    if not os.path.exists(filepath):
+        return {}
+    loaded_data = read_json(filepath)
+    data = {}
+    for k, v in loaded_data.items():
+        data[int(k)] = v
+
+    return data
+
+def write_json(file_path, data):
+
+    with open(file_path, 'w') as f:
+        json.dump(data, f)

@@ -2,23 +2,59 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
+from concurrent.futures import ThreadPoolExecutor
 from skimage.exposure import adjust_gamma
 
 
 
-def is_sturated(img, percentile=0.8, threshold=245):
+def is_saturated(img, percentile=0.8, threshold=245):
+    if isinstance(img, type(None)):
+        return True
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    h, b = np.histogram(gray.flatten(), 255)
-    norm = np.cumsum(h) / np.sum(h)
-    ind = np.argmax(norm >= percentile)
+    return np.quantile(gray.flatten(), percentile) > threshold
 
-    return b[ind] >= threshold
+
+def batch_is_saturated(imgs, percentile=0.8, threshold=245, workers=4):
+    percentiles = [percentile for i in range(len(imgs))]
+    thresholds = [threshold for i in range(len(imgs))]
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(is_saturated, imgs, percentiles, thresholds))
+
+    batch_saturated = True if np.sum(results) == len(imgs) else False
+
+    return batch_saturated, results
+
+def fsi_from_channels(rgb, c_800, c_975, lower=0.02, upper=0.98, min_int=25, max_int=235):
+    clahe = cv2.createCLAHE(5, (10, 10))
+    rgb = stretch_rgb(rgb, clahe, lower, upper, min_int, max_int)
+    c_800 = stretch_and_clahe(c_800, lower, upper, min_int, max_int, clahe)
+    c_975 = stretch_and_clahe(c_975, lower, upper, min_int, max_int, clahe)
+
+    fsi = rgb.copy()
+    fsi[:, :, 0] = c_800.copy()
+    fsi[:, :, 1] = c_975.copy()
+
+    return fsi
+
+def stretch_and_clahe(channel, lower=0.005, upper=0.995, min_int=25, max_int=235, clahe=cv2.createCLAHE(5,(10,10))):
+    channel = stretch(channel, lower, upper, min_int, max_int)
+    channel = clahe.apply(channel)
+
+    return channel.astype(np.uint8)
+
+
+def stretch_rgb(rgb, lower=0.005, upper=0.995, min_int=25, max_int=235, clahe=cv2.createCLAHE(5, (10, 10))):
+    out = rgb.copy()
+    out[:, :, 0] = stretch_and_clahe(rgb[:, :, 0].copy(), lower, upper, min_int, max_int, clahe)
+    out[:, :, 1] = stretch_and_clahe(rgb[:, :, 1].copy(), lower, upper, min_int, max_int, clahe)
+    out[:, :, 2] = stretch_and_clahe(rgb[:, :, 2].copy(), lower, upper, min_int, max_int, clahe)
+
+    return out
 
 def stretch(img, lower, upper, min_int, max_int):
 
     normalized_img = (img.astype(np.float32) - img.min()) / (img.max() - img.min())
-    h, b = np.histogram(diff.flatten())
+    h, b = np.histogram(normalized_img.flatten(), 255)
     total = np.sum(h)
     accumulated = np.cumsum(h).astype(np.float32) / total
 
@@ -32,6 +68,15 @@ def stretch(img, lower, upper, min_int, max_int):
             break
     upper_threshold = b[i]
 
+    gain = (max_int - min_int) / (upper_threshold - lower_threshold)
+
+    offset = min_int
+
+    stretched_img = normalized_img * gain + offset
+    stretched_img = np.clip(stretched_img, 0, 255)
+
+    type_ = np.uint8
+    return stretched_img.astype(type_)
 
 def jai_to_channels(jai_frame):
 
@@ -162,7 +207,7 @@ def remove_outliers(diff, lower_percentile=0.05, upper_percentile=0.0005):
 
 
 def find_gl_by_percentile(channel, upper, lower):
-    h, b = np.histogram(channel.flatten(), 255)
+    h, b = np.histogram(channel.flatten(), 256)
     total = np.sum(h)
     accumulated = np.cumsum(h).astype(np.float32) / total
 
@@ -172,7 +217,7 @@ def find_gl_by_percentile(channel, upper, lower):
     lower_intensity = b[i]
 
     for i in range(len(accumulated) - 1, 0, -1):
-        if accumulated[i] <= upper:
+        if accumulated[i] <= 1 - upper:
             break
     upper_intensity = b[i]
 

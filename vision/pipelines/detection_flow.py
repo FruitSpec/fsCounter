@@ -1,6 +1,8 @@
 import os
 import sys
 import torch
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 cwd = os.getcwd()
 sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
@@ -10,6 +12,7 @@ from vision.detector.preprocess import Preprocess
 from vision.detector.yolo_x.yolox.utils.boxes import postprocess
 from vision.misc.help_func import scale_dets, scale
 from vision.tracker.fsTracker.fs_tracker import FsTracker
+
 
 
 class counter_detection():
@@ -50,17 +53,19 @@ class counter_detection():
     def init_tracker(cfg, args):
 
         return FsTracker(frame_size=args.frame_size,
+                         minimal_max_distance=cfg.tracker.minimal_max_distance,
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
                          det_area=cfg.tracker.det_area,
                          max_losses=cfg.tracker.max_losses,
-                         major = cfg.tracker.major,
+                         translation_size=cfg.tracker.translation_size,
+                         major=cfg.tracker.major,
                          minor=cfg.tracker.minor,
-                         debug_folder=args.debug.tracker)
+                         debug_folder=None)
 
-    def detect(self, frame):
-        preprc_frame = self.preprocess(frame)
-        input_ = preprc_frame.to(self.device)
+
+    def detect(self, frames):
+        input_ = self.preprocess_batch(frames)
 
         if self.fp16:
             input_ = input_.half()
@@ -70,22 +75,42 @@ class counter_detection():
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
+
         # Scale bboxes to orig image coordinates
-        output = self.scale_output(output, frame.shape)
+        output = self.scale_output(output, frames[0].shape)
+
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, tx, ty, frame_id=None, dets_depth=None):
+    def track(self, outputs, translations, frame_id=None):
 
-        if outputs is not None:
-            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id, dets_depth)
-            tracking_results = []
-            for target in online_targets:
-                target.append(frame_id)
-                tracking_results.append(target)
+        batch_results = []
+        batch_windows = []
+        for i, frame_output in enumerate(outputs):
+            if frame_output is not None:
+                tx, ty = translations[i]
+                if frame_id is not None:
+                    id_ = frame_id + i
+                else:
+                    id_ = None
+                online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_)
+                tracking_results = []
+                for target in online_targets:
+                    target.append(id_)
+                    tracking_results.append(target)
 
-            return tracking_results, track_windows
+            batch_results.append(tracking_results)
+            batch_windows.append(track_windows)
 
+        return batch_results, batch_windows
+
+    def preprocess_batch(self, batch, workers=4):
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(self.preprocess, batch))
+        preprc_batch = torch.stack(results)
+        #preprc_batch = preprc_batch.
+
+        return preprc_batch
 
     def get_imgs_info(self, frame_id):
 
@@ -115,6 +140,7 @@ class counter_detection():
         output = scale_dets(output, scale_)
 
         return output
+
 
 
 
