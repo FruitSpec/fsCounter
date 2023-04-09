@@ -229,14 +229,14 @@ def filter_trackers(df_res, dist_threshold):
 
     """
 
-    # df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
+    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
     if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
         # print(f"{round(_dist, 3)}")
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
-    df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323,200323 - foliage
+    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323,200323 - foliage
     # df_res = filter_df_by_color(df_res)
     # df_res = df_res[df_res["x1"] > 50]
     return df_res

@@ -14,7 +14,10 @@ class Analyzer():
         self.map = OmegaConf.load(os.getcwd() + '/tools/mapping.yml')
         args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
         self.scan_pre = os.path.join(args.analysis_path, 'pre')
-        self.scan_post = os.path.join(args.analysis_path, 'post')
+        if args.pre_post:
+            self.scan_post = os.path.join(args.analysis_path, 'post')
+        else:
+            self.scan_post = None
         self.fruit_type = args.fruit_type
 
         self.side = None
@@ -138,7 +141,7 @@ class Analyzer():
         size_value_miu = np.nanmean(pre[1])
         size_value_sigma = np.nanstd(pre[1])
         weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
-        color_hist, _ = np.histogram(pre[2], normed=False, bins=[1, 2, 3, 4, 5, 6])
+        color_hist, _ = np.histogram(pre[2], density=False, bins=[1, 2, 3, 4, 5, 6])
         color_hist = [max(i, 0) for i in color_hist]
         color_hist = color_hist / np.sum(color_hist)
         count_color_bins = count * color_hist
@@ -173,18 +176,22 @@ class phenotyping_analyzer(Analyzer):
     analysis for phenotype needs
     """
 
-    def __init__(self, measures_name="measures.csv"):
+    def __init__(self):
         super(phenotyping_analyzer, self).__init__()
         self.indices = self.map[self.fruit_type].syngenta.phenotyping.rows
-        self.measures_name = measures_name
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
         self.active_tracks = []
         self.df_debug_plots = pd.DataFrame()
 
+    # slices validation
     def validation(self):
         flag = True
         # validate manual slicers
-        for scan in [self.scan_pre, self.scan_post]:
+        if self.scan_post:
+            scans = [self.scan_pre, self.scan_post]
+        else:
+            scans = [self.scan_pre]
+        for scan in scans:
             for row in self.indices:
                 try:
                     json_path = os.path.join(scan, row,
@@ -233,18 +240,15 @@ class phenotyping_analyzer(Analyzer):
 
         def get_sets(row):
             row_path = os.path.join(path, row)
-            if os.path.exists(os.path.join(path, row, self.measures_name)):
-                df_res = open_measures(row_path, self.measures_name)
+            if os.path.exists(os.path.join(path, row, 'measures.csv')):
+                df_res = open_measures(row_path, 'measures.csv')
                 trees, borders = get_trees(row_path)
 
                 # filter according plot's implications
-                if row == '9':
-                    df_res = filter_trackers(df_res, dist_threshold=0.9)
-                else:
-                    df_res = filter_trackers(df_res, dist_threshold=0)
+                df_res = filter_trackers(df_res, dist_threshold=0)
 
             else:
-                print(f"NO MEASURES FILE - {os.path.join(path, row, self.measures_name)} - PLOTS' ROW REMOVED ")
+                print(f"NO MEASURES FILE - {os.path.join(path, row, 'measures.csv')} - PLOTS' ROW REMOVED ")
                 return None, None, None
 
             return (df_res, trees, borders)
@@ -284,17 +288,27 @@ class phenotyping_analyzer(Analyzer):
         """
         df_sum = pd.DataFrame()
         plots_pre = self.get_dict_plots(self.scan_pre)
-        plots_post = self.get_dict_plots(self.scan_post)
 
-        for pre_item, post_item in zip(plots_pre.items(), plots_post.items()):
-            # pre ,post - [0]-count, [1]-size, [2]-color , [3]- plot id
-            pre = (pre_item[1]['count'], pre_item[1]['size'], pre_item[1]['color'], pre_item[0])
-            post = (post_item[1]['count'], post_item[1]['size'], post_item[1]['color'], post_item[0])
-            if not Analyzer.valid_output(pre, post):
-                df_sum = append_results(df_sum, [pre[0]] + [None] * 10)
-                continue
-            # dict =  self.get_pre_post(pre[3],pre,post)
-            self.calc_diff_values(pre, post, pre[3])
+        if self.scan_post:
+            plots_post = self.get_dict_plots(self.scan_post)
+
+            for pre_item, post_item in zip(plots_pre.items(), plots_post.items()):
+                # pre_item ,post_item - [1]['count']-count, [1]['size']-size, [1]['color']-color , [0]- plot id
+                pre = (pre_item[1]['count'], pre_item[1]['size'], pre_item[1]['color'], pre_item[0])
+                post = (post_item[1]['count'], post_item[1]['size'], post_item[1]['color'], post_item[0])
+                if not Analyzer.valid_output(pre, post):
+                    df_sum = append_results(df_sum, [pre[0]] + [None] * 10)
+                    continue
+                self.calc_diff_values(pre, post, pre[3])
+
+        else:
+            for pre_item in plots_pre.items():
+                # pre_item - [1]['count']-count, [1]['size']-size, [1]['color']-color , [0]- plot id
+                pre = (pre_item[1]['count'], pre_item[1]['size'], pre_item[1]['color'])
+                if not Analyzer.valid_output(pre, (0, 0, 0)):
+                    df_sum = append_results(df_sum, [pre[0]] + [None] * 10)
+                    continue
+                self.calc_single_values(pre, pre_item[0])
 
 
 class commercial_analyzer(Analyzer):
@@ -302,11 +316,10 @@ class commercial_analyzer(Analyzer):
         analysis for commercial fruits needs
     """
 
-    def __init__(self, customer, measures_name="measures.csv"):
+    def __init__(self, customer):
         super(commercial_analyzer, self).__init__()
-        self.customer = customer
+        self.customer = customer # future implement
         self.indices = self.map[self.fruit_type][customer].commercial.rows
-        self.measures_name = measures_name
 
     @staticmethod
     def get_aggregation(path, rows, measures_name):
@@ -330,8 +343,6 @@ class commercial_analyzer(Analyzer):
 
         return (counter, size.values, color.values)
 
-
-
     def run(self):
         """
         Execute all commercial units according mapping_config, extract its count,size,color values after diff
@@ -339,15 +350,15 @@ class commercial_analyzer(Analyzer):
         """
 
         def run_pre_post():
-            post = commercial_analyzer.get_aggregation(self.scan_post, rows, self.measures_name)
+            post = commercial_analyzer.get_aggregation(self.scan_post, rows, 'measures.csv')
             # One of the file measures does not exist
 
             self.calc_diff_values(pre, post, key)
 
         for key, rows in self.indices.items():
             try:
-                pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, self.measures_name)
-                if self.customer == 'syngenta':
+                pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, 'measures.csv')
+                if self.scan_post:
                     run_pre_post()
                 else:
                     self.calc_single_values(pre, key)
@@ -356,4 +367,3 @@ class commercial_analyzer(Analyzer):
             except FileNotFoundError:
                 self.results = append_results(self.results, [key] + [None] * 10)
                 continue
-            # dict =  self.get_pre_post(key,pre,post)

@@ -16,12 +16,12 @@ def accuracy(df, args):
     acc_df['error_count'] = (acc_df['GT-Count'] - acc_df['count']) / acc_df['GT-Count']
     acc_df['error_weight'] = (acc_df['GT-Weight'] - acc_df['weight_avg_gr']) / acc_df['GT-Weight']
     acc_df.to_csv(os.path.join(args.output_path, 'accuracy.csv'), index=False)
-    print(acc_df[['plot_id','error_count','error_weight','error_total_w']])
+    print(acc_df[['plot_id', 'error_count', 'error_weight', 'error_total_w']])
 
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    run_real_time()
+    # run_real_time()
     analysis = [
         phenotyping_analyzer(),
         commercial_analyzer(args.customer)
@@ -32,8 +32,9 @@ def main():
             continue
         obj.run()
         df = pd.concat([df, obj.get_results()], axis=0)
-        # debug
-        debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
+
+        # if type(obj) == phenotyping_analyzer:
+        # debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
     accuracy(df, args)
 
