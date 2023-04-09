@@ -205,6 +205,37 @@ def filter_df_by_min_samp(df_res, min_tracks):
     return pd.concat(dfs_list, axis=0)
 
 
+def filter_clusters(df_res):
+    """
+
+    :param df_res:
+    :return: count
+    """
+    fruits = 0
+    for cluster_id, df_cluster in df_res.groupby('cluster'):
+        frames_info = {'count': [], 'redness': []}
+        for frame_id, df_frame in df_cluster.groupby('frame'):
+            if len(df_frame) <= 2:
+                continue
+            frames_info['count'].append(len(df_frame))
+            red_count = df_frame[df_frame['color'] <= 3]['color'].count()
+            frames_info['redness'].append(red_count / len(df_frame))
+
+        if not frames_info['count']:
+            continue
+        count_value = np.max(frames_info['count'])
+        normed_count = frames_info['count'] / np.sum(frames_info['count'])
+        weighted_color = normed_count * frames_info['redness']
+        redness_value = np.sum(weighted_color)
+
+
+        # picking decision
+        if redness_value > 0.7:
+            fruits += count_value
+
+    return fruits, pd.Series(), pd.Series()
+
+
 def filter_trackers(df_res, dist_threshold):
     """
     Filter a DataFrame of image crops based on various criteria.
@@ -235,7 +266,7 @@ def filter_trackers(df_res, dist_threshold):
         # print(f"{round(_dist, 3)}")
     else:
         _dist = dist_threshold
-    df_res = df_res[df_res["distance"] < _dist]
+    # df_res = df_res[df_res["distance"] < _dist]
     # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323,200323 - foliage
     # df_res = filter_df_by_color(df_res)
     # df_res = df_res[df_res["x1"] > 50]

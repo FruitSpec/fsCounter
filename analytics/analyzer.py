@@ -13,6 +13,7 @@ class Analyzer():
     def __init__(self):
         self.map = OmegaConf.load(os.getcwd() + '/tools/mapping.yml')
         args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
+        self.by_cluster = args.by_cluster
         self.scan_pre = os.path.join(args.analysis_path, 'pre')
         if args.pre_post:
             self.scan_post = os.path.join(args.analysis_path, 'post')
@@ -138,6 +139,12 @@ class Analyzer():
 
     def calc_single_values(self, pre, plot_id):
         count = pre[0]
+
+        # only count
+        if not np.any(pre[1]) or not np.any(pre[2]):
+            self.results = append_results(self.results, [plot_id] + [count] + [None] * 9)
+            return
+
         size_value_miu = np.nanmean(pre[1])
         size_value_sigma = np.nanstd(pre[1])
         weight_miu, weight_sigma = predict_weight_values(size_value_miu, size_value_sigma)
@@ -158,17 +165,20 @@ class Analyzer():
     def get_results(self):
         return self.results
 
-    def get_pre_post(self, id, pre, post):
-        """
-        Utility to get the raw values of pre and post
-        """
-        return {'id': id,
-                'pre': {'count': pre[0],
-                        'size': pre[1],
-                        'color': pre[2]},
-                'post': {'count': post[0],
-                         'size': post[1],
-                         'color': post[2]}}
+    def get_values(self, args):
+        if type(args) != tuple:
+            df_res = filter_trackers(args, dist_threshold=0)
+            if self.by_cluster:
+                return filter_clusters(df_res)
+            else:
+                return trackers_into_values(df_res)
+        else:
+            df_res = filter_trackers(args[0], dist_threshold=0)
+            df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
+            if self.by_cluster:
+                return filter_clusters(df_det)
+            else:
+                return trackers_into_values(df_det, args[1], args[2], args[3])
 
 
 class phenotyping_analyzer(Analyzer):
@@ -243,10 +253,6 @@ class phenotyping_analyzer(Analyzer):
             if os.path.exists(os.path.join(path, row, 'measures.csv')):
                 df_res = open_measures(row_path, 'measures.csv')
                 trees, borders = get_trees(row_path)
-
-                # filter according plot's implications
-                df_res = filter_trackers(df_res, dist_threshold=0)
-
             else:
                 print(f"NO MEASURES FILE - {os.path.join(path, row, 'measures.csv')} - PLOTS' ROW REMOVED ")
                 return None, None, None
@@ -269,9 +275,8 @@ class phenotyping_analyzer(Analyzer):
                     df_border = None
 
                 # condition on same track_id in 2 plots
-                df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
                 self.current_values = {'row': row, 'plot_id': plot_id, 'scan': path.split('/')[-1]}
-                _counter, _size, _color = trackers_into_values(df_det, df_tree, df_border, self)
+                _counter, _size, _color = self.get_values((df_res, df_tree, df_border, self))
 
                 if not plot_id in dict_plots:
                     dict_plots[plot_id] = {'count': 0, 'size': [], 'color': []}
@@ -318,11 +323,10 @@ class commercial_analyzer(Analyzer):
 
     def __init__(self, customer):
         super(commercial_analyzer, self).__init__()
-        self.customer = customer # future implement
+        self.customer = customer  # future implement
         self.indices = self.map[self.fruit_type][customer].commercial.rows
 
-    @staticmethod
-    def get_aggregation(path, rows, measures_name):
+    def get_aggregation(self, path, rows, measures_name):
         counter = 0
         size = pd.DataFrame()
         color = pd.DataFrame()
@@ -332,14 +336,13 @@ class commercial_analyzer(Analyzer):
                 print(f"NO MEASURES FILE - {os.path.join(path, row, measures_name)} - REMOVED ")
                 continue
             df_res = open_measures(os.path.join(path, row), measures_name)
-            df_res = filter_trackers(df_res, dist_threshold=0)
-            _counter, _size, _color = trackers_into_values(df_res)
+            _counter, _size, _color = self.get_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
             color = pd.concat([color, _color], axis=0)
 
-        if counter == 0 or size.empty or color.empty:
-            raise FileNotFoundError
+        # if counter == 0 or size.empty or color.empty:
+        #     raise FileNotFoundError
 
         return (counter, size.values, color.values)
 
@@ -350,14 +353,14 @@ class commercial_analyzer(Analyzer):
         """
 
         def run_pre_post():
-            post = commercial_analyzer.get_aggregation(self.scan_post, rows, 'measures.csv')
+            post = self.get_aggregation(self.scan_post, rows, 'measures.csv')
             # One of the file measures does not exist
 
             self.calc_diff_values(pre, post, key)
 
         for key, rows in self.indices.items():
             try:
-                pre = commercial_analyzer.get_aggregation(self.scan_pre, rows, 'measures.csv')
+                pre = self.get_aggregation(self.scan_pre, rows, 'measures.csv')
                 if self.scan_post:
                     run_pre_post()
                 else:
