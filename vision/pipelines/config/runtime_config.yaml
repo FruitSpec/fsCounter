@@ -1,7 +1,7 @@
 #movie_path: /home/fruitspec-lab/Downloads/tomato/230123/pre/5/ZED_1.svo
 #output_folder:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/output
-movie_path: /home/fruitspec-lab/Downloads/0.8m1stm/ZED_1.svo
-output_folder:  /home/fruitspec-lab/Downloads/0.8m1stm/output
+movie_path: /media/fruitspec-lab-3/Extreme SSD/syngenta trail/tomato/200323/pre/12/ZED_1.svo
+output_folder:  /home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/Clusters/testing_1_pre_12
 output_folder_track: $(output_folder)/tracking
 output_folder_annotate: $(output_folder)/annotation
 
@@ -18,7 +18,7 @@ debug:
   raw_frame: true
   depth: false
   tracker: None
-  clusters: false
+  clusters: true
   hue_histogram: false
   annotate: true
 

@@ -12,14 +12,16 @@ def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.
         crop = point_cloud[det[1]: det[3], det[0]:det[2], 2]
         range_.append(get_distance(crop))
 
+    output_range = []
     if range_:  # not empty
         bool_vec = np.array(range_) < threshold
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
                 filtered.append(dets[d_id])
+                output_range.append(range_[d_id])
 
-    return filtered
+    return filtered, output_range
 
 
 def filter_by_intersection(dets_outputs, threshold=0.8):
