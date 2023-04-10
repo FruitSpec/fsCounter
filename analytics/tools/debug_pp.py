@@ -48,7 +48,7 @@ def debug_plots(df, raw_path, output_path):
                         results_collector.draw_and_save(frame.copy(), dets, f_id, os.path.join(output_folder, 'pp_results'), t_index=4, color=color)
                         prev_plot_id = plot_id
                 else:
-                    results_collector.draw_and_save(frame.copy(), [], f"None_{f_id}", os.path.join(output_folder, 'pp_results'))
+                    results_collector.draw_and_save(frame.copy(), [], f"{f_id}_None", os.path.join(output_folder, 'pp_results'))
 
                 f_id += 1
 

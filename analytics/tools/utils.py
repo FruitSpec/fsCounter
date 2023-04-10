@@ -148,7 +148,7 @@ def filter_trackers(df_res, dist_threshold):
     df_res = df_res[df_res["distance"] < _dist]
     df_res = filter_df_by_min_samp(df_res, min_tracks=2)  # 150223,150323,200323 - foliage
     # df_res = filter_df_by_color(df_res)
-    # df_res = df_res[df_res["x1"] > 200]
+    df_res = df_res[df_res["x1"] > 200]
     return df_res
 
 
@@ -208,7 +208,7 @@ def clusters_into_values(df_res):
         if redness_value > 0:
             fruits += count_value
 
-    return fruits, pd.Series(), pd.Series()
+    return fruits, pd.Series(dtype=float), pd.Series(dtype=float)
 
 def fruits_into_values(df_res):
     """
@@ -254,27 +254,3 @@ def append_results(df, data):
     df = pd.concat([df, _df], axis=0)
     return df
 
-
-def run_on_blocks(blocks_folder):
-    res = []
-    blocks = os.listdir(blocks_folder)
-
-    for block in blocks:
-        if not os.path.isdir(os.path.join(blocks_folder, block)):
-            continue
-        row_path = os.path.join(blocks_folder, block)
-        if not np.any(["slice_data" in file for file in os.listdir(row_path)]):
-            continue
-        df_res = open_measures(row_path, "measures.csv")
-        df_res = filter_trackers(df_res, dist_threshold=0)
-        trees, borders = get_trees(row_path)
-        for tree_id, df_tree in trees:
-            counter, size, color = trackers_into_values(df_res, df_tree)
-            res.append({"tree_id": tree_id, "count": counter, "block": block})
-
-    res = pd.DataFrame(data=res, columns=['tree_id', 'count', 'block'])
-    return res
-
-
-if __name__ == "__main__":
-    run_on_blocks('')

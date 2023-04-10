@@ -34,10 +34,11 @@ def main():
         df = pd.concat([df, obj.get_results()], axis=0)
 
         if type(obj) == phenotyping_analyzer:
-            debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
-    # print(df)
+            pass
+            # debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
+    print(df)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
-    accuracy(df, args)
+    # accuracy(df, args)
 
 
 if __name__ == "__main__":
