@@ -29,8 +29,8 @@ def mouse_callback(event, x, y, flags, params):
         if flags == cv2.EVENT_FLAG_CTRLKEY or flags == cv2.EVENT_FLAG_CTRLKEY + 1:  # second part is due to bug of cv2
             params["data"][params['index']]['start'] = x
             params["data"][params['index']]['end'] = max(x - 10, 0)
-            # params["data"][params['index']]['end'] = min(x + 10, int(params['width'] // params['resize_factor']))
-        if flags == cv2.EVENT_FLAG_ALTKEY + 1:  # or flags == cv2.EVENT_FLAG_ALTKEY + 1:  # second part is due to bug of cv2
+            #params["data"][params['index']]['end'] = min(x + 10, int(params['width'] // params['resize_factor']))
+        if flags == cv2.EVENT_FLAG_ALTKEY + 1: # or flags == cv2.EVENT_FLAG_ALTKEY + 1:  # second part is due to bug of cv2
             params['right_clusters'] = True
             count = params["data"][params['index']]['right_clusters']['count']
             params["data"][params['index']]['right_clusters'][count] = [x, y, x, y]
@@ -90,6 +90,7 @@ def mouse_callback(event, x, y, flags, params):
     cv2.imshow(params['headline'], frame)
 
 
+
 def print_lines(params):
     frame = params['frame'].copy()
     y = int(params['height'] // params['resize_factor'])
@@ -102,7 +103,6 @@ def print_lines(params):
         frame = cv2.line(frame, (int(x), 0), (int(x), y), (255, 0, 255), 2)
 
     return frame
-
 
 def print_rectangles(frame, params):
     index_keys = list(params['data'][params['index']].keys())
@@ -122,6 +122,8 @@ def print_rectangles(frame, params):
                 frame = draw_rectangle(frame, start_point, end_point, (255, 0, 0), )
 
     return frame
+
+
 
 
 def print_text(frame, params, text=None):
@@ -164,7 +166,7 @@ def update_index(k, params):
         index = index
         params["data"][params['index']]['start'] = None
         params["data"][params['index']]['end'] = None
-        params["data"][params['index']]['left_clusters'] = {'count': 0}
+        params["data"][params['index']]['left_clusters'] = {'count':0}
         params["data"][params['index']]['right_clusters'] = {'count': 0}
         params['find_translation'] = False
 
@@ -281,7 +283,7 @@ def get_updated_location_in_index(frame, params):
 def init_data_index(params):
     data_indexes = list(params['data'].keys())
     if params['index'] not in data_indexes:
-        # params['data'][params['index']] = {'start': None, 'end': None}
+        #params['data'][params['index']] = {'start': None, 'end': None}
         params['data'][params['index']] = {'start': None,
                                            'end': None,
                                            "left_clusters": {'count': 0},
@@ -424,8 +426,10 @@ def parse_data_to_trees(data):
                 trees_data[tree_id] = [
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']}]
             elif state == 6:
-                print(f"{frame_id}: {tree_id}")
-                raise ValueError("Got tree closing before tree opening")
+                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
+                trees_data[tree_id + 1] = [
+                    {'frame_id': frame_id, 'tree_id': tree_id + 1, 'start': loc['start'], 'end': -1}]
+                border_data = update_border_data(border_data, loc, frame_id, tree_id)
 
 
         elif last_state == 1:
@@ -629,6 +633,7 @@ def update_border_data(border_data, loc, frame_id, tree_id):
     return border_data
 
 
+
 def get_state(loc):
     if loc['start'] is None and loc['end'] is None:
         state = 0
@@ -648,6 +653,7 @@ def get_state(loc):
         state = 1  # start
 
     return state
+
 
 
 if __name__ == "__main__":
