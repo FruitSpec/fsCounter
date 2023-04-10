@@ -19,6 +19,7 @@ def debug_plots(df, raw_path, output_path):
                                                  i.endswith('.svo')][0])
 
             output_folder = os.path.join(output_path, scan, row)
+            validate_output_path(os.path.join(output_folder, 'pp_results'))
             cam = video_wrapper(movie_path, 2, 0.1, 2.5)  # hard coded
             results_collector = ResultsCollector(rotate=2)  # hard coded
             # Read until video is completed
@@ -37,16 +38,18 @@ def debug_plots(df, raw_path, output_path):
                     break
                 frame_results = row_df[row_df['frame'] == f_id]
 
+                if not frame_results.empty:
+                    for plot_id, df_plot in frame_results.groupby('plot_id'):
+                        # switch every plot
+                        if prev_plot_id != plot_id:
+                            flag = ~flag
+                        color = color_ls[flag]
+                        dets = df_plot[['x1', 'y1', 'x2', 'y2', 'track_id']].values.tolist()
+                        results_collector.draw_and_save(frame.copy(), dets, f_id, os.path.join(output_folder, 'pp_results'), t_index=4, color=color)
+                        prev_plot_id = plot_id
+                else:
+                    results_collector.draw_and_save(frame.copy(), [], f"None_{f_id}", os.path.join(output_folder, 'pp_results'))
 
-                for plot_id, df_plot in frame_results.groupby('plot_id'):
-                    # switch every plot
-                    if prev_plot_id != plot_id:
-                        flag = ~flag
-                    color = color_ls[flag]
-                    dets = df_plot[['x1', 'y1', 'x2', 'y2', 'track_id']].values.tolist()
-                    validate_output_path(os.path.join(output_folder, 'trk_results'))
-                    results_collector.draw_and_save(frame.copy(), dets, f_id, os.path.join(output_folder, 'trk_results'), t_index=4, color=color)
-                    prev_plot_id = plot_id
                 f_id += 1
 
             # When everything done, release the video capture object

@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 
 
 def open_measures(path, measures_name='measures.csv'):
-    df = pd.read_csv(os.path.join(path, measures_name))
+    df = pd.read_csv(os.path.join(path, 'measures_pix_size_median_2_hue_depth.csv'))
+    # df = pd.read_csv(os.path.join(path, 'measures.csv'))
     return df
 
 
@@ -62,60 +63,13 @@ def get_size_set(df, filter_by_ratio=True):
     return measures
 
 
-def get_valid_by_color(color):
-    """
-    computes the mode and returns for each observation if it color is valid to keep or nor
-    :param color: pandas sieres contaianing color values
-    :return: boolean series indicating valid observations
-    """
-    counts = color.value_counts()
-    frequent_color = counts.idxmax()
-    return color.isin([frequent_color - 1, frequent_color, frequent_color + 1])
-
-
 def filter_by_color(df):
-    """
-    Filters a DataFrame of objects by color.
-
-    Uses the get_valid_by_color function to determine which objects have valid
-    colors. Filters the DataFrame using the resulting boolean array.
-    If there are fewer than three objects in the DataFrame and the mean of the
-    valid boolean array is less than one, an empty DataFrame is returned.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame of objects with a color column.
-
-    Returns
-    -------
-    pandas.DataFrame
-        A filtered DataFrame of objects with a color column.
-
-    """
-    valids = get_valid_by_color(df["color"])
+    counts = df["color"].value_counts()
+    frequent_color = counts.idxmax()
+    valids = df["color"].isin([frequent_color - 1, frequent_color, frequent_color + 1])
     return df[valids]
 
-
 def filter_df_by_color(df):
-    """
-    Filter a DataFrame of tomatos based on the color of the objects in the crops.
-
-    The function groups the DataFrame by "track_id" and applies the filter_by_color function to each group, which
-    filters the crops in the group based on their color. The filtered crops are concatenated into a single DataFrame.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        A DataFrame containing columns "track_id" and "color"
-
-    Returns
-    -------
-    filtered_df : pandas.DataFrame
-        A DataFrame containing the same columns as the input DataFrame, but with only the observations that passed the
-        color filter.
-
-    """
     return pd.concat([filter_by_color(df_track) for ind, df_track in df.groupby("track_id")], axis=0)
 
 
@@ -178,26 +132,6 @@ def get_intersection_point(df_res, max_dist=3, debug=False):
 
 
 def filter_df_by_min_samp(df_res, min_tracks):
-    """
-    Filter a DataFrame of image crops based on the number of samples in each track.
-
-    The function groups the input DataFrame by "track_id" and filters the groups to only include those with a number
-    of samples greater than or equal to the specified "min_samples" value. The filtered groups are then concatenated
-    into a single DataFrame.
-
-    Parameters
-    ----------
-    df_res : pandas.DataFrame
-        A DataFrame containing columns "track_id" and any other columns with data on the image crops.
-    min_samples : int, optional
-        The minimum number of samples required for a track to be included in the filtered DataFrame. Defaults to 3.
-
-    Returns
-    -------
-    filtered_df : pandas.DataFrame
-        A DataFrame containing the same columns as the input DataFrame, but with only the observations that are part
-        of tracks with a number of samples greater than or equal to the specified "min_samples" value.
-    """
     dfs_list = []
     for ind, df_track in df_res.groupby("track_id"):
         if len(df_track) > min_tracks:
@@ -205,17 +139,59 @@ def filter_df_by_min_samp(df_res, min_tracks):
     return pd.concat(dfs_list, axis=0)
 
 
-def filter_clusters(df_res):
-    """
+def filter_trackers(df_res, dist_threshold):
+    # df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
+    if dist_threshold == 0:
+        _dist = get_intersection_point(df_res)
+    else:
+        _dist = dist_threshold
+    df_res = df_res[df_res["distance"] < _dist]
+    df_res = filter_df_by_min_samp(df_res, min_tracks=2)  # 150223,150323,200323 - foliage
+    # df_res = filter_df_by_color(df_res)
+    # df_res = df_res[df_res["x1"] > 200]
+    return df_res
 
+
+def extract_tree_dets(df_res, df_tree=None, df_border=None):
+    plot_det = []
+    margin = 0
+    # phenotyping analysis
+    tree_frames = df_tree['frame_id'].unique()
+    frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
+    df_tree['end'].replace([-1], math.inf, inplace=True)
+    for frame_id, df_frame in frames:
+        if df_frame.empty:
+            continue
+        if df_tree is not None:
+            frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
+            df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (
+                    df_frame['x1'] < frames_bounds['end'] - margin)]
+            plot_det.append(df)
+            if df_border is not None:
+                border_boxes = df_border[df_border['frame_id'] == frame_id]
+                for index, box in border_boxes.iterrows():
+                    df_b = df_frame[
+                        ((df_frame['x2'] + df_frame['x1']) / 2 > box['x1']) &
+                        ((df_frame['x2'] + df_frame['x1']) / 2 < box['x2']) &
+                        ((df_frame['y2'] + df_frame['y1']) / 2 < box['y2']) &
+                        ((df_frame['y2'] + df_frame['y1']) / 2 > box['y1'])]
+                    plot_det.append(df_b)
+        else:
+            plot_det.append(df_frame)
+    if not len(plot_det):
+        raise Exception
+    return pd.concat(plot_det, axis=0)
+
+def clusters_into_values(df_res):
+    """
     :param df_res:
-    :return: count
+    :return: count ,empty, empty
     """
     fruits = 0
     for cluster_id, df_cluster in df_res.groupby('cluster'):
         frames_info = {'count': [], 'redness': []}
         for frame_id, df_frame in df_cluster.groupby('frame'):
-            if len(df_frame) <= 2:
+            if len(df_frame) < 2:
                 continue
             frames_info['count'].append(len(df_frame))
             red_count = df_frame[df_frame['color'] <= 3]['color'].count()
@@ -228,108 +204,22 @@ def filter_clusters(df_res):
         weighted_color = normed_count * frames_info['redness']
         redness_value = np.sum(weighted_color)
 
-
         # picking decision
-        if redness_value > 0.7:
+        if redness_value > 0:
             fruits += count_value
 
     return fruits, pd.Series(), pd.Series()
 
-
-def filter_trackers(df_res, dist_threshold):
-    """
-    Filter a DataFrame of image crops based on various criteria.
-
-    The function applies up to three filters to the input DataFrame, depending on the values of the "apply_filter_by_color",
-    "apply_filter_by_dist", and "min_samples" parameters. The filters are applied in the order: filter_by_color, filter_by_dist,
-    filter_by_min_samples, filter_by_location. If "apply_filter_by_color" is True, the filter_by_color function is applied to the input DataFrame.
-    If "apply_filter_by_dist" is True, the filter_by_dist function is applied to the input DataFrame. If "min_samples" is
-    greater than 0, the filter_by_min_samp function is applied to the input DataFrame. If "min_x1" > 0,
-     the input DataFrame will be cleaned from values with "x1" larger then min_x1.
-
-    Parameters
-    ----------
-    df_res : pandas.DataFrame
-        A DataFrame containing columns "distance", "track_id", "color", and any other columns with data on the image crops.
-
-    Returns
-    -------
-    filtered_df : pandas.DataFrame
-        A DataFrame containing the same columns as the input DataFrame, but with only the observations that passed the
-        specified filters.
-
-    """
-
-    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
-    if dist_threshold == 0:
-        _dist = get_intersection_point(df_res)
-        # print(f"{round(_dist, 3)}")
-    else:
-        _dist = dist_threshold
-    # df_res = df_res[df_res["distance"] < _dist]
-    # df_res = filter_df_by_min_samp(df_res,min_tracks=2) #150223,150323,200323 - foliage
-    # df_res = filter_df_by_color(df_res)
-    # df_res = df_res[df_res["x1"] > 50]
-    return df_res
-
-
-def trackers_into_values(df_res, df_tree=None, df_border=None, analyzer=None):
+def fruits_into_values(df_res):
     """
     :param df_res: df of all detections in a file
-    :param df_tree: df of relevent frame per tree and its start_x end_x , deafult is None in case that no subset of df_res is needed
     :return: counter, measures, colors_class
     """
 
-    def extract_tree_det():
-        margin = 0
-        for frame_id, df_frame in frames:
-            # filtter out first red fruit and above
-            # df_frame = bound_red_fruit(df_frame)
-            if df_frame.empty:
-                continue
-            if df_tree is not None:
-                frames_bounds = df_tree[df_tree['frame_id'] == frame_id].iloc[0]
-                df = df_frame[(df_frame['x2'] + margin > frames_bounds['start']) & (
-                        df_frame['x1'] < frames_bounds['end'] - margin)]
-                plot_det.append(df)
-                if df_border is not None:
-                    border_boxes = df_border[df_border['frame_id'] == frame_id]
-                    for index, box in border_boxes.iterrows():
-                        df_b = df_frame[
-                            ((df_frame['x2'] + df_frame['x1']) / 2 > box['x1']) &
-                            ((df_frame['x2'] + df_frame['x1']) / 2 < box['x2']) &
-                            ((df_frame['y2'] + df_frame['y1']) / 2 < box['y2']) &
-                            ((df_frame['y2'] + df_frame['y1']) / 2 > box['y1'])]
-                        plot_det.append(df_b)
-            else:
-                plot_det.append(df_frame)
-
-    plot_det = []
-    if df_tree is not None:
-        # phenotyping analysis
-        tree_frames = df_tree['frame_id'].unique()
-        frames = df_res[df_res['frame'].isin(tree_frames)].groupby('frame')
-        df_tree['end'].replace([-1], math.inf, inplace=True)
-    else:
-        # commercial analysis
-        frames = df_res.groupby('frame')
-    extract_tree_det()
-    if not len(plot_det):
-        return 0, pd.DataFrame({np.nan}), pd.DataFrame({np.nan})
-    df_res = pd.concat(plot_det, axis=0)
-
     counter, extract_ids = get_count_value(df_res)
-
     measures = get_size_set(df_res)
     colors_class = get_color_set(df_res)
-
-    if analyzer:
-        df_res['scan'] = analyzer.current_values['scan']
-        df_res['plot_id'] = analyzer.current_values['plot_id']
-        df_res['row'] = analyzer.current_values['row']
-        analyzer.set_df_debug_plots(df_res)
-        analyzer.set_active_tracks(extract_ids)
-    return counter, measures, colors_class
+    return counter, measures, colors_class, extract_ids
 
 
 def predict_weight_values(miu, sigma, observation=[]):

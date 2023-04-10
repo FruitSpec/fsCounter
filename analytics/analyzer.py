@@ -10,7 +10,8 @@ from analytics.tools.utils import *
 
 
 class Analyzer():
-    def __init__(self):
+    def __init__(self, customer):
+        self.customer = customer  # future implement
         self.map = OmegaConf.load(os.getcwd() + '/tools/mapping.yml')
         args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
         self.by_cluster = args.by_cluster
@@ -23,9 +24,14 @@ class Analyzer():
 
         self.side = None
         self.results = pd.DataFrame()
+        self.df_debug_plots = pd.DataFrame()
 
     @abstractmethod
     def run(self):
+        pass
+
+    @abstractmethod
+    def get_values(self, args):
         pass
 
     @abstractmethod
@@ -109,6 +115,9 @@ class Analyzer():
             return False
         return True
 
+    def set_df_debug_plots(self, df):
+        self.df_debug_plots = pd.concat([self.df_debug_plots, df], axis=0)
+
     def calc_diff_values(self, pre, post, plot_id):
         """
         Handling diff calcs between pre and post
@@ -165,33 +174,17 @@ class Analyzer():
     def get_results(self):
         return self.results
 
-    def get_values(self, args):
-        if type(args) != tuple:
-            df_res = filter_trackers(args, dist_threshold=0)
-            if self.by_cluster:
-                return filter_clusters(df_res)
-            else:
-                return trackers_into_values(df_res)
-        else:
-            df_res = filter_trackers(args[0], dist_threshold=0)
-            df_det = df_res[~df_res['track_id'].isin(self.active_tracks)]
-            if self.by_cluster:
-                return filter_clusters(df_det)
-            else:
-                return trackers_into_values(df_det, args[1], args[2], args[3])
-
 
 class phenotyping_analyzer(Analyzer):
     """
     analysis for phenotype needs
     """
 
-    def __init__(self):
-        super(phenotyping_analyzer, self).__init__()
-        self.indices = self.map[self.fruit_type].syngenta.phenotyping.rows
+    def __init__(self, customer):
+        super(phenotyping_analyzer, self).__init__(customer)
+        self.indices = self.map[self.fruit_type][customer].phenotyping.rows
         self.tree_plot_map = pd.read_csv(os.getcwd() + self.map.plot_code_map_path)
         self.active_tracks = []
-        self.df_debug_plots = pd.DataFrame()
 
     # slices validation
     def validation(self):
@@ -217,7 +210,7 @@ class phenotyping_analyzer(Analyzer):
                     print(f'{scan.split("/")[-1]} - {row} - {repr(e)}')
                     continue
 
-                GT_plots = self.map[self.fruit_type].syngenta.phenotyping.plot_per_row[row]
+                GT_plots = self.map[self.fruit_type][self.customer].phenotyping.plot_per_row[row]
                 if GT_plots == exist_plots:
                     print(f'{scan.split("/")[-1]} - {row} - completed!')
                 else:
@@ -235,12 +228,31 @@ class phenotyping_analyzer(Analyzer):
             return 0000
         return res
 
-    def set_df_debug_plots(self, df):
-        self.df_debug_plots = pd.concat([self.df_debug_plots, df], axis=0)
-
     def set_active_tracks(self, _ids):
         # ids to not use on the next plot process
         self.active_tracks = _ids
+
+    def get_values(self, args):
+        df_res = filter_trackers(args[0], dist_threshold=0)
+        df_res = df_res[~df_res['track_id'].isin(self.active_tracks)]
+        try:
+            df_res = extract_tree_dets(df_res, args[1], args[2])
+        except Exception:
+            return 0, pd.Series(), pd.Series()
+
+        # debug usage
+        df_res['scan'] = self.current_values['scan']
+        df_res['plot_id'] = self.current_values['plot_id']
+        df_res['row'] = self.current_values['row']
+        self.set_df_debug_plots(df_res)
+
+        if self.by_cluster:
+            return clusters_into_values(df_res)
+        else:
+
+            _counter, _measures, _colors_class, extract_ids = fruits_into_values(df_res)
+            self.set_active_tracks(extract_ids)
+            return _counter, _measures, _colors_class
 
     def get_dict_plots(self, path):
         """
@@ -276,7 +288,7 @@ class phenotyping_analyzer(Analyzer):
 
                 # condition on same track_id in 2 plots
                 self.current_values = {'row': row, 'plot_id': plot_id, 'scan': path.split('/')[-1]}
-                _counter, _size, _color = self.get_values((df_res, df_tree, df_border, self))
+                _counter, _size, _color = self.get_values((df_res, df_tree, df_border))
 
                 if not plot_id in dict_plots:
                     dict_plots[plot_id] = {'count': 0, 'size': [], 'color': []}
@@ -322,20 +334,27 @@ class commercial_analyzer(Analyzer):
     """
 
     def __init__(self, customer):
-        super(commercial_analyzer, self).__init__()
-        self.customer = customer  # future implement
+        super(commercial_analyzer, self).__init__(customer)
         self.indices = self.map[self.fruit_type][customer].commercial.rows
 
-    def get_aggregation(self, path, rows, measures_name):
+    def get_values(self, args):
+        df_res = filter_trackers(args, dist_threshold=0)
+        if self.by_cluster:
+            return clusters_into_values(df_res)
+        else:
+            _counter, _measures, _colors_class, extract_ids = fruits_into_values(df_res)
+            return _counter, _measures, _colors_class
+
+    def get_aggregation(self, path, rows):
         counter = 0
         size = pd.DataFrame()
         color = pd.DataFrame()
 
         for row in rows:
-            if not os.path.exists(os.path.join(path, row, measures_name)):
-                print(f"NO MEASURES FILE - {os.path.join(path, row, measures_name)} - REMOVED ")
+            if not os.path.exists(os.path.join(path, row, "measures.csv")):
+                print(f"NO MEASURES FILE - {os.path.join(path, row, 'measures.csv')} - REMOVED ")
                 continue
-            df_res = open_measures(os.path.join(path, row), measures_name)
+            df_res = open_measures(os.path.join(path, row), "measures.csv")
             _counter, _size, _color = self.get_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)
@@ -353,14 +372,14 @@ class commercial_analyzer(Analyzer):
         """
 
         def run_pre_post():
-            post = self.get_aggregation(self.scan_post, rows, 'measures.csv')
+            post = self.get_aggregation(self.scan_post, rows)
             # One of the file measures does not exist
 
             self.calc_diff_values(pre, post, key)
 
         for key, rows in self.indices.items():
             try:
-                pre = self.get_aggregation(self.scan_pre, rows, 'measures.csv')
+                pre = self.get_aggregation(self.scan_pre, rows)
                 if self.scan_post:
                     run_pre_post()
                 else:
