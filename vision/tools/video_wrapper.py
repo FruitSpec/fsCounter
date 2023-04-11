@@ -1,6 +1,7 @@
 import cv2
 import pyzed.sl as sl
 import numpy as np
+import copy
 
 
 class video_wrapper():
@@ -33,13 +34,15 @@ class video_wrapper():
 
         return rotation
 
-    def get_zed(self, frame_number=None):
+    def get_zed(self, frame_number=None, exclude_depth=False):
 
         if self.mode == 'svo':
             self.grab(frame_number)
             _, frame = self.get_frame()
-            depth = self.get_depth()
             point_cloud = self.get_point_cloud()
+            if exclude_depth:
+                return frame, point_cloud
+            depth = self.get_depth()
         else:
             Warning('Not implemented for file type')
             frame = None
@@ -65,7 +68,7 @@ class video_wrapper():
             if self.res:
                 self.cam.retrieve_image(self.mat, sl.VIEW.LEFT)
                 frame = self.mat.get_data()[:, :, : 3]
-                ret = True
+                ret = self.res
             else:
                 frame = None
                 ret = False
@@ -130,9 +133,15 @@ class video_wrapper():
         if self.mode == 'svo':
             ci = self.cam.get_camera_information()
             # camera is rotated - width is height
-            height = ci.camera_configuration.camera_resolution.width
+            if self.to_rotate:
+                height = ci.camera_configuration.camera_resolution.width
+            else:
+                height = ci.camera_configuration.camera_resolution.height
         else:
-            height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            if self.to_rotate:
+                height = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            else:
+                height = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         return height
 
@@ -140,9 +149,15 @@ class video_wrapper():
         if self.mode == 'svo':
             ci = self.cam.get_camera_information()
             # camera is rotated - height is width
-            width = ci.camera_configuration.camera_resolution.height
+            if self.to_rotate:
+                width = ci.camera_configuration.camera_resolution.height
+            else:
+                width = ci.camera_configuration.camera_resolution.width
         else:
-            width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            if self.to_rotate:
+                width = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            else:
+                width = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
         return width
 
     def rotate(self, frame):
@@ -158,6 +173,10 @@ class video_wrapper():
 
     def is_open(self):
         pass
+
+    def copy(self):
+        return copy.copy(self)
+
 
     @staticmethod
     def init_cam(filepath, depth_minimum=0.1, depth_maximum=2.5):
@@ -186,7 +205,7 @@ class video_wrapper():
         detection_parameters = sl.ObjectDetectionParameters()
         detection_parameters.detection_model = sl.DETECTION_MODEL.CUSTOM_BOX_OBJECTS
         detection_parameters.enable_tracking = False
-        detection_parameters.enable_mask_output = False
+        detection_parameters.enable_mask_output = True
         cam.enable_object_detection(detection_parameters)
         if status != sl.ERROR_CODE.SUCCESS:
             print(repr(status))

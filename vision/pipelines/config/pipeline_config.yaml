@@ -18,10 +18,7 @@ ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_6_Dec_202
 device: cuda
 
 input_size: [1024, 1024]
-
-dim_method: pix_size_median # with what method to get the dimensions, reg - old method, ellipsoid - ellipsoid fitting,
-                    #pix_size_median - by pixel size median, pix_size_mean - by pixel size mean, reg_kde - old method with kde filtering
-margin: 0.2 # the lower the margin the more pixels we take from the center
+batch_size: 4
 
 detector:
   confidence: 0.4
@@ -44,6 +41,8 @@ tracker:
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
+  debug: false
+
 
 translation:
   translation_size: 480

@@ -1,10 +1,8 @@
 import cv2
 import numpy as np
-import torch
-import kornia.feature as KF
-import kornia as K
+from concurrent.futures import ThreadPoolExecutor
+
 from vision.tools.image_stitching import find_keypoints, find_translation, keep_dets_only, resize_img
-from vision.visualization.loftr_drawer import draw_LAF_matches
 
 
 class translation():
@@ -21,10 +19,6 @@ class translation():
 
     def mode_init(self, mode):
         self.mode = mode
-        if mode == "LoFTR":
-            self.matcher = KF.LoFTR(pretrained="outdoor")
-        else:
-            self.matcher = None
 
 
     def get_translation(self, frames, detections, batch_size=1):
@@ -41,38 +35,93 @@ class translation():
         frame, r = resize_img(frame, self.translation_size)
         tx, ty = self.find_frame_translation(frame, r)
 
+        self.last_frame = frame.copy()
+
         return tx, ty
+
+    def batch_translation(self, batch, detections):
+        if self.mode == 'match':
+            output = self.batch_match(batch, detections)
+        elif self.mode == 'keypoints':
+            output = self.batch_keypoints(batch)
+        else:
+            raise Exception(f'{self.mode} is not implemented')
+
+        return output
+
+
+    def batch_match(self, batch, detections, workers=4):
+        batch_preproc_, r_ = self.preprocess_batch(batch, detections, workers=workers)
+
+        batch_last_frames = [self.last_frame]
+        for i in range(len(batch) - 1):
+            batch_last_frames.append(batch_preproc_[i])
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(self.find_match_translation, batch_last_frames, batch_preproc_, r_))
+
+        self.last_frame = batch_preproc_[-1].copy()
+
+        return results
+
+    def preprocess_batch(self, batch, detections, workers=4):
+        is_dets_only = [self.dets_only for i in range(len(batch))]
+        sizes = [self.translation_size for i in range(len(batch))]
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(self.frame_preprocess, batch, detections, sizes, is_dets_only))
+
+        output_frames = []
+        rs = []
+        for res in results:
+            output_frames.append(res[0])
+            rs.append(res[1])
+        return output_frames, rs
+
+    @staticmethod
+    def frame_preprocess(frame, detections, size, dets_only=True):
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        if dets_only:
+            frame = keep_dets_only(frame, detections)
+        frame, r = resize_img(frame, size)
+
+        return frame, r
+
 
 
     def find_frame_translation(self, frame, r):
 
         if self.mode == 'match':
-            tx, ty = self.find_match_translation(frame, r)
+            tx, ty = self.find_match_translation(self.last_frame, frame, r)
+            self.last_frame = frame.copy()
         elif self.mode == 'keypoints':
-            tx, ty = self.find_keypoint_translation(frame, r)
-        elif self.mode == 'LoFTR':
-            tx, ty = self.find_loftr_translation(frame, r)
+            tx, ty, kp, des = self.find_keypoint_translation(frame, r, last_kp=self.last_kp, last_des=self.last_des)
+            self.last_kp = kp
+            self.last_des = des
+
         return tx, ty
 
-    def find_keypoint_translation(self, frame, r):
+    @staticmethod
+    def find_keypoint_translation(frame, r, last_frame=None, last_kp=None, last_des=None):
 
         kp, des = find_keypoints(frame)
-        if self.last_kp is not None:
-            tx, ty, good, matches, matchesMask = find_translation(self.last_kp, self.last_des, kp, des, r)
+        # preferred - better runtime
+        if last_kp is not None and last_des is not None:
+            tx, ty, _, _, _ = find_translation(last_kp, last_des, kp, des, r)
+        elif last_frame is not None:
+            last_kp, last_des = find_keypoints(last_frame)
+            tx, ty, _, _, _ = find_translation(last_kp, last_des, kp, des, r)
+        else:
+            raise Exception("Input data is not enough to perform translation")
 
-        self.last_kp = kp
-        self.last_des = des
+        return tx, ty, kp, des
 
-        return tx, ty
+    @staticmethod
+    def find_match_translation(last_frame, frame, r):
 
-
-    def find_match_translation(self, frame, r):
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        if self.last_frame is not None:
+        if last_frame is not None:
             try:
                 # Apply template Matching
-                res = cv2.matchTemplate(self.last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
+                res = cv2.matchTemplate(last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
                 x_vec = np.mean(res, axis=0)
                 y_vec = np.mean(res, axis=1)
                 tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
@@ -82,66 +131,33 @@ class translation():
                 Warning('failed to match')
                 tx = None
                 ty = None
-
         else:
-            tx, ty = None, None
-
-        self.last_frame = frame
+            tx = None
+            ty = None
 
         return tx, ty
 
-    def find_loftr_translation(self, frame, r):
-
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame = K.image_to_tensor(frame, True).float() / 255.
-
-        if self.last_frame is not None:
-            #try:
-            input_dict = {"image0":  torch.unsqueeze(frame, dim=0),  # LofTR works on grayscale images only
-                          "image1": torch.unsqueeze(self.last_frame, dim=0)}
-            with torch.inference_mode():
-                correspondences = self.matcher(input_dict)
-
-            mkpts0 = correspondences['keypoints0'].cpu().numpy()
-            mkpts1 = correspondences['keypoints1'].cpu().numpy()
-            #Fm, inliers = cv2.findFundamentalMat(mkpts0, mkpts1, cv2.USAC_MAGSAC, 0.5, 0.999, 100000)
-            M, status = cv2.estimateAffine2D(mkpts0, mkpts1, ransacReprojThreshold=3)
-
-            tx = int(np.round(M[0, 2] / r))
-            ty = int(np.round(M[1, 2] / r))
-            #inliers = inliers > 0
-            #if self.debug_path is not None:
-            #    self.draw_loftr(frame, mkpts0, mkpts1, inliers, self.debug_path)
 
 
-            #except:
-            ##    Warning('failed to match')
-            #    tx = None
-            #    ty = None
 
-        else:
-            tx, ty = None, None
 
-        self.last_frame = frame
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         return tx, ty
-
-    def draw_loftr(self, frame, mkpts0, mkpts1, inliers):
-
-        draw_LAF_matches(
-            KF.laf_from_center_scale_ori(torch.from_numpy(mkpts0).view(1, -1, 2),
-                                         torch.ones(mkpts0.shape[0]).view(1, -1, 1, 1),
-                                         torch.ones(mkpts0.shape[0]).view(1, -1, 1)),
-
-            KF.laf_from_center_scale_ori(torch.from_numpy(mkpts1).view(1, -1, 2),
-                                         torch.ones(mkpts1.shape[0]).view(1, -1, 1, 1),
-                                         torch.ones(mkpts1.shape[0]).view(1, -1, 1)),
-            torch.arange(mkpts0.shape[0]).view(-1, 1).repeat(1, 2),
-            K.tensor_to_image(self.last_frame),
-            K.tensor_to_image(frame),
-            inliers,
-            debug_path = self.debug_path,
-            draw_dict={'inlier_color': (0.2, 1, 0.2),
-                       'tentative_color': None,
-                       'feature_color': (0.2, 0.5, 1), 'vertical': False})
 
