@@ -9,10 +9,11 @@ class Cluster():
         self.lost = 0
 
 class FruitCluster():
-    def __init__(self, max_single_fruit_dist=150, max_losses=5):
+    def __init__(self, max_single_fruit_dist=150, range_diff_threshold=0.05, max_losses=5):
         self.clusters = []
         self.cluster_id = 0
         self.max_single_fruit_dist = max_single_fruit_dist
+        self.range_diff_threshold = range_diff_threshold
         self.max_losses = max_losses
 
     def cluster(self, trk_results, ranges):
@@ -27,7 +28,7 @@ class FruitCluster():
         neighbors = []
         for t_dist, t_diff in zip(dist, diff):
             dist_bool = t_dist < self.max_single_fruit_dist
-            diff_bool = abs(t_diff) < 0.05
+            diff_bool = abs(t_diff) < self.range_diff_threshold
             t_id_neighbors = t_ids[dist_bool & diff_bool]
             neighbors.append(t_id_neighbors)
 

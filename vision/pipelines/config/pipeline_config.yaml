@@ -72,5 +72,7 @@ filters:
   depth: true # flag for using dynamic depth filter
 
 clusters:
-  min_single_fruit_distance: 150
+  max_single_fruit_dist: 150
+  range_diff_threshold: 0.05
+  max_losses: 5
 

@@ -27,7 +27,9 @@ def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
     translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-    fs = FruitCluster()
+    fs = FruitCluster(cfg.clusters.max_single_fruit_dist,
+                      cfg.clusters.range_diff_threshold,
+                      cfg.clusters.max_losses)
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
