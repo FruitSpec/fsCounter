@@ -55,7 +55,9 @@ class GUIInterface(Module):
         data, sender_module = GUIInterface.receiver.recv()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.Analysis:
-            GUIInterface.zed_state = GUIInterface.jai_state = DeviceStates.ON if data else DeviceStates.OFF
+            jai_connected, zed_connected = data
+            GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
+            GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
             logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
                                       f" ZED -> {GUIInterface.zed_state}")
 

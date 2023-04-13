@@ -1,16 +1,18 @@
 import logging
 import os
 import threading
+from datetime import datetime
 from builtins import staticmethod
 from application.utils.settings import GPS_conf, conf, analysis_conf, data_conf
 from application.utils.module_wrapper import ModulesEnum, Module
-import netifaces
-import time
 import jaized
 import signal
+import cv2
+import numpy as np
 
 
 class AcquisitionManager(Module):
+    is_started = False
     jz_recorder = None
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
@@ -26,14 +28,13 @@ class AcquisitionManager(Module):
         AcquisitionManager.set_acquisition_parameters()
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.connect_cameras()
-        while not AcquisitionManager.shutdown_done_event.is_set():
-            time.sleep(10)
+        AcquisitionManager.pop_frames()
 
     @staticmethod
     def connect_cameras():
-        is_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
-                                                                      AcquisitionManager.debug_mode)
-        AcquisitionManager.send_data("is connected", is_connected, ModulesEnum.GUI)
+        jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
+                                                                                      AcquisitionManager.debug_mode)
+        AcquisitionManager.send_data("is connected", (jai_connected, zed_connected), ModulesEnum.GUI)
 
     @staticmethod
     def set_acquisition_parameters(data=None):
@@ -48,7 +49,8 @@ class AcquisitionManager(Module):
                 camera_data = analysis_conf["custom acquisition parameters"]
                 output_types = camera_data["default output types"]
         else:
-            AcquisitionManager.output_dir = os.path.join(data["outputPath"], data["plot"], data["row"])
+            today = datetime.now().strftime("%d%m%y")
+            AcquisitionManager.output_dir = os.path.join(data["outputPath"], data["plot"], today, f"row_{data['row']}")
             if 'Default' in data['configType']:
                 weather = data['weather']
                 camera_data = analysis_conf["default acquisition parameters"][weather]
@@ -91,9 +93,11 @@ class AcquisitionManager(Module):
                                       AcquisitionManager.output_975, AcquisitionManager.output_svo,
                                       AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
                                       AcquisitionManager.debug_mode)
+                AcquisitionManager.is_started = True
             else:
                 logging.info("STOP RECORDING FROM GPS")
                 AcquisitionManager.jz_recorder.stop_acquisition()
+                AcquisitionManager.is_started = False
         elif sender_module == ModulesEnum.GUI:
             if action == "start":
                 logging.info("START RECORDING FROM GUI")
@@ -103,9 +107,17 @@ class AcquisitionManager(Module):
                     AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_fsi,
                     AcquisitionManager.output_rgb, AcquisitionManager.output_800, AcquisitionManager.output_975,
                     AcquisitionManager.output_svo, AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
-                    AcquisitionManager.debug_mode),
+                    AcquisitionManager.debug_mode)
+                AcquisitionManager.is_started = True
             elif action == "stop":
                 AcquisitionManager.jz_recorder.stop_acquisition()
+                AcquisitionManager.is_started = False
                 logging.info("STOP RECORDING FROM GUI")
 
-
+    @staticmethod
+    def pop_frames():
+        while not AcquisitionManager.shutdown_done_event.is_set():
+            if AcquisitionManager.is_started:
+                A = AcquisitionManager.jz_recorder.pop()
+            else:
+                continue
