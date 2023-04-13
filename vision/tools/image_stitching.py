@@ -233,6 +233,24 @@ def calc_affine_transform(kp1, kp2, match):
     return M, status
 
 
+def affine_to_values(M):
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, np.nan, np.nan
+    if np.isnan(M[0, 2]) or np.isnan(M[1, 2]):
+        return np.nan, np.nan, np.nan, np.nan
+    sx = np.sqrt(M[0, 0] ** 2 + M[0, 1] ** 2)
+    sy = np.sqrt(M[1, 0] ** 2 + M[1, 1] ** 2)
+    tx = np.round(M[0, 2]).astype(np.int)
+    ty = np.round(M[1, 2]).astype(np.int)
+    return tx, ty, sx, sy
+
+def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20, fixed_scaling=False):
+    match = match_descriptors(des_zed, des_jai) # more than 90$ of time
+    M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac, fixed_scaling)
+
+    return M, st, match
+
+
 def calc_homography(kp1, kp2, match):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
@@ -240,6 +258,13 @@ def calc_homography(kp1, kp2, match):
     M, status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
 
     return M, status
+
+
+def get_affine_homography(kp1, kp2, des1, des2):
+    match = match_descriptors(des1, des2)
+    M, st = calc_homography(kp1, kp2, match)
+
+    return M, st
 
 
 def trim(frame):

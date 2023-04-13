@@ -7,8 +7,13 @@ from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
 
 
-def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
-    files = os.listdir(folder)
+def aggraegate_coco_files(jsons_folder, images_folder, output_folder, categories=['fruit'], ver=1, type='jai'):
+    expected_dims = [2048, 1536] if type=='jai' else [1920, 1080]
+
+    # x_factor = expected_dims[1] / expected_dims[0]
+    # y_factor = expected_dims[0] / expected_dims[1]
+
+    files = os.listdir(jsons_folder)
     img_id = 0
     ann_id = 0
     images = []
@@ -22,21 +27,40 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
         old_img_id_to_new = {}
 
         for image in cur_images:
-            old_img_id_to_new[image['id']] = img_id
-            new_image = {"id": img_id,
-                     "license": 1,
-                     "file_name": image['file_name'],
-                     "height": image['height'],
-                     "width": image['width']
-                     }
-            img_id += 1
-            images.append(new_image)
+            path_to_image = os.path.join(images_folder, image['file_name'])
+            if os.path.exists(path_to_image):
+                res = align_image(path_to_image, expected_dims, 'counterclockwise')
+                if res:
+                    aligned.append(image['id'])
+
+                old_img_id_to_new[image['id']] = img_id
+                new_image = {"id": img_id,
+                         "license": 1,
+                         "file_name": image['file_name'],
+                         "height": expected_dims[0],
+                         "width": expected_dims[1]
+                         }
+                img_id += 1
+                images.append(new_image)
+            else:
+                not_existing.append(image['id'])
 
         for ann in cur_ann:
+            bbox = ann["bbox"].copy()
+            if ann['image_id'] in not_existing:
+                continue
+            if ann['image_id'] in aligned:  # need to rotate coordinates
+ #               # for counterclock wise
+                old_bbox = bbox.copy()
+                bbox[0] = old_bbox[0] / expected_dims[0] * expected_dims[1]
+                bbox[1] = old_bbox[1] / expected_dims[1] * expected_dims[0]
+ #               bbox[2] = old_bbox[3]
+ #               bbox[3] = old_bbox[2]
+
             new_ann = {"id": ann_id,
                        "image_id": old_img_id_to_new[ann['image_id']],
                        "category_id": 0,
-                       "bbox": ann["bbox"],
+                       "bbox": bbox,
                        "area": ann['area'],
                        "segmentation": [],
                        "iscrowd": 0}
