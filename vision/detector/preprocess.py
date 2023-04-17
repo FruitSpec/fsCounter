@@ -20,7 +20,7 @@ class Preprocess():
     def __call__(self, image):
 
         preprc_frame = self.transform(image)
-        preprc_frame = torch.unsqueeze(preprc_frame, dim=0)
+        #preprc_frame = torch.unsqueeze(preprc_frame, dim=0)
         preprc_frame = preprc_frame.to(self.device)
 
         return preprc_frame

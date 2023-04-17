@@ -1,5 +1,6 @@
 import os
 import shutil
+import json
 
 def scale(det_dims, frame_dims):
     r = min(det_dims[0] / frame_dims[0], det_dims[1] / frame_dims[1])
@@ -22,11 +23,15 @@ def scale_det(detection, scale_):
 
 
 def scale_dets(det_outputs, scale_):
-    if det_outputs[0] is None:
-        dets = list()
-    else:
-        scales = [scale_ for _ in det_outputs[0]]
-        dets = list(map(scale_det, det_outputs[0].cpu().numpy(), scales))
+
+    dets = []
+    for frame_dets in det_outputs:
+        if frame_dets is None:
+            dets.append([])
+        else:
+            scales = [scale_ for _ in frame_dets]
+            scaled_dets = list(map(scale_det, frame_dets.cpu().numpy(), scales))
+            dets.append(scaled_dets)
 
     return dets
 

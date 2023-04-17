@@ -2,9 +2,9 @@ import pyzed.sl as sl
 import cv2
 import numpy as np
 from scipy.stats import gaussian_kde
-import kornia as K
-from vision.tools.image_stitching import plot_2_imgs
-from vision.tools.color import hue_filtering
+#import kornia as K
+#from vision.tools.image_stitching import plot_2_imgs
+#from vision.tools.color import hue_filtering
 def get_frame(frame_mat, cam):
     cam.retrieve_image(frame_mat, sl.VIEW.LEFT)
     frame = frame_mat.get_data()[:, :, : 3]
@@ -277,7 +277,8 @@ def apply_sobol(det_crop, plot_change=False):
     torch_img_gray = K.color.rgb_to_grayscale(torch_img)
     processed_img = K.filters.sobel(torch_img_gray, True, 1e-3)  # BxCx2xHxW
     if plot_change:
-        plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
+        pass
+#        plot_2_imgs(det_crop, processed_img.detach().numpy()[0, 0] > 0.05)
     return processed_img
 
 
