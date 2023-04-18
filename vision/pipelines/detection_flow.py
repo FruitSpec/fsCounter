@@ -20,16 +20,13 @@ class counter_detection():
     def __init__(self, cfg, args):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
-
         self.detector = self.init_detector(cfg)
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
-
         self.tracker = self.init_tracker(cfg, args)
-
         self.device = cfg.device
 
     @staticmethod
@@ -37,15 +34,35 @@ class counter_detection():
         exp = get_exp(cfg.exp_file)
         model = exp.get_model()
 
-        print("loading checkpoint from {}".format(cfg.ckpt_file))
-        ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
-        model.load_state_dict(ckpt["model"])
-        print("loaded checkpoint done.")
+        ##############################################################################
         model.cuda(cfg.device)
+
+        if cfg.detector.fp16:   # can only run on gpu
+            model.half()
+
         model.eval()
 
-        if cfg.detector.fp16:
-            model.half()
+        global decoder_        # bad practice?
+        decoder_= None
+
+        if not cfg.detector.trt:
+
+            print("loading checkpoint from {}".format(cfg.ckpt_file))
+            ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
+            model.load_state_dict(ckpt["model"])
+            print("loaded checkpoint done.")
+
+        if cfg.detector.trt:
+            model.head.decode_in_inference = False
+            decoder_ = model.head.decode_outputs
+
+            from torch2trt import TRTModule
+            model_trt = TRTModule()
+            model_trt.load_state_dict(torch.load(cfg.ckpt_file))
+            print("loaded TensorRT model.")
+            x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+            model(x)
+            model = model_trt
 
         return model
 
@@ -72,6 +89,8 @@ class counter_detection():
 
         with torch.no_grad():
             output = self.detector(input_)
+            if decoder_ is not None:
+                output = decoder_(output, dtype=output.type())
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
