@@ -8,10 +8,10 @@ from concurrent.futures import ThreadPoolExecutor
 import matplotlib.pyplot as plt
 
 from vision.tools.image_stitching import (resize_img, find_keypoints, get_affine_homography, affine_to_values,
-                                          get_fine_keypoints, get_fine_translation, get_affine_matrix,
-                                          get_fine_affine_translation, find_loftr_translation)
-from vision.tools.image_stitching import calc_affine_transform, calc_homography, plot_2_imgs
-from vision.feature_extractor.image_processing import multi_convert_gray
+                                          get_fine_keypoints, get_fine_translation, get_affine_matrix)
+                                          #get_fine_affine_translation, find_loftr_translation)
+#from vision.tools.image_stitching import calc_affine_transform, calc_homography, plot_2_imgs
+#from vision.feature_extractor.image_processing import multi_convert_gray
 import seaborn as sns
 #import cupy as cp
 np.random.seed(123)

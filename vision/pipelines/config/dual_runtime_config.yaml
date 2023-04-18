@@ -1,15 +1,29 @@
-output_folder: /home/yotam/FruitSpec/Sandbox/Syngenta/pepper/3
-rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+output_folder: /home/matan/FruitSpec/Sandbox/Counter/t_1704
+slice_data_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
+frame_drop_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/frame_drop_1.log
+debug_folder: $(output_folder)/debbug
+rotate: false
+zed_shift: 0 # default 0
+max_z: 8
+overwrite:
+  adt: false
+  trees: false
+create_full_features: true
 
 zed:
-  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/081122/PRE/3/ZED_1.svo
+  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1.svo
   frame_size: [1920, 1080]
-  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
-  depth_minimum: 0.1 # 1 counter
-  depth_maximum: 2.5 # 8 counter
+  rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  depth_minimum: 0.5 # 1 counter
+  depth_maximum: 20 # 8 counter
 
 jai:
-  movie_path: /media/yotam/Extreme SSD/syngenta trail/pepper/291122/PRE/4/Result_FSI_1.mkv
+  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_FSI_1.mkv
+  frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+
+rgb_jai:
+  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_RGB_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
@@ -17,6 +31,29 @@ frame_size: [2048, 1536]
 
 debug:
   tracker: None
+  trees: false
+  features: false
+  align_graph: true
+  run_type: RGB_siftv1_kp_equalize # align graph naming
 
+sensor_aligner:
+  zed_angles: [ 110, 70 ]
+  jai_angles: [ 62, 62 ]
+  use_fine: false #use fine translation
+  zed_roi_params: {y_s: 250, y_e: 1650, x_s: 0, x_e: 1080} # jai search region in zed
+#  zed_roi_params: {y_s: 259, y_e: 1485, x_s: 29, x_e: 949} # jai search region in zed
+  median_thresh: 50 # if median of image is smaller then value will normalization image
+  remove_high_blues: false # flag for removing sky from picture
+  apply_normalization: false # flag for normalaizing the channels
+  size: 720 #what size to resize image to
+  fixed_scaling: false # if true will not calculate scale, only tx, ty
+  apply_equalization: false
+  affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
+  ransac: 20
+  debug:
+    preprocess: false
+    keypoints: false
+    kde: false
+    homography: false
 
 

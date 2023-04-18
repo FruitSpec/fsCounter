@@ -189,11 +189,11 @@ def features_to_translation(kp1, kp2, des1, des2):
 
     return M, status, good, matches, matchesMask
 
-def find_keypoints(img):
-    detector = cv2.SIFT_create()
-    #detector = cv2.ORB_create()
-    # find key points
-    kp, des = detector.detectAndCompute(img, None)
+
+def find_keypoints(img, matcher=None):
+    if matcher is None:
+        matcher = cv2.SIFT_create()
+    kp, des = matcher.detectAndCompute(img, None)
 
     return kp, des
 
@@ -220,12 +220,12 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     return match, matches, matchesMask
 
 
-def calc_affine_transform(kp1, kp2, match):
+def calc_affine_transform(kp1, kp2, match, ransac):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
-        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=7)
+        M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=ransac)
     else:
         M, status = None, [0]
 
@@ -245,8 +245,8 @@ def affine_to_values(M):
     return tx, ty, sx, sy
 
 def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20, fixed_scaling=False):
-    match = match_descriptors(des_zed, des_jai) # more than 90$ of time
-    M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac, fixed_scaling)
+    match, _, _ = match_descriptors(des_zed, des_jai) # more than 90$ of time
+    M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
 
     return M, st, match
 
