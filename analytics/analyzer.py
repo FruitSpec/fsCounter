@@ -263,7 +263,7 @@ class phenotyping_analyzer(Analyzer):
         def get_sets(row):
             row_path = os.path.join(path, row)
             if os.path.exists(os.path.join(path, row, 'measures.csv')):
-                df_res = open_measures(row_path, 'measures.csv')
+                df_res = open_measures(row_path)
                 trees, borders = get_trees(row_path)
             else:
                 print(f"NO MEASURES FILE - {os.path.join(path, row, 'measures.csv')} - PLOTS' ROW REMOVED ")
@@ -354,7 +354,7 @@ class commercial_analyzer(Analyzer):
             if not os.path.exists(os.path.join(path, row, "measures.csv")):
                 print(f"NO MEASURES FILE - {os.path.join(path, row, 'measures.csv')} - REMOVED ")
                 continue
-            df_res = open_measures(os.path.join(path, row), "measures.csv")
+            df_res = open_measures(os.path.join(path, row))
             _counter, _size, _color = self.get_values(df_res)
             counter += _counter
             size = pd.concat([size, _size], axis=0)

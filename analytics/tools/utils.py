@@ -8,9 +8,8 @@ from sklearn.mixture import GaussianMixture
 import matplotlib.pyplot as plt
 
 
-def open_measures(path, measures_name='measures.csv'):
-    df = pd.read_csv(os.path.join(path, 'measures_pix_size_median_2_hue_depth.csv'))
-    # df = pd.read_csv(os.path.join(path, 'measures.csv'))
+def open_measures(path):
+    df = pd.read_csv(os.path.join(path, 'measures.csv'))
     return df
 
 

@@ -14,7 +14,6 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.ops.fruit_cluster import FruitCluster
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
-from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
 from vision.tools.camera import is_sturated
@@ -69,15 +68,9 @@ def run(cfg, args):
         # clutser:
         filtered_outputs = fs.cluster(filtered_outputs, ranges)
 
-        # sort out
-        #indices_out = list(set(range(len(trk_outputs))) - (set(indices_in_distance)))
-        #trk_outputs, trk_windows = sort_out(trk_outputs, trk_windows, indices_out)
-
-
         # measure:
         colors, hists_hue = get_colors(filtered_outputs, frame)
         dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
-        # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
@@ -92,10 +85,8 @@ def run(cfg, args):
 
     # When everything done, release the video capture object
     cam.close()
-    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
-    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
-    #detector.release()
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
+    detector.release()
 
 
 def get_id_and_categories(cfg):
