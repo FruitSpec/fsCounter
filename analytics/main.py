@@ -1,64 +1,45 @@
 from analytics.analyzer import *
 from analytics.tools.realtime_pipline import run_real_time
-import time
+from analytics.tools.debug_pp import debug_plots
 
 
-def main_config(
-        configs_folder="/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/size_comparison_pipe",
-        skip_both=False, analyze=True, finished=[], analyze_only=False):
+def accuracy(df, args):
     """
-    this function is for running multiple configurations in order to compare them
-    :param configs_folder: folder with different configuration files
-    :param skip_both: flag if cfg in finished will skip analyzer as well
-    :param analyze: flag for running alanyzer
-    :param finished: files to pass
-    :param analyze_only: flag for running only the analysis
+    according gt data calc FS accuracy
+    :param df: fs results
+    :param args: run directories
     :return:
     """
-    args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    for cfg in os.listdir(configs_folder):
-        cfg_path = os.path.join(configs_folder, cfg)
-        if not cfg in finished and not analyze_only:
-            s_t = time.time()
-            run_real_time(2, cfg_path)
-            print("total time: ", time.time() - s_t)
-        elif skip_both:
-            continue
-        if not analyze:
-            continue
-        suffix = f'{cfg[cfg.index("_", cfg.index("_") + 1):].split(".")[0]}.csv'
-        measures_name = f'measures{suffix}'
-        analysis = [phenotyping_analyzer('side1', measures_name),
-                    phenotyping_analyzer('side2', measures_name),
-                    commercial_analyzer('side1', measures_name),
-                    commercial_analyzer('side2', measures_name)]
-        df = pd.DataFrame()
-        for obj in analysis:
-            if obj.validation() == False:
-                continue
-            obj.run()
-            df = pd.concat([df, obj.get_results()], axis=0)
-        df.to_csv(os.path.join(args.output_path, f'results{suffix}'), index=False)
-    print("finito")
+    gt_df = pd.read_csv(os.path.join(args.output_path, f'{args.scan_date}.csv'))
+    acc_df = df.merge(gt_df, how='left', on=['plot_id'])
+    acc_df['error_total_w'] = (acc_df['GT-TOTAL-W'] - acc_df['total_weight_kg']) / acc_df['GT-TOTAL-W']
+    acc_df['error_count'] = (acc_df['GT-Count'] - acc_df['count']) / acc_df['GT-Count']
+    acc_df['error_weight'] = (acc_df['GT-Weight'] - acc_df['weight_avg_gr']) / acc_df['GT-Weight']
+    acc_df.to_csv(os.path.join(args.output_path, 'accuracy.csv'), index=False)
+    print(acc_df[['plot_id', 'error_count', 'error_weight', 'error_total_w']])
 
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    run_real_time()
-    analysis = [phenotyping_analyzer('side1'),
-                phenotyping_analyzer('side2'),
-                commercial_analyzer('side1'),
-                commercial_analyzer('side2')]
+    # run_real_time()
+    analysis = [
+        phenotyping_analyzer(args.customer),
+        commercial_analyzer(args.customer)
+    ]
     df = pd.DataFrame()
     for obj in analysis:
         if obj.validation() == False:
             continue
         obj.run()
         df = pd.concat([df, obj.get_results()], axis=0)
+
+        if type(obj) == phenotyping_analyzer:
+            pass
+            # debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
+    print(df)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
-    print("finito")
+    # accuracy(df, args)
 
 
 if __name__ == "__main__":
-    main_config(skip_both=False, analyze=True, finished=[], analyze_only=True)
-    # main_config("/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/pipelines/config/report", analyze_only=True)
+    main()

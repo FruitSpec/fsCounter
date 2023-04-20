@@ -17,7 +17,7 @@ def draw_highlighted_test(frame, text, start_point, width, bgd_color, frpmt_colo
         #txt_s = start_point[1] + box_h_margin
         txt_s = int(rect_s + box_h_margin)
 
-    frame = draw_rectangle(frame, (x_s, rect_s), (x_end, rect_end), bgd_color, -1)
+    frame = draw_rectangle(frame, (x_s, rect_s), (x_end, rect_end), bgd_color, thickness)
     frame = draw_text(frame, text, (x_s, txt_s), width, frpmt_color, False, font_scale, thickness, factor)
 
     return frame

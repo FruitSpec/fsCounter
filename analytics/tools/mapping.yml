@@ -1,9 +1,18 @@
 plot_code_map_path: /config/Map_trees_to_plot.csv
 tomato:
-  phenotyping:
-    plot_per_row: { '7': 12,'8': 12,'9': 13,'10': 15,'11': 15,'18': 8,'19': 8,'20': 8,'21': 8 }
-    side1: ['9','11','7','19','21']
-    side2: ['9','10','8','18','20']
-  commercial:
-    side1: {"GAM31":['12', '6'],"GAM29":['14','4'],"GAM27":['16','2']}
-    side2: {"GAM31":['13', '5'],"GAM29":['15','3'],"GAM27":['17','1']}
+  syngenta:
+    phenotyping:
+      plot_per_row: { '7': 12,'8': 12,'9': 13,'10': 15,'11': 15,'18': 8,'19': 8,'20': 8,'21': 8 }
+      rows: [ '7', '8','9','10','11','18','19','20','21' ]
+    commercial:
+      rows: { "GAM31": [ '12','13', '6','5' ],"GAM29": [ '14','15','3','4' ],"GAM27": [ '16','17','1','2' ] }
+  arugga:
+    commercial:
+      rows: { "run1": [ '1' ],"run2": [ '2' ],"run3": [ '3' ], "run4": [ '4' ], "run5": [ '5' ],"run6": [ '6' ] }
+  trials:
+    phenotyping:
+      plot_per_row: { '30': 4,'31': 4 }
+      rows: [ '30','31' ]
+    commercial:
+      rows: { }
+
