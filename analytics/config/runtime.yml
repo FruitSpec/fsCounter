@@ -2,7 +2,7 @@ pre_post: false
 customer: syngenta
 fruit_type: tomato
 by_cluster: true
-scan_date: '290323'
+scan_date: '150223'
 main_path_com: /media/fruitspec-lab/Extreme SSD/syngenta trail
 analysis_path: ${main_path_com}/${fruit_type}/analysis/${scan_date}
 output_path: ${main_path_com}/${fruit_type}/analysis/${scan_date}

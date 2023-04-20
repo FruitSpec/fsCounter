@@ -15,10 +15,10 @@ debug:
   tracker_windows: false
   tracker_results: false
   det_results: false
-  raw_frame: true
+  raw_frame: false
   depth: false
   tracker: None
-  clusters: true
+  clusters: false
   hue_histogram: false
-  annotate: true
+  annotate: false
 

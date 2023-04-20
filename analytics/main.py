@@ -21,7 +21,7 @@ def accuracy(df, args):
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    # run_real_time()
+    run_real_time()
     analysis = [
         phenotyping_analyzer(args.customer),
         commercial_analyzer(args.customer)
