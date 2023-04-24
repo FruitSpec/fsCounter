@@ -137,15 +137,15 @@ def filter_df_by_min_samp(df_res, min_tracks):
 
 
 def filter_trackers(df_res, dist_threshold):
-    # df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
+    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
     if dist_threshold == 0:
         _dist = get_intersection_point(df_res)
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]
-    df_res = filter_df_by_min_samp(df_res, min_tracks=2)  # 150223,150323,200323 - foliage
+    # df_res = filter_df_by_min_samp(df_res, min_tracks=2)  # 150223,150323,200323 - foliage
     # df_res = filter_df_by_color(df_res)
-    df_res = df_res[df_res["x1"] > 200]
+    # df_res = df_res[df_res["x1"] > 200]
     return df_res
 
 
@@ -202,7 +202,7 @@ def clusters_into_values(df_res):
         redness_value = np.sum(weighted_color)
 
         # picking decision
-        if redness_value > 0:
+        if redness_value > 0.8:
             fruits += count_value
 
     return fruits, pd.Series(dtype=float), pd.Series(dtype=float)
