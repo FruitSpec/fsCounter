@@ -1,19 +1,21 @@
 import logging
 import os
 import threading
+import time
+import signal
 from datetime import datetime
 from builtins import staticmethod
 from application.utils.settings import GPS_conf, conf, analysis_conf, data_conf
-from application.utils.module_wrapper import ModulesEnum, Module
+from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
+from application.Analysis import batcher
 import jaized
-import signal
 import cv2
 import numpy as np
 
 
 class AcquisitionManager(Module):
-    is_started = False
-    jz_recorder = None
+    acquisition_start_event = threading.Event()
+    jz_recorder, batcher = None, None
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     output_dir = ""
@@ -28,13 +30,32 @@ class AcquisitionManager(Module):
         AcquisitionManager.set_acquisition_parameters()
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.connect_cameras()
-        AcquisitionManager.pop_frames()
+        AcquisitionManager.batcher = batcher.Batcher(AcquisitionManager.jz_recorder)
+        AcquisitionManager.batcher.prepare_batches()
 
     @staticmethod
     def connect_cameras():
         jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
                                                                                       AcquisitionManager.debug_mode)
-        AcquisitionManager.send_data("is connected", (jai_connected, zed_connected), ModulesEnum.GUI)
+        AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
+                                     ModulesEnum.GUI)
+        
+    @staticmethod
+    def start_acquisition(acquisition_parameters=None):
+        AcquisitionManager.set_acquisition_parameters(acquisition_parameters)
+        AcquisitionManager.jz_recorder.start_acquisition(
+            AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
+            AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_fsi,
+            AcquisitionManager.output_rgb, AcquisitionManager.output_800, AcquisitionManager.output_975,
+            AcquisitionManager.output_svo, AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
+            AcquisitionManager.debug_mode
+        )
+        AcquisitionManager.batcher.start_acquisition()
+
+    @staticmethod
+    def stop_acquisition():
+        AcquisitionManager.jz_recorder.stop_acquisition()
+        AcquisitionManager.batcher.stop_acquisition()
 
     @staticmethod
     def set_acquisition_parameters(data=None):
@@ -50,7 +71,10 @@ class AcquisitionManager(Module):
                 output_types = camera_data["default output types"]
         else:
             today = datetime.now().strftime("%d%m%y")
-            AcquisitionManager.output_dir = os.path.join(data["outputPath"], data["plot"], today, f"row_{data['row']}")
+            plot = data["plot"]
+            row = f"row_{data['row']}"
+            f"row_{data['row']}"
+            AcquisitionManager.output_dir = os.path.join(data["outputPath"], conf["customer code"], plot, today, row)
             if 'Default' in data['configType']:
                 weather = data['weather']
                 camera_data = analysis_conf["default acquisition parameters"][weather]
@@ -71,7 +95,7 @@ class AcquisitionManager(Module):
         AcquisitionManager.output_975 = '975' in output_types
         AcquisitionManager.output_svo = 'svo' in output_types
         AcquisitionManager.view = False
-        AcquisitionManager.use_clahe_stretch = False
+        AcquisitionManager.use_clahe_stretch = True
         AcquisitionManager.debug_mode = True
 
         if not os.path.exists(AcquisitionManager.output_dir):
@@ -81,43 +105,29 @@ class AcquisitionManager(Module):
     def receive_data(sig, frame):
         data, sender_module = AcquisitionManager.receiver.recv()
         action, data = data["action"], data["data"]
+        global_polygon = GPS_conf["global polygon"]
         if sender_module == ModulesEnum.GPS:
-            if data != GPS_conf["global polygon"]:
-                logging.info("START RECORDING FROM GPS")
-                AcquisitionManager.set_acquisition_parameters()
-                AcquisitionManager.jz_recorder.\
-                    start_acquisition(AcquisitionManager.fps, AcquisitionManager.exposure_rgb,
-                                      AcquisitionManager.exposure_800, AcquisitionManager.exposure_975,
-                                      AcquisitionManager.output_dir, AcquisitionManager.output_fsi,
-                                      AcquisitionManager.output_rgb, AcquisitionManager.output_800,
-                                      AcquisitionManager.output_975, AcquisitionManager.output_svo,
-                                      AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
-                                      AcquisitionManager.debug_mode)
-                AcquisitionManager.is_started = True
+            if data != global_polygon:
+                logging.info("START ACQUISITION FROM GPS")
+                AcquisitionManager.start_acquisition()
             else:
-                logging.info("STOP RECORDING FROM GPS")
-                AcquisitionManager.jz_recorder.stop_acquisition()
-                AcquisitionManager.is_started = False
+                AcquisitionManager.stop_acquisition()
+                logging.info("STOP ACQUISITION FROM GPS")
         elif sender_module == ModulesEnum.GUI:
-            if action == "start":
-                logging.info("START RECORDING FROM GUI")
-                AcquisitionManager.set_acquisition_parameters(data)
-                AcquisitionManager.jz_recorder.start_acquisition(
-                    AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
-                    AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_fsi,
-                    AcquisitionManager.output_rgb, AcquisitionManager.output_800, AcquisitionManager.output_975,
-                    AcquisitionManager.output_svo, AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
-                    AcquisitionManager.debug_mode)
-                AcquisitionManager.is_started = True
-            elif action == "stop":
-                AcquisitionManager.jz_recorder.stop_acquisition()
-                AcquisitionManager.is_started = False
-                logging.info("STOP RECORDING FROM GUI")
+            if action == ModuleTransferAction.START_ACQUISITION:
+                logging.info("START ACQUISITION FROM GUI")
+                AcquisitionManager.start_acquisition(acquisition_parameters=data)
+            elif action == ModuleTransferAction.STOP_ACQUISITION:
+                AcquisitionManager.stop_acquisition()
+                logging.info("STOP ACQUISITION FROM GUI")
 
     @staticmethod
     def pop_frames():
         while not AcquisitionManager.shutdown_done_event.is_set():
-            if AcquisitionManager.is_started:
-                A = AcquisitionManager.jz_recorder.pop()
-            else:
-                continue
+            AcquisitionManager.acquisition_start_event.wait()
+            jai_frame = AcquisitionManager.jz_recorder.pop_jai()
+            zed_frame = AcquisitionManager.jz_recorder.pop_zed()
+            # if jai_frame.frame_number % 50 == 0:
+            #     cv2.destroyAllWindows()
+            #     cv2.imshow("mat", jai_frame.frame)
+            #     cv2.waitKey(1000)

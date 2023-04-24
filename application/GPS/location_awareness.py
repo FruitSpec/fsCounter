@@ -5,7 +5,7 @@ from builtins import staticmethod
 import boto3
 
 from application.utils.settings import GPS_conf, conf
-from application.utils.module_wrapper import ModulesEnum, Module
+from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 from fscloudutils.utils import NavParser
 import time
@@ -92,7 +92,7 @@ class GPSSampler(Module):
             if not data:
                 continue
             scan_date = datetime.now().strftime("%d%m%y")
-            timestamp = datetime.now().strftime("%H:%M:%S")
+            timestamp = datetime.now().strftime("%H:%M:%S.%f")
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
@@ -115,7 +115,7 @@ class GPSSampler(Module):
                 )
 
                 if sample_count % 30 == 0:
-                    GPSSampler.send_data("nav data", gps_data, ModulesEnum.DataManager)
+                    GPSSampler.send_data(ModuleTransferAction.NAV, gps_data, ModulesEnum.DataManager)
                     gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
@@ -165,9 +165,9 @@ class GPSSampler(Module):
     @staticmethod
     def step_in():
         logging.info(f"STEP IN {GPSSampler.current_plot}")
-        GPSSampler.send_data("block switch", GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
+        # GPSSampler.send_data(ModuleTransferAction.BLOCK_SWITCH, GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
 
     @staticmethod
     def step_out():
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
-        GPSSampler.send_data("block switch", GPSSampler.global_polygon, ModulesEnum.Analysis)
+        # GPSSampler.send_data(ModuleTransferAction.BLOCK_SWITCH, GPSSampler.global_polygon, ModulesEnum.Analysis)

@@ -31,7 +31,15 @@ def is_csv(filename):
 
 def get_nav_path():
     today = datetime.now().strftime("%d%m%y")
-    return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.nav')
+    nav_dir = os.path.join(data_conf["output path"], conf["customer code"])
+    if not os.path.exists(nav_dir):
+        os.makedirs(nav_dir)
+    return os.path.join(nav_dir, f'{today}.nav')
+
+
+def get_imu_path():
+    today = datetime.now().strftime("%d%m%y")
+    return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.imu')
 
 
 def get_fruits_path(plot, index=-1, ext="csv", get_dir=False):

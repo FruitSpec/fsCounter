@@ -29,6 +29,24 @@ class ModulesEnum(enum.Enum):
     def __eq__(self, other):
         return self.value == other.value
 
+
+class ModuleTransferAction(enum.Enum):
+    NAV = "NAV"
+    IMU = "IMU"
+    FRUITS_DATA = "FRUITS_DATA"
+    BLOCK_SWITCH = "BLOCK_SWITCH"
+    START_ACQUISITION = "START_ACQUISITION"
+    STOP_ACQUISITION = "STOP_ACQUISITION"
+    VIEW_START = "VIEW_START"
+    VIEW_STOP = "VIEW_STOP"
+    GUI_SET_DEVICE_STATE = "GUI_SET_DEVICE_STATE"
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
     def __str__(self):
         return self.value
 

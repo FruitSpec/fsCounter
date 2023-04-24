@@ -3,14 +3,11 @@ import subprocess
 import threading
 from enum import Enum
 
-from application.utils.module_wrapper import ModulesEnum, Module
+from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import GUI_conf, conf, analysis_conf
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
-import os
-import usb.core
-import netifaces
 import json
 
 
@@ -55,11 +52,12 @@ class GUIInterface(Module):
         data, sender_module = GUIInterface.receiver.recv()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.Analysis:
-            jai_connected, zed_connected = data
-            GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
-            GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
-            logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
-                                      f" ZED -> {GUIInterface.zed_state}")
+            if action == ModuleTransferAction.GUI_SET_DEVICE_STATE:
+                jai_connected, zed_connected = data
+                GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
+                GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
+                logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
+                                          f" ZED -> {GUIInterface.zed_state}")
 
     @staticmethod
     @sio.event
@@ -82,25 +80,25 @@ class GUIInterface(Module):
     @sio.event
     def start_recording(sid, data):
         logging.info(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
-        GUIInterface.send_data("start", data, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def start_view(sid):
         logging.log(logging.INFO, f"CAMERA START VIEW RECEIVED: {sid}")
-        GUIInterface.send_data("view", None, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.VIEW_START, None, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def stop_recording(sid, data):
         logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
-        GUIInterface.send_data("stop", None, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Analysis)
 
     @staticmethod
     @sio.event
     def stop_view(sid, data):
         logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
-        GUIInterface.send_data("stop", None, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.VIEW_STOP, None, ModulesEnum.Analysis)
 
     @staticmethod
     def set_GPS_state(state):

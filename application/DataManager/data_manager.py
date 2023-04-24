@@ -9,7 +9,7 @@ import boto3
 import pandas as pd
 from requests.exceptions import RequestException
 from application.utils.settings import data_conf, conf
-from application.utils.module_wrapper import ModulesEnum, Module
+from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 import speedtest
 
@@ -81,7 +81,7 @@ class DataManager(Module):
         data, sender_module = DataManager.receiver.recv()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
-            if action == "block switch" and data != DataManager.current_plot:
+            if action == ModuleTransferAction.BLOCK_SWITCH and data != DataManager.current_plot:
                 # entering a new block which is not the latest block we've been to
                 logging.info(f"NEW BLOCK ENTRANCE - {data}")
                 DataManager.write_fruits_data_locally(release=False)
@@ -89,24 +89,32 @@ class DataManager(Module):
                 DataManager.current_plot = data
                 DataManager.start_new_file()
                 DataManager.fruits_data_lock.release()
-            elif action == "nav data":
-                # write nav data to nav file
+            elif action == ModuleTransferAction.NAV:
+                # write GPS data to .nav file
                 logging.info(f"WRITING NAV DATA TO FILE")
                 nav_path = tools.get_nav_path()
                 nav_df = pd.DataFrame(data)
                 is_first = not os.path.exists(nav_path)
-                nav_df.to_csv(nav_path, header=is_first)
+                nav_df.to_csv(nav_path, header=is_first, index=False)
         elif sender_module == ModulesEnum.Analysis:
-            logging.info(f"FRUIT DATA RECEIVED")
-            DataManager.fruits_data_lock.acquire(blocking=True)
-            if not data["fruit id"]:
-                DataManager.start_new_file()
-            for k, v in data.items():
-                try:
-                    DataManager.fruits_data[k] += v
-                except KeyError:
-                    DataManager.fruits_data[k] = v
-            DataManager.fruits_data_lock.release()
+            if action == ModuleTransferAction.FRUITS_DATA:
+                logging.info(f"FRUIT DATA RECEIVED")
+                DataManager.fruits_data_lock.acquire(blocking=True)
+                if not data["fruit id"]:
+                    DataManager.start_new_file()
+                for k, v in data.items():
+                    try:
+                        DataManager.fruits_data[k] += v
+                    except KeyError:
+                        DataManager.fruits_data[k] = v
+                DataManager.fruits_data_lock.release()
+            elif action == ModuleTransferAction.IMU:
+                # write IMU data to .imu file
+                logging.info(f"WRITING NAV DATA TO FILE")
+                imu_path = tools.get_imu_path()
+                imu_df = pd.DataFrame(data)
+                is_first = not os.path.exists(imu_path)
+                imu_df.to_csv(imu_path, header=is_first)
 
     @staticmethod
     def write_fruits_data_locally(release=True):
