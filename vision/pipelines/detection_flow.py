@@ -34,7 +34,6 @@ class counter_detection():
         exp = get_exp(cfg.exp_file)
         model = exp.get_model()
 
-        ##############################################################################
         model.cuda(cfg.device)
 
         if cfg.detector.fp16:   # can only run on gpu
@@ -42,7 +41,7 @@ class counter_detection():
 
         model.eval()
 
-        global decoder_        # bad practice?
+        global decoder_
         decoder_= None
 
         if not cfg.detector.trt:

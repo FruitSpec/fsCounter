@@ -10,7 +10,6 @@ from loguru import logger
 import tensorrt as trt
 import torch
 from torch2trt import torch2trt
-
 from yolox.exp import get_exp
 
 
@@ -28,9 +27,9 @@ def make_parser():
     )
     parser.add_argument("-c", "--ckpt", default=None, type=str, help="ckpt path")
     parser.add_argument(
-        "-w", '--workspace', type=int, default=32, help='max workspace size in detect'
-    )
+        "-w", '--workspace', type=int, default=32, help='max workspace size in detect')
     parser.add_argument("-b", '--batch', type=int, default=1, help='max batch size in detect')
+    parser.add_argument('--fp16', action='store_true', default=True, help='use fp16 precision')
     return parser
 
 
@@ -42,7 +41,9 @@ def main():
     if not args.experiment_name:
         args.experiment_name = exp.exp_name
 
-    model = exp.get_model()
+    if args.fp16:
+        model = exp.get_model().half()
+
     file_name = os.path.join(exp.output_dir, args.experiment_name)
     os.makedirs(file_name, exist_ok=True)
     if args.ckpt is None:
@@ -59,10 +60,13 @@ def main():
     model.cuda()
     model.head.decode_in_inference = False
     x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+    if args.fp16:
+        x = x.half()
+
     model_trt = torch2trt(
         model,
         [x],
-        fp16_mode=True,
+        fp16_mode=args.fp16,
         log_level=trt.Logger.INFO,
         max_workspace_size=(1 << args.workspace),
         max_batch_size=args.batch,
