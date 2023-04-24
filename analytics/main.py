@@ -21,7 +21,8 @@ def accuracy(df, args):
 
 def main():
     args = OmegaConf.load(os.getcwd() + '/config/runtime.yml')
-    run_real_time()
+    if args.offline:
+        run_real_time()
     analysis = [
         phenotyping_analyzer(args.customer),
         commercial_analyzer(args.customer)
@@ -36,9 +37,9 @@ def main():
         if type(obj) == phenotyping_analyzer:
             pass
             # debug_plots(df=obj.df_debug_plots, raw_path=args.video_path, output_path=args.output_path)
-    print(df)
+    # print(df)
     df.to_csv(os.path.join(args.output_path, 'results.csv'), index=False)
-    # accuracy(df, args)
+    accuracy(df, args)
 
 
 if __name__ == "__main__":

@@ -21,8 +21,6 @@ class Analyzer():
         else:
             self.scan_post = None
         self.fruit_type = args.fruit_type
-
-        self.side = None
         self.results = pd.DataFrame()
         self.df_debug_plots = pd.DataFrame()
 
