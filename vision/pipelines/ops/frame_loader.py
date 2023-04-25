@@ -9,6 +9,7 @@ class FramesLoader():
     def __init__(self, cfg, args):
         self.zed_cam, self.rgb_jai_cam, self.jai_cam = init_cams(args)
         self.batch_size = cfg.batch_size
+        self.last_svo_fid = 0
 
     def get_frames(self, f_id, zed_shift):
         if self.batch_size > 0: #1:
@@ -60,15 +61,17 @@ class FramesLoader():
             if f_id + id_ >= max_frame_number:
                 break
             if cam.mode == 'svo':
-                if id_ == 0:
+                if id_ == 0 and f_id != self.last_svo_fid + self.batch_size:
                     cam.grab(f_id)
                 else:
                     cam.grab()
+                self.last_svo_fid = f_id
                 batch.append(cam.get_frame())
             else:
-                if id_ == 0:
-                    batch.append(cam.get_frame(f_id))
-                else:
-                    batch.append(cam.get_frame())
+                #if id_ == 0:
+                #    batch.append(cam.get_frame(f_id))
+                #else:
+                #    batch.append(cam.get_frame())
+                batch.append(cam.get_frame())
 
         return batch

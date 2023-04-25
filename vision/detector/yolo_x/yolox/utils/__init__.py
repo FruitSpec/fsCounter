@@ -9,8 +9,8 @@ from .compat import meshgrid
 from .demo_utils import *
 from .dist import *
 from .ema import *
-from .logger import WandbLogger, setup_logger
-from .lr_scheduler import LRScheduler
+#from .logger import WandbLogger, setup_logger
+#from .lr_scheduler import LRScheduler
 from .metric import *
 from .model_utils import *
 from .setup_env import *

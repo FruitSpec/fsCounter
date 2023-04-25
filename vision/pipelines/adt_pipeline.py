@@ -56,6 +56,8 @@ def run(cfg, args, metadata=None):
          # align sensors
         # corr, tx_a, ty_a, sx, sy = adt.align_cameras(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
         #                                                            rgb_jai_frame)
+        if f_id >=218:
+            a=1
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
         # detect:
@@ -97,7 +99,7 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
+        self.sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
         self.zed_cam, self.rgb_jai_cam, self.jai_cam = init_cams(args)
         self.batch_size = cfg.batch_size
 

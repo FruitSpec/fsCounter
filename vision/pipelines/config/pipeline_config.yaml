@@ -1,5 +1,5 @@
 # config.yaml
-exp_file: /home/matan/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
+exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py  # counter
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py       # baseline
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py # pepper
@@ -12,7 +12,7 @@ exp_file: /home/matan/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruit
 #ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_26_oct_2022_curated_data/best_ckpt.pth  # new RGB tomatoes
 #ckpt_file: /home/yotam/FruitSpec/weights/tomatoes/Run_28_oct_curated_2x/best_ckpt.pth # new RGB tomatoes 28/11
 #ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_30_oct_2022_1Class_aug_tasq/best_ckpt.pth # new RGB tomatoes 1 class 29/11
-ckpt_file: /home/matan/FruitSpec/weights/Run_2_7_oct/best_ckpt.pth # RGB tasq v2
+ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/best_ckpt.pth # RGB tasq v2
 
 
 device: cuda

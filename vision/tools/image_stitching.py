@@ -197,6 +197,14 @@ def find_keypoints(img, matcher=None):
 
     return kp, des
 
+def find_keypoints_cuda(img_GPU, matcher_GPU=None):
+
+    if matcher_GPU is None:
+        matcher_GPU = cv2.cuda.SURF_CUDA_create(300)#300,_nOctaveLayers=2)
+    kpGPU, desGPU = matcher_GPU.detectWithDescriptors(img_GPU, None)
+    kp = cv2.cuda_SURF_CUDA.downloadKeypoints(matcher_GPU, kpGPU)
+
+    return kp, desGPU
 
 def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     FLANN_INDEX_KDTREE = 1
@@ -207,6 +215,28 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
         matches = flann.knnMatch(des1, des2, k=2)
     except:
         Warning('flann.knnMatch collapsed, return empty matches')
+        matches = []
+    # store all the good matches as per Lowe's ratio test.
+    match = []
+    matchesMask = [[0, 0] for i in range(len(matches))]
+    id = 0
+    for m, n in matches:
+        if m.distance < threshold * n.distance:
+            match.append(m)
+            matchesMask[id] = [1, 0]
+        id += 1
+    return match, matches, matchesMask
+
+
+def match_descriptors_cuda(des1, des2, stream, threshold=0.7, matcherGPU=None):
+    if matcherGPU is None:
+        matcherGPU = cv2.cuda.DescriptorMatcher_createBFMatcher(cv2.NORM_L2)
+
+    try:
+        results = matcherGPU.knnMatchAsync(des1, des2, k=2, stream=stream)
+        matches = matcherGPU.knnMatchConvert(results)
+    except:
+        Warning('matcherGPU.knnMatch collapsed, return empty matches')
         matches = []
     # store all the good matches as per Lowe's ratio test.
     match = []
@@ -249,6 +279,8 @@ def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20, fixed_scaling
     M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
 
     return M, st, match
+
+
 
 
 def calc_homography(kp1, kp2, match):
@@ -476,6 +508,15 @@ def resize_img(input_, size):
     ).astype(np.uint8)
 
     return resized_img, r
+
+def resize_img_cuda(input_GPU, size, stream):
+    r = min(size / input_GPU.size()[0], size / input_GPU.size()[1])
+    output_GPU = cv2.cuda.resize(input_GPU, (int(input_GPU.size()[0] * r),
+                                             int(input_GPU.size()[1] * r)),
+                                 interpolation=cv2.INTER_CUBIC,
+                                 stream=stream)
+
+    return output_GPU, r
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

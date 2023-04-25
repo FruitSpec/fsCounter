@@ -80,8 +80,8 @@ def run(cfg, args, n_frames=None):
         # align sensors
         #corr, tx_a, ty_a, sx, sy, kp_z, kp_r, match, st = sensor_aligner.align_sensors(zed_frame, rgb_jai_frame)
 
-        corr, tx_a, ty_a, kp_zed, kp_jai, gray_zed, gray_jai, match, st = sensor_aligner.align_calib_sensors(zed_frame,
-                                                                                                         rgb_jai_frame)
+        corr, tx_a, ty_a, kp_zed, kp_jai, gray_zed, gray_jai, match, st = sensor_aligner.align_sensors(zed_frame,
+                                                                                                       rgb_jai_frame)
 
         det_outputs = detector.detect(jai_frame)
         jai_res_frame = results_collector.draw_dets(jai_frame, det_outputs)
