@@ -57,9 +57,20 @@ class counter_detection():
 
             from torch2trt import TRTModule
             model_trt = TRTModule()
-            model_trt.load_state_dict(torch.load(cfg.ckpt_file))
+
+            # replace model weights with "model_trt.pth" in the same dir:
+            weights_path = os.path.abspath(cfg.ckpt_file)
+            if os.path.basename(weights_path) != "model_trt.pth":
+                weights_path = os.path.join(os.path.dirname(weights_path), "model_trt.pth")
+            if not os.path.exists(weights_path):
+                raise FileNotFoundError(f"File {weights_path} not found.")
+
+            # load trt-pytorch model
+            model_trt.load_state_dict(torch.load(weights_path))
             print("loaded TensorRT model.")
             x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+            tensor_type = torch.cuda.HalfTensor if cfg.detector.fp16 else torch.cuda.FloatTensor
+            x = x.type(tensor_type)
             model(x)
             model = model_trt
 

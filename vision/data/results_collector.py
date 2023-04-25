@@ -134,7 +134,7 @@ class ResultsCollector():
             write = csv.writer(f)
             write.writerow(fields)
             write.writerows(rows)
-        print(f'Done writing results to csv')
+        print(f'Done writing results to:\n{output_file_path}')
 
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
