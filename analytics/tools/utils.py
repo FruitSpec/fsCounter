@@ -137,9 +137,9 @@ def filter_df_by_min_samp(df_res, min_tracks):
 
 
 def filter_trackers(df_res, dist_threshold):
-    df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
+    # df_res = filter_df_by_min_samp(df_res, min_tracks=3)  # 230123,010323
     if dist_threshold == 0:
-        _dist = get_intersection_point(df_res)
+        _dist = get_intersection_point(df_res,debug=True)
     else:
         _dist = dist_threshold
     df_res = df_res[df_res["distance"] < _dist]

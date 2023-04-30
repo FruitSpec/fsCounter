@@ -247,7 +247,6 @@ class phenotyping_analyzer(Analyzer):
         if self.by_cluster:
             return clusters_into_values(df_res)
         else:
-
             _counter, _measures, _colors_class, extract_ids = fruits_into_values(df_res)
             self.set_active_tracks(extract_ids)
             return _counter, _measures, _colors_class
