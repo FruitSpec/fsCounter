@@ -19,8 +19,10 @@ class AcquisitionManager(Module):
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     output_dir = ""
-    output_fsi, output_rgb, output_800, output_975, output_svo = False, False, False, False, False
-    view, use_clahe_stretch, debug_mode = False, False, False
+    output_clahe_fsi, output_equalize_hist_fsi = False, False
+    output_rgb, output_800, output_975, output_svo = False, False, False, False
+    view, debug_mode = False, False
+    pass_clahe_stream = False
 
     @staticmethod
     def init_module(sender, receiver, main_pid, module_name):
@@ -45,10 +47,10 @@ class AcquisitionManager(Module):
         AcquisitionManager.set_acquisition_parameters(acquisition_parameters)
         AcquisitionManager.jz_recorder.start_acquisition(
             AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
-            AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_fsi,
-            AcquisitionManager.output_rgb, AcquisitionManager.output_800, AcquisitionManager.output_975,
-            AcquisitionManager.output_svo, AcquisitionManager.view, AcquisitionManager.use_clahe_stretch,
-            AcquisitionManager.debug_mode
+            AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
+            AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb, AcquisitionManager.output_800,
+            AcquisitionManager.output_975, AcquisitionManager.output_svo, AcquisitionManager.view,
+            AcquisitionManager.pass_clahe_stream, AcquisitionManager.debug_mode
         )
         AcquisitionManager.batcher.start_acquisition()
 
@@ -73,7 +75,6 @@ class AcquisitionManager(Module):
             today = datetime.now().strftime("%d%m%y")
             plot = data["plot"]
             row = f"row_{data['row']}"
-            f"row_{data['row']}"
             AcquisitionManager.output_dir = os.path.join(data["outputPath"], conf["customer code"], plot, today, row)
             if 'Default' in data['configType']:
                 weather = data['weather']
@@ -89,13 +90,14 @@ class AcquisitionManager(Module):
         AcquisitionManager.exposure_rgb = int(camera_data['IntegrationTimeRGB'])
         AcquisitionManager.exposure_800 = int(camera_data['IntegrationTime800'])
         AcquisitionManager.exposure_975 = int(camera_data['IntegrationTime975'])
-        AcquisitionManager.output_fsi = 'fsi' in output_types
+        AcquisitionManager.output_clahe_fsi = 'clahe' in output_types or 'fsi' in output_types
+        AcquisitionManager.output_equalize_hist_fsi = 'equalize_hist' in output_types or 'fsi' in output_types
         AcquisitionManager.output_rgb = 'rgb' in output_types
         AcquisitionManager.output_800 = '800' in output_types
         AcquisitionManager.output_975 = '975' in output_types
         AcquisitionManager.output_svo = 'svo' in output_types
         AcquisitionManager.view = False
-        AcquisitionManager.use_clahe_stretch = True
+        AcquisitionManager.pass_clahe_stream = True
         AcquisitionManager.debug_mode = True
 
         if not os.path.exists(AcquisitionManager.output_dir):
