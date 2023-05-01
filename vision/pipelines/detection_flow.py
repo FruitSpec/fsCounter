@@ -94,6 +94,7 @@ class counter_detection():
                 else:
                     id_ = None
                 online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_)
+                print(f"number of tracklets: {len(self.tracker.tracklets)}")
                 tracking_results = []
                 for target in online_targets:
                     target.append(id_)
