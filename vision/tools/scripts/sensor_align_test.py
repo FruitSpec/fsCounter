@@ -18,7 +18,7 @@ from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
-from vision.tools.camera import is_sturated, stretch_rgb
+from vision.tools.camera import is_saturated, stretch_rgb
 from vision.tools.image_stitching import resize_img
 from vision.pipelines.ops.simulator import get_n_frames, init_cams, get_frame_drop
 

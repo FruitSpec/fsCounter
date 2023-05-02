@@ -8,7 +8,10 @@ max_z: 8
 overwrite:
   adt: false
   trees: false
-create_full_features: true
+  zed_shift: false
+create_full_features: true # flag to create or not to create features
+until_last_slice: false # flag for stopping analysis on last sliced frame
+no_sync: false # flag for not applying sensor alignment
 
 zed:
   movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1.svo
@@ -31,10 +34,10 @@ frame_size: [2048, 1536]
 
 debug:
   tracker: None
-  trees: false
+  trees: false #flag for saving images with bboxes, ids and slices
   features: false
-  align_graph: true
-  run_type: RGB_siftv1_kp_equalize # align graph naming
+  align_graph: false #flag for making alignment graph
+  run_type: RGB_siftv1_kp_equal_calib_autoalign # align graph naming
 
 sensor_aligner:
   zed_angles: [ 110, 70 ]
@@ -45,15 +48,16 @@ sensor_aligner:
   median_thresh: 50 # if median of image is smaller then value will normalization image
   remove_high_blues: false # flag for removing sky from picture
   apply_normalization: false # flag for normalaizing the channels
-  size: 720 #what size to resize image to
+  size: 960 # what size to resize image to
   fixed_scaling: false # if true will not calculate scale, only tx, ty
   apply_equalization: false
+  apply_clahe: true
   affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
   ransac: 20
+  calib: true # flag for applying calibrated alignment
+  direction: "right" # what side is the camera located, "" - will find automaticly, "left", "right"
   debug:
     preprocess: false
     keypoints: false
     kde: false
     homography: false
-
-

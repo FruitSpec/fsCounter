@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import collections
-
+from collections.abc import Iterable
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 from vision.depth.zed.svo_operations import get_dimensions
@@ -31,6 +31,21 @@ class ResultsCollector():
         self.hash = {}
         self.jai_width = 1536
         self.jai_height = 2048
+        self.percent_seen = {}
+
+    def collect_adt(self, det_outputs, trk_outputs, alignment_results, percent_seen, f_id):
+        self.collect_detections(det_outputs, f_id)
+        self.collect_tracks(trk_outputs)
+        self.collect_alignment(alignment_results, f_id)
+        self.collect_percent_seen(percent_seen, f_id)
+
+    def collect_percent_seen(self, percent_seen, f_id):
+        if isinstance(percent_seen, Iterable):
+            for i, frame_percent_seen in enumerate(percent_seen):
+                self.percent_seen[f_id + i] = frame_percent_seen
+        else:
+            self.percent_seen[f_id] = percent_seen
+
 
     def collect_detections(self, batch_results, img_id):
         for i, detection_results in enumerate(batch_results):
@@ -40,6 +55,10 @@ class ResultsCollector():
                     det.append(img_id + i)
                     output.append(det)
                 self.detections += output
+
+    def collect_percent_seen(self, percent_seen_batch, img_id):
+        for i, percent_seen in enumerate(percent_seen_batch):
+            self.percent_seen[img_id + i] = percent_seen
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -115,9 +134,34 @@ class ResultsCollector():
         y2 = y1 + int(bbox[3])
         return [x1, y1, x2, y2, tracker_score, track_id, frame_id]
 
+    def get_row_fileds_tracks(self):
+        n_fileds = len(self.tracks[0])
+        if n_fileds == 8:
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame"]
+        elif n_fileds == 9:
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "depth"]
+        elif n_fileds == 11:
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "pc_x", "pc_y",
+                      "depth"]
+        else:
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "pc_x", "pc_y",
+                      "depth", "width", "height"]
+        rows = self.tracks
+        return rows, fields
+
     def dump_to_csv(self, output_file_path, type='detections'):
         if type == 'detections':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "image_id", "class_pred"]
+            n_fileds = len(self.detections[0])
+            if n_fileds == 8:
+                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
+            elif n_fileds == 9:
+                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "depth", "image_id"]
+            elif n_fileds == 11:
+                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
+                          "image_id"]
+            else:
+                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
+                          "width", "height", "image_id"]
             rows = self.detections
         elif type == 'measures':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",
@@ -127,8 +171,7 @@ class ResultsCollector():
             pd.DataFrame.from_records(self.alignment).to_csv(output_file_path)
             return
         else:
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
-            rows = self.tracks
+            rows, fields = self.get_row_fileds_tracks()
         with open(output_file_path, 'w') as f:
             # using csv.writer method from CSV package
             write = csv.writer(f)
@@ -276,7 +319,7 @@ class ResultsCollector():
         cv2.imwrite(os.path.join(args.output_folder, 'windows', f"windows_frame_{f_id}.jpg"), canvas)
 
     def collect_alignment(self, alignment_results, f_id):
-        for r in alignment_results:
+        for i, r in enumerate(alignment_results):
             x1, y1, x2, y2 = r[0]
             tx = r[1]
             ty = r[2]
@@ -286,8 +329,9 @@ class ResultsCollector():
             tx = tx if not np.isnan(tx) else 0
             ty = ty if not np.isnan(ty) else 0
             self.alignment.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                    "tx": int(tx), "ty": int(ty), "sx": sx, "sy": sy, "frame": f_id, "zed_shift": zed_shift})
-            self.jai_zed[f_id] = f_id + zed_shift
+                                    "tx": int(tx), "ty": int(ty), "sx": sx, "sy": sy,
+                                   "frame": f_id+i, "zed_shift": zed_shift})
+            self.jai_zed[f_id+i] = f_id+i + zed_shift
 
         pass
 
@@ -389,8 +433,11 @@ class ResultsCollector():
         for tree in tqdm(trees):
             frames = sliced_df[sliced_df["tree_id"] == tree]["frame_id"].values.astype(int).tolist()
             tracker_results, frames_tracker_results = self.convert_tracker_results(frames)
-            tracker_frame = pd.DataFrame(frames_tracker_results, columns = ['x1', 'y1', 'x2', 'y2', "score", "class",
-                                                 "track_id", "frame_id"])
+            if len(frames_tracker_results[0]) == 8:
+                columns = ['x1', 'y1', 'x2', 'y2', "score", "class", "track_id", "frame_id"]
+            else:
+                columns = ['x1', 'y1', 'x2', 'y2', "score", "class", "track_id", "frame_id", "depth"]
+            tracker_frame = pd.DataFrame(frames_tracker_results, columns=columns)
             tracker_frame["tree_id"] = tree
             res_df = pd.concat([res_df, tracker_frame])
 
@@ -503,17 +550,55 @@ class ResultsCollector():
 
         write_json(os.path.join(output_path, 'alignment.json'), self.alignment)
         write_json(os.path.join(output_path, 'jai_zed.json'), self.jai_zed)
+        write_json(os.path.join(output_path, 'percent_seen.json'), self.percent_seen)
 
-    def dump_feature_extractor(self, output_path):
+    def dump_cv_res(self, output_path: str, depth: int = 0) -> None:
+        """
+        Saves to csv the cv results after min tracks and depth filtering operations
+        Args:
+            output_path (str): output folder path
+            depth (int): max depth for fruits to be counted (0 means no depth filtering)
+
+        Returns:
+
+        """
+        block_folder = os.path.dirname(output_path)
+        row = os.path.basename(output_path)
+        rows, fields = self.get_row_fileds_tracks()
+        track_df = pd.DataFrame(rows, columns=fields)
+        block = block_folder.split('/')[-1]
+        cvs_min_samp = {f"n_unique_track_ids_{i}": [] for i in range(2, 6)}
+        cvs_min_samp_filtered = {f"n_unique_track_ids_filtered_{depth}_{i}": [] for i in range(2, 6)}
+        track_list = [track_df["track_id"].nunique()]
+        uniq, counts = np.unique(track_df["track_id"], return_counts=True)
+        for i in range(2, 6):
+            cvs_min_samp[f"n_unique_track_ids_{i}"].append(len(uniq[counts >= i]))
+        if "depth" in track_df.columns:
+            track_df = track_df[track_df["depth"] < depth]
+            uniq, counts = np.unique(track_df["track_id"], return_counts=True)
+            track_list_filtered = [track_df["track_id"].nunique()]
+            for i in range(2, 6):
+                cvs_min_samp_filtered[f"n_unique_track_ids_filtered_{depth}_{i}"].append(len(uniq[counts >= i]))
+        final_csv_path = os.path.join(output_path, f'{block}_{row}_n_track_ids.csv')
+        final_csv_path_filtered = os.path.join(output_path, f'{block}_{row}_n_track_ids_filtered_{depth}.csv')
+        pd.DataFrame({"row": [row], "n_unique_track_ids": track_list, **cvs_min_samp}).to_csv(final_csv_path)
+        pd.DataFrame({"row": [row],
+                      f"n_unique_track_ids_filtered_{depth}": track_list_filtered, **cvs_min_samp_filtered}) \
+            .to_csv(final_csv_path_filtered)
+
+
+    def dump_feature_extractor(self, output_path, depth=0):
         """
         this function is a wrapper for dumping data to files for the feature extraction pipline
         :param output_path: where to output to
+        :param depth: max depth for fruits to be counted (0 means no depth filtering)
         :return: None
         """
         self.dump_state(output_path)
         self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
         self.dump_to_csv(os.path.join(output_path, 'jai_cors_in_zed.csv'), type="alignment")
+        self.dump_cv_res(output_path, depth)
 
     def converted_slice_data(self, sliced_data):
         converted_sliced_data = {}
@@ -630,6 +715,17 @@ class ResultsCollector():
         else:
             self.tracks = tracks
 
+    def set_percent_seen(self, percent_seen):
+        """
+        sets percent_seen argument from out source data
+        :param percent_seen: path or file, if path will read json from path, else will set file
+        :return: None
+        """
+        if isinstance(percent_seen, str):
+            self.percent_seen = read_json(percent_seen)
+        else:
+            self.percent_seen = percent_seen
+
     def set_self_params(self, read_from, parmas=["alignment", "jai_zed", "detections", "tracks"]):
         """
         sets the paramaters from out source data
@@ -645,6 +741,8 @@ class ResultsCollector():
             self.set_detections(os.path.join(read_from, 'detections.csv')) # list of lists
         if "tracks" in parmas:
             self.set_tracks(os.path.join(read_from, 'tracks.csv')) # list of lists
+        if "percent_seen" in parmas:
+            self.set_percent_seen("percent_seen.json")
 
 
 def scale(det_dims, frame_dims):

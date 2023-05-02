@@ -22,6 +22,7 @@ class video_wrapper():
             self.res = None
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
+        self.cur_frame = -1
 
     @staticmethod
     def get_rotation(rotate):
@@ -53,8 +54,11 @@ class video_wrapper():
     def grab(self, frame_number=None):
         if self.mode == 'svo':
             if frame_number is not None:
-                self.cam.set_svo_position(frame_number)
+                if not frame_number == self.cur_frame + 1:
+                    self.cam.set_svo_position(frame_number)
+                    self.cur_frame = frame_number - 1
             res = self.cam.grab(self.runtime)
+            self.cur_frame +=1
             if res == sl.ERROR_CODE.SUCCESS:
                 self.res = True
             else:
@@ -74,8 +78,11 @@ class video_wrapper():
                 ret = False
         else:
             if frame_number is not None:
-                self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                if not frame_number == self.cur_frame + 1:
+                    self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                    self.cur_frame = frame_number - 1
             ret, frame = self.cam.read()
+            self.cur_frame += 1
 
         if ret:
             frame = self.rotate(frame)

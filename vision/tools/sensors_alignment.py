@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 from vision.tools.image_stitching import (resize_img, find_keypoints, get_affine_homography, affine_to_values,
                                           get_fine_keypoints, get_fine_translation, get_affine_matrix)
                                           #get_fine_affine_translation, find_loftr_translation)
-#from vision.tools.image_stitching import calc_affine_transform, calc_homography, plot_2_imgs
+from vision.tools.image_stitching import plot_2_imgs
+from vision.tools.camera import stretch_rgb, is_saturated
+from vision.tools.translation import translation as T
 #from vision.feature_extractor.image_processing import multi_convert_gray
 import seaborn as sns
 #import cupy as cp
@@ -28,6 +30,8 @@ class SensorAligner:
         self.zed_roi_params = args.zed_roi_params
         self.median_thresh = args.median_thresh
         self.remove_high_blues = args.remove_high_blues
+        self.apply_clahe = args.apply_clahe
+        self.calib = args.calib
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.debug = args.debug
         self.zed_shift, self.consec_less_threshold, self.consec_more_threshold = zed_shift, 0, 0
@@ -39,10 +43,14 @@ class SensorAligner:
         self.affine_method = args.affine_method
         self.ransac = args.ransac
         self.matcher = self.init_matcher(args)
-        self.sx = 0.60546875 #0.6102498372395834
-        self.sy =  0.6133919843597263#0.6136618198110134
-        self.roix = 930 #937
+        if self.calib:
+            self.y_s = 350
+        self.sx = 0.60546875  # 0.6102498372395834
+        self.sy = 0.6133919843597263  # 0.6136618198110134
+        self.roix = 930  # 937
         self.roiy = 1255
+        self.direction = args.direction
+        self.update_shift_dict = {"": 0, "right": 1, "left": -1}
 
     def init_matcher(self, args):
 
@@ -146,6 +154,9 @@ class SensorAligner:
         if self.apply_normalization:
             jai_img_c = self.normalize_img(jai_img_c, jai_img)
             zed_rgb_c = self.normalize_img(zed_rgb_c, zed_rgb)
+        if self.apply_clahe:
+            jai_img_c = stretch_rgb(jai_img_c)
+            zed_rgb_c = stretch_rgb(zed_rgb_c)
         gray_zed, gray_jai = cv2.cvtColor(zed_rgb_c, cv2.COLOR_RGB2GRAY), cv2.cvtColor(jai_img_c, cv2.COLOR_RGB2GRAY)
         if self.apply_equalization:
             gray_jai = cv2.equalizeHist(gray_jai)
@@ -182,8 +193,11 @@ class SensorAligner:
         :return: jai_in_zed coors, tx,ty,sx,sy, if use fine is set to True also returns keypoints, des, jai_image
         """
 
-        gray_zed = cv2.cvtColor(zed_rgb, cv2.COLOR_RGB2GRAY)
-        gray_jai = cv2.cvtColor(jai_img, cv2.COLOR_RGB2GRAY)
+        if jai_drop:
+            self.zed_shift += 1
+        if zed_drop:
+            self.zed_shift -= 1
+        gray_zed, gray_jai, _, _ = self.preprocess(zed_rgb, jai_img)
 
         # adjust zed scale to be the same as jai using calibrated scale x and y
         gray_zed = self.crop_zed_roi(gray_zed)
@@ -197,15 +211,28 @@ class SensorAligner:
         M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac,
                                          self.fixed_scaling)  # consumes 33% of time
 
+        if not len(match):
+            x1, y1, x2, y2 = 0, 0, *zed_rgb.shape[::-1][1:]
+            x2 -= 1
+            y1 -= 1
+            return (x1, y1, x2, y2), np.nan, np.nan, self.sx, self.sy
+
         dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
         dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
         src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
         src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
         deltas = np.array(dst_pts) - np.array(src_pts)
+        delta_x = np.mean(deltas[:, 0, 0])
+        delta_y = np.mean(deltas[:, 0, 1])
+        tx = int(delta_x / rz * self.sx) if np.isfinite(delta_x) else np.nan
+        ty = int(delta_y / rz * self.sy) if np.isfinite(delta_y) else np.nan
 
-        tx = np.mean(deltas[:,0,0]) / rz * self.sx
-        ty = np.mean(deltas[:,0,1]) / rz * self.sy
+        if np.isnan(delta_x) or np.isnan(delta_y):
+            x1, y1, x2, y2 = 0, 0, *zed_rgb.shape[::-1][1:]
+            x2 -= 1
+            y1 -= 1
+            return (x1, y1, x2, y2), tx, ty, self.sx, self.sy
 
         if tx < 0:
             x1 = 0
@@ -227,9 +254,9 @@ class SensorAligner:
             y1 = self.y_s + ty
             y2 = self.y_s + ty + self.roiy
 
-        #self.update_zed_shift(tx)
+        self.update_zed_shift(tx)
 
-        return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
+        return (x1, y1, x2, y2), tx, ty, self.sx, self.sy
 
     def align_sensors(self, zed_rgb, jai_img, jai_drop=False, zed_drop=False):
         """
@@ -240,6 +267,8 @@ class SensorAligner:
         :param zed_drop: flag if zed had a frame drop
         :return: jai_in_zed coors, tx,ty,sx,sy, if use fine is set to True also returns keypoints, des, jai_image
         """
+        if self.calib:
+            return self.align_calib_sensors(zed_rgb, jai_img, jai_drop, zed_drop)
         if jai_drop:
             self.zed_shift += 1
         if zed_drop:
@@ -373,207 +402,200 @@ class SensorAligner:
             return
         if tx < 20:
             self.consec_less_threshold += 1
-        elif tx > 75:  # 120:
+        elif tx > 150:
+            self.consec_less_threshold = 0
             self.consec_more_threshold += 1
         else:
             self.consec_less_threshold = max(self.consec_less_threshold - 1, 0)
             self.consec_more_threshold = max(self.consec_more_threshold - 1, 0)
         if self.consec_more_threshold > 5:
-            self.zed_shift += 1
+            self.zed_shift += self.update_shift_dict[self.direction]
             self.consec_less_threshold = 0
             self.consec_more_threshold = 0
         if self.consec_less_threshold > 5:
-            self.zed_shift -= 1
+            self.zed_shift -= self.update_shift_dict[self.direction]
             self.consec_less_threshold = 0
             self.consec_more_threshold = 0
 
+
+class FirstMoveDetector:
+    """
+    this class is used to detect when each camera starts the drive
+    """
+    def __init__(self, cameras: dict = {"cam_jai": "", "cam_zed": ""}, mode: str = "frames",
+                translator_mode: str = "keypoints", thresh: float = 0.01, counter_thresh: int = 5,
+                 debug: bool = False, batch_size: int = 0) -> None:
+        """
+        Args:
+            cameras (dict): dictionery of cameras, needs to be full only if using camera mode
+            mode (str): what mode to use (camera / frames), camera will read the images from camera
+                frames will excpect to get frames from outside source
+            translator_mode (str): translation mode to pass to translator
+            thresh (float): minimum percentegre of imaghe width to count as movement
+            counter_thresh (int): minimum number of detected frames with movement to count camera as moving
+            debug (bool): flag for using debbuger
+            batch_size (int): size of batch to be passed
+        """
+        self.mode = mode
+        self.cameras = cameras
+        if mode == "camera" and (isinstance(cameras["cam_jai"], str) or isinstance(cameras["cam_zed"], str)):
+            raise ValueError("no cameras were passes")
+        self.translator_zed, self.translator_jai = T(480, False, translator_mode), T(480, False, translator_mode)
+        self.thresh, self.counter_thresh = thresh, counter_thresh
+        self.zed_move, self.jai_move = 0, 0
+        self.zed_width, self.jai_width = 0, 0
+        self.counter_zed, self.counter_jai = 0, 0
+        self.zed_first_move, self.jai_first_move = 0, 0
+        self.debug = debug
+        self.batch_size = batch_size
+
+    def update_state(self, zed_frame: np.array = np.array([]), jai_frame: np.array = np.array([]),
+                     frame_id: int = 0, sat: bool = False) -> tuple:
+        """
+        This function updates the 'zed_first_move' and 'jai_first_move', if both are greater then 0 it will return the
+        zed_shift
+        Args:
+            zed_frame (np.array): zed_rgb frame to apply translation to
+            jai_frame (np.array ): jai (preferred FSI) frame to apply translation to
+            frame_id (int): current frame number
+            sat (bool): flag for indicating saturated image, will not change zed frame counter if true
+
+        Returns:
+            zed_shift(int)
+            boolean value if both cameras are already moving
+        """
+        if self.batch_size == 0:
+            zed_frames, jai_frames = [zed_frame], [jai_frame]
+        else:
+            zed_frames, jai_frames = zed_frame, jai_frame
+        for i, (zed_frame, jai_frame) in enumerate(zip(zed_frames, jai_frames)):
+            if frame_id and self.mode == "camera":
+                zed_frame, jai_frame, sat = self.read_frames_from_cam(frame_id)
+            self.update_widths(zed_frame, jai_frame)
+            tx_zed, tx_jai = self.get_txs(zed_frame, jai_frame, sat)
+            if self.debug:
+                self.debug_function("zed", frame_id + i, tx_zed, zed_frame)
+                self.debug_function("jai", frame_id + i, tx_jai, jai_frame)
+            self.update_counters(tx_zed, tx_jai)
+            self.update_moves(frame_id + i)
+            if self.zed_first_move and self.jai_first_move:
+                return self.zed_first_move - self.jai_first_move, True
+        return 0, False
+
+    def read_frames_from_cam(self, frame_id: int = 0) -> tuple:
+        """
+        reads frames from the 2 cameras
+        Args:
+            frame_id (int): frame number
+
+        Returns:
+            zed_frame (np.array): rgb frame from zed camera
+            jai_frame (np.array): FSI frame from jai camera
+            sat (bool): flag indicating if frame is saturated
+        """
+        zed_frame, point_cloud = self.cameras["cam_zed"].get_zed(frame_id, exclude_depth=True)
+        _, jai_frame = self.cameras["cam_jai"].get_frame(frame_id)
+        sat = False
+        if is_saturated(zed_frame, 0.6) or is_saturated(jai_frame, 0.6):
+            print(frame_id, ": saturated")
+            sat = True
+        return zed_frame, jai_frame, sat
+
+    def update_counters(self, tx_zed: int, tx_jai: int) -> None:
+        """
+        updated the counter values for zed and jai cam if there was movement detected
+        Args:
+            tx_zed (int): the translanlation in x axis for zed camera
+            tx_jai (int): the translanlation in x axis for jai camera
+
+        Returns:
+            None
+        """
+        if np.abs(tx_zed) > self.zed_width * self.thresh:
+            self.counter_zed += 1
+        if np.abs(tx_jai) > self.jai_width * self.thresh:
+            self.counter_jai += 1
+
+    def update_moves(self, frame_id: int = 0) -> None:
+        """
+        update zed and jai first move if thier counter is larger then the threshold
+        Args:
+            frame_id (int): frame number
+
+        Returns:
+            None
+        """
+        if self.counter_zed > self.counter_thresh and not self.zed_first_move:
+            self.zed_first_move = frame_id
+        if self.counter_jai > self.counter_thresh and not self.jai_first_move:
+            self.jai_first_move = frame_id
+
+    def get_txs(self, zed_frame: np.array = np.array([]), jai_frame: np.array = np.array([]),
+                sat: bool = False) -> tuple:
+        """
+        calculates translation in x axis for both cameras
+        Args:
+            zed_frame (np.array): zed_rgb frame to apply translation to
+            jai_frame (np.array ): jai (preferred FSI) frame to apply translation to
+            sat (bool): flag for indicating saturated image, will not change zed frame counter if true
+
+        Returns:
+            tx_zed (int): the translanlation in x axis for zed camera
+            tx_jai (int): the translanlation in x axis for jai camera
+        """
+        if not sat:
+            tx_zed, _ = self.translator_zed.get_translation(zed_frame, None)
+        else:
+            tx_zed = 0
+        tx_jai, _ = self.translator_jai.get_translation(jai_frame, None)
+        if isinstance(tx_jai, type(None)):
+            tx_jai = np.nan
+        if isinstance(tx_zed, type(None)):
+            tx_zed = np.nan
+        return tx_zed, tx_jai
+
+    @staticmethod
+    def debug_function(cam_type: str, frame: int, tx: int, img: np.array,
+                 folder: str = "/media/fruitspec-lab/easystore/auto_zed_shift_testing"):
+        """
+        saves the images with translation values in the title
+        Args:
+            cam_type (str): jai or zed according to the camera that was used
+            frame (int): frame number
+            tx (int): translation value
+            img (np.array): the curent image
+            folder (str): where to save to
+
+        Returns:
+            None
+        """
+        fig_name = f"{cam_type}_{frame}_{tx}"
+        plt.imshow(img)
+        plt.title(f"frame: {frame}, tx: {tx}")
+        if not os.path.exists(folder):
+            os.mkdir(folder)
+        plt.savefig(os.path.join(folder, fig_name))
+        # plt.show()
+        plt.close()
+
+    def update_widths(self, zed_frame: np.array = np.array([]), jai_frame: np.array = np.array([])) -> None:
+        """
+        Updates the widths of the images if they are 0
+        Args:
+            zed_frame (np.array): zed_rgb frame to apply translation to
+            jai_frame (np.array ): jai (preferred FSI) frame to apply translation to
+
+        Returns:
+            None
+        """
+        if not self.zed_width:
+            self.zed_width = zed_frame.shape[1]
+        if not self.jai_width:
+            self.jai_width = jai_frame.shape[1]
+
+
 def multi_convert_gray(list_imgs):
     return [cv2.cvtColor(img.copy(), cv2.COLOR_RGB2GRAY) for img in list_imgs]
-
-
-def crop_zed_roi(gray_zed, zed_angles, jai_angles, y_s=None, y_e=None, x_s=0, x_e=None):
-    zed_mid_h = gray_zed.shape[0] // 2
-    zed_half_height = int(zed_mid_h / (zed_angles[0] / 2) * (jai_angles[0] / 2))
-    if isinstance(y_s, type(None)):
-        y_s = zed_mid_h - zed_half_height-100
-    if isinstance(y_e, type(None)):
-        y_e = zed_mid_h + zed_half_height+100
-    if isinstance(x_e, type(None)):
-        x_e = gray_zed.shape[1]
-    if isinstance(x_s, type(None)):
-        x_s = 0
-    cropped_zed = gray_zed[y_s: y_e, x_s:x_e]
-    return cropped_zed, y_s, y_e, x_s, x_e
-
-
-
-def first_translation(cropped_zed, gray_jai, zed_rgb, jai_rgb, y_s, y_e):
-    im_zed, r_zed = resize_img(cropped_zed, 960)
-    im_jai, r_jai = resize_img(gray_jai, 960)
-    kp_zed, des_zed = find_keypoints(im_zed)
-    kp_jai, des_jai = find_keypoints(im_jai)
-    M, st = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai)
-    tx, ty, sx, sy = affine_to_values(M)
-    # M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
-    #plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e)
-    # plot_homography(resize_img(zed_rgb[y_s: y_e], 960)[0], M_homography)
-    return tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai
-
-
-def align_sensors(zed_rgb, jai_rgb, zed_angles=[110, 70], jai_angles=[62, 62],
-                  use_fine=False, zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None),
-                  whiteness_thresh=0.05, remove_high_blues=True):
-    # cv2.threshold(np.mean(jai_rgb, axis=2).astype(np.uint8), 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
-    # cv2.normalize(np.clip(jai_rgb, 0, 70), None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    jai_rgb, zed_rgb = jai_rgb.copy(), zed_rgb.copy()
-    if remove_high_blues:
-        jai_rgb[jai_rgb[:, :, 2] > 240] = 0
-        zed_rgb[zed_rgb[:, :, 2] > 240] = 0
-    flat_rgb = jai_rgb.flatten()
-    pix_dist = np.histogram(flat_rgb, bins=255, density=True)[0]
-    if np.sum(pix_dist[200:240]) < whiteness_thresh:
-        rgb_old = jai_rgb.copy()
-        clipped_rgb = np.clip(jai_rgb, 0, np.quantile(flat_rgb[np.all([flat_rgb > 0, flat_rgb < 230], axis=0)], 0.9))
-        jai_rgb = cv2.normalize(clipped_rgb, None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    #     # plot_2_imgs(rgb_old, jai_rgb)
-    gray_zed, gray_jai = multi_convert_gray([zed_rgb, jai_rgb])
-    # import seaborn as sns
-    # sns.kdeplot(gray_zed.flatten(), color="green")
-    # sns.kdeplot(gray_jai.flatten(), color="blue")
-    # plt.show()
-    cropped_zed, y_s, y_e, x_s, x_e = crop_zed_roi(gray_zed, zed_angles, jai_angles, **zed_roi_params)
-    tx, ty, sx, sy, im_zed, im_jai, r_zed, kp_jai, des_jai = first_translation(cropped_zed, gray_jai, zed_rgb, jai_rgb,
-                                                                               y_s, y_e)
-    if np.any([np.isnan(val) for val in [tx, ty, sx, sy]]):
-        x1, y1, x2, y2 = 0, 0, *im_zed.shape[::-1]
-        x2 -= 1
-        y1 -= 1
-    else:
-        x1, y1, x2, y2 = get_coordinates_in_zed(im_zed, im_jai, tx, ty, sx, sy)
-        x1, y1, x2, y2 = convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed)
-    h_z = zed_rgb.shape[0]
-    w_z = zed_rgb.shape[1]
-    if use_fine:
-        im_zed_stage2 = gray_zed[max(int(y1 - h_z / 20), 0): min(int(y2 + h_z / 20), h_z),
-                                 max(int(x1 - w_z / 10), 0): min(int(x2 + w_z / 10), w_z)]
-        im_zed_stage2, r_zed2 = resize_img(im_zed_stage2, 960)
-        tx2, ty2, sx2, sy2 = get_fine_affine_translation(im_zed_stage2, im_jai)
-        kp_zed, des_zed = find_keypoints(resize_img(gray_zed[max(int(y1), 0): min(int(y2), h_z),
-                                                  max(int(x1), 0): min(int(x2), w_z)],960)[0])
-        M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
-        # plot_homography(zed_rgb[max(int(y1), 0): min(int(y2), h_z),
-        #                         max(int(x1), 0): min(int(x2), w_z)], M_homography)
-        s2_x1, s2_y1, s2_x2, s2_y2 = get_coordinates_in_zed(im_zed_stage2, im_jai, tx2, ty2, sx2, sy2)
-        s2_x1, s2_y1, s2_x2, s2_y2 = convert_coordinates_to_orig(s2_x1, s2_y1, s2_x2, s2_y2, 0, r_zed2)
-        x1 = max(int(x1-w_z/10), 0) + int(s2_x1)
-        x2 = x1 + int((s2_x2-s2_x1))
-        y1 = max(int(y1-h_z/20), 0) + int(s2_y1)
-        y2 = y1 + int((s2_y2 - s2_y1))
-        tx, ty = int(tx + tx2 - w_z / 10), int(ty + ty2 - h_z / 20)
-
-    return (x1, y1, x2, y2), tx, ty, sx, sy
-
-
-def convert_coordinates_to_orig(x1, y1, x2, y2, y_s, x_s, r_zed):
-
-    arr = np.array([x1, y1, x2, y2])
-    arr = arr / r_zed
-
-    arr[1] += y_s
-    arr[3] += y_s
-
-    arr[0] += x_s
-    arr[2] += x_s
-
-    return arr
-
-
-def get_coordinates_in_zed(gray_zed, gray_jai, tx, ty, sx, sy):
-    jai_in_zed_height = np.round(gray_jai.shape[0] * sy).astype(np.int)
-    jai_in_zed_width = np.round(gray_jai.shape[1] * sx).astype(np.int)
-
-    z_w = gray_zed.shape[1]
-    if tx > 0:
-        x1 = tx
-        x2 = tx + jai_in_zed_width
-    else:
-        x2 = z_w + tx
-        x1 = x2 - jai_in_zed_width
-    if ty > 0:
-        y1 = ty
-        y2 = ty + jai_in_zed_height
-    else:
-        y1 = - ty
-        y2 = jai_in_zed_height - ty
-    return x1, y1, x2, y2
-
-
-def update_zed_shift(tx, zed_shift, consec_less_threshold, consec_more_threshold):
-    if isinstance(tx, type(None)):
-        return zed_shift, consec_less_threshold, consec_more_threshold
-    if np.isnan(tx):
-        return zed_shift, consec_less_threshold, consec_more_threshold
-    if tx < 20:
-        consec_less_threshold += 1
-    else:
-        consec_less_threshold = 0
-    if consec_less_threshold > 5:
-        zed_shift -= 1
-        consec_less_threshold = 0
-        consec_more_threshold = 0
-    if tx > 120:
-        consec_more_threshold += 1
-    else:
-        consec_more_threshold = 0
-    if consec_more_threshold > 5:
-        zed_shift += 1
-        consec_less_threshold = 0
-        consec_more_threshold = 0
-    return zed_shift, consec_less_threshold, consec_more_threshold
-
-
-def align_folder(folder_path, result_folder="", plot_res=True, use_fine=False, zed_shift=0,
-                 zed_roi_params=dict(y_s=None, y_e=None, x_s=0, x_e=None)):
-    if result_folder == "":
-        result_folder = folder_path
-    frames = [frame.split(".")[0].split("_")[-1] for frame in os.listdir(folder_path) if "FSI" in frame]
-    df_out_list = []
-    frames.sort(key=lambda x: int(x))
-    consec_less_threshold, consec_more_threshold = 0, 0
-    for frame in tqdm(frames):
-        zed_path = os.path.join(folder_path, f"frame_{int(frame)+zed_shift}.jpg")
-        rgb_path = os.path.join(folder_path, f"channel_RGB_frame_{frame}.jpg")
-        if not (os.path.exists(zed_path) and os.path.exists(rgb_path)):
-            continue
-        rgb_jai = cv2.cvtColor(cv2.imread(rgb_path), cv2.COLOR_BGR2RGB)
-        zed = cv2.cvtColor(cv2.imread(zed_path), cv2.COLOR_BGR2RGB)
-        if is_sturated(rgb_jai_frame, 0.5) or is_sturated(zed_frame, 0.5):
-            print(f'frame {frame} is saturated, skipping')
-            continue
-        corr, tx, ty, sx, sy = align_sensors(zed, rgb_jai, use_fine=use_fine, zed_roi_params=zed_roi_params)
-        x1, y1, x2, y2 = corr
-        # print(f"frame:{frame}, x1:{int(x1)}, tx: {tx}, zed_shift: {zed_shift}")
-        df_out_list.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                "tx": tx, "ty": ty, "sx": sx, "sy": sy, "frame": frame, "zed_shift": zed_shift})
-        if plot_res:
-            try:
-                img1 = rgb_jai
-                img2 = zed
-                jai_in_zed = img2[int(y1): min(int(y2), zed.shape[0]), max(int(x1), 0): min(int(x2), zed.shape[1])]
-                fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
-                ax1.imshow(cv2.resize(img1, jai_in_zed.shape[:2][::-1]))
-                ax2.imshow(jai_in_zed)
-                plt.show()
-            except:
-                print("resize problem")
-        zed_shift, consec_less_threshold, consec_more_threshold = update_zed_shift(tx, zed_shift, consec_less_threshold,
-                                                                               consec_more_threshold)
-    df_out = pd.DataFrame.from_records(df_out_list)
-    df_out.to_csv(os.path.join(result_folder, "jai_cors_in_zed.csv"))
-    plt.plot(df_out["tx"])
-    plt.ylim(-200, 200)
-    plt.show()
-    print(f"aligned: {folder_path}")
 
 
 def plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e):
@@ -638,8 +660,6 @@ def plot_homography(zed_rgb, M_homography):
 
 
 if __name__ == "__main__":
-    align_folder("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/frames", use_fine=False,
-                 zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670), zed_shift=0)
     zed_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/frame_548.jpg"
     depth_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/ZED/depth_frame_548.jpg"
     jai_frame = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30/frame_539.jpg"
@@ -655,9 +675,6 @@ if __name__ == "__main__":
     depth = cv2.imread(depth_frame)
     depth = cv2.rotate(depth, cv2.ROTATE_90_CLOCKWISE)
     depth = cv2.cvtColor(depth, cv2.COLOR_BGR2RGB)
-
-    corr = align_sensors(zed, rgb_jai)
-    print(corr)
 
     # this is for validating the matching between the images clean version
     # des1 = des_zed
