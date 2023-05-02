@@ -4,15 +4,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
+from sklearn.linear_model import RANSACRegressor
+import kornia as K
+import kornia.feature as KF
+import torch
+np.random.seed(123)
+# cv2.setRNGSeed(123)
 
-def keep_dets_only(frame, detections, margin = 0.5):
+def keep_dets_only(frame, detections, margin=0.5):
     canvas = frame.copy()
     if len(detections) > 0:
         dets = np.array(detections)[:, :4]
     else:
         dets = []
     h, w = frame.shape[:2]
-    bool_arr = np.zeros((h, w), dtype=bool)
+    bool_arr = np.zeros((h, w), dtype=np.bool)
     for det in dets:
         margin_h = ((det[3] - det[1]) * margin / 2)
         margin_w = ((det[2] - det[0]) * margin / 2)
@@ -25,6 +31,46 @@ def keep_dets_only(frame, detections, margin = 0.5):
     canvas[np.logical_not(bool_arr)] = 0
 
     return canvas
+
+
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+
+    ax_1_range_x = np.arange(0, img1.shape[1], 25)
+    ax_1_range_y = np.arange(0, img1.shape[0], 25)
+    ax1.set_xticks(ax_1_range_x[::4])
+    ax1.set_yticks(ax_1_range_y[::4])
+    ax1.set_xticklabels(ax_1_range_x[::4])
+    ax1.set_yticklabels(ax_1_range_y[::4])
+    ax1.set_xticks(ax_1_range_x, minor=True)
+    ax1.set_yticks(ax_1_range_y, minor=True)
+
+    ax_2_range_x = np.arange(0, img2.shape[1], 25)
+    ax_2_range_y = np.arange(0, img2.shape[0], 25)
+    ax2.set_xticks(ax_2_range_x[::4])
+    ax2.set_yticks(ax_2_range_y[::4])
+    ax2.set_xticklabels(ax_2_range_x[::4])
+    ax2.set_yticklabels(ax_2_range_y[::4])
+    ax2.set_xticks(ax_2_range_x, minor=True)
+    ax2.set_yticks(ax_2_range_y, minor=True)
+
+    plt.title(title)
+    if save_to != "":
+        plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
+    plt.show()
+
+
+def load_color_img(file_path):
+    img = cv2.imread(file_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    return img
+
 
 def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
 
@@ -40,12 +86,28 @@ def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1
 
     return M, score, warp_matrix
 
-def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
+
+def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
                    2. 'hm' for homography
     """
-    file_list = get_fsi_files(frames_folder)
+    if isinstance(file_list, type(None)):
+        file_list = get_fsi_files(frames_folder)
+    # file_list = [os.path.join(r"C:\Users\Nir\Downloads",image) for image in
+    #              ["IMG_20220906_161320.jpg","IMG_20220906_161321.jpg",
+    #               "IMG_20220906_161322.jpg","IMG_20220906_161323.jpg" ]]
+    if method == "match":
+        resize_list = [resize_ for _ in file_list]
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(find_match_translation, file_list[:-1], file_list[1:], resize_list[:-1]))
+        results = np.array(results).astype(int)
+        txs, tys = results[:, 0], results[:, 1]
+        widths = [file.shape[1] for file in file_list]
+        heights = [file.shape[0] for file in file_list]
+        masks = list(map(get_masks_from_tx_ty, txs, tys, heights, widths))
+        return masks
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -54,7 +116,8 @@ def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     if method == 'at':
         masks = list(map(translation_based, M, heights, widths, rs))
     elif method == 'hm':
-        masks = list(map(find_overlapping, M, heights, widths))
+        image_list = [load_color_img(img) for img in file_list]
+        masks = list(map(find_overlapping, image_list[:-1], image_list[1:], M))
     return masks
 
 
@@ -121,7 +184,7 @@ def  get_translation(img1, img2):
     kp1, des1 = find_keypoints(img1)
     kp2, des2 = find_keypoints(img2)
 
-    tx, ty = find_translation(kp1, des1, kp2, des2, 1)
+    tx, ty, _, _, _ = find_translation(kp1, des1, kp2, des2, 1)
 
     return tx, ty
 def get_windows(img1):
@@ -198,7 +261,16 @@ def find_keypoints(img, matcher=None):
     return kp, des
 
 
-def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
+def get_fine_affine_translation(im_zed_stage2, im_jai):
+    kp_des_zed, kp_des_jai = get_fine_keypoints(im_zed_stage2), get_fine_keypoints(im_jai)
+    translation_res = get_fine_translation(kp_des_zed, kp_des_jai, max_workers=5)
+    translation_res = np.array([list(affine_to_values(M)) for tx, ty, M in translation_res])
+    tx, ty, sx, sy = np.nanmean(translation_res, axis=0)
+    return tx, ty, sx, sy
+
+
+
+def match_descriptors(des1, des2, min_matches=10, threshold=0.75):
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=8)
     search_params = dict(checks=50)
@@ -220,7 +292,7 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     return match, matches, matchesMask
 
 
-def calc_affine_transform(kp1, kp2, match, ransac):
+def calc_affine_transform(kp1, kp2, match, ransac=20):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
@@ -311,8 +383,10 @@ def extract_frame_id(file_name):
 
 def load_img(file_path, resize_=640):
     r = None
-
-    img = cv2.imread(file_path)
+    if isinstance(file_path, str):
+        img = cv2.imread(file_path)
+    else:
+        img = file_path
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h = height(img)
@@ -438,7 +512,14 @@ def translation_based(M, height, width, r):
     tx = int(np.round(M[0, 2] / r))
     ty = int(np.round(M[1, 2] / r))
 
+    return get_masks_from_tx_ty(tx, ty, height, width)
+
+
+def get_masks_from_tx_ty(tx, ty, height, width):
     mask = np.zeros((height, width))
+    if np.abs(tx) > width or np.abs(ty) > height:
+        print("tx or ty is too big")
+        return None
     if tx < 0:
         if ty < 0:
             mask[-ty:, -tx:] = 1
@@ -455,14 +536,12 @@ def translation_based(M, height, width, r):
 
 def find_translation(kp1, des1, kp2, des2, r):
     M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)
-    if 1 in np.unique(status) and True not in np.unique(np.isnan(M)) and True not in np.unique(np.isinf(M)):
-        try:
-            tx = int(np.round(M[0, 2] / r))
-            ty = int(np.round(M[1, 2] / r))
-        except:
-            a=1
-    else:
-        tx, ty = None, None
+    if isinstance(M, type(None)):
+        return np.nan, np.nan, M
+    if not np.isfinite(M[0, 2]) or not np.isfinite(M[1, 2]) :
+        return np.nan, np.nan, M
+    tx = int(np.round(M[0, 2] / r))
+    ty = int(np.round(M[1, 2] / r))
 
     return tx, ty, good, matches, matchesMask
 
@@ -476,6 +555,65 @@ def resize_img(input_, size):
     ).astype(np.uint8)
 
     return resized_img, r
+
+
+def find_match_translation(last_frame, frame, size):
+    frame, r = resize_img(cv2.cvtColor(frame.astype(np.uint8), cv2.COLOR_BGR2GRAY), size)
+    last_frame, r = resize_img(cv2.cvtColor(last_frame.astype(np.uint8), cv2.COLOR_BGR2GRAY), size)
+    try:
+        # Apply template Matching
+        res = cv2.matchTemplate(last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
+        x_vec = np.mean(res, axis=0)
+        y_vec = np.mean(res, axis=1)
+        tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
+        ty = (np.argmax(y_vec) - (res.shape[0] // 2 + 1)) / r
+
+    except:
+        Warning('failed to match')
+        tx = None
+        ty = None
+
+    return tx, ty
+
+
+def find_loftr_translation(im_left, im_right, ret_keypoints=False, debug_path=""):
+    im_right = K.image_to_tensor(im_right, True).float() / 255.
+    im_left = K.image_to_tensor(im_left, True).float() / 255.
+
+    input_dict = {"image0":  torch.unsqueeze(im_right, dim=0),  # LofTR works on grayscale images only
+                  "image1": torch.unsqueeze(im_left, dim=0)}
+    with torch.inference_mode():
+        correspondences = KF.LoFTR(pretrained="outdoor")(input_dict)
+
+    mkpts0 = correspondences['keypoints0'].cpu().numpy()
+    mkpts1 = correspondences['keypoints1'].cpu().numpy()
+    M, status = cv2.estimateAffine2D(mkpts0, mkpts1, ransacReprojThreshold=20, maxIters=5000)
+    inliers = status > 0
+    if debug_path != "":
+       draw_loftr(im_right,im_left, mkpts0, mkpts1, inliers, debug_path)
+    if ret_keypoints:
+        return M, status, mkpts0, mkpts1
+    return M, status
+
+def draw_loftr(im_right, im_left, mkpts0, mkpts1, inliers, debug_path):
+
+    draw_LAF_matches(
+        KF.laf_from_center_scale_ori(torch.from_numpy(mkpts0).view(1, -1, 2),
+                                     torch.ones(mkpts0.shape[0]).view(1, -1, 1, 1),
+                                     torch.ones(mkpts0.shape[0]).view(1, -1, 1)),
+
+        KF.laf_from_center_scale_ori(torch.from_numpy(mkpts1).view(1, -1, 2),
+                                     torch.ones(mkpts1.shape[0]).view(1, -1, 1, 1),
+                                     torch.ones(mkpts1.shape[0]).view(1, -1, 1)),
+        torch.arange(mkpts0.shape[0]).view(-1, 1).repeat(1, 2),
+        K.tensor_to_image(im_left),
+        K.tensor_to_image(im_right),
+        inliers,
+        debug_path = debug_path,
+        draw_dict={'inlier_color': (0.2, 1, 0.2),
+                   'tentative_color': None,
+                   'feature_color': (0.2, 0.5, 1), 'vertical': False})
+
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

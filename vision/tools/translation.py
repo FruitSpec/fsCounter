@@ -111,7 +111,8 @@ class translation():
             last_kp, last_des = find_keypoints(last_frame)
             tx, ty, _, _, _ = find_translation(last_kp, last_des, kp, des, r)
         else:
-            raise Exception("Input data is not enough to perform translation")
+            # raise Exception("Input data is not enough to perform translation")
+            return 0, 0, (), []
 
         return tx, ty, kp, des
 

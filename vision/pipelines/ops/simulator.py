@@ -44,10 +44,12 @@ def get_frame_drop(args):
 
 
 def get_max_cut_frame(args, slice_data_jai, slice_data_zed):
-    frames_with_slices = [key for key, item in slice_data_jai.items() if not item["end"] is None] + \
-                         [key for key, item in slice_data_zed.items() if not item["end"] is None]
-    max_cut_frame = np.max(frames_with_slices) if len(frames_with_slices) else np.inf
-
+    if args.until_last_slice:
+        frames_with_slices = [key for key, item in slice_data_jai.items() if not item["end"] is None] +\
+                             [key for key, item in slice_data_zed.items() if not item["end"] is None]
+        max_cut_frame = np.max(frames_with_slices) if len(frames_with_slices) else np.inf
+    else:
+        max_cut_frame = np.inf
     return max_cut_frame
 
 
@@ -97,6 +99,7 @@ def get_jai_drops(frame_drop_path):
         for line in lines:
             if "FRAME DROP" in line:
                 jai_drops = np.append(jai_drops, line.strip().split(" ")[-1])
+    jai_drops = np.array([frame for frame in jai_drops if frame != "No."])
     jai_drops_uniq = np.unique(jai_drops).astype(int)
     jai_drops_uniq.sort()
     jai_drops_uniq -= range(len(jai_drops_uniq))
