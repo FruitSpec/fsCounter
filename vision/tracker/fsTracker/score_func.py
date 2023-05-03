@@ -1,6 +1,10 @@
 import numpy as np
+import cupy as cp
 import torch
 from numba import jit
+import time
+import threading
+import queue
 #from cython_bbox import bbox_overlaps as bbox_ious
 
 @jit(nopython=True)
@@ -48,13 +52,13 @@ def ratio(trck_box, det_box):
     return min(trck_area / det_area, det_area / trck_area)
 
 #@jit(nopython=True)
-def dist(trk_windows, detections, mean_x, mean_y, max_distance):
+def dist(trk_windows, detections, max_distance):
 
     distances = compute_dist_on_vec(trk_windows, detections)
     distances = distances / max_distance
     bool_mat = distances > 1
-    idx_mat = bool_mat.astype(np.int8)
-    distances[idx_mat == 1] = 1  # distance higher than allowed
+    #idx_mat = bool_mat.astype(int)
+    distances[bool_mat == True] = 1  # distance higher than allowed
     # bool_ = np.where(distances > 1, 1, 0)
     # if bool_.shape[0] == 1 and bool_.shape[1] == 1:
     #
@@ -70,23 +74,22 @@ def dist_GPU(trk_windows, detections, mean_x, mean_y, max_distance):
 
     return 1 - distances
 
-@jit(nopython=True)
-def relativity_score(trk_boxes, detections, relatives=10, score_rel=3):
+
+def relativity_score(trk_boxes, detections, relatives=10):
     relatives = min(min(len(trk_boxes), len(detections)) - 1, relatives)
-    trk_mag, trk_ang, trk_args = get_features(trk_boxes, relatives)
-    det_mag, det_ang, det_args = get_features(detections, relatives)
+    best_trk_mag, best_trk_ang, trk_args, best_det_mag, best_det_ang, det_args = get_rel_fetures(trk_boxes,
+                                                                                                 detections,
+                                                                                                 relatives)
 
-    best_trk_mag = trk_mag
-    best_trk_ang = trk_ang
-    best_det_mag = det_mag
-    best_det_ang = det_ang
+    res = calc_rel_score_GPU(best_trk_mag, best_trk_ang, best_det_mag, best_det_ang)
 
-    if len(best_trk_mag) < score_rel:
-        Warning("number of relatives is smaller than 'score_rel', using all relatives")
-        score_rel = len(best_trk_mag)
+    return 1 - res
+
+@jit(nopython=True)
+def calc_rel_score(best_trk_mag, best_trk_ang, best_det_mag, best_det_ang):
 
     res = np.empty((best_trk_mag.shape[0], best_det_mag.shape[0]))
-    for i in range(len(det_mag)):
+    for i in range(len(best_det_mag)):
 
         m = best_det_mag[i, 1:]
         a = best_det_ang[i, 1:]
@@ -106,44 +109,21 @@ def relativity_score(trk_boxes, detections, relatives=10, score_rel=3):
     #res = np.stack(res, axis=1)
     res /= (res.max() + 1E-6)
 
-    return 1 - res
+    return res
 
 
-def relativity_score_GPU(trk_boxes, detections, relatives=10, score_rel=3):
-    relatives = min(min(len(trk_boxes), len(detections)) - 1, relatives)
-    trk_mag, trk_ang, trk_args = get_features_GPU(trk_boxes, relatives)
-    det_mag, det_ang, det_args = get_features_GPU(detections, relatives)
 
-    best_trk_mag = trk_mag
-    best_trk_ang = trk_ang
-    best_det_mag = det_mag
-    best_det_ang = det_ang
+def calc_rel_score_GPU(trk_mag, trk_ang, det_mag, det_ang):
 
-    if len(best_trk_mag) < score_rel:
-        Warning("number of relatives is smaller than 'score_rel', using all relatives")
-        score_rel = len(best_trk_mag)
+    dm = trk_mag[:, 1:].unsqueeze(1) - det_mag[:, 1:].unsqueeze(0)
+    da = trk_ang[:, 1:].unsqueeze(1) - det_ang[:, 1:].unsqueeze(0)
 
-    res = []
-    for i in range(len(det_mag)):
+    relative_diff = torch.sqrt(torch.abs(dm * da))
+    relative_diff = torch.sum(relative_diff, dim=2)
 
-        m = best_det_mag[i, 1:]
-        a = best_det_ang[i, 1:]
+    res = relative_diff / (relative_diff.max() + 1E-6)
 
-        #dm = torch.tensor(best_trk_mag[:, 1:]) - m
-        dm = best_trk_mag[:, 1:].clone().detach() - m
-        #da = torch.tensor(best_trk_ang[:, 1:]) - a
-        da = best_trk_ang[:, 1:].clone().detach() - a
-
-
-        relative_diff = torch.sqrt(torch.abs(dm * da))
-
-        relative_diff = torch.sum(relative_diff, dim=1)  # [:, :score_rel], dim=1)
-        res.append(relative_diff)
-
-    res = torch.stack(res, dim=1)
-    res /= (res.max() + 1E-6)
-
-    return 1 - res.to('cpu').numpy()
+    return res.to('cpu').numpy()
 
 
 @jit(nopython=True)
@@ -156,21 +136,18 @@ def get_features(bboxes, relatives):
     center_y = np.expand_dims(center_y, axis=0)
     x_diffs = center_x.T - center_x
     y_diffs = center_y.T - center_y
-    magnitudes = np.sqrt(x_diffs**2 + y_diffs**2)
+    #magnitudes = np.sqrt(x_diffs**2 + y_diffs**2)
+    magnitudes = np.hypot(x_diffs, y_diffs)
     angles = np.arctan2(y_diffs, x_diffs) * 180 / np.pi
 
     args = np.empty(magnitudes.shape, dtype=np.int8)
     for i in range(magnitudes.shape[0]):
         args[i, :] = np.argsort(magnitudes[i, :])
-    #args = np.argsort(magnitudes, axis=1)
 
-    #ordered_mag = np.take_along_axis(magnitudes, args, axis=1)
-    #ordered_ang = np.take_along_axis(angles, args, axis=1)
     ordered_mag, ordered_ang = take_along_axis_1(magnitudes, angles, args, relatives)
 
-    #return ordered_mag[:, :relatives], ordered_ang[:, :relatives], args
     return ordered_mag, ordered_ang, args
-    #return magnitudes, angles
+
 
 @jit(nopython=True)
 def take_along_axis_1(magintudes, angles, args, relatives):
@@ -186,6 +163,8 @@ def take_along_axis_1(magintudes, angles, args, relatives):
             ang_mat[i, j] = angles[i, arg]
 
     return mag_mat, ang_mat
+
+
 def get_features_GPU(bboxes, relatives):
 
     center_x = (bboxes[:, 2] + bboxes[:, 0]) / 2
@@ -203,21 +182,11 @@ def get_features_GPU(bboxes, relatives):
     ordered_mag = torch.gather(magnitudes, 1, args)
     ordered_ang = torch.gather(angles, 1, args)
 
-    return ordered_mag[:, :relatives], ordered_ang[:, :relatives], args
+    ordered_mag = ordered_mag[:, :relatives]
+    ordered_ang = ordered_ang[:, :relatives]
 
+    return ordered_mag, ordered_ang, args
 
-
-
-
-# def dist(tlbr, btlbrs, mean_movement, max_distance):
-#
-#     tlbrs = [tlbr for _ in btlbrs]
-#
-#     distances = np.array(list(map(compute_dist, tlbrs, btlbrs, mean_movement)))
-#     distances = distances / max_distance
-#
-#     return 1 - distances
-    #return distances
 
 def compute_dist(atlbr, btlbr, mean_movment):
 
@@ -292,27 +261,22 @@ def z_score(trk_depth, dets_depth):
     z_diff[np.isnan(z_diff)] = 0.5  # in case of nan, the output score will be 0.5
 
     return 1 - z_diff
-    # score = []
-    # for det in dets:
-    #     det_conf = det[4] * det[5]
-    #     score.append(1 - np.abs(aconf - det_conf))
-    #
-    # return score
+
 
 def get_intersection(bboxes1, bboxes2):  # matches
     inter_aera = []
 
     if len(bboxes1) > 0 and len(bboxes2) > 0:
         inter_aera = calc_intersection(np.array(bboxes1), np.array(bboxes2))
+
     return inter_aera
+
 
 @jit(nopython=True)
 def calc_intersection(bboxes1: np.array, bboxes2: np.array):
     x11, y11, x12, y12 = bbox_to_coordinate_vectors(bboxes1)
     x21, y21, x22, y22 = bbox_to_coordinate_vectors(bboxes2)
 
-    #x11, y11, x12, y12 = np.split(np.array(bboxes1), 4, axis=1)
-    #x21, y21, x22, y22 = np.split(np.array(bboxes2)[:, :4], 4, axis=1)
     xA = np.maximum(x11, np.transpose(x21))
     yA = np.maximum(y11, np.transpose(y21))
     xB = np.minimum(x12, np.transpose(x22))
@@ -336,19 +300,40 @@ def bbox_to_coordinate_vectors(bboxes):
     return x1_vec, y1_vec, x2_vec, y2_vec
 
 
-def get_intersection_GPU(bboxes1, bboxes2):
-    inter_area = []
+def thread_get_features(bboxes, relatives, result_queue, name='get_features'):
+    thread_results = get_features(bboxes, relatives)
+    result_queue.put({name: thread_results})
 
-    if len(bboxes1) > 0 and len(bboxes2) > 0:
-        bboxes1 = torch.tensor(bboxes1).to('cuda')
-        bboxes2 = torch.tensor(bboxes2).to('cuda')
-        x11, y11, x12, y12 = torch.split(bboxes1, 1, dim=1)
-        x21, y21, x22, y22 = torch.split(bboxes2[:, :4], 1, dim=1)
-        xA = torch.max(x11, x21.t())
-        yA = torch.max(y11, y21.t())
-        xB = torch.min(x12, x22.t())
-        yB = torch.min(y12, y22.t())
-        inter_area = torch.clamp(xB - xA + 1, min=0) * torch.clamp(yB - yA + 1, min=0)
-        inter_area = inter_area.to('cpu').numpy()
 
-    return inter_area
+def thread_get_features_GPU(bboxes, relatives, result_queue, name='get_features'):
+    t_bboxes = torch.tensor(bboxes).to('cuda')
+    thread_results = get_features_GPU(t_bboxes, relatives)
+    result_queue.put({name: thread_results})
+
+
+def get_rel_fetures(trk_boxes, detections, relatives):
+
+    result_queue = queue.Queue()
+
+    thread1 = threading.Thread(target=thread_get_features_GPU, args=(trk_boxes, relatives, result_queue, 'trk'))
+    thread2 = threading.Thread(target=thread_get_features_GPU, args=(detections, relatives, result_queue, 'det'))
+
+    # Start the threads
+    thread1.start()
+    thread2.start()
+
+    # Wait for all threads to complete
+    thread1.join()
+    thread2.join()
+
+    while not result_queue.empty():
+        result = result_queue.get()
+        func_result = list(result.keys())
+        if 'trk' in func_result:
+            trk_mag, trk_ang, trk_args = result['trk']
+        elif 'det' in func_result:
+            det_mag, det_ang, det_args = result['det']
+        else:
+            print('Error')
+
+    return trk_mag, trk_ang, trk_args, det_mag, det_ang, det_args

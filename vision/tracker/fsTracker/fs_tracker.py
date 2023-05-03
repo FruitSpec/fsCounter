@@ -1,39 +1,20 @@
 import os.path
-
+import threading
+import queue
 import cv2
 import numpy as np
 import torch
+from cython_bbox import bbox_overlaps
 from numba import jitclass, typed, typeof, jit
 from numba import int32, float32, char
+import time
 
 from vision.tracker.fsTracker.base_track import Track
-from vision.tracker.fsTracker.score_func import compute_ratios, dist, confidence_score, get_intersection, relativity_score
-from vision.tracker.fsTracker.score_func import z_score, relativity_score_GPU, dist_GPU, get_intersection_GPU, compute_ratios_GPU
+from vision.tracker.fsTracker.score_func import compute_ratios, dist, get_intersection, relativity_score
+from vision.tracker.fsTracker.score_func import z_score
 from vision.misc.help_func import validate_output_path
 
 
-# spec = [
-#     #('tracklets', typed.List(typeof(Track()))),               # a simple scalar field
-#     ('tracklets', typed.List(track_class_type)),               # a simple scalar field
-#     ('track_id', int32),
-#     ('frame_id', int32),
-#     ('max_distance', int32),
-#     ('minimal_max_distance', int32),
-#     ('x_distance', float32),
-#     ('y_distance', float32),
-#     ('major', float32),
-#     ('minor', float32),
-#     ('match_type', char[:]),
-#     ('det_area', float32),
-#     ('max_losses', int32),
-#     ('score_weights', float32[:]),
-#     ('frame_size', int32[:]),
-#     ('translation_size', int32),
-#     ('debug_folder', char[:]),
-#     ('f_id', int32),
-#     ('last_frame', float32[:])]
-
-#@jitclass(spec)
 class FsTracker():
 
     def __init__(self, frame_size=[2048, 1536], frame_id=0, track_id=0, minimal_max_distance=10,
@@ -91,9 +72,14 @@ class FsTracker():
             self.add_track(detections, det_id, dets_depth)
 
         """ remove tracks exceeding max_range"""
+        s = time.time()
         self.update_accumulated_dist()
+        e = time.time()
+        print(f"time pp: {e-s:.4f}")
 
         online_track = [t.output() for t in self.tracklets if t.is_activated]
+
+
 
         return online_track, track_windows
 
@@ -101,11 +87,6 @@ class FsTracker():
         tracklets_bboxes = []
         tracklets_scores = []
 
-        # todo make one run instead of 4
-        #tracklets = list(map(self.get_track, self.tracklets))
-        #track_acc_dist = list(map(self.get_acc_dist, self.tracklets))
-        #track_acc_height = list(map(self.get_acc_height, self.tracklets))
-        #track_depth = list(map(self.get_track_depth, self.tracklets))
         results = list(map(self.get_data, self.tracklets))
         tracklets = []
         track_acc_dist = []
@@ -154,32 +135,34 @@ class FsTracker():
         tracklets_windows = []
 
         if len(tracklets_bboxes) > 0:
-            tracklets_bboxes = np.vstack(tracklets_bboxes)
 
-
-            if tx > 0:  # moving right - fruits moving left
-                x1 = tracklets_bboxes[:, 0] - tx
-                x2 = tracklets_bboxes[:, 2] + margin - tx_m
-            else:
-                x1 = tracklets_bboxes[:, 0] - margin - tx_m
-                x2 = tracklets_bboxes[:, 2] - tx
-
-
-            x1[x1 < 0] = 0
-            x2[x2 > self.frame_size[1]] = self.frame_size[1]
-
-            if ty > 0:
-                y1 = tracklets_bboxes[:, 1] - ty
-                y2 = tracklets_bboxes[:, 3] + margin - ty_m
-            else:
-                y1 = tracklets_bboxes[:, 1] - margin - ty_m
-                y2 = tracklets_bboxes[:, 3] - ty
-
-
-
-
-            y1[y1 < 0] = 0
-            y2[y2 > self.frame_size[0]] = self.frame_size[0]
+            x1, x2, y1, y2 = tracklets_to_windows(tracklets_bboxes, tx, tx_m, ty, ty_m, margin, np.array(self.frame_size))
+            # tracklets_bboxes = np.vstack(tracklets_bboxes)
+            #
+            #
+            # if tx > 0:  # moving right - fruits moving left
+            #     x1 = tracklets_bboxes[:, 0] - tx
+            #     x2 = tracklets_bboxes[:, 2] + margin - tx_m
+            # else:
+            #     x1 = tracklets_bboxes[:, 0] - margin - tx_m
+            #     x2 = tracklets_bboxes[:, 2] - tx
+            #
+            #
+            # x1[x1 < 0] = 0
+            # x2[x2 > self.frame_size[1]] = self.frame_size[1]
+            #
+            # if ty > 0:
+            #     y1 = tracklets_bboxes[:, 1] - ty
+            #     y2 = tracklets_bboxes[:, 3] + margin - ty_m
+            # else:
+            #     y1 = tracklets_bboxes[:, 1] - margin - ty_m
+            #     y2 = tracklets_bboxes[:, 3] - ty
+            #
+            #
+            #
+            #
+            # y1[y1 < 0] = 0
+            # y2[y2 > self.frame_size[0]] = self.frame_size[0]
 
             tracklets_windows = np.stack([x1, y1, x2, y2], axis=1)
 
@@ -250,20 +233,16 @@ class FsTracker():
 
         intersections = []
 
-        if self.det_area < 1 and len(bboxes2) > 0:
-            bboxes2 = np.array(bboxes2)[:, :4]
-            margin_coef = (1 - self.det_area) / 2
-            margin_x = (bboxes2[:, 2] - bboxes2[:, 0]) * margin_coef
-            margin_y = (bboxes2[:, 3] - bboxes2[:, 1]) * margin_coef
-            bboxes2[:, 0] += margin_x
-            bboxes2[:, 2] -= margin_x
-            bboxes2[:, 1] += margin_y
-            bboxes2[:, 3] -= margin_y
-
-        inetr_area = get_intersection(bboxes1, bboxes2)
-        #inetr_area = get_intersection_GPU(bboxes1, bboxes2)
-        if len(inetr_area) > 0:
-            intersections = inetr_area > 0
+        atlbrs = [box for box in bboxes1]
+        btlbrs = [box[:4] for box in bboxes2]
+        #bboxes2 = np.array(bboxes2).astype(np.float32)[:, :4]
+        ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
+        if ious.size > 0:
+            ious = bbox_overlaps(
+                np.ascontiguousarray(atlbrs, dtype=np.float),
+                np.ascontiguousarray(btlbrs, dtype=np.float)
+            )
+            intersections = ious > 0
 
         return intersections
 
@@ -305,26 +284,12 @@ class FsTracker():
 
         detections_arr = np.array(detections)
         dets = detections_arr[:, :4]
-        dets_score = detections_arr[:, 4] * detections_arr[:, 5]
 
-        #t_track_boxess = torch.tensor(track_bboxes)
-        #t_track_boxess = t_track_boxess.to('cuda')
-        #t_dets = torch.tensor(dets)
-        #t_dets = t_dets.to('cuda')
-        #t_track_windows = torch.tensor(track_windows)
-        #t_track_windows = t_track_windows.to('cuda')
-
-
-        #dist_score = dist(track_windows, dets, tracks_acc_dist, tracks_acc_height, np.abs(self.max_distance))
-        dist_score = dist(track_windows, dets, self.x_distance * self.major, self.y_distance * self.major, np.abs(self.max_distance))
-        #dist_score = dist_GPU(t_track_windows, t_dets, self.x_distance * self.major, self.y_distance * self.major, np.abs(self.max_distance))
+        dist_score = dist(track_windows, dets, np.abs(self.max_distance))
         ratio_score = compute_ratios(track_bboxes, dets)
-        #ratio_score = compute_ratios_GPU(t_track_boxess, t_dets)
         rel_score = relativity_score(track_bboxes, dets)
-        #rel_score = relativity_score_GPU(t_track_boxess, t_dets)
 
         # no match get 0 score
-        #matches = self.assign_single_match(matches)
         matches = assign_single_match(matches)
         no_match = np.logical_not(matches)
         dist_score[no_match] = 0  # no match
@@ -333,12 +298,12 @@ class FsTracker():
 
         # calculate z score only if depth values exist
         if dets_depth is not None:
+            no_match = np.logical_not(matches)
             depth_score = z_score(trk_depth, dets_depth)
             depth_score[no_match] = 0
             weigthed_depth = depth_score * self.score_weights[2]
         else:
             weigthed_depth = 0
-
 
         weigthed_ratio = ratio_score * self.score_weights[0]
         weigthed_dist = dist_score * self.score_weights[1]
@@ -346,40 +311,6 @@ class FsTracker():
 
         weigthed_score = (weigthed_ratio + weigthed_dist + weigthed_depth + weigthed_rel) / np.sum(self.score_weights)
 
-        #coupled_dets = []
-        #coupled_trk = []
-        #n_dets = weigthed_score.shape[1]
-        #mat_ids = np.argsort(weigthed_score, axis=None)[::-1]
-        #for c in range(n_dets):
-        #for mat_id in mat_ids:
-        #mat_id = np.argmax(weigthed_score)
-            #trk_id = mat_id // n_dets
-            #det_id = mat_id % n_dets
-            #if weigthed_score[trk_id, det_id] == 0:
-            #    break
-            #if len(coupled_dets) == n_dets:
-            #    break
-            #if det_id in coupled_dets:
-            #    continue
-            #if trk_id in coupled_trk:
-            #    continue
-            #if dets_depth is not None:
-            #    depth = dets_depth[det_id]
-            #else:
-            #    depth = None
-
-            #self.tracklets[trk_id].update(detections[det_id], depth)
-            #coupled_dets.append(det_id)
-            ##weigthed_score[:, det_id] = 0
-            ##weigthed_score[trk_id, :] = 0
-            #coupled_trk.append(trk_id)
-
-
-
-        #not_coupled = []
-        #for det_id in range(n_dets):
-        #    if det_id not in coupled_dets:
-        #        not_coupled.append(det_id)
         trk_det_couples, not_coupled = assign_det_by_score(weigthed_score)
         for trk_id, det_id in trk_det_couples.items():
             if dets_depth is not None:
@@ -389,21 +320,6 @@ class FsTracker():
             self.tracklets[trk_id].update(detections[det_id], depth)
 
         return not_coupled
-
-    #def assign_single_match(self, matches):
-
-    #    mask = np.zeros(matches.shape)
-    #    v = np.sum(matches, axis=1)
-    #    for i, m in enumerate(v):
-    #        if m == 1:
-    #            det_id = np.argmax(matches[i, :])
-    #            mask[i, det_id] = 1
-    #        else:
-    #            mask[i, :] = 1
-    #    matches = np.logical_and(matches, mask)
-
-
-    #    return matches
 
 
     def get_matches(self, track_tf):
@@ -423,18 +339,6 @@ class FsTracker():
 
         return matched_tracks, matched_track_index, matched_tracks_acc_dist
 
-    #@staticmethod
-    #def get_matches(detections, det_ids, det_tf, coupled):
-    #    temp_det_index = [det_id for det_id, tf in zip(det_ids, det_tf) if tf]
-
-    #    matched_dets = []
-    #    matched_det_index = []
-    #    for index in temp_det_index:
-    #        if index not in coupled:
-    #            matched_dets.append(detections[index])
-    #            matched_det_index.append(index)
-
-    #    return matched_dets, matched_det_index
 
     def add_track(self, detections, det_id, dets_depth):
         if dets_depth is not None:
@@ -451,30 +355,32 @@ class FsTracker():
         for t in self.tracklets:
             t.is_activated = False
 
+
     def update_accumulated_dist(self):
 
         new_tracklets_list = []
         for track in self.tracklets:
             if track.is_activated is False:  # not found in current frame
-                valid = False
-                if len(track.accumulated_dist) == 0:  # object found once
-                    track.accumulated_dist.append(self.x_distance)
-                    track.accumulated_height.append(self.y_distance)
-
-                track.bbox[0] -= np.mean(track.accumulated_dist)
-                track.bbox[2] -= np.mean(track.accumulated_dist)
-                track.bbox[1] -= np.mean(track.accumulated_height)
-                track.bbox[3] -= np.mean(track.accumulated_height)
-                #track.state = TrackState.Lost
                 track.lost_counter += 1
+                if track.lost_counter < self.max_losses:
+                    if len(track.accumulated_dist) == 0:  # object found once
+                        track.accumulated_dist.append(self.x_distance)
+                        track.accumulated_height.append(self.y_distance)
+                    mean_dist = np.mean(track.accumulated_dist)
+                    mean_height = np.mean(track.accumulated_height)
+                    track.bbox[0] -= mean_dist
+                    track.bbox[2] -= mean_dist
+                    track.bbox[1] -= mean_height
+                    track.bbox[3] -= mean_height
 
-                valid = self.validate_track_location(track, self.frame_size[1])
-                if track.lost_counter < self.max_losses and valid:
-                    new_tracklets_list.append(track)
+                    valid = self.validate_track_location(track, self.frame_size[1])
+                    if valid:
+                        new_tracklets_list.append(track)
             else:
                 new_tracklets_list.append(track)
 
         self.tracklets = new_tracklets_list
+
 
     @staticmethod
     def validate_track_location(track, frame_width):
@@ -567,6 +473,69 @@ def assign_det_by_score(weigthed_score):
             not_coupled.append(det_id)
 
     return trk_det_couples_dict, not_coupled
+
+
+@jit(nopython=True)
+def tracklets_to_windows(tracklets_bboxes, tx:np.float32, tx_m:np.float32, ty:np.float32, ty_m:np.float32, margin, frame_size):
+   # tracklets_bboxes = np.vstack(tracklets_bboxes)
+
+    if tx > 0:  # moving right - fruits moving left
+        x1 = tracklets_bboxes[:, 0] - tx
+        x2 = tracklets_bboxes[:, 2] + margin - tx_m
+    else:
+        x1 = tracklets_bboxes[:, 0] - margin - tx_m
+        x2 = tracklets_bboxes[:, 2] - tx
+
+    x1[x1 < 0] = 0
+    x2[x2 > frame_size[1]] = frame_size[1]
+
+    if ty > 0:
+        y1 = tracklets_bboxes[:, 1] - ty
+        y2 = tracklets_bboxes[:, 3] + margin - ty_m
+    else:
+        y1 = tracklets_bboxes[:, 1] - margin - ty_m
+        y2 = tracklets_bboxes[:, 3] - ty
+
+    y1[y1 < 0] = 0
+    y2[y2 > frame_size[0]] = frame_size[0]
+
+    return x1, x2, y1, y2
+
+@jit(nopython=True)
+def get_weighted_scores(matches, dist_score, ratio_score, rel_score, score_weights):
+
+    matches = matches.astype(np.int32)
+    dist_score = logical_not_assign_zero(dist_score, matches)
+    ratio_score = logical_not_assign_zero(ratio_score, matches)
+    rel_score = logical_not_assign_zero(rel_score, matches)
+    weigthed_ratio = ratio_score * score_weights[0]
+    weigthed_dist = dist_score * score_weights[1]
+    weigthed_rel = rel_score * score_weights[3]
+
+    return weigthed_ratio, weigthed_dist, weigthed_rel
+
+@jit(nopython=True)
+def logical_not_assign_zero(mat, mask):
+    new_mat = np.zeros((mat.shape))
+    for i in range(new_mat.shape[0]):
+        for j in range(new_mat.shape[1]):
+            if mask[i, j] > 0:
+                new_mat[i, j] = mat[i, j]
+    return new_mat
+
+
+def thread_dist(trk_windows, detections, max_distance, result_queue):
+    dist_score = dist(trk_windows, detections, max_distance)
+    result_queue.put({"dist_score": dist_score})
+
+def thread_compute_ratios(track_bboxes, dets, result_queue):
+        ratio_score = compute_ratios(track_bboxes, dets)
+        result_queue.put({"ratio_score": ratio_score})
+
+
+def thread_relativity_score(track_bboxes, dets, result_queue):
+    rel_score = relativity_score(track_bboxes, dets)
+    result_queue.put({"rel_score": rel_score})
 
 def test_func(f_list):
     import pickle
