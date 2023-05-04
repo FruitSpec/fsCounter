@@ -51,7 +51,7 @@ def validate_output_path(output_folder, flag=1):
     if flag == 0:
         return
     if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
+        os.makedirs(output_folder)
 
 def copy_configs(pipeline_config, runtime_config, output_path):
     shutil.copy(pipeline_config, os.path.join(output_path, "pipeline_config.yaml"))
