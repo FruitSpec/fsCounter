@@ -311,6 +311,12 @@ class SensorAligner:
         zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / self.sx),
                                             int(zed_GPU.size()[1] / self.sy)))
 
+        r = min(size / zed_GPU.size()[0], size / zed_GPU.size()[1])
+        output_GPU = cv2.cuda.resize(input_GPU, (int(zed_GPU.size()[0] * r),
+                                                 int(zed_GPU.size()[1] * r)),
+                                     interpolation=cv2.INTER_CUBIC,
+                                     stream=stream)
+
         zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // 3)
         jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // 3)
 
@@ -697,7 +703,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     zed_GPU = zed_GPU.adjustROI(origin[1], origin[0], origin[3], origin[2])
     zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / sx),
                                         int(zed_GPU.size()[1] / sy)),
-                              stream=stream2)
+                                        stream=stream2)
 
     zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // scale_factor, stream2)
     jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)

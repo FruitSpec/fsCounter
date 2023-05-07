@@ -198,7 +198,6 @@ def find_keypoints(img, matcher=None):
     return kp, des
 
 def find_keypoints_cuda(img_GPU, matcher_GPU=None):
-
     if matcher_GPU is None:
         matcher_GPU = cv2.cuda.SURF_CUDA_create(300)#300,_nOctaveLayers=2)
     kpGPU, desGPU = matcher_GPU.detectWithDescriptors(img_GPU, None)

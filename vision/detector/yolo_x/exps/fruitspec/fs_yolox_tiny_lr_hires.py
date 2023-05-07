@@ -24,7 +24,7 @@ class Exp(MyExp):
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/fruitspec-lab/FruitSpec/Sandbox'
+        self.output_dir = '/home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/'
         self.num_classes = 1
 
         # -------------- training config --------------------- #

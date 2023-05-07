@@ -20,16 +20,13 @@ class counter_detection():
     def __init__(self, cfg, args):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
-
-        self.detector = self.init_detector(cfg)
+        self.detector, self.decoder_ = self.init_detector(cfg)
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
-
         self.tracker = self.init_tracker(cfg, args)
-
         self.device = cfg.device
 
     @staticmethod
@@ -37,17 +34,46 @@ class counter_detection():
         exp = get_exp(cfg.exp_file)
         model = exp.get_model()
 
-        print("loading checkpoint from {}".format(cfg.ckpt_file))
-        ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
-        model.load_state_dict(ckpt["model"])
-        print("loaded checkpoint done.")
         model.cuda(cfg.device)
-        model.eval()
 
-        if cfg.detector.fp16:
+        if cfg.detector.fp16:   # can only run on gpu
             model.half()
 
-        return model
+        model.eval()
+
+        decoder_ = None
+
+        if not cfg.detector.trt:
+
+            print("loading checkpoint from {}".format(cfg.ckpt_file))
+            ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
+            model.load_state_dict(ckpt["model"])
+            print("loaded checkpoint done.")
+
+        if cfg.detector.trt:
+            model.head.decode_in_inference = False
+            decoder_ = model.head.decode_outputs
+
+            from torch2trt import TRTModule
+            model_trt = TRTModule()
+
+            # replace model weights with "model_trt.pth" in the same dir:
+            weights_path = os.path.abspath(cfg.ckpt_file)
+            if os.path.basename(weights_path) != "model_trt.pth":
+                weights_path = os.path.join(os.path.dirname(weights_path), "model_trt.pth")
+            if not os.path.exists(weights_path):
+                raise FileNotFoundError(f"File {weights_path} not found.")
+
+            # load trt-pytorch model
+            model_trt.load_state_dict(torch.load(weights_path))
+            print("loaded TensorRT model.")
+            x = torch.ones(cfg.batch_size, 3, exp.test_size[0], exp.test_size[1]).cuda()
+            tensor_type = torch.cuda.HalfTensor if cfg.detector.fp16 else torch.cuda.FloatTensor
+            x = x.type(tensor_type)
+            model(x)
+            model = model_trt
+
+        return model, decoder_
 
     @staticmethod
     def init_tracker(cfg, args):
@@ -61,6 +87,7 @@ class counter_detection():
                          translation_size=cfg.tracker.translation_size,
                          major=cfg.tracker.major,
                          minor=cfg.tracker.minor,
+                         compile_data=cfg.tracker.compile_data_path,
                          debug_folder=None)
 
 
@@ -72,6 +99,8 @@ class counter_detection():
 
         with torch.no_grad():
             output = self.detector(input_)
+            if self.decoder_ is not None:
+                output = self.decoder_(output, dtype=output.type())
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
@@ -94,7 +123,6 @@ class counter_detection():
                 else:
                     id_ = None
                 online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_)
-                print(f"number of tracklets: {len(self.tracker.tracklets)}")
                 tracking_results = []
                 for target in online_targets:
                     target.append(id_)

@@ -7,6 +7,7 @@ import numpy as np
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
+import pickle
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
@@ -25,7 +26,8 @@ from vision.data.fs_logger import Logger
 
 
 def run(cfg, args, metadata=None):
-
+    tracker_translation_input = []
+    tracker_input_dets = []
     adt = Pipeline(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
 
@@ -51,14 +53,19 @@ def run(cfg, args, metadata=None):
                 if f_id + i in frame_drop_jai:
                      adt.sensor_aligner.zed_shift += 1
              f_id += adt.batch_size
+             adt.logger.iterations += 1
              continue
 
          # align sensors
         # corr, tx_a, ty_a, sx, sy = adt.align_cameras(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
         #                                                            rgb_jai_frame)
-        if f_id >=218:
-            a=1
+        if f_id == 420:
+            a = 1
+        s = time.time()
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
+        e = time.time()
+        if e-s > 0.3:
+            a = 1
 
         # detect:
         det_outputs = adt.detect(jai_batch)
@@ -68,7 +75,9 @@ def run(cfg, args, metadata=None):
 
         # track:
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
-
+        if f_id > 140 and f_id < 180:
+            tracker_input_dets.append(det_outputs)
+            tracker_translation_input.append(translation_results)
         #collect results:
         results_collector.collect_detections(det_outputs, f_id)
         results_collector.collect_tracks(trk_outputs)
@@ -84,6 +93,10 @@ def run(cfg, args, metadata=None):
     adt.jai_cam.close()
     adt.rgb_jai_cam.close()
     adt.dump_log_stats(args)
+
+    tracker_init = {'dets': tracker_input_dets, 'translation': tracker_translation_input}
+    with open('tracker_init.pkl', 'wb') as f:
+        pickle.dump(tracker_init, f)
 
     results_collector.dump_feature_extractor(args.output_folder)
 

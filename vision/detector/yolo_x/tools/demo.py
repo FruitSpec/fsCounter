@@ -126,6 +126,8 @@ class Predictor(object):
             model_trt.load_state_dict(torch.load(trt_file))
 
             x = torch.ones(1, 3, exp.test_size[0], exp.test_size[1]).cuda()
+            if fp16:
+                x = x.type(torch.cuda.HalfTensor)
             self.model(x)
             self.model = model_trt
 
@@ -194,16 +196,14 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
         outputs, img_info = predictor.inference(image_name)
         result_image = predictor.visual(outputs[0], img_info, predictor.confthre)
         if save_result:
-            save_folder = os.path.join(
-                vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-            )
+            save_folder = os.path.join(vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time))
             os.makedirs(save_folder, exist_ok=True)
             save_file_name = os.path.join(save_folder, os.path.basename(image_name))
             logger.info("Saving detection result in {}".format(save_file_name))
             cv2.imwrite(save_file_name, result_image)
-        ch = cv2.waitKey(0)
-        if ch == 27 or ch == ord("q") or ch == ord("Q"):
-            break
+        # ch = cv2.waitKey(0)
+        # if ch == 27 or ch == ord("q") or ch == ord("Q"):
+        #     break
 
 
 def imageflow_demo(predictor, vis_folder, current_time, args):
@@ -234,9 +234,9 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             else:
                 cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
                 cv2.imshow("yolox", result_frame)
-            ch = cv2.waitKey(1)
-            if ch == 27 or ch == ord("q") or ch == ord("Q"):
-                break
+                ch = cv2.waitKey(1)
+                if ch == 27 or ch == ord("q") or ch == ord("Q"):
+                    break
         else:
             break
 
@@ -291,13 +291,11 @@ def main(exp, args):
 
     if args.trt:
         assert not args.fuse, "TensorRT model is not support model fusing!"
-        trt_file = os.path.join(file_name, "model_trt.pth")
-        assert os.path.exists(
-            trt_file
-        ), "TensorRT model is not found!\n Run python3 tools/trt.py first!"
+
         model.head.decode_in_inference = False
         decoder = model.head.decode_outputs
         logger.info("Using TensorRT to inference")
+        trt_file = args.ckpt
     else:
         trt_file = None
         decoder = None
