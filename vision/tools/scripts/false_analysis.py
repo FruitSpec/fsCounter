@@ -21,22 +21,26 @@ def analyze(gt_file_path, det_file_path, output_path, iou=0.5):
     det_map = map_img_to_id(det_coco)
 
     for img_name, gt_id in tqdm(gt_map.items()):
-        det_id = det_map[img_name]
-        gt_bbox = h_gt[gt_id]
-        if det_id in det_Ids:
-            det_bbox = h_det[det_id]
-            # find best matches by IoU
-            no_match = []
-            for gt in gt_bbox:
-                scores = []
-                bb_a = gt['bbox'].copy()
-                for det in det_bbox:
-                    bb_b = det['bbox'].copy()
-                    scores.append(calc_iou(bb_a, bb_b))
-                if np.max(scores) < iou:
-                    no_match.append(gt)
-        else:
+        if img_name not in list(det_map.keys()):
+            gt_bbox = h_gt[gt_id]
             no_match = gt_bbox
+        else:
+            det_id = det_map[img_name]
+            gt_bbox = h_gt[gt_id]
+            if det_id in det_Ids:
+                det_bbox = h_det[det_id]
+                # find best matches by IoU
+                no_match = []
+                for gt in gt_bbox:
+                    scores = []
+                    bb_a = gt['bbox'].copy()
+                    for det in det_bbox:
+                        bb_b = det['bbox'].copy()
+                        scores.append(calc_iou(bb_a, bb_b))
+                    if np.max(scores) < iou:
+                        no_match.append(gt)
+            else:
+                no_match = gt_bbox
 
         if no_match:  # not empty
             no_match_images.append(gt_id)
@@ -84,9 +88,9 @@ def calc_iou(bb_a, bb_b):
 
 if __name__ == "__main__":
 
-    det_path = '/home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022/instances_res.json'
-    gt_path = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/annotations/instances_val.json"
+    det_path = '/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/clahe_2/coco_det.json'
+    gt_path = "/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/EQUALIZE_HIST_2/coco_det.json"
 
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022"
+    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/"
 
-    analyze(gt_path, det_path, output_path, 0.2)
+    analyze(gt_path, det_path, output_path, 0.4)

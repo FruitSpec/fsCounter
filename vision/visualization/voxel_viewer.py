@@ -109,9 +109,9 @@ def create_name():
 
 
 if __name__ == '__main__':
-    data_path = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/val2017"
-    files = {"GT": "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/annotations/instances_val.json"} #,
-             #"yolox": "/home/fruitspec-lab/FruitSpec/Sandbox/yolox_tiny_hires_1024X1024/instances_res3.json",
-             #'yoloV5': "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6_COCO/coco_resV5.json"}
+    data_path = "/home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_2/frames"
+    files = {"normHist": "/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/EQUALIZE_HIST_2/coco_det.json", #,
+             "Clahe": "/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/clahe_2/coco_det.json",
+             "diff": "/home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/res.json"}
     vizualize_coco_results(files, data_path)
 

@@ -227,7 +227,10 @@ class SensorAligner:
             y1 = self.y_s + ty
             y2 = self.y_s + ty + self.roiy
 
-        #self.update_zed_shift(tx)
+        if np.isnan(x1):
+            a = 1
+
+        self.update_zed_shift(tx)
 
         return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
 

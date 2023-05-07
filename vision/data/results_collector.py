@@ -117,7 +117,7 @@ class ResultsCollector():
 
     def dump_to_csv(self, output_file_path, type='detections'):
         if type == 'detections':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "image_id", "class_pred"]
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
             rows = self.detections
         elif type == 'measures':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",

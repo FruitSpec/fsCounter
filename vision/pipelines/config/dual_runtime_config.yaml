@@ -1,33 +1,34 @@
-output_folder: /home/matan/FruitSpec/Sandbox/Counter/t_1704
-slice_data_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
-frame_drop_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/frame_drop_1.log
-debug_folder: $(output_folder)/debbug
+output_folder: /home/fruitspec-lab/FruitSpec/Sandbox/Counter/clahe_test/EQUALIZE_HIST_2
+slice_data_path: /home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_1ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
+frame_drop_path: /home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_1frame_drop_1.log
+debug_folder: "{{output_folder}}/debbug"
 rotate: false
 zed_shift: 0 # default 0
 max_z: 8
+frame_size: [2048, 1536]
 overwrite:
   adt: false
   trees: false
 create_full_features: true
 
 zed:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1.svo
+  movie_path: /home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_2/ZED_1.svo
   frame_size: [1920, 1080]
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 0.5 # 1 counter
   depth_maximum: 20 # 8 counter
 
 jai:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_FSI_1.mkv
+  movie_path: /home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_2/FSI_EQUALIZE_HIST_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 rgb_jai:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_RGB_1.mkv
+  movie_path: /home/fruitspec-lab/FruitSpec/Data/CLAHE_test/LEMONZMO/250423/row_2/RGB_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
-frame_size: [2048, 1536]
+
 
 debug:
   tracker: None
