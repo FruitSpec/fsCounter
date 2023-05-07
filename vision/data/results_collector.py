@@ -280,13 +280,11 @@ class ResultsCollector():
             x1, y1, x2, y2 = r[0]
             tx = r[1]
             ty = r[2]
-            sx = r[3]
-            sy = r[4]
-            zed_shift = r[5]
+            zed_shift = r[3]
             tx = tx if not np.isnan(tx) else 0
             ty = ty if not np.isnan(ty) else 0
             self.alignment.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                    "tx": int(tx), "ty": int(ty), "sx": sx, "sy": sy, "frame": f_id, "zed_shift": zed_shift})
+                                    "tx": int(tx), "ty": int(ty), "frame": f_id, "zed_shift": zed_shift})
             self.jai_zed[f_id] = f_id + zed_shift
 
         pass

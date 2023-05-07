@@ -16,7 +16,7 @@ from torch.nn import Module
 cwd = os.getcwd()
 sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 
-from vision.detector.yolo_x.yolox.utils import LRScheduler
+#from vision.detector.yolo_x.yolox.utils import LRScheduler
 
 
 class BaseExp(metaclass=ABCMeta):
@@ -45,7 +45,7 @@ class BaseExp(metaclass=ABCMeta):
     @abstractmethod
     def get_lr_scheduler(
         self, lr: float, iters_per_epoch: int, **kwargs
-    ) -> LRScheduler:
+    ):
         pass
 
     @abstractmethod

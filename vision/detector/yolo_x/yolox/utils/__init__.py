@@ -9,8 +9,9 @@ from .compat import meshgrid
 from .demo_utils import *
 from .dist import *
 from .ema import *
-from .logger import WandbLogger, setup_logger
-from .lr_scheduler import LRScheduler
+# todo un-comment for train
+#from .logger import WandbLogger, setup_logger
+#from .lr_scheduler import LRScheduler
 from .metric import *
 from .model_utils import *
 from .setup_env import *

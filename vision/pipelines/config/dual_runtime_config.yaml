@@ -1,7 +1,7 @@
-output_folder: /home/matan/FruitSpec/Sandbox/Counter/t_1704
-slice_data_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
-frame_drop_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/frame_drop_1.log
-debug_folder: $(output_folder)/debbug
+output_folder: /home/mic-730ai/fruitspec/test_data/t16_numba_cached
+slice_data_path: /home/mic-730ai/fruitspec/test_data/ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
+frame_drop_path: /home/mic-730ai/fruitspec/test_data/frame_drop_1.log
+debug_folder: $(output_folder)/debug
 rotate: false
 zed_shift: 0 # default 0
 max_z: 8
@@ -11,25 +11,30 @@ overwrite:
 create_full_features: true
 
 zed:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/ZED_1.svo
+  movie_path: /home/mic-730ai/fruitspec/test_data/ZED_1.svo
   frame_size: [1920, 1080]
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 0.5 # 1 counter
   depth_maximum: 20 # 8 counter
 
 jai:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_FSI_1.mkv
+  movie_path: /home/mic-730ai/fruitspec/test_data/Result_FSI_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 rgb_jai:
-  movie_path: /home/matan/FruitSpec/Data/DWDB/DWDBLE33/R11A/Result_RGB_1.mkv
+  movie_path: /home/mic-730ai/fruitspec/test_data/Result_RGB_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 frame_size: [2048, 1536]
 
 debug:
+  tracker_windows: false
+  tracker_results: false
+  det_results: false
+  raw_frame: false
+  depth: false
   tracker: None
   trees: false
   features: false
