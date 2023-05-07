@@ -480,7 +480,7 @@ class FsTracker():
         file_name = os.path.join(self.debug_folder, f'kp_f{self.f_id}.jpg')
         cv2.imwrite(file_name, debug_img)
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def assign_single_match(matches):
     mask = np.zeros(matches.shape)
     for i in range(mask.shape[0]):
@@ -493,7 +493,7 @@ def assign_single_match(matches):
 
     return matches
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def assign_det_by_score(weigthed_score):
     trk_det_couples_dict = {}
 
@@ -527,7 +527,7 @@ def assign_det_by_score(weigthed_score):
     return trk_det_couples_dict, not_coupled
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def tracklets_to_windows(tracklets_bboxes, tx:np.float32, tx_m:np.float32, ty:np.float32, ty_m:np.float32, margin, frame_size):
    # tracklets_bboxes = np.vstack(tracklets_bboxes)
 

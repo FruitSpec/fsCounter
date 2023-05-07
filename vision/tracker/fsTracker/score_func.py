@@ -7,7 +7,7 @@ import threading
 import queue
 #from cython_bbox import bbox_overlaps as bbox_ious
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def compute_ratios(trk_windows: np.array, dets: np.array) -> np.array:
     trk_area = (trk_windows[:, 2] - trk_windows[:, 0]) * (trk_windows[:, 3] - trk_windows[:, 1])
     det_area = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
@@ -44,7 +44,7 @@ def compute_ratios_GPU(trk_windows, dets):
 
     return result.to('cpu').numpy()
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def ratio(trck_box, det_box):
     trck_area = (trck_box[2] - trck_box[0]) * (trck_box[3] - trck_box[1])
     det_area = (det_box[2] - det_box[0]) * (det_box[3] - det_box[1])
@@ -149,7 +149,7 @@ def get_features(bboxes, relatives):
     return ordered_mag, ordered_ang, args
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def take_along_axis_1(magintudes, angles, args, relatives):
 
     if relatives > args.shape[1]:
@@ -203,7 +203,7 @@ def compute_dist(atlbr, btlbr, mean_movment):
     # center - tracks
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def compute_dist_on_vec(trk_windows, dets):
     trk_windows = trk_windows.astype(np.float32)
     dets = dets.astype(np.float32)
