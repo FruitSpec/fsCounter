@@ -7,6 +7,7 @@ import string
 from vision.depth.zed.clip_depth_viewer import init_cam
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
+from tqdm import tqdm
 
 def slice_image(filepath, output_path_name, per_svo_sample):
     per_svo_sample = int(per_svo_sample)
