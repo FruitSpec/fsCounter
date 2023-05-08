@@ -8,6 +8,7 @@ from vision.visualization.drawer import draw_highlighted_test
 from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fine_translation
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
+from tqdm import tqdm
 
 
 def mouse_callback(event, x, y, flags, params):
