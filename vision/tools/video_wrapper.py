@@ -35,6 +35,21 @@ class video_wrapper():
 
         return rotation
 
+
+    def grab(self, frame_number=None):
+        if self.mode == 'svo':
+            if frame_number is not None:
+                self.cam.set_svo_position(frame_number)
+            res = self.cam.grab(self.runtime)
+            if res == sl.ERROR_CODE.SUCCESS:
+                self.res = True
+            else:
+                self.res = False
+
+        else:
+            Warning('Grab Not implemented for file type')
+
+
     def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False):
 
         if self.mode != 'svo':
@@ -58,18 +73,6 @@ class video_wrapper():
                 point_cloud = self.get_point_cloud()
                 return frame, depth, point_cloud
 
-    def grab(self, frame_number=None):
-        if self.mode == 'svo':
-            if frame_number is not None:
-                self.cam.set_svo_position(frame_number)
-            res = self.cam.grab(self.runtime)
-            if res == sl.ERROR_CODE.SUCCESS:
-                self.res = True
-            else:
-                self.res = False
-
-        else:
-            Warning('Grab Not implemented for file type')
 
     def get_frame(self, frame_number=None):
         if self.mode == 'svo':
