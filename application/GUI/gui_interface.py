@@ -61,7 +61,7 @@ class GUIInterface(Module):
 
     @staticmethod
     @sio.event
-    def connect(sid, environ):
+    def connect_gui(sid, environ):
         logging.info(f"CONNECTION ESTABLISHED: {sid}")
         states = json.dumps({
             'JAI': GUIInterface.jai_state,
@@ -80,7 +80,8 @@ class GUIInterface(Module):
     @sio.event
     def start_recording(sid, data):
         logging.info(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
-        GUIInterface.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.Analysis,
+                               ModulesEnum.DataManager)
 
     @staticmethod
     @sio.event
@@ -92,7 +93,7 @@ class GUIInterface(Module):
     @sio.event
     def stop_recording(sid, data):
         logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
-        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Analysis)
+        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Analysis, ModulesEnum.DataManager)
 
     @staticmethod
     @sio.event

@@ -9,11 +9,10 @@ class AnalysisManager:
     _batcher = None
 
     def __init__(self, frames_queue):
-        batch_event = Event()
 
         self._batcher = Batcher(frames_queue)
-        self._batch_thread = Thread(target=self.batch, daemon=True, args=(batch_event,))
-        self._detect_proc = Process(target=self.detect, daemon=True, args=(batch_event,))
+        self._batch_thread = Thread(target=self.batch, daemon=True)
+        self._detect_proc = Process(target=self.detect, daemon=True)
         self._track_proc = Process(target=self.track, daemon=True)
 
     def start_analysis(self):
@@ -34,7 +33,7 @@ class AnalysisManager:
     def stop_acquisition(self):
         self._batcher.stop_acquisition()
 
-    def batch(self, batch_event):
+    def batch(self):
 
         def share_batches():
             while True:

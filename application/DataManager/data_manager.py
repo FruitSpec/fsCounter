@@ -16,12 +16,14 @@ import speedtest
 
 class DataManager(Module):
     previous_plot, current_plot = data_conf["global polygon"], data_conf["global polygon"]
+    current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
     fruits_data_lock, scan_lock = threading.Lock(), threading.Lock()
     s3_client = None
     update_output_thread, internet_scan_thread = None, None
-    scan_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
+    scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
+    collected_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
 
     @staticmethod
     def init_module(sender, receiver, main_pid, module_name):
@@ -31,6 +33,12 @@ class DataManager(Module):
         DataManager.s3_client = boto3.client("s3")
         DataManager.update_output_thread = threading.Thread(target=DataManager.update_output, daemon=True)
         DataManager.internet_scan_thread = threading.Thread(target=DataManager.internet_scan, daemon=True)
+
+        try:
+            DataManager.collected_df = pd.read_csv(data_conf["collected path"], dtype=str)
+        except FileNotFoundError:
+            DataManager.collected_df = pd.DataFrame(
+                data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
 
         DataManager.update_output_thread.start()
         DataManager.internet_scan_thread.start()
@@ -48,7 +56,10 @@ class DataManager(Module):
             if data_conf["use feather"]:
                 # convert CSV to feather before trying to upload to S3. should take 2-3 seconds if file size < 1MB.
                 filename_feather = f"fruits_{DataManager.current_index}.feather"
-                feather_path = tools.get_fruits_path(DataManager.current_plot, DataManager.current_index, "feather")
+                feather_path = tools.get_fruits_path(
+                    plot=DataManager.current_plot, row=DataManager.current_row,
+                    index=DataManager.current_index, write_csv=False
+                )
                 pd.read_csv(DataManager.current_path).to_feather(feather_path)
                 filename = filename_feather
             else:
@@ -58,23 +69,18 @@ class DataManager(Module):
                 "customer code": [conf["customer code"]],
                 "plot code": [DataManager.current_plot],
                 "scan date": [today],
+                "row": [DataManager.current_row],
                 "filename": [filename]
             }
             tmp_df = pd.DataFrame(data=data, index=[0])
             DataManager.scan_lock.acquire(blocking=True)
-            scan_df = pd.concat([DataManager.scan_df, tmp_df], axis=0)
-            scan_df.drop_duplicates(inplace=True)
+            DataManager.scan_df = pd.concat([DataManager.scan_df, tmp_df], axis=0)
+            DataManager.scan_df.drop_duplicates(inplace=True)
             logging.info(f"PREVIOUS FILE {DataManager.current_plot}/{filename} ADDED TO SCAN DF")
             DataManager.scan_lock.release()
 
         if DataManager.current_path:
             add_to_scan()
-
-        # update index and path for the new file
-        plot_dir = os.listdir(tools.get_fruits_path(DataManager.current_plot, get_dir=True))
-        path_indices = (tools.index_from_fruits(f, with_prefix=False, as_int=True) for f in plot_dir if tools.is_csv(f))
-        DataManager.current_index = 1 + max(path_indices, default=0)
-        DataManager.current_path = tools.get_fruits_path(plot=DataManager.current_plot, index=DataManager.current_index)
 
     @staticmethod
     def receive_data(sig, frame):
@@ -115,6 +121,39 @@ class DataManager(Module):
                 imu_df = pd.DataFrame(data)
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
+        elif sender_module == ModulesEnum.GUI:
+            if action == ModuleTransferAction.START_ACQUISITION:
+                DataManager.previous_plot = DataManager.current_plot
+                DataManager.current_plot = data["plot"]
+                DataManager.current_row = data["row"]
+
+                # update index and path for the new file
+                plot_dir = os.listdir(tools.get_fruits_path(
+                    plot=DataManager.current_plot,
+                    row=DataManager.current_row,
+                    get_dir=True)
+                )
+                path_indices = [tools.index_from_svo(f, as_int=True) for f in plot_dir if tools.is_svo(f)]
+                print("PATH INDICES: ", path_indices)
+                DataManager.current_index = 1 + max(path_indices, default=0)
+                DataManager.current_path = tools.get_fruits_path(
+                    plot=DataManager.current_plot,
+                    index=DataManager.current_index,
+                    row=DataManager.current_row
+                )
+
+            if action == ModuleTransferAction.STOP_ACQUISITION:
+                today = datetime.now().strftime("%d%m%y")
+                collected_data = {
+                    "customer_code": [conf["customer code"]],
+                    "plot_code": [DataManager.current_plot],
+                    "scan_date": [today],
+                    "row": [DataManager.current_row],
+                    "file_index": [DataManager.current_index]
+                }
+                tmp_df = pd.DataFrame(data=collected_data, index=[0])
+                DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
+                DataManager.collected_df.to_csv(data_conf["collected path"], mode="w", index=False, header=True)
 
     @staticmethod
     def write_fruits_data_locally(release=True):
@@ -216,8 +255,8 @@ class DataManager(Module):
 
             if not scan_csv_df.empty:
                 def filter_removed(row):
-                    c, p, sd, f = row["customer code"], row["plot code"], str(row["scan date"]), row["filename"]
-                    return (c, p, sd, f) not in removed_files
+                    c, p, sd, r, f = row["customer code"], row["plot code"], str(row["scan date"]), row["row"], row["filename"]
+                    return (c, p, sd, r, f) not in removed_files
 
                 scan_csv_df = scan_csv_df.loc[scan_csv_df.apply(func=filter_removed, axis=1)]
                 scan_csv_df.drop_duplicates(inplace=True)

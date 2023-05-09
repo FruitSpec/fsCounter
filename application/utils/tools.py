@@ -25,8 +25,17 @@ def index_from_fruits(filename, with_prefix=True, as_int=False):
     return int(filename[start:end]) if as_int else filename[start:end]
 
 
+def index_from_svo(filename, as_int=False):
+    svo_index = filename.split('_')[1].split('.')[0]
+    return int(svo_index) if as_int else svo_index
+
+
 def is_csv(filename):
     return filename[-3:] == "csv"
+
+
+def is_svo(filename):
+    return filename[-3:] == "svo"
 
 
 def get_nav_path():
@@ -42,9 +51,11 @@ def get_imu_path():
     return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.imu')
 
 
-def get_fruits_path(plot, index=-1, ext="csv", get_dir=False):
+def get_fruits_path(plot, row, index=-1, write_csv=True, get_dir=False):
+    ext = "csv" if is_csv else "feather"
     today = datetime.now().strftime("%d%m%y")
-    plot_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today)
+    row = f"row_{row}"
+    plot_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today, row)
     if get_dir:
         return plot_dir
     index_str = f"{data_conf['file prefix']}{str(index).zfill(3)}"
