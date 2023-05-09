@@ -7,7 +7,7 @@ from datetime import datetime
 from builtins import staticmethod
 from application.utils.settings import GPS_conf, conf, analysis_conf, data_conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
-from application.Analysis import batcher
+from application.Analysis.analysis_manager import AnalysisManager
 import jaized
 import cv2
 import numpy as np
@@ -15,7 +15,7 @@ import numpy as np
 
 class AcquisitionManager(Module):
     acquisition_start_event = threading.Event()
-    jz_recorder, batcher = None, None
+    jz_recorder, analyzer = None, None
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     output_dir = ""
@@ -29,11 +29,11 @@ class AcquisitionManager(Module):
         super(AcquisitionManager, AcquisitionManager).init_module(sender, receiver, main_pid, module_name)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
-        AcquisitionManager.set_acquisition_parameters()
         AcquisitionManager.jz_recorder = jaized.JaiZed()
+        AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder)
+        AcquisitionManager.set_acquisition_parameters()
         AcquisitionManager.connect_cameras()
-        AcquisitionManager.batcher = batcher.Batcher(AcquisitionManager.jz_recorder)
-        AcquisitionManager.batcher.prepare_batches()
+        AcquisitionManager.analyzer.start_analysis()
 
     @staticmethod
     def connect_cameras():
@@ -52,12 +52,12 @@ class AcquisitionManager(Module):
             AcquisitionManager.output_975, AcquisitionManager.output_svo, AcquisitionManager.view,
             AcquisitionManager.pass_clahe_stream, AcquisitionManager.debug_mode
         )
-        AcquisitionManager.batcher.start_acquisition()
+        AcquisitionManager.analyzer.start_acquisition()
 
     @staticmethod
     def stop_acquisition():
         AcquisitionManager.jz_recorder.stop_acquisition()
-        AcquisitionManager.batcher.stop_acquisition()
+        AcquisitionManager.analyzer.stop_acquisition()
 
     @staticmethod
     def set_acquisition_parameters(data=None):
@@ -99,6 +99,8 @@ class AcquisitionManager(Module):
         AcquisitionManager.view = False
         AcquisitionManager.pass_clahe_stream = True
         AcquisitionManager.debug_mode = True
+
+        AcquisitionManager.analyzer.set_output_dir(AcquisitionManager.output_dir)
 
         if not os.path.exists(AcquisitionManager.output_dir):
             os.makedirs(AcquisitionManager.output_dir)

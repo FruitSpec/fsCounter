@@ -65,7 +65,8 @@ def main():
     manager[ModulesEnum.Analysis].set_process(
         target=AcquisitionManager.init_module,
         main_pid=main_pid,
-        module_name=ModulesEnum.Analysis
+        module_name=ModulesEnum.Analysis,
+        daemon=False
     )
 
     manager[ModulesEnum.GPS].start()

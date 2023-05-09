@@ -58,10 +58,10 @@ class ModuleManager:
         self.module_name = None
         self.sender, self.receiver = Pipe()
 
-    def set_process(self, target, main_pid, module_name):
+    def set_process(self, target, main_pid, module_name, daemon=True):
         self.module_name = module_name
         args = (self.sender, self.receiver, main_pid, module_name)
-        self._process = Process(target=target, args=args, daemon=True, name=module_name.value)
+        self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
 
     def retrieve_transferred_data(self):
         if self.receiver.poll():
