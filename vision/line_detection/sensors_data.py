@@ -19,7 +19,7 @@ def load_log_file(file_path):
         print(f"An error occurred while loading the log file: {e}")
         return None
 
-def log_to_df(log_data):
+def log_to_df(log_data, columns_names):
     table_data = []
     current_row = []
 
@@ -38,6 +38,8 @@ def log_to_df(log_data):
     if table_data:
         table = pd.DataFrame(table_data)
         table.iloc[:, 2:] = table.iloc[:, 2:].astype(float)
+        table.columns = columns_names
+        table = extract_time_from_timestamp(table)
         return table
     else:
         return None
@@ -131,9 +133,7 @@ if __name__ == "__main__":
     log_file_path = f'/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_3/imu_1.log'
 
     log_contents = load_log_file(log_file_path)
-    df_imu = log_to_df(log_contents)
-    df_imu.columns = ['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']
-    df_imu = extract_time_from_timestamp(df_imu)
+    df_imu = log_to_df(log_contents, columns_names = ['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z'])
 
     # Load depth cvs file and merge with sensors:
     path_to_depth = r'/home/lihi/FruitSpec/debbug/depth_ein_vered_SUMERGOL_230423_row_3_.csv'

@@ -13,13 +13,14 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import ProcessPoolExecutor
 #import copy
-
 from vision.depth.slicer.slicer import slice_frame, print_lines
 from vision.depth.slicer.slicer_validatior import slicer_validator
 from vision.misc.help_func import validate_output_path
 from vision.tools.video_wrapper import video_wrapper
 from vision.depth.slicer.slicer_validatior import load_json, write_json
 from vision.tools.camera import is_saturated
+from sensors_data import load_log_file, log_to_df, extract_time_from_timestamp
+
 
 def slice_frames(depth_folder_path, output_path, rgb_folder_path=None, debug=False, start_frame=None, end_frame=None):
 
@@ -61,32 +62,40 @@ def slice_frames(depth_folder_path, output_path, rgb_folder_path=None, debug=Fal
     return slice_data
 
 
-def slice_clip(filepath, output_dir, output_name, rotate=0, window_thrs=0.4, neighbours_thrs=250, dist_thrs=150, signal_thrs=0.5, start_frame=1, end_frame=None, smooth=True, debug=False, save_video = False):
-    print(f'working on {filepath}')
-    depth_minimum = 1
-    depth_maximum = 3.5
-    cam = video_wrapper(filepath, rotate=rotate, depth_minimum=depth_minimum, depth_maximum=depth_maximum)
-    number_of_frames = cam.get_number_of_frames()
-    if end_frame is not None:
-        end_frame = min(number_of_frames, end_frame)
-    else:
-        end_frame = number_of_frames
+def slice_clip(svo_path, log_path, output_dir, output_name, EMA_alpha_AV ,EMA_alpha_depth,ground_truth = None, rotate=0, angular_velocity_thresh = 10, depth_percentile_thresh=0.5, signal_thrs=0.5,  start_frame=1, depth_minimum = 1, depth_maximum = 3.5, end_frame=None, save_video = False):
 
-    slice_data = {}
+    validate_output_path(output_dir)
+
+    # load log file to csv:
+    print (f'Extracting Sensors data {log_path} from ')
+    log_contents = load_log_file(log_path)
+    columns_names = ['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z',
+     'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']
+    df = log_to_df(log_contents, columns_names)
+
+
+    # Extract video
+    print(f'Extracting video from {svo_path}')
+    cam = video_wrapper(svo_path, rotate=rotate, depth_minimum=depth_minimum, depth_maximum=depth_maximum)
+    end_frame = validate_end_frame(cam, end_frame)
+
     index = start_frame
     pbar = tqdm(total=end_frame-start_frame)
 
     if save_video:
-        writer = cv2.VideoWriter(output_dir + output_name +".mp4", cv2.VideoWriter_fourcc(*'mp4v'), 15, (cam.get_width() * 2, cam.get_height()))
-    df = pd.DataFrame()
+        output_video_path = output_dir + output_name + ".mp4"
+        writer = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), 15, (cam.get_width() * 2, cam.get_height()))
+
+    in_line = False
 
     while True:
-        #print(f'done {index} / {end_frame-start_frame}')
+
         pbar.update(1)
         # TODO: add validation for start / end row and saturation
         if index > end_frame:
             break
         ########################
+        # skip every 30 frames
         if index%30==0:   # todo: remove. its just a fix for a local bug
             index+=1
             continue
@@ -98,44 +107,47 @@ def slice_clip(filepath, output_dir, output_name, rotate=0, window_thrs=0.4, nei
             print (f'cam.res {cam.res}, Break the loop')
             # Break the loop
             break
-        if index == 103:
-            a = 149
 
-        # shadow sky noise:
-        b = frame[:, :, 0].copy()
-        depth[b > 240] = 0
+        # ema_previous = df.loc[index - 1, ['score_ema']][0] if ('score_ema' in df.columns) else None
+        if 'score_ema' in df.columns:
+            ema_previous = df.loc[index - 1, ['score_ema']][0]
+        else: ema_previous = None
+        is_near, score, score_ema, saturated, y_end, y_start = near_objects (frame, depth, depth_percentile_thresh, signal_thrs, EMA_alpha_depth, ema_previous)
 
-        # slice frame
-        # if is_wide_gap(depth, start=0, end=depth.shape[0], signal_thrs=20, percentile=0.9):
-        #     index += 1
-        #     continue
-        y_start = int(depth.shape[0]*0.25)
-        y_end = int(depth.shape[0]*0.75)
+        # decide if turning from imu sensors (angular_velocity_x):
+        #AV_ema_previous = df.loc[index - 1, ['AV_ema']][0] if 'AV_ema' in df.columns else None
+        if 'AV_ema' in df.columns:
+            AV_ema_previous = df.loc[index - 1, ['AV_ema']][0]
+        else:
+            AV_ema_previous = None
+
+        current_sensors_data = df.loc[index].angular_velocity_x
+        turning, angular_velocity, angular_velocity_ema = is_turning (current_sensors_data, angular_velocity_thresh, AV_ema_previous, EMA_alpha_AV)
 
 
-        score = is_wide_gap(depth, start=y_start, end=y_end, signal_thrs=signal_thrs, percentile=0.9) # % of far black (below threshold) pixels
-        row = pd.DataFrame([{'frame': int(index), 'score': round(score,2)}])
-        df = pd.concat([df, row], axis=0, ignore_index=True)
+        # decide if in line:
+        in_line = in_line_decision(in_line, is_near, turning)
 
+        # Update dataframe:
+        new_columns = ['turning','AV_thresh','is_near', 'score', 'score_ema', 'depth_thresh','saturated', 'line_pred', 'line_GT']
+        df.loc[index, new_columns] = [turning, angular_velocity_thresh, is_near, score, score_ema, depth_percentile_thresh,saturated, in_line, ground_truth]
+
+        # update video output
         if (depth is not None) and save_video:
-            depth_3d = draw_lines_text(depth, y_end, y_start, text =f'Score {score}')
+            depth_3d = draw_lines_text(depth, y_end, y_start, in_line, turning, angular_velocity,is_near, score)
             merged = cv2.hconcat([frame, depth_3d])
             writer.write(merged)
 
-        # res = slice_frame(depth.astype(np.uint8),
-        #                   window_thrs=window_thrs,
-        #                   neighbours_thrs=neighbours_thrs,
-        #                   signal_thrs=signal_thrs)
-        # slice_data[index] = res
-
         index += 1
 
+    # Save csv:
     file_path_df = output_dir + "/depth_ein_vered_SUMERGOL_230423_row_3.csv"
     df.to_csv(file_path_df)
     print (f'Saved df to {file_path_df}')
 
     if save_video:
         writer.release()
+        print (f'Saved video to {output_video_path}')
 
     # if smooth and not bool(dict):
     #     slice_data = smooth_slicing(slice_data, dist_thrs=dist_thrs)
@@ -157,12 +169,85 @@ def slice_clip(filepath, output_dir, output_name, rotate=0, window_thrs=0.4, nei
     return df
 
 
-def draw_lines_text(img, y_end, y_start, text):
-    depth_3d = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2RGB)
-    depth_3d = cv2.putText(img=depth_3d, text=text, org=(100, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+# def moving_average_smoothing(df_column, index, window_size=30):
+#     idx_start = max(0,index-window_size+1)
+#     idx_end = min (index + 1, len(df_column))
+#     moving_average = df_column.iloc[idx_start:idx_end].mean()
+#     return moving_average
+#
+# ma_score = moving_average_smoothing(df['score'], index, window_size=30)
+
+def near_objects(frame, depth, depth_percentile_thresh, signal_thrs, EMA_alpha_depth, ema_previous):
+    saturated = is_saturated(frame)
+    depth = remove_sky_noise(depth, frame)
+
+    y_start = int(depth.shape[0] * 0.25)
+    y_end = int(depth.shape[0] * 0.75)
+    score = near_objects_around(depth, start=y_start, end=y_end,
+                         signal_thrs=signal_thrs)  # % of far black (below threshold) pixels
+
+    # smooth depth score with exponential moving average:
+    score_ema = ema(score, ema_previous=ema_previous, alpha=EMA_alpha_depth)
+    is_near = score_ema <= depth_percentile_thresh
+
+    return is_near, score, score_ema, saturated, y_end, y_start,
+
+def ema(score, ema_previous, alpha):
+    if ema_previous is None:
+        return score
+    else:
+        ema_curr = (1 - alpha) * ema_previous + alpha * score
+        return ema_curr
+
+def validate_end_frame(cam, end_frame):
+    number_of_frames = cam.get_number_of_frames()
+    if end_frame is not None:
+        end_frame = min(number_of_frames, end_frame)
+    else:
+        end_frame = number_of_frames
+    return end_frame
+
+
+def remove_sky_noise(depth, frame):
+    # shadow sky noise:
+    b = frame[:, :, 0].copy()
+    depth[b > 240] = 0
+    return depth
+
+
+def in_line_decision(in_line, is_near, turning):
+    # todo -decide for initial frame
+    '''
+    Start a new row when depth is near,
+    End the row if turning
+    '''
+    if (in_line == False) and is_near:  # Start line if near
+        in_line = True
+    elif (in_line == True) and turning:  # End line if turning
+        in_line = False
+    return in_line
+
+
+def draw_lines_text(depth_img, y_end, y_start, in_line, turning, angular_velocity, is_near, score, ground_truth=None):
+
+    text1 = f'Line Pred: {in_line}'
+    text2 = f'Near obj:  {is_near}, {score}'
+    text3 = f'Turning:   {turning}, {angular_velocity}'
+
+    depth_3d = cv2.cvtColor(depth_img.astype(np.uint8), cv2.COLOR_GRAY2RGB)
+    depth_3d = cv2.putText(img=depth_3d, text=text1, org=(80, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                            fontScale=2, color=(255, 0, 0), thickness=2, lineType=cv2.LINE_AA)
-    depth_3d = cv2.line(depth_3d, pt1=(0, y_start), pt2=(img.shape[1], y_start), color=(0, 255, 0), thickness=5)
-    depth_3d = cv2.line(depth_3d, pt1=(0, y_end), pt2=(img.shape[1], y_end), color=(0, 255, 0), thickness=5)
+    depth_3d = cv2.putText(img=depth_3d, text=text2, org=(80, 200), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                           fontScale=2, color=(255, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+    depth_3d = cv2.putText(img=depth_3d, text=text3, org=(80, 300), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                           fontScale=2, color=(255, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+
+    if ground_truth is not None:
+        depth_3d = cv2.putText(img=depth_3d, text=f'GT: {ground_truth}', org=(700, 100), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                               fontScale=2, color=(255, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+
+    depth_3d = cv2.line(depth_3d, pt1=(0, y_start), pt2=(depth_img.shape[1], y_start), color=(0, 255, 0), thickness=5)
+    depth_3d = cv2.line(depth_3d, pt1=(0, y_end), pt2=(depth_img.shape[1], y_end), color=(0, 255, 0), thickness=5)
     return depth_3d
 
 
@@ -176,12 +261,20 @@ def worker(cam, index):
     b = frame[:, :, 0].copy()
     depth[b > 240] = 0
     # slice frame
-    if is_wide_gap(depth) or is_saturated(frame):
+    if near_objects(depth) or is_saturated(frame):
         index += 1
         return []
     res = slice_frame(depth.astype(np.uint8), window_thrs=window_thrs, neighbours_thrs=neighbours_thrs)
     return res
 
+
+def is_turning(angular_velocity_x, angular_velocity_thresh, AV_ema_previous, EMA_alpha_AV):
+    '''
+    This function returns True is the Exponential moving average (EMA) of the angular_velocity_x is above thresh
+    '''
+    AV_ema = ema(angular_velocity_x, ema_previous=AV_ema_previous, alpha=EMA_alpha_AV)
+    turning = abs(AV_ema) > angular_velocity_thresh
+    return turning, round(angular_velocity_x, 2), round(AV_ema,2)
 
 def post_process(slice_data, output_path=None, save_csv=False, save_csv_trees=False):
 
@@ -276,8 +369,6 @@ def smooth_slicing(slice_data, dist_thrs=300):
     return slice_data
 
 
-
-
 def save_reults(res, depth, rgb, output_path, frame_id):
     depth_output = os.path.join(output_path, 'depth')
     validate_output_path(depth_output)
@@ -370,13 +461,14 @@ def get_state(loc):
     return state
 
 
-def is_wide_gap(depth, start=750, end=1250, signal_thrs=20, percentile=0.9):
-    width = depth.shape[1]
+def near_objects_around(depth, start=750, end=1250, signal_thrs=20):
 
+    width = depth.shape[1]
     search_area = depth[start: end, :].copy()
     score = np.sum(search_area < signal_thrs) / ((end - start) * width) # % pixels blow threshold
     score = round(score, 2)
     return score
+
     #return score >= percentile
 
 def slice_folder_mp(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame, debug, max_workers=3):
@@ -443,48 +535,24 @@ def slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_th
 
 
 if __name__ == "__main__":
-    # for single file run
-    file_path = "/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_2/ZED_1.svo"
 
-    # # for folder run
-    # folder_path = "/home/fruitspec-lab/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/"
-    # file_name = "ZED_1.svo"
+    svo_path = "/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_2/ZED_1.svo"
+    log_path = f'/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_3/imu_1.log'
+    output_dir = "/home/fruitspec-lab/FruitSpec/debbug/"
 
-    # output validation
-    output_dir = "/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_2"
-    validate_output_path(output_dir)
-
-    neighbours_thrs = 350
-    signal_thrs=0.2
-    window_thrs = 0.7
-    dist_thrs = 300
-    start_frame = 0
-    debug = False
     output_name = 'EinVered_230423_SUMERGOL_230423_row_2'
 
-    #slice_folder_mp(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame,
-    #                debug)
-    # slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame,debug)
-
-    data = slice_clip(file_path,
-                      output_dir,
-                      output_name,
+    data = slice_clip(svo_path,log_path,output_dir,output_name,
                       rotate=2,
-                      window_thrs=window_thrs,
-                      neighbours_thrs=neighbours_thrs,
-                      dist_thrs=dist_thrs,
-                      signal_thrs=signal_thrs,
+                      angular_velocity_thresh=10,
+                      EMA_alpha_AV = 0.05,
+                      depth_percentile_thresh=0.5,
+                      signal_thrs=0.2,
+                      EMA_alpha_depth=0.01,
+                      depth_minimum=1,
+                      depth_maximum=3.5,
                       start_frame=0,
                       end_frame=None,
-                      debug=debug,
                       save_video = True)
 
 
-    #slicer_validator(file_path, output_path, rotate=2)
-    # slice_data = load_json(file_path, output_path)
-    # post_process(slice_data=slice_data, output_path=output_path)
-    # slice_frames(depth_folder_path=depth_folder_path,
-    #             output_path=output_path,
-    #             rgb_folder_path=rgb_folder_path,
-    #             start_frame=start_frame,
-    #             debug=debug)
