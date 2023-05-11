@@ -21,29 +21,20 @@ class SensorAligner:
     """
     this class is for aligning the zed and jai cameras
     """
-    def __init__(self, args, zed_shift=0, batch_size=1):
-        self.zed_angles = args.zed_angles
-        self.jai_angles = args.jai_angles
-        self.use_fine = args.use_fine
-        self.zed_roi_params = args.zed_roi_params
-        self.median_thresh = args.median_thresh
-        self.remove_high_blues = args.remove_high_blues
+    def __init__(self, cfg, zed_shift=0, batch_size=1):
+        self.zed_roi_params = cfg.zed_roi_params
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
-        self.debug = args.debug
+        self.debug = cfg.debug
         self.zed_shift, self.consec_less_threshold, self.consec_more_threshold = zed_shift, 0, 0
         self.r_jai, self.r_zed = 1, 1
-        self.size = args.size
-        self.apply_normalization = args.apply_normalization
-        self.apply_equalization = args.apply_equalization
-        self.fixed_scaling = args.fixed_scaling
-        self.affine_method = args.affine_method
-        self.ransac = args.ransac
-        self.matcher = self.init_matcher(args)
+        self.size = cfg.size
+        self.ransac = cfg.ransac
+        self.matcher = self.init_matcher(cfg)
         self.batch_size = batch_size
-        self.sx = 0.60546875 #0.6102498372395834
-        self.sy =  0.6133919843597263#0.6136618198110134
-        self.roix = 930 #937
-        self.roiy = 1255
+        self.sx = cfg.sx #0.6102498372395834
+        self.sy = cfg.sy#0.6136618198110134
+        self.roix = cfg.roix#930 #937
+        self.roiy = cfg.roiy
         self.use_cuda = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False
 
         if self.batch_size > -1:
@@ -71,10 +62,6 @@ class SensorAligner:
     def init_matcher(self, args):
 
         matcher = cv2.SIFT_create()
-        # matcher.setNOctaveLayers(6)
-        # matcher.setEdgeThreshold(20)
-        # matcher.setSigma(1)
-        # matcher.setContrastThreshold(0.03)
 
         return matcher
 
@@ -116,84 +103,6 @@ class SensorAligner:
         cropped_zed_GPU = zed_GPU.adjustROI(self.y_s, self.x_s, self.y_e, self.x_e)
         return cropped_zed_GPU
 
-    def first_translation(self, im_zed, im_jai, zed_rgb=None, jai_rgb=None):
-        """
-        applies first translation on an image
-        :param im_zed: zed gray image cropped for ROI
-        :param gray_jai: grayscale jai image
-        :param zed_rgb: original zed rgb image for debugging
-        :param jai_rgb: original jai rgb image for debugging
-        :return: translation, scaling, resized images, keypoints and destenations of jai
-        """
-        if self.size not in im_zed.shape:
-            im_zed, self.r_zed = resize_img(im_zed, self.size)
-        if self.size not in im_jai.shape:
-            im_jai, self.r_jai = resize_img(im_jai, self.size)
-        if self.affine_method == "keypoints":
-            kp_zed, des_zed = find_keypoints(im_zed, self.matcher) # consumes 33% of time
-            kp_jai, des_jai = find_keypoints(im_jai, self.matcher) # consumes 33% of time
-            M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac, self.fixed_scaling) # consumes 33% of time
-            tx, ty, sx, sy = affine_to_values(M)
-        elif self.affine_method == "loftr":
-            M, st, kp_zed, kp_jai = find_loftr_translation(im_zed, im_jai, True)
-            des_jai = None
-            tx, ty, sx, sy = affine_to_values(M)
-
-        if self.debug.keypoints and not isinstance(zed_rgb, type(None)) and not isinstance(jai_rgb, type(None)):
-            M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
-            plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, self.y_s, self.y_e)
-            plot_homography(resize_img(zed_rgb[self.y_s: self.y_e], self.size)[0], M_homography)
-        return tx, ty, sx, sy, im_zed, im_jai, kp_jai, des_jai, kp_zed, des_zed, match, st, M
-
-    def normalize_img(self, image, original_img):
-        """
-        normalizes channels of image if the median value is smaller then the threshold
-        :param image: image to normalize
-        :param original_img: original image for real median value and debugging purposes
-        :return: normalized image
-        """
-        if np.median(original_img) < self.median_thresh: # picture is saturated with most signal around low values
-            if len(image.shape) > 2:
-                for i in range(3):
-                    cur_channel = image[:, :, i]
-                    in_range_mask = np.all([cur_channel > 0, cur_channel < 230], axis=0)
-                    clipping_top_val = np.quantile(cur_channel[in_range_mask], 0.95)
-                    clipped_channel = np.clip(cur_channel, 0, clipping_top_val)
-                    normalized_data = cv2.normalize(clipped_channel, None, alpha=25, beta=255,
-                                                                      norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                    image[:, :, i][in_range_mask] = normalized_data[in_range_mask]
-            else:
-                in_range_mask = np.all([image > 0, image < 230], axis=0)
-                clipping_top_val = np.quantile(image[in_range_mask], 0.95)
-                clipped_channel = np.clip(image, 0, clipping_top_val)
-                normalized_data = cv2.normalize(clipped_channel, None, alpha=25, beta=255,
-                                                norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-                image[in_range_mask] = normalized_data[in_range_mask]
-            if self.debug.preprocess:
-                plot_2_imgs(original_img, image)
-        return image
-
-    def preprocess(self, zed_rgb, jai_img):
-        """
-        preprocesses the images for alignment
-        :param zed_rgb: zed imgae
-        :param jai_img: jai image
-        :return: processed images
-
-        """
-        jai_img_c, self.r_jai = resize_img(jai_img, self.size)
-        zed_rgb_c, self.r_zed = resize_img(self.crop_zed_roi(zed_rgb), self.size)
-        if self.remove_high_blues:
-            jai_img_c[jai_img_c[:, :, 2] > 230] = 0
-            zed_rgb_c[zed_rgb_c[:, :, 2] > 230] = 0
-        if self.apply_normalization:
-            jai_img_c = self.normalize_img(jai_img_c, jai_img)
-            zed_rgb_c = self.normalize_img(zed_rgb_c, zed_rgb)
-        gray_zed, gray_jai = cv2.cvtColor(zed_rgb_c, cv2.COLOR_RGB2GRAY), cv2.cvtColor(jai_img_c, cv2.COLOR_RGB2GRAY)
-        if self.apply_equalization:
-            gray_jai = cv2.equalizeHist(gray_jai)
-            gray_zed = cv2.equalizeHist(gray_zed)
-        return gray_zed, gray_jai, jai_img_c, zed_rgb_c
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4):
         if len(zed_batch) < 1:
@@ -289,109 +198,6 @@ class SensorAligner:
 
         return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
 
-    def align_sensors_cuda(self, zed_rgb, jai_img):
-        """
-        aligns both sensors and updates the zed shift
-        :param zed_rgb: rgb image
-        :param jai_img: jai imgae
-        :return: jai_in_zed coors, tx,ty,sx,sy, if use fine is set to True also returns keypoints, des, jai_image
-        """
-        # upload images to gpu
-        jai_GPU = cv2.cuda_GpuMat()
-        jai_GPU.upload(jai_img)
-        zed_GPU = cv2.cuda_GpuMat()
-        zed_GPU.upload(zed_rgb)
-
-        # transfer to grayscale
-        jai_GPU = cv2.cuda.cvtColor(jai_GPU, cv2.COLOR_BGR2GRAY)
-        zed_GPU = cv2.cuda.cvtColor(zed_GPU, cv2.COLOR_BGR2GRAY)
-
-        # adjust zed scale to be the same as jai using calibrated scale x and y
-        zed_GPU = self.crop_zed_roi_cuda(zed_GPU)
-        zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / self.sx),
-                                            int(zed_GPU.size()[1] / self.sy)))
-
-        r = min(size / zed_GPU.size()[0], size / zed_GPU.size()[1])
-        output_GPU = cv2.cuda.resize(input_GPU, (int(zed_GPU.size()[0] * r),
-                                                 int(zed_GPU.size()[1] * r)),
-                                     interpolation=cv2.INTER_CUBIC,
-                                     stream=stream)
-
-        zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // 3)
-        jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // 3)
-
-        matcher = cv2.cuda.SURF_CUDA_create(300)
-        kp_zed_GPU, des_zed = find_keypoints_cuda(zed_GPU, matcher)  # consumes 33% of time
-        kp_jai_GPU, des_jai = find_keypoints_cuda(jai_GPU, matcher)  # consumes 33% of time
-        kp_zed = cv2.cuda_SURF_CUDA.downloadKeypoints(matcher, kp_zed_GPU)
-        kp_jai = cv2.cuda_SURF_CUDA.downloadKeypoints(matcher, kp_jai_GPU)
-
-        match, matches, matchesMask = match_descriptors_cuda(des_zed, des_jai)
-        M, st = calc_affine_transform(kp_zed, kp_jai, match, self.ransac)
-
-
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
-
-        deltas = np.array(dst_pts) - np.array(src_pts)
-
-        tx = np.mean(deltas[:,0,0]) / rz * self.sx
-        ty = np.mean(deltas[:,0,1]) / rz * self.sy
-
-        if tx < 0:
-            x1 = 0
-            x2 = self.roix
-        elif tx + self.roix > zed_rgb.shape[1]:
-            x2 = zed_rgb.shape[1]
-            x1 = zed_rgb.shape[1] - self.roix
-        else:
-            x1 = tx
-            x2 = tx + self.roix
-
-        if ty < 0:
-            y1 = self.y_s
-            y2 = self.y_s + self.roiy
-        elif ty + self.roiy > (self.y_e - self.y_s):
-            y2 = self.y_e
-            y1 = self.y_e - self.roiy
-        else:
-            y1 = self.y_s + ty
-            y2 = self.y_s + ty + self.roiy
-
-
-        return (x1, y1, x2, y2), tx, ty
-
-
-    def align_sensors_dep(self, zed_rgb, jai_img, jai_drop=False, zed_drop=False):
-        """
-        aligns both sensors and updates the zed shift
-        :param zed_rgb: rgb image
-        :param jai_img: jai imgae
-        :param jai_drop: flag if jai had a frame drop
-        :param zed_drop: flag if zed had a frame drop
-        :return: jai_in_zed coors, tx,ty,sx,sy, if use fine is set to True also returns keypoints, des, jai_image
-        """
-        if jai_drop:
-            self.zed_shift += 1
-        if zed_drop:
-            self.zed_shift -= 1
-        gray_zed, gray_jai, jai_img_c, zed_rgb_c = self.preprocess(zed_rgb, jai_img)
-        if self.debug.kde:
-            sns.kdeplot(gray_zed.flatten(), color="green")
-            sns.kdeplot(gray_jai.flatten(), color="blue")
-            plt.show()
-        tx, ty, sx, sy, im_zed, im_jai, kp_jai, des_jai, kp_zed, des_zed, match, st, M = self.first_translation(gray_zed,
-                                                                                                                gray_jai,
-                                                                                                                zed_rgb_c,
-                                                                                                                jai_img_c) #consumes >90% of function time
-
-        x1, y1, x2, y2 = self.convert_translation_to_coors(im_zed, im_jai, tx, ty, sx, sy)
-        # plot_2_imgs(zed_rgb[int(y1):int(y2), int(x1):int(x2)], jai_img)
-        if not self.use_fine:
-            return (x1, y1, x2, y2), tx, ty, sx, sy, kp_zed, kp_jai, match, st, M
-        return self.align_sensors_fine(x1, y1, x2, y2, tx, ty, sx, sy, kp_jai, des_jai, im_jai, zed_rgb, gray_zed)
 
     def convert_translation_to_coors(self, im_zed, im_jai, tx, ty, sx, sy):
         """
@@ -454,45 +260,6 @@ class SensorAligner:
         arr[[1, 3]] += self.y_s
         arr[[0, 2]] += self.x_s
         return arr
-
-    def align_sensors_fine(self, x1, y1, x2, y2, tx, ty, sx, sy, kp_jai, des_jai, im_jai, zed_rgb, gray_zed):
-        """
-        aligns both sensors and updates the zed shift using fine translation
-        :param x1: top left x coordinate
-        :param y1: top left y coordinate
-        :param x2: bottom right x coordinate
-        :param y2: bottom right y coordinate
-        :param tx: translation in x axis
-        :param ty: translation in y axis
-        :param sx: scale in x axis
-        :param sy: scale in y axis
-        :param kp_jai: key points of jai
-        :param des_jai: destination of jai
-        :param im_jai: jai gray image
-        :param zed_rgb: zed rgb image
-        :param gray_zed: zed gray image
-        :return: (x1, y1, x2, y2), tx, ty, sx, sy
-        """
-        # TODO this function is not tested yet!
-        h_z, w_z = zed_rgb.shape[0], zed_rgb.shape[1]
-        im_zed_stage2 = gray_zed[max(int(y1 - h_z / 20), 0): min(int(y2 + h_z / 20), h_z),
-                        max(int(x1 - w_z / 10), 0): min(int(x2 + w_z / 10), w_z)]
-        im_zed_stage2, r_zed2 = resize_img(im_zed_stage2, 960)
-        tx2, ty2, sx2, sy2 = get_fine_affine_translation(im_zed_stage2, im_jai)
-        kp_zed, des_zed = find_keypoints(resize_img(gray_zed[max(int(y1), 0): min(int(y2), h_z),
-                                                    max(int(x1), 0): min(int(x2), w_z)], 960)[0])
-        if self.debug.homography:
-            M_homography, st_homography = get_affine_homography(kp_zed, kp_jai, des_zed, des_jai)
-            plot_homography(zed_rgb[max(int(y1), 0): min(int(y2), h_z),
-                                    max(int(x1), 0): min(int(x2), w_z)], M_homography)
-        s2_x1, s2_y1, s2_x2, s2_y2 = self.convert_translation_to_coors(im_zed_stage2, im_jai, tx2, ty2, sx2, sy2, r_zed2)
-        x1 = max(int(x1 - w_z / 10), 0) + int(s2_x1)
-        x2 = x1 + int((s2_x2 - s2_x1))
-        y1 = max(int(y1 - h_z / 20), 0) + int(s2_y1)
-        y2 = y1 + int((s2_y2 - s2_y1))
-        tx, ty = int(tx + tx2 - w_z / 10), int(ty + ty2 - h_z / 20)
-        self.update_zed_shift(tx)
-        return (x1, y1, x2, y2), tx, ty, sx, sy
 
     def update_zed_shift(self, tx):
         """

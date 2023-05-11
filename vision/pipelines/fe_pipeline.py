@@ -3,7 +3,7 @@ import os
 import pandas as pd
 
 from vision.misc.help_func import load_json
-from vision.feature_extractor.feature_extractor import create_row_features_fe_pipe
+#from vision.feature_extractor.feature_extractor import create_row_features_fe_pipe
 from vision.pipelines.ops.simulator import write_metadata, init_cams, update_arg_with_metadata ,get_metadata_path
 
 
