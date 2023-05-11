@@ -5,16 +5,21 @@ import json
 from vision.misc.help_func import load_json, write_json
 from vision.tools.video_wrapper import video_wrapper
 
-def init_cams(args):
+def init_cams(args, mode):
     """
     initiates all cameras based on arguments file
     :param args: arguments file
     :return: zed_cam, rgb_jai_cam, jai_cam
     """
-    zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate, args.zed.depth_minimum, args.zed.depth_maximum)
+    if mode in ['async', 'sync_svo']:
+        zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate, args.zed.depth_minimum, args.zed.depth_maximum)
+        depth_cam = None
+    elif mode in ['sync_mkv']:
+        zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate)
+        depth_cam = zed_cam = video_wrapper(args.depth.movie_path, args.depth.rotate)
     rgb_jai_cam = video_wrapper(args.rgb_jai.movie_path, args.rgb_jai.rotate)
     jai_cam = video_wrapper(args.jai.movie_path, args.jai.rotate)
-    return zed_cam, rgb_jai_cam, jai_cam
+    return zed_cam, rgb_jai_cam, jai_cam, depth_cam
 
 def load_logs(args):
     """
@@ -123,13 +128,13 @@ def get_n_frames(max_cut_frame, jai_number_of_frames, metadata=None):
                     If tree slicing was done will take n_frames as last frames siced
     """
     n_frames = jai_number_of_frames
-    if np.isfinite(max_cut_frame):
-        n_frames = max_cut_frame + 1
-    else:
-        if metadata is not None:
-            if "cut_frames" in metadata.keys():
-                cut_frames = metadata["cut_frames"]
-                n_frames = int(n_frames*cut_frames)+1
+    # if np.isfinite(max_cut_frame):
+    #     n_frames = max_cut_frame + 1
+    # else:
+    #     if metadata is not None:
+    #         if "cut_frames" in metadata.keys():
+    #             cut_frames = metadata["cut_frames"]
+    #             n_frames = int(n_frames*cut_frames)+1
     return n_frames
 
 

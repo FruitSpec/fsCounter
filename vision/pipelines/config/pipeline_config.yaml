@@ -53,6 +53,26 @@ translation:
   dets_only: true # true: perfrom on detections only, false: on entire image
 
 
+sensor_aligner:
+  zed_roi_params: {y_s: 250, y_e: 1650, x_s: 0, x_e: 1080} # jai search region in zed
+  size: 640 #what size to resize image to
+  affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
+  ransac: 20
+  sx: 0.60546875
+  sy:  0.6133919843597263
+  roix: 970 #930 #937
+  roiy: 1255
+  debug:
+    preprocess: false
+    keypoints: false
+    kde: false
+    homography: false
+
+frame_loader:
+  mode: async # sync_mkv, async,  sync_svo
+  sync_data_log_path: abc
+
+
 filters:
   distance:
     threshold: 1
