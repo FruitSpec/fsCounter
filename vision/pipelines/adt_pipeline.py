@@ -40,7 +40,7 @@ def run(cfg, args, metadata=None):
     pbar = tqdm(total=n_frames)
     while f_id < n_frames:
         pbar.update(adt.batch_size)
-        zed_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
+        zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
 
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)

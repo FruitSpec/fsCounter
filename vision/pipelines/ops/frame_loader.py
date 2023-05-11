@@ -12,16 +12,21 @@ class FramesLoader():
         self.mode = cfg.frame_loader.mode
         self.zed_cam, self.rgb_jai_cam, self.jai_cam, self.depth_cam = init_cams(args, self.mode)
         self.batch_size = cfg.batch_size
-        self.last_svo_fid = 0
+        self.zed_last_id = 0
+        self.depth_last_id = 0
+        self.jai_last_id = 0
+        self.rgb_jai_last_id = 0
 
         if self.mode in ['sync_svo', 'sync_mkv']:
-            self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.frame_loader.sync_data_log_path)
+            self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
 
     def get_frames(self, f_id, zed_shift):
         if self.mode == 'async':
             output = self.get_frames_batch_async(f_id, zed_shift)
         if self.mode == 'sync_svo':
             output = self.get_frames_batch_sync_svo(f_id)
+        if self.mode == 'sync_mkv':
+            output = self.get_frames_batch_sync_mkv(f_id)
 
         return output
 
@@ -64,15 +69,19 @@ class FramesLoader():
 
     @staticmethod
     def results_to_batch_async(results):
-        zed_batch = results[0]
-        jai_batch = results[1]
-        rgb_batch = results[2]
+        zed_batch = results[0][0]
+        depth_batch = results[0][1]
+        jai_batch = results[1][0]
+        rgb_batch = results[2][0]
 
-        return zed_batch, jai_batch, rgb_batch
+        return zed_batch, depth_batch, jai_batch, rgb_batch
+
+
 
 
     def get_camera_frame_async(self, cam, f_id):
         batch = []
+        depth_batch = []
         max_frame_number = cam.get_number_of_frames()
         for id_ in range(self.batch_size):
             if f_id + id_ >= max_frame_number:
@@ -84,16 +93,19 @@ class FramesLoader():
                     cam.grab()
                 self.last_svo_fid = f_id
                 _, frame = cam.get_frame()
-
+                _, depth = cam.get_depth()
+                batch.append(frame)
+                depth_batch.append(depth)
             else:
                 _, frame = cam.get_frame()
-            batch.append(frame)
+                batch.append(frame)
 
-        return batch
+        return batch, depth_batch
 
     @staticmethod
     def get_camera_frame_sync(cam, f_ids, last_fid):
         batch = []
+        depth_batch = []
         max_frame_number = cam.get_number_of_frames()
         for f_id in f_ids:
             if f_id >= max_frame_number:
@@ -106,6 +118,7 @@ class FramesLoader():
                 cam.grab()
                 last_fid = f_id
                 batch.append(cam.get_frame())
+                depth_batch.append(cam.get_depth())
             else:
                 if f_id > last_fid + 1:
                     while f_id > last_fid + 1:
@@ -114,34 +127,73 @@ class FramesLoader():
                 last_fid = f_id
                 batch.append(cam.get_frame())
 
-        return batch, last_fid
+        return batch, depth_batch, last_fid
 
     @staticmethod
-    def get_batch_results_sync(results):
+    def get_batch_results_sync(results, mode):
 
-        zed_data = results[0]
-        jai_data = results[1]
-        rgb_jai_data = results[2]
+        if mode == 'sync_svo':
+            zed_data = results[0]
+            jai_data = results[1]
+            rgb_jai_data = results[2]
+        else:
+            zed_data = results[0]
+            depth_data = results[1]
+            jai_data = results[2]
+            rgb_jai_data = results[3]
 
+        zed_batch = zed_data[0]
+        depth_batch = zed_data[1]
+        zed_last_id = zed_data[2]
+
+        jai_batch = jai_data[0]
+        jai_last_id = jai_data[2]
+
+        rgb_jai_batch = rgb_jai_data[0]
+        rgb_jai_last_id = rgb_jai_data[2]
+
+        if mode == 'sync_mkv':
+            depth_batch = depth_data[0]
+            depth_last_id = depth_data[1]
+        else:
+            depth_last_id = zed_last_id
+
+        return zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id
 
 
     def get_frames_batch_sync_svo(self, f_id):
-        cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
+        cams = [self.zed_cam, self.jai_cam, self.rgb_jai_cam]
         batch_ids = self.get_batch_fids_sync(f_id)
+        last_ids = [self.zed_last_id, self.jai_last_id, self.rgb_jai_last_id]
 
         with ThreadPoolExecutor(max_workers=3) as executor:
-            results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids))
+            results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids, last_ids))
 
-        return self.results_to_batch(results)
+        zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
+            results, self.mode)
+        self.zed_last_id = zed_last_id
+        self.jai_last_id = jai_last_id
+        self.rgb_jai_last_id = rgb_jai_last_id
+
+        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
 
     def get_frames_batch_sync_mkv(self, f_id):
         cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
         batch_ids = self.get_batch_fids_sync(f_id)
+        last_ids = [self.zed_last_id, self.depth_last_id, self.jai_last_id, self.rgb_jai_last_id]
 
         with ThreadPoolExecutor(max_workers=4) as executor:
-            results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids))
+            results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids, last_ids))
 
-        return self.results_to_batch(results)
+        zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
+            results, self.mode)
+
+        self.zed_last_id = zed_last_id
+        self.jai_last_id = jai_last_id
+        self.rgb_jai_last_id = rgb_jai_last_id
+        self.depth_last_id = depth_last_id
+
+        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
 
 
     @staticmethod

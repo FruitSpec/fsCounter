@@ -10,6 +10,8 @@ data_conf = OmegaConf.load(os.path.abspath("application/DataManager/data_config.
 GPS_conf = OmegaConf.load(os.path.abspath("application/GPS/GPS_config.yaml"))
 GUI_conf = OmegaConf.load(os.path.abspath("application/GUI/GUI_config.yaml"))
 conf = OmegaConf.load(os.path.abspath("application/utils/config.yaml"))
+pipeline_conf = OmegaConf.load(os.path.abspath("application/Analysis/pipeline_config.yaml"))
+runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_config.yaml"))
 
 log_path = os.path.abspath(os.path.expanduser(conf["logs path"]))
 conf["log name"] = os.path.join(log_path, f"{conf['counter number']}_{conf['log name']}_{today}.log")
