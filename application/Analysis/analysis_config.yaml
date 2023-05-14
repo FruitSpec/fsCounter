@@ -16,12 +16,12 @@ default acquisition parameters:
     IntegrationTimeRGB: 1000
     IntegrationTime800: 2000
     IntegrationTime975: 5000
-  output types: ["FSI", "RGB", "SVO"]
+  output types: ["equalize hist", "RGB", "zed"]
 custom acquisition parameters:
   FPS: 10
   IntegrationTimeRGB: 1000
   IntegrationTime800: 2000
   IntegrationTime975: 5000
-  output types: ["FSI", "RGB", "SVO"]
+  output types: ["equalize hist", "RGB", "zed"]
 batch size: 4
 max batches: 30

@@ -20,9 +20,9 @@ class AcquisitionManager(Module):
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     output_dir = ""
     output_clahe_fsi, output_equalize_hist_fsi = False, False
-    output_rgb, output_800, output_975, output_svo = False, False, False, False
+    output_rgb, output_800, output_975, output_svo, output_zed_mkv = False, False, False, False, False
     view, debug_mode = False, False
-    pass_clahe_stream = False
+    transfer_data, pass_clahe_stream = False, False
 
     @staticmethod
     def init_module(sender, receiver, main_pid, module_name):
@@ -49,8 +49,9 @@ class AcquisitionManager(Module):
             AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
             AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
             AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb, AcquisitionManager.output_800,
-            AcquisitionManager.output_975, AcquisitionManager.output_svo, AcquisitionManager.view,
-            AcquisitionManager.pass_clahe_stream, AcquisitionManager.debug_mode
+            AcquisitionManager.output_975, AcquisitionManager.output_svo, AcquisitionManager.output_zed_mkv,
+            AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
+            AcquisitionManager.debug_mode
         )
         AcquisitionManager.analyzer.start_acquisition()
 
@@ -91,13 +92,15 @@ class AcquisitionManager(Module):
         AcquisitionManager.exposure_800 = int(camera_data['IntegrationTime800'])
         AcquisitionManager.exposure_975 = int(camera_data['IntegrationTime975'])
         AcquisitionManager.output_clahe_fsi = 'clahe' in output_types or 'fsi' in output_types
-        AcquisitionManager.output_equalize_hist_fsi = 'equalize_hist' in output_types or 'fsi' in output_types
+        AcquisitionManager.output_equalize_hist_fsi = 'equalize hist' in output_types or 'fsi' in output_types
         AcquisitionManager.output_rgb = 'rgb' in output_types
         AcquisitionManager.output_800 = '800' in output_types
         AcquisitionManager.output_975 = '975' in output_types
         AcquisitionManager.output_svo = 'svo' in output_types
+        AcquisitionManager.output_zed_mkv = 'zed' in output_types
         AcquisitionManager.view = False
-        AcquisitionManager.pass_clahe_stream = True
+        AcquisitionManager.transfer_data = True
+        AcquisitionManager.pass_clahe_stream = False
         AcquisitionManager.debug_mode = True
 
         AcquisitionManager.analyzer.set_output_dir(AcquisitionManager.output_dir)
@@ -124,14 +127,3 @@ class AcquisitionManager(Module):
             elif action == ModuleTransferAction.STOP_ACQUISITION:
                 AcquisitionManager.stop_acquisition()
                 logging.info("STOP ACQUISITION FROM GUI")
-
-    @staticmethod
-    def pop_frames():
-        while not AcquisitionManager.shutdown_done_event.is_set():
-            AcquisitionManager.acquisition_start_event.wait()
-            jai_frame = AcquisitionManager.jz_recorder.pop_jai()
-            zed_frame = AcquisitionManager.jz_recorder.pop_zed()
-            # if jai_frame.frame_number % 50 == 0:
-            #     cv2.destroyAllWindows()
-            #     cv2.imshow("mat", jai_frame.frame)
-            #     cv2.waitKey(1000)

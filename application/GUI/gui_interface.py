@@ -92,8 +92,9 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def stop_recording(sid, data):
-        logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
-        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Acquisition, ModulesEnum.DataManager)
+        logging.info(f"CAMERA STOP RECEIVED: {sid}")
+        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Acquisition,
+                               ModulesEnum.DataManager)
 
     @staticmethod
     @sio.event

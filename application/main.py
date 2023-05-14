@@ -1,7 +1,9 @@
 import os
 import signal
 import logging
+import time
 import sys
+
 sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
 from application.utils.settings import set_logger
@@ -30,6 +32,7 @@ def transfer_data(sig, frame):
             data, recv_modules = manager[sender_module].retrieve_transferred_data()
             for recv_module in recv_modules:
                 manager[recv_module].receive_transferred_data(data, sender_module)
+                time.sleep(0.1)
             break
         except DataError:
             continue
@@ -66,7 +69,7 @@ def main():
     manager[ModulesEnum.Acquisition].set_process(
         target=AcquisitionManager.init_module,
         main_pid=main_pid,
-        module_name=ModulesEnum.Analysis,
+        module_name=ModulesEnum.Acquisition,
         daemon=False
     )
 

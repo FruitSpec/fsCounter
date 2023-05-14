@@ -34,6 +34,7 @@ class ModulesEnum(enum.Enum):
 class ModuleTransferAction(enum.Enum):
     NAV = "NAV"
     IMU = "IMU"
+    ANALYZED_DATA = "ANALYZED_DATA"
     FRUITS_DATA = "FRUITS_DATA"
     BLOCK_SWITCH = "BLOCK_SWITCH"
     START_ACQUISITION = "START_ACQUISITION"

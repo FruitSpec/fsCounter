@@ -19,7 +19,7 @@ class DataManager(Module):
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
-    fruits_data_lock, scan_lock = threading.Lock(), threading.Lock()
+    fruits_data_lock, scan_lock, analyzed_lock = threading.Lock(), threading.Lock(), threading.Lock()
     s3_client = None
     update_output_thread, internet_scan_thread = None, None
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
@@ -82,11 +82,9 @@ class DataManager(Module):
                 "filename": [filename]
             }
             tmp_df = pd.DataFrame(data=data, index=[0])
-            DataManager.scan_lock.acquire(blocking=True)
-            DataManager.scan_df = pd.concat([DataManager.scan_df, tmp_df], axis=0)
-            DataManager.scan_df.drop_duplicates(inplace=True)
+            with DataManager.scan_lock:
+                DataManager.scan_df = pd.concat([DataManager.scan_df, tmp_df], axis=0).drop_duplicates()
             logging.info(f"PREVIOUS FILE {DataManager.current_plot}/{filename} ADDED TO SCAN DF")
-            DataManager.scan_lock.release()
 
         if DataManager.current_path:
             add_to_scan()
@@ -99,11 +97,11 @@ class DataManager(Module):
             if action == ModuleTransferAction.BLOCK_SWITCH and data != DataManager.current_plot:
                 # entering a new block which is not the latest block we've been to
                 logging.info(f"NEW BLOCK ENTRANCE - {data}")
-                DataManager.write_fruits_data_locally(release=False)
-                DataManager.previous_plot = DataManager.current_plot
-                DataManager.current_plot = data
-                DataManager.start_new_file()
-                DataManager.fruits_data_lock.release()
+                with DataManager.fruits_data_lock:
+                    DataManager.write_fruits_data_locally(lock_inside=False)
+                    DataManager.previous_plot = DataManager.current_plot
+                    DataManager.current_plot = data
+                    DataManager.start_new_file()
             elif action == ModuleTransferAction.NAV:
                 # write GPS data to .nav file
                 logging.info(f"WRITING NAV DATA TO FILE")
@@ -114,15 +112,14 @@ class DataManager(Module):
         elif sender_module == ModulesEnum.Analysis:
             if action == ModuleTransferAction.FRUITS_DATA:
                 logging.info(f"FRUIT DATA RECEIVED")
-                DataManager.fruits_data_lock.acquire(blocking=True)
-                if not data["fruit id"]:
-                    DataManager.start_new_file()
-                for k, v in data.items():
-                    try:
-                        DataManager.fruits_data[k] += v
-                    except KeyError:
-                        DataManager.fruits_data[k] = v
-                DataManager.fruits_data_lock.release()
+                with DataManager.fruits_data_lock:
+                    if not data["fruit id"]:
+                        DataManager.start_new_file()
+                    for k, v in data.items():
+                        try:
+                            DataManager.fruits_data[k] += v
+                        except KeyError:
+                            DataManager.fruits_data[k] = v
             elif action == ModuleTransferAction.IMU:
                 # write IMU data to .imu file
                 logging.info(f"WRITING NAV DATA TO FILE")
@@ -130,6 +127,35 @@ class DataManager(Module):
                 imu_df = pd.DataFrame(data)
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
+            elif action == ModuleTransferAction.ANALYZED_DATA:
+                logging.info("ANALYZED DATA ARRIVED")
+                customer_code, plot_code, scan_date, row, file_index = list(data["row"])
+                analyzed_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, row)
+
+                tracks, tracks_headers = data["tracks"], data["tracks headers"]
+                tracks_path = os.path.join(analyzed_path, f"tracks_{file_index}.csv")
+                tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
+                tracks_df.to_csv(tracks_path, index=False, header=True)
+
+                alignment, alignment_headers = data["alignment"], data["alignment headers"]
+                alignment_path = os.path.join(analyzed_path, f"alignment_{file_index}.csv")
+                alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
+                alignment_df.to_csv(alignment_path, index=False, header=True)
+
+                analyzed_data = {
+                    "customer_code": [customer_code],
+                    "plot_code": [plot_code],
+                    "scan_date": [scan_date],
+                    "row": [row],
+                    "file_index": [file_index]
+                }
+
+                tmp_analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
+                is_first = not os.path.exists(data_conf["analyzed path"])
+                with DataManager.analyzed_lock:
+                    # DataManager.analyzed_df = pd.concat([DataManager.analyzed_df, tmp_analyzed_df], axis=0)
+                    tmp_analyzed_df.to_csv(data_conf["analyzed path"], header=is_first, index=False, mode="a+")
+
         elif sender_module == ModulesEnum.GUI:
             if action == ModuleTransferAction.START_ACQUISITION:
                 DataManager.previous_plot = DataManager.current_plot
@@ -165,14 +191,17 @@ class DataManager(Module):
                 DataManager.collected_df.to_csv(data_conf["collected path"], mode="w", index=False, header=True)
 
     @staticmethod
-    def write_fruits_data_locally(release=True):
+    def write_fruits_data_locally(lock_inside=True):
         if DataManager.current_path:
-            DataManager.fruits_data_lock.acquire(blocking=True)
-            fruits_df = pd.DataFrame(data=DataManager.fruits_data)
-            is_first = not os.path.exists(DataManager.current_path)
-            fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
-            if release:
-                DataManager.fruits_data_lock.release()
+            if lock_inside:
+                with DataManager.fruits_data_lock:
+                    fruits_df = pd.DataFrame(data=DataManager.fruits_data)
+                    is_first = not os.path.exists(DataManager.current_path)
+                    fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
+            else:
+                fruits_df = pd.DataFrame(data=DataManager.fruits_data)
+                is_first = not os.path.exists(DataManager.current_path)
+                fruits_df.to_csv(DataManager.current_path, sep=",", mode="a+", index=False, header=is_first)
 
     @staticmethod
     def update_output():
@@ -193,8 +222,10 @@ class DataManager(Module):
             finally:
                 DataManager.scan_files(upload_timeout=data_conf["upload interval"] - 30)
                 t1 = time.time()
+                DataManager.scan_analyzed(scan_timeout=data_conf["upload interval"] - 30 - (t1 - t0))
+                t2 = time.time()
                 logging.info(f"INTERNET SCAN - END")
-                next_execution_time = max(0.1, data_conf["upload interval"] - (t1 - t0))
+                next_execution_time = max(0.1, data_conf["upload interval"] - (t2 - t0))
                 if DataManager.shutdown_event.wait(next_execution_time):
                     break
         logging.info("INTERNET SCAN - FINISHED")
@@ -207,15 +238,13 @@ class DataManager(Module):
             try:
                 scan_csv_df = pd.read_csv(data_conf["scanner path"], dtype=str)
                 # pull latest data from scan_df into scan.csv
-                DataManager.scan_lock.acquire(blocking=True)
-                scan_csv_df = pd.concat([scan_csv_df, DataManager.scan_df], axis=0)
-                DataManager.scan_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
-                DataManager.scan_lock.release()
+                with DataManager.scan_lock:
+                    scan_csv_df = pd.concat([scan_csv_df, DataManager.scan_df], axis=0)
+                    DataManager.scan_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
             except FileNotFoundError:
                 # if scan.csv does not exist, copy scan_df
-                DataManager.scan_lock.acquire(blocking=True)
-                DataManager.scan_df.to_csv(data_conf["scanner path"], mode="w", index=False, header=True)
-                DataManager.scan_lock.release()
+                with DataManager.scan_lock:
+                    DataManager.scan_df.to_csv(data_conf["scanner path"], mode="w", index=False, header=True)
                 scan_csv_df = DataManager.scan_df
 
             removed_indices, removed_files = [], []
@@ -284,19 +313,20 @@ class DataManager(Module):
         try:
             while time.time() < timeout_time:
                 try:
-                    analyzed_csv_df = pd.read_csv(data_conf["scanner path"], dtype=str)
+                    analyzed_csv_df = pd.read_csv(data_conf["analyzed path"], dtype=str)
                     break
                 except PermissionError:
                     time.sleep(5)
-            if not analyzed_csv_df:
+                except FileNotFoundError:
+                    analyzed_csv_df = pd.DataFrame()
+
+            if analyzed_csv_df is None:
                 return
             # pull latest data from scan_df into scan.csv
-            analyzed_csv_df = pd.concat([analyzed_csv_df, DataManager.analyzed_df], axis=0)
-            DataManager.analyzed_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
-            DataManager.scan_lock.release()
+            DataManager.analyzed_df = pd.concat([analyzed_csv_df, DataManager.analyzed_df], axis=0)
+            # DataManager.analyzed_df = pd.DataFrame(data={"customer code": [], "plot code": [], "scan date": [], "filename": []})
         except FileNotFoundError:
             # if scan.csv does not exist, copy scan_df
-            DataManager.scan_lock.acquire(blocking=True)
-            DataManager.scan_df.to_csv(data_conf["scanner path"], mode="w", index=False, header=True)
-            DataManager.scan_lock.release()
+            with DataManager.scan_lock:
+                DataManager.scan_df.to_csv(data_conf["scanner path"], mode="w", index=False, header=True)
             scan_csv_df = DataManager.scan_df
