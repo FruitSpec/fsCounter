@@ -79,7 +79,7 @@ def slice_clip(filepath, output_path, rotate=0, window_thrs=0.4, neighbours_thrs
             break
 
         # Capture frame-by-frame
-        frame, depth, point_cloud = cam.get_zed(index, exclude_point_cloud=True)
+        frame, depth = cam.get_zed(index, exclude_point_cloud=True)
         if not cam.res:  # couldn't get frames
             # Break the loop
             break

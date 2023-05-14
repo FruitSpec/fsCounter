@@ -37,7 +37,7 @@ def slice_clip(filepath, output_dir, output_name, rotate=0, signal_thrs=0.5, sta
     df = pd.DataFrame()
 
     while True:
-        #print(f'done {index} / {end_frame-start_frame}')
+
         pbar.update(1)
         # TODO: add validation for start / end row and saturation
         if index > end_frame:
@@ -49,14 +49,14 @@ def slice_clip(filepath, output_dir, output_name, rotate=0, signal_thrs=0.5, sta
         #############################
         # Capture frame-by-frame
         frame, depth = cam.get_zed(index, exclude_point_cloud=True)
-        depth = depth.astype(np.uint8)
+
 
         if not cam.res:  # couldn't get frames
             print (f'cam.res {cam.res}, Break the loop')
             # Break the loop
             break
-        if index == 103:
-            a = 149
+
+        depth = depth.astype(np.uint8)
 
         # shadow sky noise:
         b = frame[:, :, 0].copy()
@@ -125,10 +125,8 @@ def create_args_list(path_list, output_list, window_thrs, neighbours_thrs, signa
 if __name__ == "__main__":
 
     # itterate over all svo files in the folder, analyse and save depth videos
-    folder_path = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL'
-
+    folder_path = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/'
     dirs = find_subdirs_with_file(folder_path, file_name='ZED_1.svo')
-
     for folder in dirs:
         svo_path = os.path.join(folder,'ZED_1.svo')
         output_dir = os.path.join(folder,'rows_detection')
