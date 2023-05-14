@@ -117,17 +117,18 @@ class ResultsCollector():
 
     def dump_to_csv(self, output_file_path, type='detections'):
         if type == 'detections':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
+            fields = self.detections_header
             rows = self.detections
         elif type == 'measures':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",
                       "width", "color", "color_std"]
             rows = self.results
         elif type == "alignment":
-            pd.DataFrame.from_records(self.alignment).to_csv(output_file_path)
-            return
+            fields = self.alignment_header
+            row = self.alignment
+
         else:
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
+            fields = self.tracks_header
             rows = self.tracks
         with open(output_file_path, 'w') as f:
             # using csv.writer method from CSV package
@@ -283,8 +284,7 @@ class ResultsCollector():
             zed_shift = r[3]
             tx = tx if not np.isnan(tx) else 0
             ty = ty if not np.isnan(ty) else 0
-            self.alignment.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                    "tx": int(tx), "ty": int(ty), "frame": f_id, "zed_shift": zed_shift})
+            self.alignment.append([x1, y1, x2, y2, int(tx), int(ty), f_id, zed_shift])
             self.jai_zed[f_id] = f_id + zed_shift
 
         pass
@@ -354,7 +354,7 @@ class ResultsCollector():
         """
         trees = sliced_df["tree_id"].unique()
         slicer_results = get_slicer_data(sliced_df, self.jai_width, tree_id=-1)
-        aligemnet_df = pd.DataFrame.from_records(self.alignment)
+        aligemnet_df = pd.DataFrame(self.alignment, columns=self.alignment_header)
         cvs = []
         res_df = pd.DataFrame([])
         for tree in tqdm(trees):
