@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from geographiclib.geodesic import Geodesic
 from tqdm import tqdm
 import datetime
+import json
+
 
 
 def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']):
@@ -151,7 +153,7 @@ def extract_time_from_timestamp(df):
 
 
 def GT_to_df(GT, df):
-    GT_intervals = [(pd.to_datetime(start, format='%M:%S'), pd.to_datetime(end, format='%M:%S')) for start, end in
+    GT_intervals = [(pd.to_datetime(row.get('start_time'), format='%M:%S'), pd.to_datetime(row.get('end_time'), format='%M:%S')) for row in
                     GT]
     # Create a list to store the flag values
     flags = []
@@ -280,10 +282,10 @@ if __name__ == "__main__":
     PATH_GPS = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/250423.nav'
     PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_230423_row_3.csv'
     OUTPUT_DIR = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423'
+    GT_ROWS_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/lines_GT.json'
 
     df_merged = pd.read_csv(PATH_DEPTH_CSV, index_col=0)
     df_merged.dropna(subset=['score'], inplace=True) #Todo: To remove rows where the 'score' column contains NaN values
-
 
 
     df_gps = read_nav_file(PATH_GPS)
@@ -323,13 +325,19 @@ if __name__ == "__main__":
     # df_merged = moving_average(df_merged, column_name ='score', window_size = 30)
 
     # Tag ground_truth:
-    GT_rows = [('0:21', '1:20'), ('1:35', '2:25'), ('2:36', '3:28'), ('3:43', '4:37'), ('4:52', '5:42'), ('5:53','6:46')]
+    GT_rows = [('0:00', '00:52'), ('1:10', '2:01'), ('02:23', '3:14'), ('3:24', '4:17'), ('4:28', '5:20'),
+               ('5:36', '6:33'), ('6:45', '7:37'), ('7:48', '8:41'), ('7:48', '8:41'), ('8:51', '9:43'), ('9:59', '10:53'), ('11:05', '11:58'), ('12:16', '13:08')]
+
+    with open(GT_ROWS_PATH, 'r') as file:
+        GT_rows = json.load(file)
+
     df_merged = GT_to_df(GT_rows,df_merged)
 
     #plot:
     plot_depth_vs_angular_velocity(df_merged, "EinVered_230423_SUMERGOL_230423_row_2")
 
     print('done')
+
 
 
 
