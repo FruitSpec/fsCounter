@@ -13,6 +13,7 @@ from geographiclib.geodesic import Geodesic
 from tqdm import tqdm
 import datetime
 import json
+from vision.tools.utils_general import find_subdirs_with_file
 
 
 
@@ -65,15 +66,14 @@ def read_nav_file(file_path):
 
     return df
 
-def plot_depth_vs_angular_velocity(df, title):
+def plot_depth_vs_angular_velocity(df, title, save_dir=None):
     # Plot:
     plt.figure(figsize=(55, 30))  # Adjust the width and height as desired
     sns.set(font_scale=2)
 
     # subplot 1
-    plt.subplot(5, 1, 1)
+    ax1 = plt.subplot(4, 1, 1)
     graph1 = sns.lineplot(data=df, x=df.index, y="score")
-    #sns.lineplot(data=df, x=df.index, y="score_EMA")
     sns.lineplot(data=df, x=df.index, y="score_EMA")
     graph1.axhline(0.5, color='red', linewidth=2)
     plt.locator_params(axis='y', nbins=11)
@@ -83,48 +83,49 @@ def plot_depth_vs_angular_velocity(df, title):
     plt.title('Depth score')
 
     # subplot 2
-    plt.subplot(5, 1, 2)
-    graph = sns.lineplot(data=df, x=df.index, y="angular_velocity_x")
+    ax2 = plt.subplot(4, 1, 2)
+    graph2 = sns.lineplot(data=df, x=df.index, y="angular_velocity_x")
     sns.lineplot(data=df, x=df.index, y="angular_velocity_x_EMA")
-    graph.axhline(10, color='red', linewidth=2)
-    graph.axhline(-10, color='red', linewidth=2)
+    graph2.axhline(10, color='red', linewidth=2)
+    graph2.axhline(-10, color='red', linewidth=2)
     plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
     plt.xlim(0, df.index[-1])
     plt.grid(True)
     plt.title('angular_velocity_x')
 
     # subplot 3
-    plt.subplot(5, 1, 3)
-    graph = sns.lineplot(data=df, x=df.index, y="heading")
-    #sns.lineplot(data=df, x=df.index, y="angular_velocity_x_EMA")
-    # graph.axhline(10, color='red', linewidth=2)
-    # graph.axhline(-10, color='red', linewidth=2)
+    ax3 = plt.subplot(4, 1, 3)
+    graph3 = sns.lineplot(data=df, x=df.index, y="heading")
     plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
     plt.xlim(0, df.index[-1])
     plt.grid(True)
     plt.title('heading_gnss')
 
     # subplot 4
-    plt.subplot(5, 1, 4)
-    graph = sns.lineplot(data=df, x=df.index, y='abs_delta_heading_north')
-    #sns.lineplot(data=df, x=df.index, y="angular_velocity_x_EMA")
-    # graph.axhline(10, color='red', linewidth=2)
-    # graph.axhline(-10, color='red', linewidth=2)
+    ax4 = plt.subplot(4, 1, 4)
+    graph4 = sns.lineplot(data=df, x=df.index, y='abs_delta_heading_north')
     plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
     plt.xlim(0, df.index[-1])
     plt.grid(True)
     plt.title('abs_delta_heading_north')
 
-    # subplot 3
-    plt.subplot(5, 1, 5)
-    sns.lineplot(data=df, x=df.index, y="GT")
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title('Ground Truth')
+    # Transparent vertical shading based on 'GT' column
+    for i in range(len(df)):
+        if df['GT'].iloc[i] == 1:
+            ax1.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+            ax2.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+            ax3.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+            ax4.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
 
     plt.suptitle(title)
-    plt.tight_layout()  # Adjust the spacing between subplots
+    plt.tight_layout()
+
+    if save_dir:
+        output_path = os.path.join(save_dir, f"plot_{title}.png")
+        plt.savefig(output_path)
+        plt.close()
+        print (f'saved plot to {output_path}')
+
     plt.show()
 
 # EMA exponential moving average:
@@ -229,7 +230,6 @@ def plot_latitude_longitude(data, output_dir, save = True):
 
 def plot_gnss_heading(data, output_dir, column = 'heading_gps', save = True):
 
-
     # Create the plot
     plt.figure(figsize=(20, 6))
     plt.plot(data['timestamp_gnss'], data[column])
@@ -270,7 +270,7 @@ if __name__ == "__main__":
 
     # # Load sensor files to df:
     # path_log_imu = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/imu_1.log'
-    # path_depth_csv = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/rows_detection/depth_ein_vered_SUMERGOL_230423_row_3.csv'
+    # path_depth_csv = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1.csv'
     #
     # df_imu = read_imu_log(path_log_imu)
     # df_depth = pd.read_csv(path_depth_csv, index_col=0).set_index('frame')
@@ -278,16 +278,21 @@ if __name__ == "__main__":
     # df_merged2 = pd.concat([df_depth, df_imu], axis=1, join="inner")
 
     ###########     GNSS     ###################################################
-    # Load new csv with sensors data:
-    PATH_GPS = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/250423.nav'
-    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_230423_row_3.csv'
-    OUTPUT_DIR = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423'
-    GT_ROWS_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/lines_GT.json'
+    PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
+    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2/rows_detection/EinVered_SUMERGOL_250423_row_2_.csv'
 
+    # paths:
+    OUTPUT_DIR = os.path.join(PATH_ROW, 'rows_detection')
+    parent_dir = os.path.dirname(PATH_ROW)
+    PATH_GPS = find_subdirs_with_file(parent_dir, '.nav', return_dirs=False)
+    GT_ROWS_PATH = os.path.join(OUTPUT_DIR, 'GT_lines.json')
+    output_name = "_".join(PATH_ROW.split('/')[-4:])
+
+    # load depth csv:
     df_merged = pd.read_csv(PATH_DEPTH_CSV, index_col=0)
     df_merged.dropna(subset=['score'], inplace=True) #Todo: To remove rows where the 'score' column contains NaN values
 
-
+    # load gps csv:
     df_gps = read_nav_file(PATH_GPS)
 
     # Convert the timestamp columns to datetime objects
@@ -301,12 +306,12 @@ if __name__ == "__main__":
     # ignore directionality (parallel directions should have similar values north to south or south to north)
     condition = df_gps['heading'] > 180
     df_gps['abs_delta_heading_north'] = df_gps['heading']
-    df_gps.loc[condition, 'abs_delta_heading_north'] = 360 - df_gps['heading']
+    df_gps.loc[condition, 'abs_delta_heading_north'] = df_gps['heading'] - 180
 
     # merge with imu data:
     df_merged = extract_gnss_data(df_merged, df_gps)
 
-    plot_latitude_longitude(df_merged, OUTPUT_DIR, save=False)
+    plot_latitude_longitude(df_merged, OUTPUT_DIR, save=True)
 
     df_merged['timestamp_gnss'] = df_merged['timestamp_gnss'].apply(lambda t: datetime.datetime.combine(datetime.datetime.today(), t))
     # plot_gnss_heading(df_merged, OUTPUT_DIR, column='heading', save=False)
@@ -324,22 +329,16 @@ if __name__ == "__main__":
 
     # df_merged = moving_average(df_merged, column_name ='score', window_size = 30)
 
-    # Tag ground_truth:
-    GT_rows = [('0:00', '00:52'), ('1:10', '2:01'), ('02:23', '3:14'), ('3:24', '4:17'), ('4:28', '5:20'),
-               ('5:36', '6:33'), ('6:45', '7:37'), ('7:48', '8:41'), ('7:48', '8:41'), ('8:51', '9:43'), ('9:59', '10:53'), ('11:05', '11:58'), ('12:16', '13:08')]
-
+    # Load rows ground_truth:
     with open(GT_ROWS_PATH, 'r') as file:
         GT_rows = json.load(file)
 
     df_merged = GT_to_df(GT_rows,df_merged)
 
     #plot:
-    plot_depth_vs_angular_velocity(df_merged, "EinVered_230423_SUMERGOL_230423_row_2")
+    plot_depth_vs_angular_velocity(df_merged, output_name, save_dir=OUTPUT_DIR)
 
     print('done')
-
-
-
 
 
 
