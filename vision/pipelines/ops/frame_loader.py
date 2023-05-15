@@ -117,7 +117,8 @@ class FramesLoader():
                         last_fid += 1
                 cam.grab()
                 last_fid = f_id
-                batch.append(cam.get_frame())
+                _, frame = cam.get_frame()
+                batch.append(frame)
                 depth_batch.append(cam.get_depth())
             else:
                 if f_id > last_fid + 1:
@@ -125,7 +126,8 @@ class FramesLoader():
                         _, _ = cam.get_frame()
                         last_fid += 1
                 last_fid = f_id
-                batch.append(cam.get_frame())
+                _, frame = cam.get_frame()
+                batch.append(frame)
 
         return batch, depth_batch, last_fid
 
@@ -154,7 +156,7 @@ class FramesLoader():
 
         if mode == 'sync_mkv':
             depth_batch = depth_data[0]
-            depth_last_id = depth_data[1]
+            depth_last_id = depth_data[2]
         else:
             depth_last_id = zed_last_id
 
@@ -209,7 +211,8 @@ class FramesLoader():
         for jai_id, zed_id in zip(jai_frame_ids, zed_frame_ids):
             if p_zed_id > zed_id:
                 jai_first_id = jai_id
-            p_zed_id = zed_id
+                p_zed_id = zed_id
+                continue
 
             zed_ids.append(zed_id)
             jai_ids.append(jai_id - jai_first_id)

@@ -33,7 +33,11 @@ class AlternativeFlow(Module):
             if found:
                 row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                 rc = run(pipeline_conf, row_runtime_args)
-                data = {'tracks': rc.tracks, 'alignment': rc.alignment, 'row': row}
+                data = {'tracks': rc.tracks,
+                        'tracks_headers': rc.track_header,
+                        'alignment': rc.alignment,
+                        'alignment_headers': rc.alignment_header,
+                        'row': row}
                 #send results to data manager
                 # todo change ModuleTransferAction value
                 AlternativeFlow.send_data(ModuleTransferAction.FRUITS_DATA, data)
@@ -43,8 +47,11 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def seek_new_row():
-        collected = pd.read_csv(data_conf['collected path'])
-        analyzed = pd.read_csv(data_conf['analyzed path'])
+        try:
+            collected = pd.read_csv(data_conf['collected path'])
+            analyzed = pd.read_csv(data_conf['analyzed path'])
+        except (FileNotFoundError, PermissionError):
+            return False, None
 
         analyzed_list = []
         for k, row in analyzed.iterrows():
@@ -73,9 +80,9 @@ class AlternativeFlow(Module):
         row_args.output_folder = row_folder
         row_args.row_name = clip_id
         row_args.zed.movie_path = os.path.join(row_folder, f"ZED_{clip_id}.mkv")
-        row_args.depth.movie_path = os.path.join(row_folder, f"Depth_{clip_id}.mkv")
-        row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI_{clip_id}.mkv")
-        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB_{clip_id}.mkv")
+        row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH_{clip_id}.mkv")
+        row_args.jai.movie_path = os.path.join(row_folder, f"FSI_{clip_id}.mkv")
+        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"RGB_{clip_id}.mkv")
         row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps_{clip_id}.log")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_{clip_id}_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop_{clip_id}.log")
