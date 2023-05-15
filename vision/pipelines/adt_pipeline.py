@@ -92,7 +92,7 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
-        self.detector = counter_detection(cfg, args)
+        #self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size

@@ -20,12 +20,15 @@ class ResultsCollector():
     def __init__(self, rotate=False):
 
         self.detections = []
+        self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
         self.tracks = []
+        self.track_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id"]
         self.results = []
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
         self.alignment = []
+        self.alignment_header = ["x1", "y1", "x2", "y2", "tx", "ty", "frame", "zed_shift"]
         self.jai_zed = {}
         self.trees = {}
         self.hash = {}
