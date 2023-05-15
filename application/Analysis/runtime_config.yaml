@@ -17,20 +17,24 @@ zed:
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 0.5 # 1 counter
   depth_maximum: 20 # 8 counter
+  channels: 1
 
 depth:
   movie_path: /home/mic-730ai/fruitspec/test_data/ZED_1.svo
   frame_size: [1920, 1080]
+  channels: 1
 
 jai:
   movie_path: /home/mic-730ai/fruitspec/test_data/Result_FSI_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
 
 rgb_jai:
   movie_path: /home/mic-730ai/fruitspec/test_data/Result_RGB_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
 
 frame_size: [2048, 1536]
 

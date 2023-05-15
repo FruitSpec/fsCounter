@@ -1,6 +1,7 @@
 import numpy as np
 from collections import deque
-from numba import jitclass, types
+from numba import types
+
 
 
 # track_spec = [

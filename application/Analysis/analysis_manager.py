@@ -1,5 +1,5 @@
 from application.Analysis.batcher import Batcher
-from multiprocessing import Process, shared_memory, Event, Semaphore
+from multiprocessing import Process
 from threading import Thread
 import time
 import numpy as np

@@ -87,13 +87,13 @@ class FramesLoader():
             if f_id + id_ >= max_frame_number:
                 break
             if cam.mode == 'svo':
-                if id_ == 0 and f_id != self.last_svo_fid + self.batch_size:
+                if id_ == 0 and f_id != self.zed_last_id + self.batch_size:
                     cam.grab(f_id)
                 else:
                     cam.grab()
-                self.last_svo_fid = f_id
+                self.zed_last_id = f_id
                 _, frame = cam.get_frame()
-                _, depth = cam.get_depth()
+                depth = cam.get_depth()
                 batch.append(frame)
                 depth_batch.append(depth)
             else:
@@ -117,7 +117,8 @@ class FramesLoader():
                         last_fid += 1
                 cam.grab()
                 last_fid = f_id
-                batch.append(cam.get_frame())
+                _, frame = cam.get_frame()
+                batch.append(frame)
                 depth_batch.append(cam.get_depth())
             else:
                 if f_id > last_fid + 1:
@@ -125,7 +126,8 @@ class FramesLoader():
                         _, _ = cam.get_frame()
                         last_fid += 1
                 last_fid = f_id
-                batch.append(cam.get_frame())
+                _, frame = cam.get_frame()
+                batch.append(frame)
 
         return batch, depth_batch, last_fid
 
@@ -154,7 +156,7 @@ class FramesLoader():
 
         if mode == 'sync_mkv':
             depth_batch = depth_data[0]
-            depth_last_id = depth_data[1]
+            depth_last_id = depth_data[2]
         else:
             depth_last_id = zed_last_id
 
@@ -209,7 +211,8 @@ class FramesLoader():
         for jai_id, zed_id in zip(jai_frame_ids, zed_frame_ids):
             if p_zed_id > zed_id:
                 jai_first_id = jai_id
-            p_zed_id = zed_id
+                p_zed_id = zed_id
+                continue
 
             zed_ids.append(zed_id)
             jai_ids.append(jai_id - jai_first_id)
