@@ -13,7 +13,7 @@ from geographiclib.geodesic import Geodesic
 from tqdm import tqdm
 import datetime
 import json
-from vision.tools.utils_general import find_subdirs_with_file
+from vision.tools.utils_general import find_subdirs_with_file, variable_exists
 
 
 
@@ -54,9 +54,10 @@ def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocit
     else:
         return None
 
+
 def read_nav_file(file_path):
     try:
-        df = pd.read_csv(file_path, header=0)
+        df = pd.read_csv(file_path, header = None)
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
         return None
@@ -64,15 +65,33 @@ def read_nav_file(file_path):
         print(f"An error occurred while reading the file: {e}")
         return None
 
+    expected_columns = ["timestamp", "latitude", "longitude", "plot"]
+    if df.iloc[0].tolist() == expected_columns:
+        df.columns = df.iloc[0]
+        df = df[1:]
+
+    else:
+        df.columns = expected_columns
+
     return df
 
-def plot_depth_vs_angular_velocity(df, title, save_dir=None):
+def plot_depth_vs_angular_velocity(df, title, expected_heading = None, lower_bound= None, upper_bound= None, save_dir=None): #,
+
+    # if there is gps data, make 4 subplots, else 2.
+    if "heading" in df.columns.values:
+        n_subplots = 4
+        plt.figure(figsize=(55, 30))
+
+    else:
+        n_subplots = 2
+        plt.figure(figsize=(55, 18))
+
     # Plot:
-    plt.figure(figsize=(55, 30))  # Adjust the width and height as desired
+      # Adjust the width and height as desired
     sns.set(font_scale=2)
 
     # subplot 1
-    ax1 = plt.subplot(4, 1, 1)
+    ax1 = plt.subplot(n_subplots, 1, 1)
     graph1 = sns.lineplot(data=df, x=df.index, y="score")
     sns.lineplot(data=df, x=df.index, y="score_EMA")
     graph1.axhline(0.5, color='red', linewidth=2)
@@ -83,7 +102,7 @@ def plot_depth_vs_angular_velocity(df, title, save_dir=None):
     plt.title('Depth score')
 
     # subplot 2
-    ax2 = plt.subplot(4, 1, 2)
+    ax2 = plt.subplot(n_subplots, 1, 2)
     graph2 = sns.lineplot(data=df, x=df.index, y="angular_velocity_x")
     sns.lineplot(data=df, x=df.index, y="angular_velocity_x_EMA")
     graph2.axhline(10, color='red', linewidth=2)
@@ -93,29 +112,34 @@ def plot_depth_vs_angular_velocity(df, title, save_dir=None):
     plt.grid(True)
     plt.title('angular_velocity_x')
 
-    # subplot 3
-    ax3 = plt.subplot(4, 1, 3)
-    graph3 = sns.lineplot(data=df, x=df.index, y="heading")
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title('heading_gnss')
+    if n_subplots == 4:
+        # subplot 3
+        ax3 = plt.subplot(n_subplots, 1, 3)
+        graph3 = sns.lineplot(data=df, x=df.index, y="heading")
+        plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
+        plt.xlim(0, df.index[-1])
+        plt.grid(True)
+        plt.title('heading_gnss')
 
-    # subplot 4
-    ax4 = plt.subplot(4, 1, 4)
-    graph4 = sns.lineplot(data=df, x=df.index, y='abs_delta_heading_north')
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title('abs_delta_heading_north')
+        # subplot 4
+        ax4 = plt.subplot(n_subplots, 1, 4)
+        graph4 = sns.lineplot(data=df, x=df.index, y='heading_180')
+        graph4.axhline(expected_heading, color='blue', linewidth=2)
+        graph4.axhline(lower_bound, color='red', linewidth=2)
+        graph4.axhline(upper_bound, color='red', linewidth=2)
+        plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
+        plt.xlim(0, df.index[-1])
+        plt.grid(True)
+        plt.title('heading_180')
 
     # Transparent vertical shading based on 'GT' column
     for i in range(len(df)):
         if df['GT'].iloc[i] == 1:
             ax1.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
             ax2.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
-            ax3.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
-            ax4.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+            if n_subplots == 4:
+                ax3.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+                ax4.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
 
     plt.suptitle(title)
     plt.tight_layout()
@@ -123,7 +147,7 @@ def plot_depth_vs_angular_velocity(df, title, save_dir=None):
     if save_dir:
         output_path = os.path.join(save_dir, f"plot_{title}.png")
         plt.savefig(output_path)
-        plt.close()
+        #plt.close()
         print (f'saved plot to {output_path}')
 
     plt.show()
@@ -171,9 +195,13 @@ def GT_to_df(GT, df):
     return df
 
 
-def gnss_heading(df_gps):
+def get_gnss_heading_360(df_gps):
     '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
     coordinate system where the north direction aligns with the positive y-axis. '''
+
+    # Convert 'latitude' and 'longitude' columns to numeric
+    df_gps['latitude'] = pd.to_numeric(df_gps['latitude'], errors='coerce')
+    df_gps['longitude'] = pd.to_numeric(df_gps['longitude'], errors='coerce')
 
     # Calculate the difference in latitude and longitude
     delta_lat = df_gps['latitude'].diff()
@@ -257,6 +285,9 @@ def extract_gnss_data(df_merged, df_gps):
 
     # Find the indices of the last matching timestamps in df_gps
     last_indices = gps_timestamps.searchsorted(merged_timestamps, side='right') - 1
+    if np.all(last_indices == -1):
+        print("No matching GPS data.")
+        return None
 
     # Filter df_gps using the last indices
     filtered_gps = df_gps.loc[last_indices]
@@ -266,78 +297,112 @@ def extract_gnss_data(df_merged, df_gps):
 
     return merged_df
 
+def calculate_heading_bounds(expected_heading, threshold):
+    # Normalize the headings to be between 0 and 180 degrees
+    expected_heading = expected_heading % 180
+
+    # Calculate the lower and upper bounds for the expected heading range
+    lower_bound = (expected_heading - threshold) % 180
+    upper_bound = (expected_heading + threshold) % 180
+
+    return lower_bound, upper_bound
+
+def get_gnss_heading_180(df_gps):
+    # ignore directionality (parallel directions should have similar values north to south or south to north)
+    condition = df_gps['heading'] >= 180
+    df_gps['heading_180'] = df_gps['heading']
+    df_gps.loc[condition, 'heading_180'] = df_gps['heading'] - 180
+    return df_gps
+
+def in_the_right_gps_heading(current_heading, lower_bound, upper_bound):
+    # Normalize the current heading to be between 0 and 180 degrees
+    current_heading = current_heading % 180
+
+    # Check if the current heading falls within the expected heading range
+    if lower_bound <= upper_bound:
+        heading_within_range = lower_bound <= current_heading <= upper_bound
+    else:
+        # Handle the case where the expected heading range wraps around 360 degrees
+        heading_within_range = current_heading >= lower_bound or current_heading <= upper_bound
+
+    return heading_within_range
+
 if __name__ == "__main__":
 
-    # # Load sensor files to df:
-    # path_log_imu = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/imu_1.log'
-    # path_depth_csv = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/230423/row_3/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1.csv'
-    #
-    # df_imu = read_imu_log(path_log_imu)
-    # df_depth = pd.read_csv(path_depth_csv, index_col=0).set_index('frame')
-    #
-    # df_merged2 = pd.concat([df_depth, df_imu], axis=1, join="inner")
 
-    ###########     GNSS     ###################################################
-    PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
-    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2/rows_detection/EinVered_SUMERGOL_250423_row_2_.csv'
+    #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
+    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
+    EXPECTED_HEADING = 100
+    HEADING_TRESHOLD = 30
+
 
     # paths:
-    OUTPUT_DIR = os.path.join(PATH_ROW, 'rows_detection')
+    PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
+    path_log_imu = find_subdirs_with_file(PATH_ROW, 'imu_1.log', return_dirs=False, single_file=True)
+    output_dir = os.path.join(PATH_ROW, 'rows_detection')
     parent_dir = os.path.dirname(PATH_ROW)
-    PATH_GPS = find_subdirs_with_file(parent_dir, '.nav', return_dirs=False)
-    GT_ROWS_PATH = os.path.join(OUTPUT_DIR, 'GT_lines.json')
+    path_gps = find_subdirs_with_file(parent_dir, '.nav', return_dirs=False, single_file=True)
+    gt_rows_path = os.path.join(output_dir, 'GT_lines.json')
     output_name = "_".join(PATH_ROW.split('/')[-4:])
 
+    # load depth and imu data, and concat:
+    df_imu = read_imu_log(path_log_imu)
+    df_imu = add_exponential_moving_average_EMA_to_df(df_imu, column_name='angular_velocity_x', alpha=0.1) #high alpha is small change
+
+    # load depth data:
+    df_depth = pd.read_csv(PATH_DEPTH_CSV, index_col=0).set_index('frame')
+    df_depth = add_exponential_moving_average_EMA_to_df(df_depth, column_name='score', alpha=0.05)
+    # df_depth = moving_average(df_depth, column_name ='score', window_size = 30)
+
+    # merge depth and imu data:
+    df_merged = pd.concat([df_imu, df_depth], axis=1, join="inner")
+    df_merged["timestamp"] = pd.to_datetime(df_merged["timestamp"], unit="ns").dt.time
+
+
     # load depth csv:
-    df_merged = pd.read_csv(PATH_DEPTH_CSV, index_col=0)
-    df_merged.dropna(subset=['score'], inplace=True) #Todo: To remove rows where the 'score' column contains NaN values
+    # df_merged = pd.read_csv(PATH_DEPTH_CSV, index_col=0)
+    # df_merged.dropna(subset=['score'], inplace=True) #Todo: To remove rows where the 'score' column contains NaN values
+
 
     # load gps csv:
-    df_gps = read_nav_file(PATH_GPS)
-
+    df_gps = read_nav_file(path_gps)
     # Convert the timestamp columns to datetime objects
-    df_merged["timestamp"] = pd.to_datetime(df_merged["timestamp"], unit="ns").dt.time
     df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
     df_gps.drop('timestamp', axis='columns', inplace=True)
+    df_gps = get_gnss_heading_360(df_gps) # calculate heading from gnss data:
+    df_gps = get_gnss_heading_180(df_gps) # calculate delta heading
+    lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
 
-    # calculate heading from gnss data:
-    df_gps = gnss_heading(df_gps)
-
-    # ignore directionality (parallel directions should have similar values north to south or south to north)
-    condition = df_gps['heading'] > 180
-    df_gps['abs_delta_heading_north'] = df_gps['heading']
-    df_gps.loc[condition, 'abs_delta_heading_north'] = df_gps['heading'] - 180
 
     # merge with imu data:
-    df_merged = extract_gnss_data(df_merged, df_gps)
+    df_merged2 = extract_gnss_data(df_merged, df_gps)
 
-    plot_latitude_longitude(df_merged, OUTPUT_DIR, save=True)
+    if df_merged2 is not None:  # if the .nav file contains gps data from the same time
+        plot_latitude_longitude(df_merged2, output_dir, save=True)
+        #df_merged2['timestamp_gnss'] = df_merged2['timestamp_gnss'].apply(lambda t: datetime.datetime.combine(datetime.datetime.today(), t))
+        lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
 
-    df_merged['timestamp_gnss'] = df_merged['timestamp_gnss'].apply(lambda t: datetime.datetime.combine(datetime.datetime.today(), t))
+    else:
+        df_merged2 = df_merged
     # plot_gnss_heading(df_merged, OUTPUT_DIR, column='heading', save=False)
-    # plot_gnss_heading(df_merged, OUTPUT_DIR, column='abs_delta_heading_north', save=False)
+    # plot_gnss_heading(df_merged, OUTPUT_DIR, column='heading_180', save=False)
 
     # # calc heading using geographiclib:
     # df_gps = gnss_heading_Geodesic(df_gps)
     # plot_gnss_heading(df_gps, OUTPUT_DIR, column='bearing', save=False)
 
-
-
-    # calculate EMA:
-    df_merged = add_exponential_moving_average_EMA_to_df(df_merged, column_name = 'angular_velocity_x', alpha=0.1) #high alpha is small change
-    df_merged = add_exponential_moving_average_EMA_to_df(df_merged, column_name='score', alpha=0.05)
-
-    # df_merged = moving_average(df_merged, column_name ='score', window_size = 30)
-
     # Load rows ground_truth:
-    with open(GT_ROWS_PATH, 'r') as file:
+    with open(gt_rows_path, 'r') as file:
         GT_rows = json.load(file)
 
-    df_merged = GT_to_df(GT_rows,df_merged)
+    df_merged2 = GT_to_df(GT_rows,df_merged2)
 
-    #plot:
-    plot_depth_vs_angular_velocity(df_merged, output_name, save_dir=OUTPUT_DIR)
 
+
+    if variable_exists(lower_bound): # if there is gps data
+        plot_depth_vs_angular_velocity(df_merged2, output_name, EXPECTED_HEADING, lower_bound, upper_bound, save_dir=output_dir)
+    else:
+        plot_depth_vs_angular_velocity(df_merged2, output_name, save_dir=output_dir)
     print('done')
 
 
