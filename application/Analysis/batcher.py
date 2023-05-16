@@ -104,9 +104,9 @@ class Batcher:
         return self._batches_queue.get(block=True)
 
     def start_acquisition(self):
-        self.file_index = str(max((int(i.split('.')[0].split('_')[2])
-                                   for i in os.listdir(self.output_dir) if 'CLAHE' in i),
-                                  default=0))
+        self.file_index = str(1 + max((int(i.split('.')[0].split('_')[2])
+                                       for i in os.listdir(self.output_dir) if 'CLAHE' in i),
+                                      default=0))
         self._acquisition_start_event.set()
 
     def stop_acquisition(self):

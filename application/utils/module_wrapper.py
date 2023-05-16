@@ -1,11 +1,12 @@
 import enum
+import queue
 import time
 import os
 import signal
 import threading
 import logging
 from builtins import staticmethod
-from multiprocessing import Process, Pipe, current_process
+from multiprocessing import Process, Pipe, Queue
 
 from typing import List
 
@@ -58,20 +59,24 @@ class ModuleManager:
         self._process = None
         self.pid = -1
         self.module_name = None
-        self.sender, self.receiver = Pipe()
+        # self.sender, self.receiver = Pipe()
+        self.qu = Queue()
 
     def set_process(self, target, main_pid, module_name, daemon=True):
         self.module_name = module_name
-        args = (self.sender, self.receiver, main_pid, module_name)
+        # args = (self.sender, self.receiver, main_pid, module_name)
+        args = (self.qu, main_pid, module_name)
         self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
 
     def retrieve_transferred_data(self):
-        if self.receiver.poll():
-            return self.receiver.recv()
-        raise DataError
+        try:
+            return self.qu.get_nowait()
+        except queue.Empty:
+            raise DataError
 
     def receive_transferred_data(self, data, sender_module):
-        self.sender.send((data, sender_module))
+        # self.sender.send((data, sender_module))
+        self.qu.put((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
     def start(self):
@@ -88,14 +93,17 @@ class ModuleManager:
 
 class Module:
     """ An abstraction class for all modules """
-    main_pid, sender, receiver, module_name = -1, None, None, None
+    # main_pid, sender, receiver, module_name = -1, None, None, None
+    main_pid, qu, module_name = -1, None, None
     shutdown_event = threading.Event()
     shutdown_done_event = threading.Event()
 
     @staticmethod
-    def init_module(sender, receiver, main_pid, module_name):
-        Module.sender = sender
-        Module.receiver = receiver
+    def init_module(qu, main_pid, module_name):
+        # def init_module(sender, receiver, main_pid, module_name):
+        # Module.sender = sender
+        # Module.receiver = receiver
+        Module.qu = qu
         Module.main_pid = main_pid
         Module.module_name = module_name
 
@@ -110,7 +118,9 @@ class Module:
             "action": action,
             "data": data
         }
-        Module.sender.send((data, receivers))
+        # Module.sender.send((data, receivers))
+        Module.qu.put((data, receivers))
+        time.sleep(0.1)
         os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod

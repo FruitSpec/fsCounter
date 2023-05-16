@@ -29,8 +29,8 @@ class DataManager(Module):
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
 
     @staticmethod
-    def init_module(sender, receiver, main_pid, module_name):
-        super(DataManager, DataManager).init_module(sender, receiver, main_pid, module_name)
+    def init_module(qu, main_pid, module_name):
+        super(DataManager, DataManager).init_module(qu, main_pid, module_name)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client("s3")
@@ -91,7 +91,7 @@ class DataManager(Module):
 
     @staticmethod
     def receive_data(sig, frame):
-        data, sender_module = DataManager.receiver.recv()
+        data, sender_module = DataManager.qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
             if action == ModuleTransferAction.BLOCK_SWITCH and data != DataManager.current_plot:
@@ -128,18 +128,29 @@ class DataManager(Module):
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
-                logging.info("ANALYZED DATA ARRIVED")
+                print("ANALYZED DATA ARRIVED ", time.time())
                 customer_code, plot_code, scan_date, row, file_index = list(data["row"])
-                analyzed_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, row)
+                logging.info(f"ANALYZED DATA ARRIVED: "
+                             f"{data_conf['output path']}, {customer_code}, {plot_code}, {scan_date}, {row}")
+                analyzed_path = os.path.join(data_conf["output path"], customer_code, plot_code, str(scan_date), f"row_{row}")
 
-                tracks, tracks_headers = data["tracks"], data["tracks headers"]
+                tracks, tracks_headers = data["tracks"], data["tracks_headers"]
                 tracks_path = os.path.join(analyzed_path, f"tracks_{file_index}.csv")
-                tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
+                try:
+                    tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
+                except ValueError:
+                    tracks_df = pd.DataFrame(columns=tracks_headers)
+
                 tracks_df.to_csv(tracks_path, index=False, header=True)
 
-                alignment, alignment_headers = data["alignment"], data["alignment headers"]
+                alignment, alignment_headers = data["alignment"], data["alignment_headers"]
                 alignment_path = os.path.join(analyzed_path, f"alignment_{file_index}.csv")
-                alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
+
+                try:
+                    alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
+                except ValueError:
+                    alignment_df = pd.DataFrame(columns=alignment_headers)
+
                 alignment_df.to_csv(alignment_path, index=False, header=True)
 
                 analyzed_data = {

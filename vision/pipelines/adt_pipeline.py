@@ -75,9 +75,10 @@ def run(cfg, args, metadata=None):
         adt.logger.iterations += 1
 
     pbar.close()
-    adt.zed_cam.close()
-    adt.jai_cam.close()
-    adt.rgb_jai_cam.close()
+    adt.frames_loader.zed_cam.close()
+    adt.frames_loader.jai_cam.close()
+    adt.frames_loader.rgb_jai_cam.close()
+    adt.frames_loader.depth_cam.close()
     adt.dump_log_stats(args)
 
     #results_collector.dump_feature_extractor(args.output_folder)
@@ -92,7 +93,7 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
-        #self.detector = counter_detection(cfg, args)
+        self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size

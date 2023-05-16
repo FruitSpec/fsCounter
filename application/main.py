@@ -7,8 +7,10 @@ import sys
 sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
 from application.utils.settings import set_logger
+
 set_logger()
 
+import ray
 from GPS.location_awareness import GPSSampler
 from DataManager.data_manager import DataManager
 from Analysis.acquisition_manager import AcquisitionManager
@@ -27,15 +29,19 @@ def shutdown():
 
 def transfer_data(sig, frame):
     global manager
+    recv_modules = []
     for sender_module in ModulesEnum:
         try:
             data, recv_modules = manager[sender_module].retrieve_transferred_data()
+            print("SENDER: ", sender_module, "RECEIVERS: ", recv_modules)
+            print("DATA: ", data)
             for recv_module in recv_modules:
                 manager[recv_module].receive_transferred_data(data, sender_module)
                 time.sleep(0.1)
             break
         except DataError:
             continue
+
 
 
 def main():
@@ -47,6 +53,7 @@ def main():
     signal.signal(signal.SIGUSR1, transfer_data)
 
     logging.info(f"MAIN PID: {main_pid}")
+    print(f"MAIN PID: {main_pid}")
 
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,

@@ -56,7 +56,7 @@ class FramesLoader():
         for id_ in range(self.batch_size):
             if fid + id_ > max_frame_id:
                 print('Not full batch')
-                break
+                return [[], [], [], []]
             zed_batch.append(self.sync_zed_ids[fid + id_])
             jai_batch.append(self.sync_jai_ids[fid + id_])
 
@@ -203,8 +203,8 @@ class FramesLoader():
         zed_ids = []
         jai_ids = []
         log_df = pd.read_csv(log_fp)
-        jai_frame_ids = list(log_df['JAI frame number'])
-        zed_frame_ids = list(log_df['ZED frame number'])
+        jai_frame_ids = list(log_df['JAI_frame_number'])
+        zed_frame_ids = list(log_df['ZED_frame_number'])
 
         jai_first_id, zed_first_id = 0, 0
         p_zed_id = -1e5

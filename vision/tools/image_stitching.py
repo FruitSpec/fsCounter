@@ -256,7 +256,7 @@ def calc_affine_transform(kp1, kp2, match, ransac):
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
         M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=ransac)
     else:
-        M, status = None, [0]
+        M, status = None, []
 
 
     return M, status

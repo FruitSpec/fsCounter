@@ -25,7 +25,7 @@ class GUIInterface(Module):
     sio = socketio.Server(cors_allowed_origins='*')
 
     @staticmethod
-    def init_module(sender, receiver, main_pid, module_name):
+    def init_module(qu, main_pid, module_name):
         def setup_server():
             app = socketio.WSGIApp(GUIInterface.sio)
             wsgi_server(GUIInterface.listener, app)
@@ -33,7 +33,7 @@ class GUIInterface(Module):
         if not conf["GUI"]:
             return False
 
-        super(GUIInterface, GUIInterface).init_module(sender, receiver, main_pid, module_name)
+        super(GUIInterface, GUIInterface).init_module(qu, main_pid, module_name)
         super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf["GUI server port"]))
@@ -49,13 +49,18 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def receive_data(sid, environ):
-        data, sender_module = GUIInterface.receiver.recv()
+        data, sender_module = GUIInterface.qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.GUI_SET_DEVICE_STATE:
                 jai_connected, zed_connected = data
                 GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
                 GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
+                states = json.dumps({
+                    "JAI": GUIInterface.jai_state,
+                    "ZED": GUIInterface.zed_state
+                })
+                GUIInterface.sio.emit('set_camera_state', states)
                 logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
                                           f" ZED -> {GUIInterface.zed_state}")
 
@@ -71,7 +76,7 @@ class GUIInterface(Module):
 
     @staticmethod
     @sio.event
-    def disconnect_gui(sid):
+    def disconnect_gui(sid, environ):
         logging.info(f"DISCONNECTED GUI: {sid}")
 
     # custom events

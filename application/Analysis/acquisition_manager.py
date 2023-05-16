@@ -25,8 +25,8 @@ class AcquisitionManager(Module):
     transfer_data, pass_clahe_stream = False, False
 
     @staticmethod
-    def init_module(sender, receiver, main_pid, module_name):
-        super(AcquisitionManager, AcquisitionManager).init_module(sender, receiver, main_pid, module_name)
+    def init_module(qu, main_pid, module_name):
+        super(AcquisitionManager, AcquisitionManager).init_module(qu, main_pid, module_name)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
         AcquisitionManager.jz_recorder = jaized.JaiZed()
@@ -41,7 +41,7 @@ class AcquisitionManager(Module):
                                                                                       AcquisitionManager.debug_mode)
         AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
                                      ModulesEnum.GUI)
-        
+
     @staticmethod
     def start_acquisition(acquisition_parameters=None):
         AcquisitionManager.set_acquisition_parameters(acquisition_parameters)
@@ -110,7 +110,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def receive_data(sig, frame):
-        data, sender_module = AcquisitionManager.receiver.recv()
+        data, sender_module = AcquisitionManager.qu.get()
         action, data = data["action"], data["data"]
         global_polygon = GPS_conf["global polygon"]
         if sender_module == ModulesEnum.GPS:
