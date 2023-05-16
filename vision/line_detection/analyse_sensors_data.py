@@ -16,7 +16,6 @@ import json
 from vision.tools.utils_general import find_subdirs_with_file, variable_exists
 
 
-
 def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']):
     try:
         with open(file_path, 'r') as file:
@@ -147,7 +146,7 @@ def plot_depth_vs_angular_velocity(df, title, expected_heading = None, lower_bou
     if save_dir:
         output_path = os.path.join(save_dir, f"plot_{title}.png")
         plt.savefig(output_path)
-        #plt.close()
+        plt.close()
         print (f'saved plot to {output_path}')
 
     plt.show()
@@ -327,15 +326,7 @@ def in_the_right_gps_heading(current_heading, lower_bound, upper_bound):
 
     return heading_within_range
 
-if __name__ == "__main__":
-
-
-    #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
-    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
-    EXPECTED_HEADING = 100
-    HEADING_TRESHOLD = 30
-
-
+def main(PATH_DEPTH_CSV, save = False):
     # paths:
     PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
     path_log_imu = find_subdirs_with_file(PATH_ROW, 'imu_1.log', return_dirs=False, single_file=True)
@@ -371,25 +362,15 @@ if __name__ == "__main__":
     df_gps.drop('timestamp', axis='columns', inplace=True)
     df_gps = get_gnss_heading_360(df_gps) # calculate heading from gnss data:
     df_gps = get_gnss_heading_180(df_gps) # calculate delta heading
-    lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
-
 
     # merge with imu data:
     df_merged2 = extract_gnss_data(df_merged, df_gps)
 
-    if df_merged2 is not None:  # if the .nav file contains gps data from the same time
-        plot_latitude_longitude(df_merged2, output_dir, save=True)
-        #df_merged2['timestamp_gnss'] = df_merged2['timestamp_gnss'].apply(lambda t: datetime.datetime.combine(datetime.datetime.today(), t))
-        lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
-
-    else:
+    if df_merged2 is None:
         df_merged2 = df_merged
-    # plot_gnss_heading(df_merged, OUTPUT_DIR, column='heading', save=False)
-    # plot_gnss_heading(df_merged, OUTPUT_DIR, column='heading_180', save=False)
 
     # # calc heading using geographiclib:
     # df_gps = gnss_heading_Geodesic(df_gps)
-    # plot_gnss_heading(df_gps, OUTPUT_DIR, column='bearing', save=False)
 
     # Load rows ground_truth:
     with open(gt_rows_path, 'r') as file:
@@ -397,13 +378,38 @@ if __name__ == "__main__":
 
     df_merged2 = GT_to_df(GT_rows,df_merged2)
 
+    # Save df:
+    if save:
+        output_csv_path = os.path.join(output_dir, f'sensors_{output_name}.csv')
+        df_merged2.to_csv(output_csv_path, index=False)
+        print (f'Saved {output_csv_path}')
 
+    return df_merged2
 
-    if variable_exists(lower_bound): # if there is gps data
-        plot_depth_vs_angular_velocity(df_merged2, output_name, EXPECTED_HEADING, lower_bound, upper_bound, save_dir=output_dir)
-    else:
-        plot_depth_vs_angular_velocity(df_merged2, output_name, save_dir=output_dir)
+if __name__ == "__main__":
+
+    #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
+    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
+    PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
+    output_dir = os.path.join(PATH_ROW, 'rows_detection')
+    output_name = "_".join(PATH_ROW.split('/')[-4:])
+
+    df = main(PATH_DEPTH_CSV, save=True)
+
+    EXPECTED_HEADING = 100
+    HEADING_TRESHOLD = 30
+
+    plot_latitude_longitude(df, output_dir, save=False)
+
+    # get heading lower / upper bounds
+    lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
+
+    # plot sensors data:
+    plot_depth_vs_angular_velocity(df, output_name, EXPECTED_HEADING, lower_bound, upper_bound, save_dir=output_dir) # save_dir=output_dir
+
     print('done')
+
+
 
 
 
