@@ -19,7 +19,7 @@ from vision.misc.help_func import validate_output_path
 from vision.tools.video_wrapper import video_wrapper
 from vision.depth.slicer.slicer_validatior import load_json, write_json
 from vision.tools.camera import is_saturated
-from sensors_data import load_log_file, log_to_df, extract_time_from_timestamp
+
 
 
 def slice_frames(depth_folder_path, output_path, rgb_folder_path=None, debug=False, start_frame=None, end_frame=None):
@@ -68,10 +68,10 @@ def slice_clip(svo_path, log_path, output_dir, output_name, EMA_alpha_AV ,EMA_al
 
     # load log file to csv:
     print (f'Extracting Sensors data {log_path} from ')
-    log_contents = load_log_file(log_path)
+    log_contents = read_log_file(log_path)
     columns_names = ['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z',
      'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']
-    df = log_to_df(log_contents, columns_names)
+    df = read_imu_log(log_contents, columns_names)
 
 
     # Extract video
@@ -108,21 +108,14 @@ def slice_clip(svo_path, log_path, output_dir, output_name, EMA_alpha_AV ,EMA_al
             # Break the loop
             break
 
-        # ema_previous = df.loc[index - 1, ['score_ema']][0] if ('score_ema' in df.columns) else None
-        if 'score_ema' in df.columns:
-            ema_previous = df.loc[index - 1, ['score_ema']][0]
-        else: ema_previous = None
-        is_near, score, score_ema, saturated, y_end, y_start = near_objects (frame, depth, depth_percentile_thresh, signal_thrs, EMA_alpha_depth, ema_previous)
+
+        depth_ema_previous = df.loc[index - 1, ['score_ema']][0] if ('score_ema' in df.columns) else None
+        is_near, score, score_ema, saturated, y_end, y_start = near_objects (frame, depth, depth_percentile_thresh, signal_thrs, EMA_alpha_depth, depth_ema_previous)
 
         # decide if turning from imu sensors (angular_velocity_x):
-        #AV_ema_previous = df.loc[index - 1, ['AV_ema']][0] if 'AV_ema' in df.columns else None
-        if 'AV_ema' in df.columns:
-            AV_ema_previous = df.loc[index - 1, ['AV_ema']][0]
-        else:
-            AV_ema_previous = None
-
+        av_ema_previous = df.loc[index - 1, ['AV_ema']][0] if 'AV_ema' in df.columns else None
         current_sensors_data = df.loc[index].angular_velocity_x
-        turning, angular_velocity, angular_velocity_ema = is_turning (current_sensors_data, angular_velocity_thresh, AV_ema_previous, EMA_alpha_AV)
+        turning, angular_velocity, angular_velocity_ema = is_turning (current_sensors_data, angular_velocity_thresh, av_ema_previous, EMA_alpha_AV)
 
 
         # decide if in line:
@@ -141,7 +134,7 @@ def slice_clip(svo_path, log_path, output_dir, output_name, EMA_alpha_AV ,EMA_al
         index += 1
 
     # Save csv:
-    file_path_df = output_dir + "/depth_ein_vered_SUMERGOL_230423_row_3.csv"
+    file_path_df = output_dir + "/depth_ein_vered_SUMERGOL_230423_row_3XXX.csv"
     df.to_csv(file_path_df)
     print (f'Saved df to {file_path_df}')
 
@@ -149,22 +142,6 @@ def slice_clip(svo_path, log_path, output_dir, output_name, EMA_alpha_AV ,EMA_al
         writer.release()
         print (f'Saved video to {output_video_path}')
 
-    # if smooth and not bool(dict):
-    #     slice_data = smooth_slicing(slice_data, dist_thrs=dist_thrs)
-    #
-    # if debug:
-    #     print('saving debug data')
-    #     for id_, res in tqdm(slice_data.items()):
-    #
-    #         frame, depth, point_cloud = cam.get_zed(id_)
-    #         if not cam.res:  # couldn't get frames
-    #             # Break the loop
-    #             break
-    #         b = frame[:, :, 0].copy()
-    #         depth[b > 240] = 0
-    #         save_reults(res, depth.astype(np.uint8), frame, output_path, id_)
-    #
-    # write_json({"filepath": file_path, "output_path": output_path, "data": slice_data})
 
     return df
 
@@ -536,9 +513,9 @@ def slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_th
 
 if __name__ == "__main__":
 
-    svo_path = "/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_2/ZED_1.svo"
-    log_path = f'/home/lihi/FruitSpec/Data/customers/EinVered/230423/SUMERGOL/230423/row_3/imu_1.log'
-    output_dir = "/home/fruitspec-lab/FruitSpec/debbug/"
+    svo_path = "/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/ZED_1.svo"
+    log_path = f'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/Summer_Gold1/imu_1.log'
+    output_dir = "/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection"
 
     output_name = 'EinVered_230423_SUMERGOL_230423_row_2'
 
