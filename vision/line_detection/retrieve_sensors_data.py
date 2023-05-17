@@ -74,10 +74,10 @@ def read_nav_file(file_path):
 
     return df
 
-def plot_depth_vs_angular_velocity(df, title, expected_heading = None, lower_bound= None, upper_bound= None, save_dir=None): #,
+def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 10, expected_heading = None, lower_heading_bound= None, upper_heading_bound= None, save_dir=None): #,
 
     # if there is gps data, make 4 subplots, else 2.
-    if "heading" in df.columns.values:
+    if "heading_360" in df.columns.values:
         n_subplots = 4
         plt.figure(figsize=(55, 30))
 
@@ -89,56 +89,18 @@ def plot_depth_vs_angular_velocity(df, title, expected_heading = None, lower_bou
       # Adjust the width and height as desired
     sns.set(font_scale=2)
 
-    # subplot 1
-    ax1 = plt.subplot(n_subplots, 1, 1)
-    graph1 = sns.lineplot(data=df, x=df.index, y="score")
-    sns.lineplot(data=df, x=df.index, y="score_EMA")
-    graph1.axhline(0.5, color='red', linewidth=2)
-    plt.locator_params(axis='y', nbins=11)
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title('Depth score')
+    n_subplots = 4
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 1, column_name1="score", column_name2="score_EMA",
+              thresh1=depth_threshold, thresh2 = None, thresh3 = None, title ='Depth score')
 
-    # subplot 2
-    ax2 = plt.subplot(n_subplots, 1, 2)
-    graph2 = sns.lineplot(data=df, x=df.index, y="angular_velocity_x")
-    sns.lineplot(data=df, x=df.index, y="angular_velocity_x_EMA")
-    graph2.axhline(10, color='red', linewidth=2)
-    graph2.axhline(-10, color='red', linewidth=2)
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title('angular_velocity_x')
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 2, column_name1="angular_velocity_x", column_name2="angular_velocity_x_EMA",
+              thresh1=angular_velocity_threshold, thresh2 = -angular_velocity_threshold, thresh3 = None, title ='angular_velocity_x (deg/sec)')
 
-    if n_subplots == 4:
-        # subplot 3
-        ax3 = plt.subplot(n_subplots, 1, 3)
-        graph3 = sns.lineplot(data=df, x=df.index, y="heading")
-        plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-        plt.xlim(0, df.index[-1])
-        plt.grid(True)
-        plt.title('heading_gnss')
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_180", column_name2=None,
+              thresh1=lower_heading_bound, thresh2 = upper_heading_bound, thresh3 = expected_heading, title ='heading_180')
 
-        # subplot 4
-        ax4 = plt.subplot(n_subplots, 1, 4)
-        graph4 = sns.lineplot(data=df, x=df.index, y='heading_180')
-        graph4.axhline(expected_heading, color='blue', linewidth=2)
-        graph4.axhline(lower_bound, color='red', linewidth=2)
-        graph4.axhline(upper_bound, color='red', linewidth=2)
-        plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-        plt.xlim(0, df.index[-1])
-        plt.grid(True)
-        plt.title('heading_180')
-
-    # Transparent vertical shading based on 'GT' column
-    for i in range(len(df)):
-        if df['GT'].iloc[i] == 1:
-            ax1.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
-            ax2.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
-            if n_subplots == 4:
-                ax3.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
-                ax4.axvspan(df.index[i], df.index[i+1], color='green', alpha=0.02)
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1="pred", column_name2=None,
+              thresh1=None, thresh2 = None, thresh3 = None, title =f"Prediction")
 
     plt.suptitle(title)
     plt.tight_layout()
@@ -150,6 +112,32 @@ def plot_depth_vs_angular_velocity(df, title, expected_heading = None, lower_bou
         print (f'saved plot to {output_path}')
 
     plt.show()
+
+def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = None, thresh1= None, thresh2= None, thresh3= None):
+
+    plt.subplot(n_subplots, 1, i_subplot)
+
+    # draw the ground truth:
+    plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['GT'] == 1, color='green', alpha=0.15)
+
+    # draw the plots:
+    graph = sns.lineplot(data=df, x=df.index, y=column_name1)
+    if column_name2:
+        sns.lineplot(data=df, x=df.index, y=column_name2)
+
+    # draw thresholds:
+    if thresh1:
+        graph.axhline(thresh1, color='red', linewidth=2)
+        if thresh2:
+            graph.axhline(thresh2, color='red', linewidth=2)
+            if thresh3:
+                graph.axhline(thresh3, color='blue', linewidth=2)
+
+    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
+    plt.xlim(0, df.index[-1])
+    plt.grid(True)
+    plt.title(title)
+
 
 # EMA exponential moving average:
 def add_exponential_moving_average_EMA_to_df(df, column_name, alpha): #todo check span
@@ -210,8 +198,8 @@ def get_gnss_heading_360(df_gps):
     # Convert the heading from radians to degrees
     heading_deg = np.degrees(heading_rad)
     # Adjust the heading to be relative to the north
-    heading_deg_adjusted = (heading_deg + 360) % 360
-    df_gps['heading'] = heading_deg_adjusted
+    df_gps['heading_360'] = (heading_deg + 360) % 360
+    df_gps['heading_180'] = (heading_deg + 360) % 180
     return df_gps
 
 def gnss_heading_Geodesic(df):
@@ -306,25 +294,9 @@ def calculate_heading_bounds(expected_heading, threshold):
 
     return lower_bound, upper_bound
 
-def get_gnss_heading_180(df_gps):
-    # ignore directionality (parallel directions should have similar values north to south or south to north)
-    condition = df_gps['heading'] >= 180
-    df_gps['heading_180'] = df_gps['heading']
-    df_gps.loc[condition, 'heading_180'] = df_gps['heading'] - 180
-    return df_gps
 
-def in_the_right_gps_heading(current_heading, lower_bound, upper_bound):
-    # Normalize the current heading to be between 0 and 180 degrees
-    current_heading = current_heading % 180
 
-    # Check if the current heading falls within the expected heading range
-    if lower_bound <= upper_bound:
-        heading_within_range = lower_bound <= current_heading <= upper_bound
-    else:
-        # Handle the case where the expected heading range wraps around 360 degrees
-        heading_within_range = current_heading >= lower_bound or current_heading <= upper_bound
 
-    return heading_within_range
 
 def main(PATH_DEPTH_CSV, save = False):
     # paths:
@@ -361,7 +333,7 @@ def main(PATH_DEPTH_CSV, save = False):
     df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
     df_gps.drop('timestamp', axis='columns', inplace=True)
     df_gps = get_gnss_heading_360(df_gps) # calculate heading from gnss data:
-    df_gps = get_gnss_heading_180(df_gps) # calculate delta heading
+    #df_gps = get_gnss_heading_180(df_gps) # calculate delta heading
 
     # merge with imu data:
     df_merged2 = extract_gnss_data(df_merged, df_gps)
@@ -390,22 +362,30 @@ if __name__ == "__main__":
 
     #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
     PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
+    DEPTH_TRESHOLD = 0.5
+    ANGULAR_VELOCITY_THRESHOLD = 10
+    EXPECTED_HEADING = 100
+    HEADING_TRESHOLD = 30
+
+
     PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
     output_dir = os.path.join(PATH_ROW, 'rows_detection')
     output_name = "_".join(PATH_ROW.split('/')[-4:])
 
     df = main(PATH_DEPTH_CSV, save=True)
 
-    EXPECTED_HEADING = 100
-    HEADING_TRESHOLD = 30
-
-    plot_latitude_longitude(df, output_dir, save=False)
-
-    # get heading lower / upper bounds
     lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
 
     # plot sensors data:
-    plot_depth_vs_angular_velocity(df, output_name, EXPECTED_HEADING, lower_bound, upper_bound, save_dir=output_dir) # save_dir=output_dir
+    plot_sensors(df, output_name,
+                 depth_threshold = DEPTH_TRESHOLD,
+                 angular_velocity_threshold = ANGULAR_VELOCITY_THRESHOLD,
+                 expected_heading = EXPECTED_HEADING,
+                 lower_heading_bound = lower_bound,
+                 upper_heading_bound= upper_bound,
+                 save_dir = output_dir)
+
+    plot_latitude_longitude(df, output_dir, save=False)
 
     print('done')
 
