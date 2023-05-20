@@ -39,6 +39,7 @@ class AlternativeFlow(Module):
                     break
                 except (FileNotFoundError, PermissionError):
                     print('collected not read')
+                    time.sleep(60)
                     pass
                 except Exception:
                     traceback.print_exc()
@@ -100,24 +101,27 @@ class AlternativeFlow(Module):
     def update_runtime_args(args, row):
 
         row_args = args.copy()
+        folder_index = str(int(row['folder_index']))
         row_folder = os.path.join(data_conf['output path'], row['customer_code'], row['plot_code'],
-                                  str(row['scan_date']), f"row_{int(row['row'])}")
-        clip_id = int(row['file_index'])
+                                  str(row['scan_date']), f"row_{int(row['row'])}", folder_index)
         row_args.output_folder = row_folder
-        row_args.row_name = clip_id
-        row_args.zed.movie_path = os.path.join(row_folder, f"ZED_{clip_id}.mkv")
-        row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH_{clip_id}.mkv")
-        row_args.jai.movie_path = os.path.join(row_folder, f"FSI_EQUALIZE_HIST_{clip_id}.mkv")
-        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"RGB_{clip_id}.mkv")
-        row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps_{clip_id}.log")
-        row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_{clip_id}_slice_data_R{row['row']}.json")
-        row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop_{clip_id}.log")
+        row_args.row_name = int(row['row'])
+        row_args.zed.movie_path = os.path.join(row_folder, f"ZED.mkv")
+        row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
+        row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
+        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"RGB.mkv")
+        row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps.log")
+        row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
+        row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
 
         return row_args
 
 
 def create_str_from_row(row):
-    unique_str = str(row['customer_code']) + '_' + str(row['plot_code']) + '_' + str(
-        row['scan_date']) + '_' + str(row['row']) + '_' + str(
-        int(row['file_index']))
+    try:
+        unique_str = str(row['customer_code']) + '_' + str(row['plot_code']) + '_' + str(
+            row['scan_date']) + '_' + str(row['row']) + '_' + str(
+            int(row['folder_index']))
+    except:
+        print(row)
     return unique_str

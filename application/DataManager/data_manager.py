@@ -24,9 +24,9 @@ class DataManager(Module):
     update_output_thread, internet_scan_thread = None, None
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
     collected_df = pd.DataFrame(
-        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
+        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
     analyzed_df = pd.DataFrame(
-        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
+        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
 
     @staticmethod
     def init_module(qu, main_pid, module_name):
@@ -41,13 +41,13 @@ class DataManager(Module):
             DataManager.collected_df = pd.read_csv(data_conf["collected path"], dtype=str)
         except FileNotFoundError:
             DataManager.collected_df = pd.DataFrame(
-                data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
+                data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
 
         try:
             DataManager.analyzed_df = pd.read_csv(data_conf["analyzed path"], dtype=str)
         except FileNotFoundError:
             DataManager.analyzed_df = pd.DataFrame(
-                data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "file_index": []})
+                data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
 
         DataManager.update_output_thread.start()
         DataManager.internet_scan_thread.start()
@@ -58,17 +58,15 @@ class DataManager(Module):
     def start_new_file():
         def add_to_scan():
             """ add the recently closed file to the scan df to prepare for uploading """
-            filename_csv = f"fruits_{DataManager.current_index}.csv"
+            filename_csv = f"fruits.csv"
             if not os.path.exists(DataManager.current_path):
                 logging.info(f"CSV PATH : {DataManager.current_path} - NOT EXIST - NO DATA DETECTED")
 
             if data_conf["use feather"]:
                 # convert CSV to feather before trying to upload to S3. should take 2-3 seconds if file size < 1MB.
-                filename_feather = f"fruits_{DataManager.current_index}.feather"
-                feather_path = tools.get_fruits_path(
-                    plot=DataManager.current_plot, row=DataManager.current_row,
-                    index=DataManager.current_index, write_csv=False
-                )
+                filename_feather = f"fruits.feather"
+                feather_path = tools.get_fruits_path(plot=DataManager.current_plot, row=DataManager.current_row,
+                                                     index=DataManager.current_index, write_csv=False)
                 pd.read_csv(DataManager.current_path).to_feather(feather_path)
                 filename = filename_feather
             else:
@@ -129,13 +127,13 @@ class DataManager(Module):
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
                 print("ANALYZED DATA ARRIVED ", time.time())
-                customer_code, plot_code, scan_date, row, file_index = list(data["row"])
+                customer_code, plot_code, scan_date, row, folder_index = list(data["row"])
                 logging.info(f"ANALYZED DATA ARRIVED: "
                              f"{data_conf['output path']}, {customer_code}, {plot_code}, {scan_date}, {row}")
                 analyzed_path = os.path.join(data_conf["output path"], customer_code, plot_code, str(scan_date), f"row_{row}")
 
                 tracks, tracks_headers = data["tracks"], data["tracks_headers"]
-                tracks_path = os.path.join(analyzed_path, f"tracks_{file_index}.csv")
+                tracks_path = os.path.join(analyzed_path, f"tracks_{folder_index}.csv")
                 try:
                     tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
                 except ValueError:
@@ -144,7 +142,7 @@ class DataManager(Module):
                 tracks_df.to_csv(tracks_path, index=False, header=True)
 
                 alignment, alignment_headers = data["alignment"], data["alignment_headers"]
-                alignment_path = os.path.join(analyzed_path, f"alignment_{file_index}.csv")
+                alignment_path = os.path.join(analyzed_path, f"alignment_{folder_index}.csv")
 
                 try:
                     alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
@@ -158,7 +156,7 @@ class DataManager(Module):
                     "plot_code": [plot_code],
                     "scan_date": [scan_date],
                     "row": [row],
-                    "file_index": [file_index]
+                    "folder_index": [folder_index]
                 }
 
                 tmp_analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
@@ -174,19 +172,13 @@ class DataManager(Module):
                 DataManager.current_row = data["row"]
 
                 # update index and path for the new file
-                plot_dir = os.listdir(tools.get_fruits_path(
-                    plot=DataManager.current_plot,
-                    row=DataManager.current_row,
-                    get_dir=True)
-                )
-                path_indices = [tools.index_from_svo(f, as_int=True) for f in plot_dir if tools.is_svo(f)]
-                print("PATH INDICES: ", path_indices)
+                row_path = tools.get_fruits_path(plot=DataManager.current_plot, row=DataManager.current_row, get_row_dir=True)
+                row_indices = os.listdir(row_path)
+                path_indices = [f for f in row_indices if os.path.isdir(f) and f.isdigit()]
                 DataManager.current_index = 1 + max(path_indices, default=0)
-                DataManager.current_path = tools.get_fruits_path(
-                    plot=DataManager.current_plot,
-                    index=DataManager.current_index,
-                    row=DataManager.current_row
-                )
+                DataManager.current_path = tools.get_fruits_path(plot=DataManager.current_plot,
+                                                                 row=DataManager.current_row,
+                                                                 index=DataManager.current_index)
 
             if action == ModuleTransferAction.STOP_ACQUISITION:
                 today = datetime.now().strftime("%d%m%y")
@@ -194,8 +186,8 @@ class DataManager(Module):
                     "customer_code": [conf["customer code"]],
                     "plot_code": [DataManager.current_plot],
                     "scan_date": [today],
-                    "row": [DataManager.current_row],
-                    "file_index": [DataManager.current_index]
+                    "row": [int(DataManager.current_row)],
+                    "folder_index": [int(DataManager.current_index)]
                 }
                 tmp_df = pd.DataFrame(data=collected_data, index=[0])
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
@@ -272,7 +264,7 @@ class DataManager(Module):
                 plot_code = plot_df["plot code"].iloc[0]
                 scan_date = plot_df["scan date"].iloc[0]
 
-                indices = [tools.index_from_fruits(filename) for filename in plot_df["filename"]]
+                indices = [ind for ind in plot_df["folder index"]]
                 if upload_timeout <= 0.1:
                     logging.info(f"SCAN - UPLOAD TIMEOUT - STOP UPLOADING")
                     break

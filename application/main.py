@@ -33,8 +33,6 @@ def transfer_data(sig, frame):
     for sender_module in ModulesEnum:
         try:
             data, recv_modules = manager[sender_module].retrieve_transferred_data()
-            print("SENDER: ", sender_module, "RECEIVERS: ", recv_modules)
-            print("DATA: ", data)
             for recv_module in recv_modules:
                 manager[recv_module].receive_transferred_data(data, sender_module)
                 time.sleep(0.1)

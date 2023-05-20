@@ -51,19 +51,18 @@ def get_imu_path():
     return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.imu')
 
 
-def get_fruits_path(plot, row, index=-1, write_csv=True, get_dir=False):
-    ext = "csv" if is_csv else "feather"
+def get_fruits_path(plot, row, index=-1, write_csv=True, get_row_dir=False):
+    ext = "csv" if write_csv else "feather"
     today = datetime.now().strftime("%d%m%y")
     row = f"row_{row}"
-    plot_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today, row)
-    if get_dir:
-        return plot_dir
-    index_str = f"{data_conf['file prefix']}{str(index).zfill(3)}"
-    filename = f"fruits_{index_str}.{ext}"
-    return os.path.join(plot_dir, filename)
+    row_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today, row)
+    if get_row_dir:
+        return row_dir
+    filename = f"fruits.{ext}"
+    return os.path.join(row_dir, str(index), filename)
 
 
-def upload_to_s3(customer_code, plot_code, scan_date, indices, timeout):
+def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
     def get_file_size(f):
         return os.path.getsize(f) / 1024
 
@@ -100,47 +99,51 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices, timeout):
     logging.info(f"DATA MANAGER - INTERNET UPLOAD SPEED - {upload_in_kbps} KB/s")
     s3_client = boto3.client("s3", config=Config(retries={"total_max_attempts": 1}))
 
-    current_path = os.path.join(customer_code, plot_code, scan_date)
+    plot_path = os.path.join(customer_code, plot_code, scan_date)
+    logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - {plot_path}")
 
-    logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - {current_path}")
-    logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - UPLOADING INDICES {indices}")
-    for index in indices:
-        filename = f"fruits_{index}.{file_suffix}"
-        file_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, filename)
-        f_size = get_file_size(file_path)
-        if timeout <= 1:
-            logging.info(f"DATA MANAGER - UPLOAD TO S3 - TIMEOUT STATUS - {timeout} - STOPPING")
-            break
+    for row, indices in indices_per_row.items():
+        row = f"row_{row}"
+        current_path = os.path.join(customer_code, plot_code, scan_date, row)
 
-        filename = f"fruits_{index}.{file_suffix}"
-        fruits_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, filename)
-        aws_path = os.path.join(customer_code, plot_code, scan_date, filename)
+        logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - UPLOADING INDICES {indices_per_row}")
+        for index in indices_per_row:
+            filename = f"fruits.{file_suffix}"
+            file_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, str(index), filename)
+            f_size = get_file_size(file_path)
+            if timeout <= 1:
+                logging.info(f"DATA MANAGER - UPLOAD TO S3 - TIMEOUT STATUS - {timeout} - STOPPING")
+                break
 
-        # f_size is the size of the file in KB.
-        # upload_in_kbps * timeout gives us the approximated amount of data that can be uploaded within given timeout/
-        # if, by our approximation, the file won't upload in time, we don't even try.
-        if f_size >= upload_in_kbps * timeout:
-            continue
-        try:
-            # Attempt to upload the file and update the remaining time
-            timeout = timed_call(timeout, s3_client.upload_file, fruits_path, data_conf["upload bucket name"],
-                                 aws_path)
-            logging.info(f"DATA MANAGER - UPLOAD TO S3 - {current_path}/{filename} - SUCCESS, TIMEOUT STATUS - {timeout}")
-            valid_indices.append(index)
-        except TimeoutError:
-            break
-        except FileNotFoundError:
-            logging.warning(f"DATA MANAGER - UPLOAD TO S3 - MISSING INDEX - {index}")
-        except EndpointConnectionError:
-            logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - INTERNET CONNECTION - {current_path}")
-            return False, []
-        except S3UploadFailedError:
-            logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}")
-            return False, []
-        except Exception:
-            logging.error(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
-            traceback.print_exc()
-            return False, []
+            filename = f"fruits.{file_suffix}"
+            fruits_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, str(index), filename)
+            aws_path = os.path.join(customer_code, plot_code, scan_date, filename)
+
+            # f_size is the size of the file in KB.
+            # upload_in_kbps * timeout gives us the approximated amount of data that can be uploaded within given timeout/
+            # if, by our approximation, the file won't upload in time, we don't even try.
+            if f_size >= upload_in_kbps * timeout:
+                continue
+            try:
+                # Attempt to upload the file and update the remaining time
+                timeout = timed_call(timeout, s3_client.upload_file, fruits_path, data_conf["upload bucket name"],
+                                     aws_path)
+                logging.info(f"DATA MANAGER - UPLOAD TO S3 - {current_path}/{filename} - SUCCESS, TIMEOUT STATUS - {timeout}")
+                valid_indices.append(index)
+            except TimeoutError:
+                break
+            except FileNotFoundError:
+                logging.warning(f"DATA MANAGER - UPLOAD TO S3 - MISSING INDEX - {index}")
+            except EndpointConnectionError:
+                logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - INTERNET CONNECTION - {current_path}")
+                return False, []
+            except S3UploadFailedError:
+                logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}")
+                return False, []
+            except Exception:
+                logging.error(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
+                traceback.print_exc()
+                return False, []
 
     logging.info(f"UPLOAD TO S3 - SUCCESS - {current_path} - INDICES - {valid_indices}")
     return True, valid_indices
