@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
-from vision.tools.video_wrapper import video_wrapper
 from vision.pipelines.ops.simulator import init_cams
 
 class FramesLoader():

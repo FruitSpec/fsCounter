@@ -54,24 +54,26 @@ class AlternativeFlow(Module):
         while True:
             found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
             if found:
-                collected.drop(index=row_index, inplace=True)
-                print(f'Analyzing new Row: {list(row)}')
-                row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
-                rc = run(pipeline_conf, row_runtime_args)
-                print(f'Done analyzing row: {list(row)}')
-                tracks = np.array(rc.tracks)
-                alignment = np.array(rc.alignment)
-                data = {
-                    'tracks': tracks,
-                    'tracks_headers': rc.tracks_header,
-                    'alignment': alignment,
-                    'alignment_headers': rc.alignment_header,
-                    'row': row
-                }
-                #send results to data manager
-                # todo change ModuleTransferAction value
-                print("sending data from analysis: ", time.time())
-                AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
+                # using try in case of collapse in analysis flow
+                try:
+                    collected.drop(index=row_index, inplace=True)
+                    print(f'Analyzing new Row: {list(row)}')
+                    row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
+                    rc = run(pipeline_conf, row_runtime_args)
+                    print(f'Done analyzing row: {list(row)}')
+                    data = {
+                        'tracks': np.array(rc.tracks),
+                        'tracks_headers': rc.track_header,
+                        'alignment': np.array(rc.alignment),
+                        'alignment_headers': rc.alignment_header,
+                        'row': row
+                    }
+                    # send results to data manager
+                    print("sending data from analysis: ", time.time())
+                    AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
+                except:
+                    print(f'Analysis collapsed. {list(row)} not analyzed')
+                    # todo: write error to log + send row data to "failed"
             else:
                 print('No new file Found, waiting 1 minute')
                 collected, analyzed = read_collected_analyzed()
