@@ -22,7 +22,7 @@ class ResultsCollector():
         self.detections = []
         self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
         self.tracks = []
-        self.tracks_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id"]
+        self.tracks_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id", "depth"]
         self.results = []
         self.file_names = []
         self.file_ids = []

@@ -39,10 +39,7 @@ def scale_dets(det_outputs, scale_):
 
 def get_repo_dir():
     cwd = os.getcwd()
-    if 'Windows' in os.environ['OS']:
-        splited = cwd.split('\\')
-    else:
-        splited = cwd.split('/')
+    splited = cwd.split('/')
     ind = splited.index('fsCounter')
     repo_dir = '/'
     for s in splited[1:ind + 1]:

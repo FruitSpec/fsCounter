@@ -23,7 +23,7 @@ from vision.tools.camera import batch_is_saturated
 from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_cams, get_frame_drop
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
-
+from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 
 def run(cfg, args, metadata=None):
 
@@ -63,6 +63,10 @@ def run(cfg, args, metadata=None):
 
         # track:
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
+
+        # depth:
+        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
+        trk_outputs = append_to_trk(trk_outputs, depth_results)
 
         #collect results:
         results_collector.collect_detections(det_outputs, f_id)
@@ -290,6 +294,58 @@ def update_metadata(metadata, args):
         metadata = {}
     metadata["align_detect_track"] = False
     write_metadata(args, metadata)
+
+def get_depth_to_bboxes(depth_frame, jai_frame, cut_coords, dets, factor = 8 / 255):
+    """
+    Retrieves the depth to each bbox
+    Args:
+        xyz_frame (np.array): a Point cloud image
+        jai_frame (np.array): FSI image
+        cut_coords (tuple): jai in zed coords
+        dets (list): list of detections
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
+
+    Returns:
+        z_s (list): list with depth to each detection
+    """
+    depth_frame = depth_frame * factor
+    cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
+    depth_frame_aligned = cut_zed_in_jai({"zed": depth_frame}, cut_coords, rgb=False)["zed"]
+    r_h, r_w = depth_frame_aligned.shape[0] / jai_frame.shape[0], depth_frame_aligned.shape[1] / jai_frame.shape[1]
+    output = []
+    for det in dets:
+        box = ((int(det[0] * r_w), int(det[1] * r_h)), (int(det[2] * r_w), int(det[3] * r_h)))
+        output.append(depth_center_of_box(depth_frame_aligned, box))
+    return output
+
+def get_depth_to_bboxes_batch(xyz_batch, jai_batch, batch_aligment, dets):
+    """
+    Retrieves the depth to each bbox in the batch
+    Args:
+        xyz_batch (np.array): batch a Point cloud image
+        jai_batch (np.array): batch of FAI images
+        dets (list): batch of list of detections per image
+
+    Returns:
+        z_s (list): list of lists with depth to each detection
+    """
+    cut_coords = []
+    for a in batch_aligment:
+        cut_coords.append(a[0])
+    n = len(xyz_batch)
+    return list(map(get_depth_to_bboxes, xyz_batch, jai_batch, cut_coords, dets))
+
+
+def append_to_trk(trk_batch_res, results):
+    for frame_res, frame_depth in zip(trk_batch_res, results):
+        for trk, depth in zip(frame_res, frame_depth):
+            trk.append(np.round(depth, 3))
+
+    return trk_batch_res
+
+
+
 
 
 
