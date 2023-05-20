@@ -60,12 +60,9 @@ class AlternativeFlow(Module):
                 print(f'Done analyzing row: {list(row)}')
                 tracks = np.array(rc.tracks)
                 alignment = np.array(rc.alignment)
-                print("SHAPES")
-                print(tracks.shape)
-                print(alignment.shape)
                 data = {
                     'tracks': tracks,
-                    'tracks_headers': rc.track_header,
+                    'tracks_headers': rc.tracks_header,
                     'alignment': alignment,
                     'alignment_headers': rc.alignment_header,
                     'row': row

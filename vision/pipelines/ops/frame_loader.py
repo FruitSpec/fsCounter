@@ -1,5 +1,6 @@
 import os
 import time
+import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 
@@ -58,8 +59,7 @@ class FramesLoader():
                 print('Not full batch')
                 return [[], [], [], []]
             zed_batch.append(self.sync_zed_ids[fid + id_])
-            jai_batch.append(self.sync_jai_ids[fid + id_])
-
+            jai_batch.append(fid + id_)  # jai is after frame drops - no frame jumps
         if self.mode == 'sync_svo':
             return [zed_batch, jai_batch, jai_batch]
         elif self.mode == 'sync_mkv':
@@ -182,6 +182,13 @@ class FramesLoader():
     def get_frames_batch_sync_mkv(self, f_id):
         cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
         batch_ids = self.get_batch_fids_sync(f_id)
+        # debug
+        #p = "/home/matans/Documents/fruitspec/sandbox/VALENCIA/row_1A/SA4/frame_loader_ids.csv"
+        #d = np.array(batch_ids).T
+        #df = pd.DataFrame(data=d.tolist(), columns=['zed_id', 'depth_id', 'jai_id', 'rgb_id'])
+        #df.to_csv(p, mode='a', index=False, header=False)
+
+        ######
         last_ids = [self.zed_last_id, self.depth_last_id, self.jai_last_id, self.rgb_jai_last_id]
 
         with ThreadPoolExecutor(max_workers=4) as executor:
@@ -197,24 +204,37 @@ class FramesLoader():
 
         return zed_batch, depth_batch, jai_batch, rgb_jai_batch
 
+    def close_cameras(self):
+        self.zed_cam.close()
+        self.jai_cam.close()
+        self.rgb_jai_cam.close()
+        if self.depth_cam is not None:
+            self.depth_cam.close()
 
-    @staticmethod
-    def get_cameras_sync_data(log_fp):
+
+
+    def get_cameras_sync_data(self, log_fp):
         zed_ids = []
         jai_ids = []
         log_df = pd.read_csv(log_fp)
         jai_frame_ids = list(log_df['JAI_frame_number'])
         zed_frame_ids = list(log_df['ZED_frame_number'])
 
-        jai_first_id, zed_first_id = 0, 0
-        p_zed_id = -1e5
-        for jai_id, zed_id in zip(jai_frame_ids, zed_frame_ids):
-            if p_zed_id > zed_id:
-                jai_first_id = jai_id
-                p_zed_id = zed_id
-                continue
-
-            zed_ids.append(zed_id)
-            jai_ids.append(jai_id - jai_first_id)
+        zed_ids, jai_ids = self.arrange_ids(jai_frame_ids, zed_frame_ids)
 
         return zed_ids, jai_ids
+
+    @staticmethod
+    def arrange_ids(jai_frame_ids, zed_frame_ids):
+
+        z = np.array(zed_frame_ids)
+        j = np.array(jai_frame_ids)
+        # find start index
+        diff = z[1:] - z[:-1]
+        start_index = np.argmin(diff)
+
+        jai_offset = j[start_index]
+        j -= jai_offset
+
+        return z[start_index:].tolist(), j[start_index:].tolist()
+

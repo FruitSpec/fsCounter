@@ -33,7 +33,7 @@ def run(cfg, args, metadata=None):
     print(f'Inferencing on {args.jai.movie_path}\n')
 
     frame_drop_jai = get_frame_drop(args)
-    n_frames = get_number_of_frames(adt.frames_loader.jai_cam.get_number_of_frames(), metadata)
+    n_frames = len(adt.frames_loader.sync_jai_ids)
 
     f_id = 0
 
@@ -80,8 +80,6 @@ def run(cfg, args, metadata=None):
     adt.frames_loader.rgb_jai_cam.close()
     adt.frames_loader.depth_cam.close()
     adt.dump_log_stats(args)
-
-    #results_collector.dump_feature_extractor(args.output_folder)
 
     update_metadata(metadata, args)
 
@@ -305,4 +303,5 @@ if __name__ == "__main__":
     validate_output_path(args.output_folder)
     #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
-    run(cfg, args)
+    rc = run(cfg, args)
+    rc.dump_feature_extractor(args.output_folder)

@@ -32,6 +32,9 @@ class video_wrapper():
             else: # 1 channel - grayscale
                 pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! omxh265dec ! videoconvert ! video/x-raw,format=BGRx ! appsink"
             cam = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            if not cam.isOpened():
+                print('gstreamer pipline for camera not opened. using opencv')
+                cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
         else:
             cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
 

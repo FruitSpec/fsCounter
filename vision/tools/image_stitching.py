@@ -26,6 +26,63 @@ def keep_dets_only(frame, detections, margin = 0.5):
 
     return canvas
 
+
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False, cv2_save=False, quick_save=False):
+    if quick_save:
+        buffer = np.zeros((img1.shape[0], 10, 3), dtype=np.uint8)
+        concatenated = np.concatenate((img1, buffer, img2), axis=1)
+        concatenated = cv2.cvtColor(concatenated, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_to, concatenated)
+        return
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+
+    ax_1_range_x = np.arange(0, img1.shape[1], 25)
+    ax_1_range_y = np.arange(0, img1.shape[0], 25)
+    ax1.set_xticks(ax_1_range_x[::4])
+    ax1.set_yticks(ax_1_range_y[::4])
+    ax1.set_xticklabels(ax_1_range_x[::4])
+    ax1.set_yticklabels(ax_1_range_y[::4])
+    ax1.set_xticks(ax_1_range_x, minor=True)
+    ax1.set_yticks(ax_1_range_y, minor=True)
+
+    ax_2_range_x = np.arange(0, img2.shape[1], 25)
+    ax_2_range_y = np.arange(0, img2.shape[0], 25)
+    ax2.set_xticks(ax_2_range_x[::4])
+    ax2.set_yticks(ax_2_range_y[::4])
+    ax2.set_xticklabels(ax_2_range_x[::4])
+    ax2.set_yticklabels(ax_2_range_y[::4])
+    ax2.set_xticks(ax_2_range_x, minor=True)
+    ax2.set_yticks(ax_2_range_y, minor=True)
+
+    plt.title(title)
+    if save_to != "":
+        if cv2_save:
+            fig.canvas.draw()
+            buf = fig.canvas.buffer_rgba()
+            arr = np.asarray(buf)
+
+            # Convert the array to an OpenCV image
+            bgr_image = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+
+            # Save the image to a file
+            cv2.imwrite(save_to, bgr_image)
+        else:
+            plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
+    plt.show()
+
+
+def load_color_img(file_path):
+    img = cv2.imread(file_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    return img
+
+
 def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
 
     # Define termination criteria
@@ -516,6 +573,12 @@ def resize_img_cuda(input_GPU, size, stream):
                                  stream=stream)
 
     return output_GPU, r
+
+
+def draw_matches(img1, kp1, img2, kp2, match, status, draw_output, id_):
+    out_img = cv2.drawMatches(img1, kp1, img2, kp2, np.array(match)[status.reshape(-1).astype(np.bool_)],
+                              None, (255, 0, 0), (0, 0, 255), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    cv2.imwrite(os.path.join(draw_output, f"alignment_f{id_}.jpg"), out_img)
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

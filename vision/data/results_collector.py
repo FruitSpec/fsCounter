@@ -22,7 +22,7 @@ class ResultsCollector():
         self.detections = []
         self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
         self.tracks = []
-        self.track_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id"]
+        self.tracks_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id"]
         self.results = []
         self.file_names = []
         self.file_ids = []
@@ -128,7 +128,7 @@ class ResultsCollector():
             rows = self.results
         elif type == "alignment":
             fields = self.alignment_header
-            row = self.alignment
+            rows = self.alignment
 
         else:
             fields = self.tracks_header
@@ -280,15 +280,15 @@ class ResultsCollector():
         cv2.imwrite(os.path.join(args.output_folder, 'windows', f"windows_frame_{f_id}.jpg"), canvas)
 
     def collect_alignment(self, alignment_results, f_id):
-        for r in alignment_results:
+        for i, r in enumerate(alignment_results):
             x1, y1, x2, y2 = r[0]
             tx = r[1]
             ty = r[2]
             zed_shift = r[3]
             tx = tx if not np.isnan(tx) else 0
             ty = ty if not np.isnan(ty) else 0
-            self.alignment.append([x1, y1, x2, y2, int(tx), int(ty), f_id, zed_shift])
-            self.jai_zed[f_id] = f_id + zed_shift
+            self.alignment.append([x1, y1, x2, y2, int(tx), int(ty), f_id + i, zed_shift])
+            self.jai_zed[f_id + i] = (f_id + i) + zed_shift
 
         pass
 
