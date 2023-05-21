@@ -4,15 +4,17 @@ import os
 import numpy as np
 import cv2
 
-def update_dataframe_row_results(df, index, within_row_prediction, depth_ema, angular_velocity_x_ema, within_row_depth,
+def update_dataframe_row_results(df, score_new, index, within_row_prediction, depth_ema, angular_velocity_x_ema, within_row_depth,
                                  within_row_angular_velocity, within_row_heading):
-    print(f'Frame {index}: {within_row_prediction}')
+
+    df.at[index, 'score_new'] = score_new
     df.at[index, 'pred'] = within_row_prediction
     df.at[index, 'depth_ema'] = depth_ema
     df.at[index, 'ang_vel_ema'] = angular_velocity_x_ema
     df.at[index, 'within_row_depth'] = within_row_depth
     df.at[index, 'within_row_angular_velocity'] = within_row_angular_velocity
     df.at[index, 'within_row_heading'] = within_row_heading
+
     return df
 
 def count_rows(column):
@@ -31,6 +33,8 @@ class RowDetector:
         # Constants:
         self.EXPECTED_HEADING = expected_heading
         self.HEADING_THRESHOLD = 30
+        self.DEPTH_WINDOW_Y_HIGH = 0.35
+        self.DEPTH_WINDOW_Y_LOW = 0.75
         self.DEPTH_THRESHOLD = 0.5
         self.DEPTH_EMA_ALPHA = 0.02
         self.ANGULAR_VELOCITY_THRESHOLD = 10
@@ -43,10 +47,13 @@ class RowDetector:
         self.angular_velocity_x_ema = 0
         self.consistency_counter = 0
         self.state = "Not_in_Row"
+        self.previous_longitude = None
+        self.previous_latitude = None
 
         self.within_row_angular_velocity = None
         self.within_row_depth = None
         self.within_row_heading = None
+        self.depth_score = None
 
 
 
@@ -71,20 +78,52 @@ class RowDetector:
                 self.consistency_counter = 0
 
 
-    def sensors_decision(self, depth_score, angular_velocity_x, heading_180):
-
-        self.depth_ema = self.exponential_moving_average(depth_score, self.depth_ema, alpha=self.DEPTH_EMA_ALPHA)
+    def sensors_decision(self, angular_velocity_x, longitude, latitude):
+        # depth sensor:
+        self.depth_ema = self.exponential_moving_average(self.depth_score, self.depth_ema, alpha=self.DEPTH_EMA_ALPHA)
         self.within_row_depth = self.depth_ema <= self.DEPTH_THRESHOLD
 
+        # jairo's sensor:
         self.angular_velocity_x_ema = self.exponential_moving_average(angular_velocity_x, self.angular_velocity_x_ema, alpha=self.ANGULAR_VELOCITY_EMA_ALPHA)
         self.within_row_angular_velocity = abs(self.angular_velocity_x_ema) < self.ANGULAR_VELOCITY_THRESHOLD
 
-        self.within_row_heading = self.heading_within_range(heading_180, self.lower_bound, self.upper_bound)
+        # gnss sensor:
+        heading_360,heading_180 =  self.get_heading(longitude, latitude)
+        if heading_360 and heading_180 is not None:   # The first time the heading is None
+            self.within_row_heading = self.heading_within_range(heading_180, self.lower_bound, self.upper_bound)
 
-    def detect_row(self, depth_score, angular_velocity_x, heading_180):
-        self.sensors_decision(depth_score, angular_velocity_x, heading_180)
+    def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None, depth_score = None):
+
+        if depth_img is not None:   # Todo: remove 'if'. Currently for debugging with depth score from csv
+            self.percent_far_pixels(depth_img, rgb_img = rgb_img)
+        self.sensors_decision(angular_velocity_x, longitude , latitude)
         self.global_decision()
         return self.state
+
+    def get_heading(self, longitude_curr, latitude_curr):
+        '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
+        coordinate system where the north direction aligns with the positive y-axis. '''
+        print (longitude_curr, latitude_curr)
+        if self.previous_latitude and self.previous_longitude:  # The first time the heading is None
+            # Calculate the difference in latitude and longitude
+            delta_lat = latitude_curr - self.previous_latitude
+            delta_lon = longitude_curr - self.previous_longitude
+            # Calculate the heading using atan2
+            heading_rad = np.arctan2(delta_lon, delta_lat)
+            # Convert the heading from radians to degrees
+            heading_deg = np.degrees(heading_rad)
+            # Adjust the heading to be relative to the north
+            heading_360 = (heading_deg + 360) % 360
+            heading_180 = (heading_deg + 360) % 180
+
+            self.previous_latitude = latitude_curr
+            self.previous_longitude = longitude_curr
+            return heading_360, heading_180
+        else:
+            self.previous_latitude = latitude_curr
+            self.previous_longitude = longitude_curr
+            return None, None
+
 
     @staticmethod
     def heading_within_range(current_heading, lower_bound, upper_bound):
@@ -112,11 +151,26 @@ class RowDetector:
     def exponential_moving_average(x, last_ema, alpha=0.5):
         return alpha * x + (1 - alpha) * last_ema
 
+    def percent_far_pixels(self, depth_img, rgb_img):
+        # todo: un-comment
+        # todo: check if RGB or BGR
+        # # shadow sky noise:
+        # blue = rgb_img[:, :, 0].copy()
+        # depth[blue > 240] = 0
+
+        y_high = int(depth_img.shape[0] * self.DEPTH_WINDOW_Y_HIGH)
+        y_low = int(depth_img.shape[0] * self.DEPTH_WINDOW_Y_LOW)
+
+        width = depth_img.shape[1]
+        search_area = depth_img[y_high: y_low, :].copy()
+        score = np.sum(search_area < 20) / ((y_low - y_high) * width) # % pixels blow threshold
+        self.depth_score = round(score, 2)
 
 if __name__ == '__main__':
 
     CSV_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/rows_detection/sensors_EinVered_SUMERGOL_250423_row_3.csv'
     DEPTH_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/rows_detection/depth_draw_EinVered_SUMERGOL_250423_row_3.mp4'
+    RGB_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/RGB_1.mkv'
     EXPECTED_HEADING = 100
 
     PATH_ROW = os.path.dirname(os.path.dirname(CSV_PATH))
@@ -130,26 +184,35 @@ if __name__ == '__main__':
     row_detector = RowDetector(expected_heading = EXPECTED_HEADING)
 
     # load video:
-    cap = cv2.VideoCapture(DEPTH_VIDEO_PATH)
+    cap_rgb = cv2.VideoCapture(RGB_VIDEO_PATH)
+    cap_depth = cv2.VideoCapture(DEPTH_VIDEO_PATH)
     print(f'Loaded {DEPTH_VIDEO_PATH}')
-    print (f'Video_len:{int(cap.get(cv2.CAP_PROP_FRAME_COUNT))}, df_len:{len(df)}')
+    print (f'Video_len:{int(cap_depth.get(cv2.CAP_PROP_FRAME_COUNT))}, df_len:{len(df)}')
 
     # load frames:
     for index, row in df.iterrows():
-        ########################################################
-        # Get frame:
-        ret, img = cap.read()
-        if not ret:
+
+        # Get depth and RGB frames:
+        ret1, depth_img = cap_depth.read()
+        if not ret1:
+            break
+        ret2, rgb_img = cap_rgb.read()
+        if not ret2:
             break
 
-        ######################################################
-        is_row = row_detector.detect_row(row['score'], row['angular_velocity_x'], row['heading_180'])
-        within_row_prediction = 1 if is_row == "In_Row" else 0
+        depth_img = depth_img[:, :, 0].copy()
+
+        is_row = row_detector.detect_row(depth_img=depth_img, rgb_img=rgb_img, angular_velocity_x = row.angular_velocity_x, longitude = row.longitude, latitude = row.latitude)
+
+        # if score from csv:
+        #is_row = row_detector.detect_row(depth_img=None, rgb_img=None, depth_score = row['score'], angular_velocity_x=row['angular_velocity_x'])
+
+        within_row_prediction = 1 if is_row ==  "In_Row" else 0
         print (f'Frame {index}: {within_row_prediction}_{is_row}')
 
 
         # Update dataframe with results:
-        df = update_dataframe_row_results(df, index, within_row_prediction, row_detector.depth_ema, row_detector.angular_velocity_x_ema, row_detector.within_row_depth, row_detector.within_row_angular_velocity, row_detector.within_row_heading)
+        df = update_dataframe_row_results(df, row_detector.depth_score, index, within_row_prediction, row_detector.depth_ema, row_detector.angular_velocity_x_ema, row_detector.within_row_depth, row_detector.within_row_angular_velocity, row_detector.within_row_heading)
 
 
     rows_in_GT = count_rows(column= df['GT'])
