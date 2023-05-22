@@ -59,13 +59,14 @@ class ModuleManager:
         self._process = None
         self.pid = -1
         self.module_name = None
+        self.communication_queue = None
         # self.sender, self.receiver = Pipe()
         self.qu = Queue()
 
-    def set_process(self, target, main_pid, module_name, daemon=True):
+    def set_process(self, target, main_pid, module_name, communication_queue, daemon=True):
         self.module_name = module_name
         # args = (self.sender, self.receiver, main_pid, module_name)
-        args = (self.qu, main_pid, module_name)
+        args = (self.qu, main_pid, module_name, communication_queue)
         self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
 
     def retrieve_transferred_data(self):
@@ -95,17 +96,16 @@ class Module:
     """ An abstraction class for all modules """
     # main_pid, sender, receiver, module_name = -1, None, None, None
     main_pid, qu, module_name = -1, None, None
+    communication_queue = None
     shutdown_event = threading.Event()
     shutdown_done_event = threading.Event()
 
     @staticmethod
-    def init_module(qu, main_pid, module_name):
-        # def init_module(sender, receiver, main_pid, module_name):
-        # Module.sender = sender
-        # Module.receiver = receiver
+    def init_module(qu, main_pid, module_name, communication_queue):
         Module.qu = qu
         Module.main_pid = main_pid
         Module.module_name = module_name
+        Module.communication_queue = communication_queue
 
     @staticmethod
     def set_signals(shutdown_func, receive_data_func):
@@ -118,8 +118,8 @@ class Module:
             "action": action,
             "data": data
         }
-        # Module.sender.send((data, receivers))
         Module.qu.put((data, receivers))
+        Module.communication_queue.put(Module.module_name)
         time.sleep(0.1)
         os.kill(Module.main_pid, signal.SIGUSR1)
 

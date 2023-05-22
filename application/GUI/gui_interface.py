@@ -25,7 +25,7 @@ class GUIInterface(Module):
     sio = socketio.Server(cors_allowed_origins='*')
 
     @staticmethod
-    def init_module(qu, main_pid, module_name):
+    def init_module(qu, main_pid, module_name, communication_queue):
         def setup_server():
             app = socketio.WSGIApp(GUIInterface.sio)
             wsgi_server(GUIInterface.listener, app)
@@ -33,7 +33,7 @@ class GUIInterface(Module):
         if not conf["GUI"]:
             return False
 
-        super(GUIInterface, GUIInterface).init_module(qu, main_pid, module_name)
+        super(GUIInterface, GUIInterface).init_module(qu, main_pid, module_name, communication_queue)
         super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf["GUI server port"]))

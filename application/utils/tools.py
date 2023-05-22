@@ -51,6 +51,18 @@ def get_imu_path():
     return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.imu')
 
 
+def get_folder_index(row_path, get_next_index=True):
+    try:
+        row_dirs = os.listdir(row_path)
+        path_indices = [int(f) for f in row_dirs if os.path.isdir(os.path.join(row_path, f)) and f.isdigit()]
+        folder_index = max(path_indices, default=0)
+        if get_next_index:
+            folder_index += 1
+    except FileNotFoundError:
+        folder_index = 1
+    return folder_index
+
+
 def get_fruits_path(plot, row, index=-1, write_csv=True, get_row_dir=False):
     ext = "csv" if write_csv else "feather"
     today = datetime.now().strftime("%d%m%y")

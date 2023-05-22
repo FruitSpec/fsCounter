@@ -1,6 +1,8 @@
 import os
 import signal
 import logging
+import threading
+from multiprocessing import Queue
 import time
 import sys
 
@@ -18,7 +20,7 @@ from Analysis.alternative_flow import AlternativeFlow
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
 from GUI.gui_interface import GUIInterface
 
-global manager
+global manager, communication_queue
 
 
 def shutdown():
@@ -28,23 +30,28 @@ def shutdown():
 
 
 def transfer_data(sig, frame):
-    global manager
-    recv_modules = []
-    for sender_module in ModulesEnum:
+    global manager, communication_queue
+    sender_module = communication_queue.get()
+    print("SENDER: ", sender_module)
+    for i in range(5):
         try:
             data, recv_modules = manager[sender_module].retrieve_transferred_data()
+            print("RECEIVERS: ", recv_modules)
+            print("DATA: ", data)
             for recv_module in recv_modules:
                 manager[recv_module].receive_transferred_data(data, sender_module)
                 time.sleep(0.1)
-            break
+            return
         except DataError:
-            continue
-
+            print(f"communication error {i}")
+            time.sleep(0.1)
+            # logging.exception("communication error")
 
 
 def main():
-    global manager
+    global manager, communication_queue
     manager = dict()
+    communication_queue = Queue()
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
     main_pid = os.getpid()
@@ -56,25 +63,29 @@ def main():
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,
         main_pid=main_pid,
-        module_name=ModulesEnum.GPS
+        module_name=ModulesEnum.GPS,
+        communication_queue=communication_queue
     )
 
     manager[ModulesEnum.GUI].set_process(
         target=GUIInterface.init_module,
         main_pid=main_pid,
-        module_name=ModulesEnum.GUI
+        module_name=ModulesEnum.GUI,
+        communication_queue=communication_queue
     )
 
     manager[ModulesEnum.DataManager].set_process(
         target=DataManager.init_module,
         main_pid=main_pid,
-        module_name=ModulesEnum.DataManager
+        module_name=ModulesEnum.DataManager,
+        communication_queue=communication_queue
     )
 
     manager[ModulesEnum.Acquisition].set_process(
         target=AcquisitionManager.init_module,
         main_pid=main_pid,
         module_name=ModulesEnum.Acquisition,
+        communication_queue=communication_queue,
         daemon=False
     )
 
@@ -82,6 +93,7 @@ def main():
         target=AlternativeFlow.init_module,
         main_pid=main_pid,
         module_name=ModulesEnum.Analysis,
+        communication_queue=communication_queue
     )
 
     manager[ModulesEnum.GPS].start()
