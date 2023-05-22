@@ -179,6 +179,8 @@ class FramesLoader():
         return zed_batch, depth_batch, jai_batch, rgb_jai_batch
 
     def get_frames_batch_sync_mkv(self, f_id):
+        if f_id == 55:
+            a=44
         cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
         batch_ids = self.get_batch_fids_sync(f_id)
         # debug
@@ -223,17 +225,16 @@ class FramesLoader():
 
         return zed_ids, jai_ids
 
-    @staticmethod
-    def arrange_ids(jai_frame_ids, zed_frame_ids):
 
-        z = np.array(zed_frame_ids)
-        j = np.array(jai_frame_ids)
-        # find start index
-        diff = z[1:] - z[:-1]
-        start_index = np.argmin(diff)
+def arrange_ids(jai_frame_ids, zed_frame_ids):
 
-        jai_offset = j[start_index]
-        j -= jai_offset
+    z = np.array(zed_frame_ids)
+    j = np.array(jai_frame_ids)
+    # find start index
+    start_index = np.argmin(z)
 
-        return z[start_index:].tolist(), j[start_index:].tolist()
+    jai_offset = j[start_index]
+    j -= jai_offset
+
+    return z[start_index:].tolist(), j[start_index:].tolist()
 
