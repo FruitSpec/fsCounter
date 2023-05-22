@@ -126,7 +126,6 @@ class DataManager(Module):
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
-                print("ANALYZED DATA ARRIVED ", time.time())
                 customer_code, plot_code, scan_date, row, folder_index = list(data["row"])
                 logging.info(f"ANALYZED DATA ARRIVED: "
                              f"{data_conf['output path']}, {customer_code}, {plot_code}, {scan_date}, {row}")
@@ -165,7 +164,7 @@ class DataManager(Module):
                     # DataManager.analyzed_df = pd.concat([DataManager.analyzed_df, tmp_analyzed_df], axis=0)
                     tmp_analyzed_df.to_csv(data_conf["analyzed path"], header=is_first, index=False, mode="a+")
 
-        elif sender_module == ModulesEnum.GUI:
+        elif sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.START_ACQUISITION:
                 DataManager.previous_plot = DataManager.current_plot
                 DataManager.current_plot = data["plot"]
@@ -173,13 +172,12 @@ class DataManager(Module):
 
                 # update index and path for the new file
                 row_path = tools.get_fruits_path(plot=DataManager.current_plot, row=DataManager.current_row, get_row_dir=True)
-                row_indices = os.listdir(row_path)
-                path_indices = [f for f in row_indices if os.path.isdir(f) and f.isdigit()]
-                DataManager.current_index = 1 + max(path_indices, default=0)
+                row_dirs = os.listdir(row_path)
+                path_indices = [int(f) for f in row_dirs if os.path.isdir(os.path.join(row_path, f)) and f.isdigit()]
+                DataManager.current_index = max(path_indices, default=1)
                 DataManager.current_path = tools.get_fruits_path(plot=DataManager.current_plot,
                                                                  row=DataManager.current_row,
                                                                  index=DataManager.current_index)
-
             if action == ModuleTransferAction.STOP_ACQUISITION:
                 today = datetime.now().strftime("%d%m%y")
                 collected_data = {
@@ -192,6 +190,7 @@ class DataManager(Module):
                 tmp_df = pd.DataFrame(data=collected_data, index=[0])
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
                 DataManager.collected_df.to_csv(data_conf["collected path"], mode="w", index=False, header=True)
+
 
     @staticmethod
     def write_fruits_data_locally(lock_inside=True):

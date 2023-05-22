@@ -1,5 +1,5 @@
 import traceback
-
+import logging
 import pandas as pd
 import os
 import time
@@ -56,14 +56,13 @@ class AlternativeFlow(Module):
             if found:
                 # using try in case of collapse in analysis flow
                 try:
-                    collected.drop(index=row_index, inplace=True)
                     print(f'Analyzing new Row: {list(row)}')
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
                     print(f'Done analyzing row: {list(row)}')
                     data = {
                         'tracks': np.array(rc.tracks),
-                        'tracks_headers': rc.track_header,
+                        'tracks_headers': rc.tracks_header,
                         'alignment': np.array(rc.alignment),
                         'alignment_headers': rc.alignment_header,
                         'row': row
@@ -71,9 +70,11 @@ class AlternativeFlow(Module):
                     # send results to data manager
                     print("sending data from analysis: ", time.time())
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
+                    logging.info(f"Done analyzing {list(row)}")
                 except:
-                    print(f'Analysis collapsed. {list(row)} not analyzed')
-                    # todo: write error to log + send row data to "failed"
+                    logging.exception(f"Failed to analyze {list(row)}")
+                finally:
+                    collected.drop(index=row_index, inplace=True)
             else:
                 print('No new file Found, waiting 1 minute')
                 collected, analyzed = read_collected_analyzed()
@@ -111,7 +112,7 @@ class AlternativeFlow(Module):
         row_args.zed.movie_path = os.path.join(row_folder, f"ZED.mkv")
         row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
         row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
-        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"RGB.mkv")
+        row_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
         row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps.log")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")

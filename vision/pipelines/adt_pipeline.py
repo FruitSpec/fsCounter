@@ -105,11 +105,10 @@ class Pipeline():
         try:
             name = self.frames_loader.get_frames.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.frames_loader.get_frames(f_id, self.sensor_aligner.zed_shift)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
 
             return output
@@ -122,11 +121,10 @@ class Pipeline():
         try:
             name = batch_is_saturated.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             status, detailed = batch_is_saturated(frame, percentile=percentile)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
             if status:
                 if len(detailed) == 1:
@@ -144,11 +142,11 @@ class Pipeline():
         try:
             name = self.detector.detect.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.detector.detect(frames)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -161,11 +159,11 @@ class Pipeline():
         try:
             name = self.detector.track.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.detector.track(inputs, translations, f_id)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -178,13 +176,13 @@ class Pipeline():
         try:
             name = self.translation.get_translation.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.translation.batch_translation(frames, det_outputs)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             for res in output:
-                self.logger.info(f"JAI X translation {res[0]}, Y translation {res[1]}")
+                self.logger.debug(f"JAI X translation {res[0]}, Y translation {res[1]}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -200,14 +198,14 @@ class Pipeline():
         try:
             name = self.sensor_aligner.align_sensors.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.sensor_aligner.align_on_batch(zed_batch, rgb_jai_batch)
             # corr, tx_a, ty_a, sx, sy, kp_zed, kp_jai, match, st, M = self.sensor_aligner.align_sensors(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
             #                                                                                            rgb_jai_frame)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
-            self.logger.info(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output

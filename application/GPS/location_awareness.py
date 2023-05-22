@@ -51,7 +51,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def set_locator():
-        t = threading.Thread(target=GPSSampler.get_kml(), daemon=True)
+        t = threading.Thread(target=GPSSampler.get_kml  , daemon=True)
         t.start()
         time.sleep(1)
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
@@ -59,7 +59,7 @@ class GPSSampler(Module):
                 GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
                 logging.info("LOCATOR INITIALIZED")
             except Exception:
-                logging.info("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
+                logging.error("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
                 time.sleep(30)
 
     @staticmethod

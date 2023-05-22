@@ -47,7 +47,6 @@ class AcquisitionManager(Module):
                     actual_jai_connected = AcquisitionManager.jz_recorder.jai_connected()
                     actual_zed_connected = AcquisitionManager.jz_recorder.zed_connected()
                     actual_running = AcquisitionManager.jz_recorder.is_running()
-                    print(AcquisitionManager.jai_connected, actual_jai_connected)
                     if AcquisitionManager.jai_connected and (not actual_jai_connected):
                         print("reviving jai after crash")
                         AcquisitionManager.jz_recorder.disconect_jai()
@@ -97,13 +96,20 @@ class AcquisitionManager(Module):
         AcquisitionManager.analyzer.stop_acquisition()
 
     @staticmethod
+    def get_scan_index(row_path):
+        try:
+            row_dirs = os.listdir(row_path)
+            path_indices = [int(f) for f in row_dirs if os.path.isdir(os.path.join(row_path, f)) and f.isdigit()]
+            scan_index = 1 + max(path_indices, default=0)
+        except FileNotFoundError:
+            scan_index = 1
+        return scan_index
+
+    @staticmethod
     def set_acquisition_parameters(data=None, index_only=False):
         if index_only:
             row_path = os.path.dirname(AcquisitionManager.output_dir)
-            try:
-                scan_index = 1 + max([f for f in os.listdir(row_path) if os.path.isdir(f) and f.isdigit()], default=0)
-            except FileNotFoundError:
-                scan_index = 1
+            scan_index = AcquisitionManager.get_scan_index(row_path)
 
             AcquisitionManager.output_dir = os.path.join(row_path, str(scan_index))
             AcquisitionManager.analyzer.set_output_dir(AcquisitionManager.output_dir)
@@ -127,10 +133,7 @@ class AcquisitionManager(Module):
                 plot = data["plot"]
                 row = f"row_{data['row']}"
                 row_path = os.path.join(data["outputPath"], conf["customer code"], plot, today, row)
-                try:
-                    scan_index = 1 + max([f for f in os.listdir(row_path) if os.path.isdir(f) and f.isdigit()], default=0)
-                except FileNotFoundError:
-                    scan_index = 1
+                scan_index = AcquisitionManager.get_scan_index(row_path)
 
                 AcquisitionManager.output_dir = os.path.join(row_path, str(scan_index))
 
@@ -170,6 +173,9 @@ class AcquisitionManager(Module):
         data, sender_module = AcquisitionManager.qu.get()
         action, data = data["action"], data["data"]
         global_polygon = GPS_conf["global polygon"]
+        if type(sender_module) is tuple:
+            print("ACQ MAN: ", sender_module, " ,", data)
+            return
         if sender_module == ModulesEnum.GPS:
             if data != global_polygon:
                 logging.info("START ACQUISITION FROM GPS")
@@ -181,6 +187,9 @@ class AcquisitionManager(Module):
             if action == ModuleTransferAction.START_ACQUISITION:
                 logging.info("START ACQUISITION FROM GUI")
                 AcquisitionManager.start_acquisition(acquisition_parameters=data)
+                AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
             elif action == ModuleTransferAction.STOP_ACQUISITION:
                 AcquisitionManager.stop_acquisition()
                 logging.info("STOP ACQUISITION FROM GUI")
+                AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)
+
