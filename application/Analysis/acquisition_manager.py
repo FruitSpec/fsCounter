@@ -96,11 +96,10 @@ class AcquisitionManager(Module):
     @staticmethod
     def stop_acquisition():
         with AcquisitionManager.acquisition_lock:
+            AcquisitionManager.analyzer.stop_acquisition()
             AcquisitionManager.jz_recorder.stop_acquisition()
-            time.sleep(1)
             with AcquisitionManager.health_check_lock:
                 AcquisitionManager.running = False
-            AcquisitionManager.analyzer.stop_acquisition()
 
     @staticmethod
     def set_acquisition_parameters(data=None, index_only=False):
