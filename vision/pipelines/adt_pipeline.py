@@ -73,7 +73,8 @@ def run(cfg, args, metadata=None):
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
 
-#        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
+
+        results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
