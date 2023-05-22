@@ -211,15 +211,15 @@ class FramesLoader():
             self.depth_cam.close()
 
 
-
-    def get_cameras_sync_data(self, log_fp):
+    @staticmethod
+    def get_cameras_sync_data(log_fp):
         zed_ids = []
         jai_ids = []
         log_df = pd.read_csv(log_fp)
         jai_frame_ids = list(log_df['JAI_frame_number'])
         zed_frame_ids = list(log_df['ZED_frame_number'])
 
-        zed_ids, jai_ids = self.arrange_ids(jai_frame_ids, zed_frame_ids)
+        zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
 
         return zed_ids, jai_ids
 

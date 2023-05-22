@@ -58,9 +58,9 @@ sensor_aligner:
   size: 640 #what size to resize image to
   affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
   ransac: 20
-  sx: 0.60546875
-  sy:  0.6133919843597263
-  roix: 970 #930 #937
+  sx: 0.6284895833333334 #0.6315104 #0.60546875
+  sy: 0.6652678396871945 # 0.6133919843597263
+  roix: 970 #970 #930 #937
   roiy: 1255
   debug:
     preprocess: false
