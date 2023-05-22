@@ -179,8 +179,6 @@ class FramesLoader():
         return zed_batch, depth_batch, jai_batch, rgb_jai_batch
 
     def get_frames_batch_sync_mkv(self, f_id):
-        if f_id == 55:
-            a=44
         cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
         batch_ids = self.get_batch_fids_sync(f_id)
         # debug
