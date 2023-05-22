@@ -24,9 +24,9 @@ class GPSSampler(Module):
     previous_plot, current_plot = GPS_conf["global polygon"], GPS_conf["global polygon"]
 
     @staticmethod
-    def init_module(qu, main_pid, module_name):
+    def init_module(qu, main_pid, module_name, communication_queue):
         GPSSampler.get_kml(once=True)
-        super(GPSSampler, GPSSampler).init_module(qu, main_pid, module_name)
+        super(GPSSampler, GPSSampler).init_module(qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
 
         GPSSampler.set_locator()
