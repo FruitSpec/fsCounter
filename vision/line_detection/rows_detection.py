@@ -3,9 +3,12 @@ from vision.line_detection.retrieve_sensors_data import plot_sensors
 import os
 import numpy as np
 import cv2
+from shapely.geometry import Point, Polygon
+from geopy.distance import distance
+from fastkml import kml
 
 def update_dataframe_row_results(df, score_new, index, within_row_prediction, depth_ema, angular_velocity_x_ema, within_row_depth,
-                                 within_row_angular_velocity, within_row_heading):
+                                 within_row_angular_velocity, within_row_heading, dist_from_polygon_margins, within_inner_polygon):
 
     df.at[index, 'score_new'] = score_new
     df.at[index, 'pred'] = within_row_prediction
@@ -14,6 +17,8 @@ def update_dataframe_row_results(df, score_new, index, within_row_prediction, de
     df.at[index, 'within_row_depth'] = within_row_depth
     df.at[index, 'within_row_angular_velocity'] = within_row_angular_velocity
     df.at[index, 'within_row_heading'] = within_row_heading
+    df.at[index, 'dist_from_polygon_margins'] = dist_from_polygon_margins,
+    df.at[index, 'within_inner_polygon'] = within_inner_polygon
 
     return df
 
@@ -26,11 +31,58 @@ def count_rows(column):
     return rows_count
 
 
+
+def generate_new_kml_file(polygon, df, output_dir):
+    # Create a new KML document
+    kml = simplekml.Kml()
+
+    # Create a new Polygon placemark with style for outline only
+    polystyle = simplekml.PolyStyle(fill=0, outline=1)  # No fill, outline only
+    linestyle = simplekml.LineStyle(color=simplekml.Color.blue, width=3)  # Blue outline
+    style = simplekml.Style()
+    style.polystyle = polystyle
+    style.linestyle = linestyle
+
+    placemark = kml.newpolygon(name='Polygon')
+    placemark.outerboundaryis = list(polygon.exterior.coords)
+    placemark.style = style
+
+    # Sort the DataFrame by timestamp (replace 'timestamp' with the appropriate column)
+    df = df.sort_values('timestamp')
+
+    # Create a separate LineString for each pair of points with the same 'pred' value
+    for i in range(len(df) - 1):
+        row1 = df.iloc[i]
+        row2 = df.iloc[i + 1]
+        if row1['pred'] == row2['pred']:
+            coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
+            linestring = kml.newlinestring(name=f'LineString{i}')
+            linestring.style.linestyle.width = 3  # Set line width
+            if row1['pred'] == 0:
+                linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
+            else:
+                linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
+            linestring.coords = coords
+
+    # Add labels to the start and end points of the line
+    start_label = kml.newpoint(name='Start', coords=[(df.iloc[0]['longitude'], df.iloc[0]['latitude'])])
+    end_label = kml.newpoint(name='End', coords=[(df.iloc[-1]['longitude'], df.iloc[-1]['latitude'])])
+
+    # Save the KML document to a new file
+    output_path = os.path.join(output_dir, 'new_file.kml')
+    kml.save(output_path)
+    print(f'KML file saved to {output_path}')
+
+
 class RowDetector:
 
-    def __init__(self, expected_heading):
+    def __init__(self, path_kml, placemark_name, expected_heading):
 
         # Constants:
+        self.path_kml = path_kml
+        self.placemark_name = placemark_name
+        self.MARGINS_THRESHOLD = 4
+        self.polygon = self.parse_kml_file()
         self.EXPECTED_HEADING = expected_heading
         self.HEADING_THRESHOLD = 30
         self.DEPTH_WINDOW_Y_HIGH = 0.35
@@ -53,11 +105,15 @@ class RowDetector:
         self.within_row_angular_velocity = None
         self.within_row_depth = None
         self.within_row_heading = None
+        self.within_inner_polygon = None
+        self.dist_from_polygon_margins = None
         self.depth_score = None
 
 
 
     def global_decision(self):
+        # Reset state_changed to False at the start of each call
+        self.state_changed = False
         # Enter a row:
         if self.state == "Not_in_Row":
             if self.within_row_depth and self.within_row_heading:
@@ -65,15 +121,18 @@ class RowDetector:
                 if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                     self.state = "In_Row"
                     self.consistency_counter = 0
+                    self.state_changed = True
+
             else:
                 self.consistency_counter = 0
         # Exit a row:
         elif self.state == "In_Row":
-            if not self.within_row_angular_velocity:
+            if (not self.within_row_angular_velocity) and (not self.within_inner_polygon):
                 self.consistency_counter += 1
                 if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                     self.state = "Not_in_Row"
                     self.consistency_counter = 0
+                    self.state_changed = True
             else:
                 self.consistency_counter = 0
 
@@ -91,6 +150,7 @@ class RowDetector:
         heading_360,heading_180 =  self.get_heading(longitude, latitude)
         if heading_360 and heading_180 is not None:   # The first time the heading is None
             self.within_row_heading = self.heading_within_range(heading_180, self.lower_bound, self.upper_bound)
+        self.within_inner_polygon = self.is_within_polygon((longitude, latitude))
 
     def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None, depth_score = None):
 
@@ -98,12 +158,12 @@ class RowDetector:
             self.percent_far_pixels(depth_img, rgb_img = rgb_img)
         self.sensors_decision(angular_velocity_x, longitude , latitude)
         self.global_decision()
-        return self.state
+        return self.state, self.state_changed
 
     def get_heading(self, longitude_curr, latitude_curr):
         '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
         coordinate system where the north direction aligns with the positive y-axis. '''
-        print (longitude_curr, latitude_curr)
+
         if self.previous_latitude and self.previous_longitude:  # The first time the heading is None
             # Calculate the difference in latitude and longitude
             delta_lat = latitude_curr - self.previous_latitude
@@ -124,6 +184,43 @@ class RowDetector:
             self.previous_longitude = longitude_curr
             return None, None
 
+    def parse_kml_file(self):
+        # Check if file exists
+        if not os.path.isfile(self.path_kml):
+            raise Exception(f"File {self.file_path} not found.")
+        with open(self.path_kml, 'rt', encoding="utf-8") as file:
+            doc = file.read()
+
+        k = kml.KML()
+        k.from_string(doc)
+
+        # Retrieve Placemarks from KML
+        features = list(k.features())
+        f2 = list(features[0].features())
+
+        for placemark in f2:
+            if placemark.name == self.placemark_name:
+                if placemark.geometry.geom_type == 'Polygon':
+                    polygon_geom = placemark.geometry
+                    return Polygon(polygon_geom.exterior.coords)
+
+        raise Exception(f"Placemark with name {self.placemark_name} containing a Polygon not found.")
+
+    def is_within_polygon(self, gnss_position):
+        point = Point(gnss_position)
+
+        # Check if point is within polygon
+        if not self.polygon.contains(point):
+            return False
+
+        # Check margin
+        for vertex in list(self.polygon.exterior.coords):
+            # Calculate distance from point to each vertex
+            self.dist_from_polygon_margins = distance(gnss_position, vertex).meters
+            if self.dist_from_polygon_margins <= self.MARGINS_THRESHOLD:
+                return False
+
+        return True
 
     @staticmethod
     def heading_within_range(current_heading, lower_bound, upper_bound):
@@ -171,6 +268,7 @@ if __name__ == '__main__':
     CSV_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/rows_detection/sensors_EinVered_SUMERGOL_250423_row_3.csv'
     DEPTH_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/rows_detection/depth_draw_EinVered_SUMERGOL_250423_row_3.mp4'
     RGB_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_3/RGB_1.mkv'
+    PATH_KML = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/Blocks.kml'
     EXPECTED_HEADING = 100
 
     PATH_ROW = os.path.dirname(os.path.dirname(CSV_PATH))
@@ -181,7 +279,7 @@ if __name__ == '__main__':
     print(f'Loaded {CSV_PATH}')
 
     # init rows detector:
-    row_detector = RowDetector(expected_heading = EXPECTED_HEADING)
+    row_detector = RowDetector(expected_heading = EXPECTED_HEADING, path_kml = PATH_KML, placemark_name = 'SUMERGOL')
 
     # load video:
     cap_rgb = cv2.VideoCapture(RGB_VIDEO_PATH)
@@ -202,24 +300,33 @@ if __name__ == '__main__':
 
         depth_img = depth_img[:, :, 0].copy()
 
-        is_row = row_detector.detect_row(depth_img=depth_img, rgb_img=rgb_img, angular_velocity_x = row.angular_velocity_x, longitude = row.longitude, latitude = row.latitude)
-
+        is_row, state_changed = row_detector.detect_row(depth_img=depth_img, rgb_img=rgb_img, angular_velocity_x = row.angular_velocity_x, longitude = row.longitude, latitude = row.latitude)
+        print(f'{index}: {is_row}_{state_changed}')
         # if score from csv:
         #is_row = row_detector.detect_row(depth_img=None, rgb_img=None, depth_score = row['score'], angular_velocity_x=row['angular_velocity_x'])
 
         within_row_prediction = 1 if is_row ==  "In_Row" else 0
-        print (f'Frame {index}: {within_row_prediction}_{is_row}')
-
 
         # Update dataframe with results:
-        df = update_dataframe_row_results(df, row_detector.depth_score, index, within_row_prediction, row_detector.depth_ema, row_detector.angular_velocity_x_ema, row_detector.within_row_depth, row_detector.within_row_angular_velocity, row_detector.within_row_heading)
+        df = update_dataframe_row_results(df, row_detector.depth_score, index, within_row_prediction, row_detector.depth_ema, row_detector.angular_velocity_x_ema, row_detector.within_row_depth, row_detector.within_row_angular_velocity, row_detector.within_row_heading, row_detector.dist_from_polygon_margins , row_detector.within_inner_polygon)
 
 
     rows_in_GT = count_rows(column= df['GT'])
     rows_in_Pred = count_rows(column=df['pred'])
+    ############ generate new kml ######################################################################################
 
+    import simplekml
+    from shapely.geometry import Point, LineString
+
+
+
+
+
+
+    generate_new_kml_file(row_detector.polygon , df, output_dir = output_dir)
+    ##################################################################################################
     # plot sensors data:
-    config = f'EX1_GT:{rows_in_GT}_Pred:{rows_in_Pred}_Enter_depth_and_heading__Exit_ang_vel_DEPTH_THRESH {row_detector.DEPTH_THRESHOLD}, DEPTH_EMA {row_detector.DEPTH_EMA_ALPHA}, ANG_VEL_THRESH {row_detector.ANGULAR_VELOCITY_THRESHOLD}, ANG_VEL_EMA {row_detector.ANGULAR_VELOCITY_EMA_ALPHA}, EXPECTED_HEADING {row_detector.EXPECTED_HEADING}, HEADING_THRESH {row_detector.HEADING_THRESHOLD}_'
+    config = f'EX1_GT:{rows_in_GT}_Pred:{rows_in_Pred}_Enter_depth_and_heading__Exit_ang_vel_DEPTH_THRESH {row_detector.DEPTH_THRESHOLD}, DEPTH_EMA {row_detector.DEPTH_EMA_ALPHA}, ANG_VEL_THRESH {row_detector.ANGULAR_VELOCITY_THRESHOLD}, ANG_VEL_EMA {row_detector.ANGULAR_VELOCITY_EMA_ALPHA}, EXPECTED_HEADING {row_detector.EXPECTED_HEADING}, HEADING_THRESH {row_detector.HEADING_THRESHOLD}_, self.MARGINS_THRESHOLD {row_detector.MARGINS_THRESHOLD}'
 
     plot_sensors(df, config + output_name,
                  depth_threshold = row_detector.DEPTH_THRESHOLD,
@@ -227,6 +334,7 @@ if __name__ == '__main__':
                  expected_heading = row_detector.EXPECTED_HEADING,
                  lower_heading_bound = row_detector.lower_bound,
                  upper_heading_bound= row_detector.upper_bound,
+                 margins_threshold = row_detector.MARGINS_THRESHOLD,
                  save_dir = output_dir)
 
     print('Done!')
