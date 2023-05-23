@@ -6,6 +6,9 @@ import cv2
 from shapely.geometry import Point, Polygon
 from geopy.distance import distance
 from fastkml import kml
+import simplekml
+
+
 
 def update_dataframe_row_results(df, score_new, index, within_row_prediction, depth_ema, angular_velocity_x_ema, within_row_depth,
                                  within_row_angular_velocity, within_row_heading, dist_from_polygon_margins, within_inner_polygon):
@@ -31,8 +34,7 @@ def count_rows(column):
     return rows_count
 
 
-
-def generate_new_kml_file(polygon, df, output_dir):
+def generate_new_kml_file(polygon1, polygon2, df, output_dir):
     # Create a new KML document
     kml = simplekml.Kml()
 
@@ -43,26 +45,34 @@ def generate_new_kml_file(polygon, df, output_dir):
     style.polystyle = polystyle
     style.linestyle = linestyle
 
-    placemark = kml.newpolygon(name='Polygon')
-    placemark.outerboundaryis = list(polygon.exterior.coords)
-    placemark.style = style
+    # First polygon
+    placemark1 = kml.newpolygon(name='Polygon1')
+    placemark1.outerboundaryis = list(polygon1.exterior.coords)
+    placemark1.style = style
+
+    # Second polygon
+    placemark2 = kml.newpolygon(name='Polygon2')
+    placemark2.outerboundaryis = list(polygon2.exterior.coords)
+    placemark2.style = style
 
     # Sort the DataFrame by timestamp (replace 'timestamp' with the appropriate column)
     df = df.sort_values('timestamp')
 
-    # Create a separate LineString for each pair of points with the same 'pred' value
+    # Create a separate LineString for each pair of points with the same 'pred' value.
     for i in range(len(df) - 1):
         row1 = df.iloc[i]
         row2 = df.iloc[i + 1]
         if row1['pred'] == row2['pred']:
-            coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
-            linestring = kml.newlinestring(name=f'LineString{i}')
-            linestring.style.linestyle.width = 3  # Set line width
-            if row1['pred'] == 0:
-                linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
-            else:
-                linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
-            linestring.coords = coords
+                coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
+                linestring = kml.newlinestring(name=f'LineString{i}')
+
+                linestring.style.linestyle.width = 5
+
+                if row1['pred'] == 0:
+                    linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
+                else:
+                    linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
+                linestring.coords = coords
 
     # Add labels to the start and end points of the line
     start_label = kml.newpoint(name='Start', coords=[(df.iloc[0]['longitude'], df.iloc[0]['latitude'])])
@@ -74,6 +84,55 @@ def generate_new_kml_file(polygon, df, output_dir):
     print(f'KML file saved to {output_path}')
 
 
+# def generate_new_kml_file(polygon, df, output_dir):
+#     # Create a new KML document
+#     kml = simplekml.Kml()
+#
+#     # Create a new Polygon placemark with style for outline only
+#     polystyle = simplekml.PolyStyle(fill=0, outline=1)  # No fill, outline only
+#     linestyle = simplekml.LineStyle(color=simplekml.Color.blue, width=3)  # Blue outline
+#     style = simplekml.Style()
+#     style.polystyle = polystyle
+#     style.linestyle = linestyle
+#
+#     placemark = kml.newpolygon(name='Polygon')
+#     placemark.outerboundaryis = list(polygon.exterior.coords)
+#     placemark.style = style
+#
+#     # Sort the DataFrame by timestamp (replace 'timestamp' with the appropriate column)
+#     df = df.sort_values('timestamp')
+#
+#     # Create a separate LineString for each pair of points with the same 'pred' value.
+#     for i in range(len(df) - 1):
+#         row1 = df.iloc[i]
+#         row2 = df.iloc[i + 1]
+#         if row1['pred'] == row2['pred']:
+#             if row1['within_inner_polygon'] == row2['within_inner_polygon']:
+#                 coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
+#                 linestring = kml.newlinestring(name=f'LineString{i}')
+#                 if row1['within_inner_polygon']:
+#                     linestring.style.linestyle.width = 8
+#                 else:
+#                     linestring.style.linestyle.width = 2
+#
+#                 if row1['pred'] == 0:
+#                     linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
+#                 else:
+#                     linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
+#                 linestring.coords = coords
+#
+#     # Add labels to the start and end points of the line
+#     start_label = kml.newpoint(name='Start', coords=[(df.iloc[0]['longitude'], df.iloc[0]['latitude'])])
+#     end_label = kml.newpoint(name='End', coords=[(df.iloc[-1]['longitude'], df.iloc[-1]['latitude'])])
+#
+#     # Save the KML document to a new file
+#     output_path = os.path.join(output_dir, 'new_file.kml')
+#     kml.save(output_path)
+#     print(f'KML file saved to {output_path}')
+
+
+
+
 class RowDetector:
 
     def __init__(self, path_kml, placemark_name, expected_heading):
@@ -81,7 +140,7 @@ class RowDetector:
         # Constants:
         self.path_kml = path_kml
         self.placemark_name = placemark_name
-        self.MARGINS_THRESHOLD = 4
+        self.MARGINS_THRESHOLD = 3
         self.polygon = self.parse_kml_file()
         self.EXPECTED_HEADING = expected_heading
         self.HEADING_THRESHOLD = 30
@@ -108,6 +167,7 @@ class RowDetector:
         self.within_inner_polygon = None
         self.dist_from_polygon_margins = None
         self.depth_score = None
+        self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
 
 
 
@@ -150,7 +210,7 @@ class RowDetector:
         heading_360,heading_180 =  self.get_heading(longitude, latitude)
         if heading_360 and heading_180 is not None:   # The first time the heading is None
             self.within_row_heading = self.heading_within_range(heading_180, self.lower_bound, self.upper_bound)
-        self.within_inner_polygon = self.is_within_polygon((longitude, latitude))
+        self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
 
     def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None, depth_score = None):
 
@@ -206,21 +266,24 @@ class RowDetector:
 
         raise Exception(f"Placemark with name {self.placemark_name} containing a Polygon not found.")
 
-    def is_within_polygon(self, gnss_position):
+    def get_inner_polygon(self, polygon, margins_meters):
+        # Convert self.MARGINS_THRESHOLD from meters to degrees (assuming a flat Earth approximation)
+        degrees_per_meter = 1 / 111000
+        buffer_distance_deg = margins_meters * degrees_per_meter
+
+        # Create inner polygon by buffering original polygon with the converted distance
+        inner_polygon = polygon.buffer(-buffer_distance_deg)
+
+        # If the buffering operation results in multiple polygons, we take the largest one
+        if inner_polygon.type == 'MultiPolygon':
+            inner_polygon = max(inner_polygon, key=lambda x: x.area)
+        return inner_polygon
+
+
+    def is_within_inner_polygon(self, gnss_position):
         point = Point(gnss_position)
-
-        # Check if point is within polygon
-        if not self.polygon.contains(point):
-            return False
-
-        # Check margin
-        for vertex in list(self.polygon.exterior.coords):
-            # Calculate distance from point to each vertex
-            self.dist_from_polygon_margins = distance(gnss_position, vertex).meters
-            if self.dist_from_polygon_margins <= self.MARGINS_THRESHOLD:
-                return False
-
-        return True
+        self.within_inner_polygon = self.inner_polygon.contains(point)
+        return self.within_inner_polygon
 
     @staticmethod
     def heading_within_range(current_heading, lower_bound, upper_bound):
@@ -233,6 +296,7 @@ class RowDetector:
             heading_within_range = current_heading >= lower_bound or current_heading <= upper_bound
 
         return heading_within_range
+
     @staticmethod
     def get_heading_bounds_180(expected_heading, threshold):
         # Normalize the headings to be between 0 and 180 degrees
@@ -313,18 +377,9 @@ if __name__ == '__main__':
 
     rows_in_GT = count_rows(column= df['GT'])
     rows_in_Pred = count_rows(column=df['pred'])
-    ############ generate new kml ######################################################################################
 
-    import simplekml
-    from shapely.geometry import Point, LineString
+    generate_new_kml_file(row_detector.polygon, row_detector.inner_polygon,df, output_dir = output_dir)
 
-
-
-
-
-
-    generate_new_kml_file(row_detector.polygon , df, output_dir = output_dir)
-    ##################################################################################################
     # plot sensors data:
     config = f'EX1_GT:{rows_in_GT}_Pred:{rows_in_Pred}_Enter_depth_and_heading__Exit_ang_vel_DEPTH_THRESH {row_detector.DEPTH_THRESHOLD}, DEPTH_EMA {row_detector.DEPTH_EMA_ALPHA}, ANG_VEL_THRESH {row_detector.ANGULAR_VELOCITY_THRESHOLD}, ANG_VEL_EMA {row_detector.ANGULAR_VELOCITY_EMA_ALPHA}, EXPECTED_HEADING {row_detector.EXPECTED_HEADING}, HEADING_THRESH {row_detector.HEADING_THRESHOLD}_, self.MARGINS_THRESHOLD {row_detector.MARGINS_THRESHOLD}'
 
