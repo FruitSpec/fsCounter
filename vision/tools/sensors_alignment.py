@@ -510,7 +510,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
     else:
         #dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
         #dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        #src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        #src_pts = np.float32([kp_jai[m.trainIdx].  pt for m in match]).reshape(-1, 1, 2)
         #src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
         #deltas = np.array(dst_pts) - np.array(src_pts)
