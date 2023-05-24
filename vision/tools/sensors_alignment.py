@@ -116,7 +116,8 @@ class SensorAligner:
                     zed_input.append(z)
                     jai_input.append(j)
                     #streams.append(cv2.cuda_Stream())
-            debug = [None] * self.batch_size
+            if debug is None:
+                debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
                 results = list(executor.map(align_sensors_cuda,
