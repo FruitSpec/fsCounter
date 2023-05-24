@@ -286,12 +286,12 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/home/matans/Documents/fruitspec/sandbox/VALENCIA/row_1A"
-    args.zed.movie_path = os.path.join(folder, "ZED_1.mkv")
-    args.depth.movie_path = os.path.join(folder, "DEPTH_1.mkv")
-    args.jai.movie_path = os.path.join(folder, "Result_FSI_1.mkv")
-    args.rgb_jai.movie_path = os.path.join(folder, "RGB_1.mkv")
-    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps_1.log")
+    folder = "/home/matans/Documents/fruitspec/sandbox/scans_2023-05-22/220523/POMELO00/220523/row_2/1"
+    args.zed.movie_path = os.path.join(folder, "ZED.mkv")
+    args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
+    args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+    args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.log")
     args.output_folder = os.path.join(folder, 'SA_freeze')
     validate_output_path(args.output_folder)
 
