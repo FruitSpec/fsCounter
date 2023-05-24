@@ -498,7 +498,6 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
 
     # in case no matches or less than 5 matches
     if len(st) == 0 or np.sum(st) <= 5:
-        print('failed to align, using center default')
         tx = -999
         ty = -999
         # roi in frame center
@@ -509,12 +508,12 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
         y1 = mid_y - (roi[1] // 2)
         y2 = mid_y + (roi[1] // 2)
     else:
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+        #dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        #dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        #src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        #src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-        deltas = np.array(dst_pts) - np.array(src_pts)
+        #deltas = np.array(dst_pts) - np.array(src_pts)
 
         tx = M[0, 2]
         ty = M[1, 2]

@@ -228,8 +228,7 @@ def arrange_ids(jai_frame_ids, zed_frame_ids):
     z = np.array(zed_frame_ids)
     j = np.array(jai_frame_ids)
     # find start index
-    diff = z[1:] - z[:-1]
-    start_index = np.argmin(diff)
+    start_index = np.argmin(z)
 
     jai_offset = j[start_index]
     j -= jai_offset

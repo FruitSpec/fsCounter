@@ -56,6 +56,7 @@ class AlternativeFlow(Module):
             if found:
                 # using try in case of collapse in analysis flow
                 try:
+                    logging.info(f"Analyzing new Row: {list(row)}")
                     print(f'Analyzing new Row: {list(row)}')
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
