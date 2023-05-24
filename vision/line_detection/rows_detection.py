@@ -4,24 +4,26 @@ import os
 import numpy as np
 import cv2
 from shapely.geometry import Point, Polygon
-from geopy.distance import distance
 from fastkml import kml
 import simplekml
+from enum import Enum
 
 
 
-def update_dataframe_row_results(df, score_new, index, within_row_prediction, depth_ema, angular_velocity_x_ema, within_row_depth,
-                                 within_row_angular_velocity, within_row_heading, dist_from_polygon_margins, within_inner_polygon):
+def update_dataframe_row_results(df, score_new, index, within_row_prediction, pred_changed, row_state, depth_ema, angular_velocity_x_ema, within_row_depth,
+                                 within_angular_velocity, within_heading, within_inner_polygon):
 
     df.at[index, 'score_new'] = score_new
-    df.at[index, 'pred'] = within_row_prediction
     df.at[index, 'depth_ema'] = depth_ema
     df.at[index, 'ang_vel_ema'] = angular_velocity_x_ema
     df.at[index, 'within_row_depth'] = within_row_depth
-    df.at[index, 'within_row_angular_velocity'] = within_row_angular_velocity
-    df.at[index, 'within_row_heading'] = within_row_heading
-    df.at[index, 'dist_from_polygon_margins'] = dist_from_polygon_margins,
+    df.at[index, 'within_row_angular_velocity'] = within_angular_velocity
+    df.at[index, 'within_row_heading'] = within_heading
     df.at[index, 'within_inner_polygon'] = within_inner_polygon
+    df.at[index, 'row_state'] = row_state
+    df.at[index, 'pred_changed'] = pred_changed
+    df.at[index, 'pred'] = within_row_prediction
+
 
     return df
 
@@ -132,6 +134,11 @@ def generate_new_kml_file(polygon1, polygon2, df, output_dir):
 
 
 
+class RowState(Enum):
+    NOT_IN_ROW = 0
+    STARTING_ROW = 1
+    MIDDLE_OF_ROW = 2
+    ENDING_ROW = 3
 
 class RowDetector:
 
@@ -154,48 +161,75 @@ class RowDetector:
         self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD)
 
         # Init:
+        self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
         self.depth_ema = 0.5
         self.angular_velocity_x_ema = 0
         self.consistency_counter = 0
-        self.state = "Not_in_Row"
         self.previous_longitude = None
         self.previous_latitude = None
-
+        self.depth_score = None
         self.within_row_angular_velocity = None
         self.within_row_depth = None
         self.within_row_heading = None
         self.within_inner_polygon = None
-        self.dist_from_polygon_margins = None
-        self.depth_score = None
-        self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
-
+        self.row_state = RowState.NOT_IN_ROW
+        self.row_pred = None
+        self.pred_changed = False
 
 
     def global_decision(self):
         # Reset state_changed to False at the start of each call
-        self.state_changed = False
-        # Enter a row:
-        if self.state == "Not_in_Row":
-            if self.within_row_depth and self.within_row_heading:
-                self.consistency_counter += 1
-                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                    self.state = "In_Row"
-                    self.consistency_counter = 0
-                    self.state_changed = True
+        self.pred_changed = False
 
-            else:
-                self.consistency_counter = 0
-        # Exit a row:
-        elif self.state == "In_Row":
-            if (not self.within_row_angular_velocity) and (not self.within_inner_polygon):
+        # State: Not_in_Row
+        if self.row_state == RowState.NOT_IN_ROW:
+            if self.within_row_depth and self.within_row_heading:               # if depth + heading => enter row
                 self.consistency_counter += 1
                 if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                    self.state = "Not_in_Row"
+                    self.row_state = RowState.STARTING_ROW
                     self.consistency_counter = 0
-                    self.state_changed = True
+                    self.pred_changed = True
             else:
                 self.consistency_counter = 0
 
+        # State: Starting a Row
+        elif self.row_state == RowState.STARTING_ROW:
+            if self.within_inner_polygon:
+                self.consistency_counter += 1
+                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+                    self.row_state = RowState.MIDDLE_OF_ROW
+                    self.consistency_counter = 0
+            else:
+                self.consistency_counter = 0
+
+        # State: Middle of a Row
+        elif self.row_state == RowState.MIDDLE_OF_ROW:
+            if self.within_inner_polygon:             # todo: add delay?
+                self.consistency_counter = 0
+            else:
+                self.consistency_counter += 1
+                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+                    self.row_state = RowState.ENDING_ROW
+                    self.consistency_counter = 0
+
+
+        # State: Ending a Row
+        elif self.row_state == RowState.ENDING_ROW:
+            if self.within_inner_polygon:
+                self.row_state = RowState.MIDDLE_OF_ROW
+            else:
+                if not self.within_row_angular_velocity:
+                    self.consistency_counter += 1
+                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+                        self.row_state = RowState.NOT_IN_ROW
+                        self.consistency_counter = 0
+                        self.pred_changed = True
+                else:
+                    self.consistency_counter = 0
+
+
+
+    ########################################################################################################
 
     def sensors_decision(self, angular_velocity_x, longitude, latitude):
         # depth sensor:
@@ -218,7 +252,10 @@ class RowDetector:
             self.percent_far_pixels(depth_img, rgb_img = rgb_img)
         self.sensors_decision(angular_velocity_x, longitude , latitude)
         self.global_decision()
-        return self.state, self.state_changed
+
+        self.row_pred = int(self.row_state != RowState.NOT_IN_ROW)
+        return self.row_pred, self.pred_changed
+
 
     def get_heading(self, longitude_curr, latitude_curr):
         '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
@@ -369,10 +406,10 @@ if __name__ == '__main__':
         # if score from csv:
         #is_row = row_detector.detect_row(depth_img=None, rgb_img=None, depth_score = row['score'], angular_velocity_x=row['angular_velocity_x'])
 
-        within_row_prediction = 1 if is_row ==  "In_Row" else 0
+        # within_row_prediction = 1 if is_row ==  "In_Row" else 0
 
         # Update dataframe with results:
-        df = update_dataframe_row_results(df, row_detector.depth_score, index, within_row_prediction, row_detector.depth_ema, row_detector.angular_velocity_x_ema, row_detector.within_row_depth, row_detector.within_row_angular_velocity, row_detector.within_row_heading, row_detector.dist_from_polygon_margins , row_detector.within_inner_polygon)
+        df = update_dataframe_row_results(df = df, score_new = row_detector.depth_score, index = index, within_row_prediction = row_detector.row_pred, pred_changed = row_detector.pred_changed, row_state = row_detector.row_state.value ,depth_ema = row_detector.depth_ema, angular_velocity_x_ema = row_detector.angular_velocity_x_ema, within_row_depth = row_detector.within_row_depth, within_angular_velocity = row_detector.within_row_angular_velocity, within_heading = row_detector.within_row_heading,  within_inner_polygon = row_detector.within_inner_polygon)
 
 
     rows_in_GT = count_rows(column= df['GT'])
