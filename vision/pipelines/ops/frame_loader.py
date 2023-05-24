@@ -223,13 +223,16 @@ class FramesLoader():
 
         return zed_ids, jai_ids
 
-
 def arrange_ids(jai_frame_ids, zed_frame_ids):
 
     z = np.array(zed_frame_ids)
     j = np.array(jai_frame_ids)
     # find start index
-    start_index = np.argmin(z)
+    zeros = np.where(z == 0)
+    if len(zeros) > 0:
+        start_index = np.max(zeros)
+    else:
+        start_index = np.argmin(z)
 
     jai_offset = j[start_index]
     j -= jai_offset

@@ -220,6 +220,11 @@ class ResultsCollector():
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
 
+    def draw_and_save_batch(self, batch_frame, batch_dets, f_id, output_path, t_index=6):
+
+        for id_ in range(len(batch_frame)):
+            self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
+
     def draw_dets(self, frame, dets, t_index=6):
 
         for det in dets:

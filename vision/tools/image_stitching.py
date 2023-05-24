@@ -576,9 +576,10 @@ def resize_img_cuda(input_GPU, size, stream):
 
 
 def draw_matches(img1, kp1, img2, kp2, match, status, draw_output, id_):
-    out_img = cv2.drawMatches(img1, kp1, img2, kp2, np.array(match)[status.reshape(-1).astype(np.bool_)],
-                              None, (255, 0, 0), (0, 0, 255), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv2.imwrite(os.path.join(draw_output, f"alignment_f{id_}.jpg"), out_img)
+    if np.sum(status) > 0:
+        out_img = cv2.drawMatches(img1, kp1, img2, kp2, np.array(match)[status.reshape(-1).astype(np.bool_)],
+                                  None, (255, 0, 0), (0, 0, 255), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imwrite(os.path.join(draw_output, f"alignment_f{id_}.jpg"), out_img)
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

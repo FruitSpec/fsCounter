@@ -9,7 +9,7 @@ class Logger():
     def __init__(self, args, handler=None, name='fscounter'):
 
         self.logger = logging.getLogger(name)
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         self.set_handler(args, handler)
 
         self.statistics = []
