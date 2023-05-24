@@ -79,7 +79,7 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     # if there is gps data, make 4 subplots, else 2.
     if "heading_360" in df.columns.values:
         n_subplots = 4
-        plt.figure(figsize=(55, 40))
+        plt.figure(figsize=(55, 45))
 
     else:
         n_subplots = 2
@@ -89,7 +89,7 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
       # Adjust the width and height as desired
     sns.set(font_scale=2)
 
-    n_subplots = 5
+    n_subplots = 6
     _subplot_(df, n_subplots = n_subplots, i_subplot = 1, column_name1="score", column_name2="score_EMA",
               thresh1=depth_threshold, thresh2 = None, thresh3 = None, title ='Depth score')
 
@@ -102,8 +102,11 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1="within_inner_polygon", column_name2=None,
               thresh1=None, thresh2 = None, thresh3 = None, title =f"within_inner_polygon")
 
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 5, column_name1="pred", column_name2=None,
-              thresh1=None, thresh2 = None, thresh3 = None, title =f"Prediction")
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 5, column_name1='row_state', column_name2=None,
+              thresh1=None, thresh2 = None, thresh3 = None, title =f"'Row_state. 0: 'not in row', 1: 'starting row', 2: 'middle of row', 3: 'end of row'")
+
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 6, column_name1="pred", column_name2=None,
+              thresh1=None, thresh2 = None, thresh3 = None, title =f"Prediction. 0: 'not in row', 1: 'starting row'")
 
 
 

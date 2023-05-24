@@ -229,8 +229,6 @@ class RowDetector:
 
 
 
-    ########################################################################################################
-
     def sensors_decision(self, angular_velocity_x, longitude, latitude):
         # depth sensor:
         self.depth_ema = self.exponential_moving_average(self.depth_score, self.depth_ema, alpha=self.DEPTH_EMA_ALPHA)
