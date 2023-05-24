@@ -86,53 +86,6 @@ def generate_new_kml_file(polygon1, polygon2, df, output_dir):
     print(f'KML file saved to {output_path}')
 
 
-# def generate_new_kml_file(polygon, df, output_dir):
-#     # Create a new KML document
-#     kml = simplekml.Kml()
-#
-#     # Create a new Polygon placemark with style for outline only
-#     polystyle = simplekml.PolyStyle(fill=0, outline=1)  # No fill, outline only
-#     linestyle = simplekml.LineStyle(color=simplekml.Color.blue, width=3)  # Blue outline
-#     style = simplekml.Style()
-#     style.polystyle = polystyle
-#     style.linestyle = linestyle
-#
-#     placemark = kml.newpolygon(name='Polygon')
-#     placemark.outerboundaryis = list(polygon.exterior.coords)
-#     placemark.style = style
-#
-#     # Sort the DataFrame by timestamp (replace 'timestamp' with the appropriate column)
-#     df = df.sort_values('timestamp')
-#
-#     # Create a separate LineString for each pair of points with the same 'pred' value.
-#     for i in range(len(df) - 1):
-#         row1 = df.iloc[i]
-#         row2 = df.iloc[i + 1]
-#         if row1['pred'] == row2['pred']:
-#             if row1['within_inner_polygon'] == row2['within_inner_polygon']:
-#                 coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
-#                 linestring = kml.newlinestring(name=f'LineString{i}')
-#                 if row1['within_inner_polygon']:
-#                     linestring.style.linestyle.width = 8
-#                 else:
-#                     linestring.style.linestyle.width = 2
-#
-#                 if row1['pred'] == 0:
-#                     linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
-#                 else:
-#                     linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
-#                 linestring.coords = coords
-#
-#     # Add labels to the start and end points of the line
-#     start_label = kml.newpoint(name='Start', coords=[(df.iloc[0]['longitude'], df.iloc[0]['latitude'])])
-#     end_label = kml.newpoint(name='End', coords=[(df.iloc[-1]['longitude'], df.iloc[-1]['latitude'])])
-#
-#     # Save the KML document to a new file
-#     output_path = os.path.join(output_dir, 'new_file.kml')
-#     kml.save(output_path)
-#     print(f'KML file saved to {output_path}')
-
-
 
 class RowState(Enum):
     NOT_IN_ROW = 0
