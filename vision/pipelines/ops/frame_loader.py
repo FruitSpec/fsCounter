@@ -229,10 +229,10 @@ def arrange_ids(jai_frame_ids, zed_frame_ids):
     j = np.array(jai_frame_ids)
     # find start index
     zeros = np.where(z == 0)
-    if len(zeros) > 0:
-        start_index = np.max(zeros)
-    else:
+    if isinstance(zeros, tuple): # no zeroes found
         start_index = np.argmin(z)
+    else:
+        start_index = np.max(zeros)
 
     jai_offset = j[start_index]
     j -= jai_offset
