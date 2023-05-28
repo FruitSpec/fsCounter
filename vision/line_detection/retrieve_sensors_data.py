@@ -272,16 +272,16 @@ def plot_gnss_heading(data, output_dir, column = 'heading_gps', save = True):
     plt.show()
 
 
-def extract_gnss_data(df_merged, df_gps):
+def extract_gnss_data(df_imu, df_gps):
     # TODO - i loose index, if it's needed than should be fixed
 
     df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
     df_gps.drop('timestamp', axis='columns', inplace=True)
 
-    df_merged["timestamp"] = pd.to_datetime(df_merged["timestamp"], unit="ns").dt.time
+    df_imu["timestamp"] = pd.to_datetime(df_imu["timestamp"], unit="ns").dt.time
 
     # Extract the timestamp values from both DataFrames
-    merged_timestamps = df_merged['timestamp'].values
+    merged_timestamps = df_imu['timestamp'].values
     gps_timestamps = df_gps['timestamp_gnss'].values
 
     # Find the indices of the last matching timestamps in df_gps
@@ -294,7 +294,7 @@ def extract_gnss_data(df_merged, df_gps):
     filtered_gps = df_gps.loc[last_indices]
 
     # Concatenate df_merged and filtered_gps
-    merged_df = pd.concat([df_merged.reset_index(drop=True), filtered_gps.reset_index(drop=True)], axis=1)
+    merged_df = pd.concat([df_imu.reset_index(drop=True), filtered_gps.reset_index(drop=True)], axis=1)
 
     return merged_df
 
@@ -356,35 +356,7 @@ if __name__ == "__main__":
 
     print ('done')
 
-# ###############################3
-#     #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
-#     PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
-#     DEPTH_TRESHOLD = 0.5
-#     ANGULAR_VELOCITY_THRESHOLD = 10
-#     EXPECTED_HEADING = 100
-#     HEADING_TRESHOLD = 30
-#
-#
-#     PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
-#     output_dir = os.path.join(PATH_ROW, 'rows_detection')
-#     output_name = "_".join(PATH_ROW.split('/')[-4:])
-#
-#     df = main(PATH_DEPTH_CSV, save=True)
-#
-#     lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
-#
-#     # plot sensors data:
-#     plot_sensors(df, output_name,
-#                  depth_threshold = DEPTH_TRESHOLD,
-#                  angular_velocity_threshold = ANGULAR_VELOCITY_THRESHOLD,
-#                  expected_heading = EXPECTED_HEADING,
-#                  lower_heading_bound = lower_bound,
-#                  upper_heading_bound= upper_bound,
-#                  save_dir = output_dir)
-#
-#     plot_latitude_longitude(df, output_dir, save=False)
-#
-#     print('done')
+
 
 
 
