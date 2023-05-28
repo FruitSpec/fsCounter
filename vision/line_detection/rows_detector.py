@@ -56,19 +56,18 @@ class RowDetector:
         self.pred_changed = False
         self.point_inner_polygon_in = None
         self.point_inner_polygon_out = None
-        self.calculated_row_heading_180 = None
 
 
     def global_decision(self, longitude , latitude):
         # Reset state_changed to False at the start of each call
         self.pred_changed = False
+        self.row_heading = None
 
         # State: Not_in_Row
         if self.row_state == RowState.NOT_IN_ROW:
             # If heading is unknown:
             if self.EXPECTED_HEADING is None:
                 if self.within_row_depth and self.within_row_angular_velocity and self.within_inner_polygon:
-                    print(f'global_decision inner_polygon {self.within_inner_polygon}')
                     self.consistency_counter += 1
                     if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                         self.row_state = RowState.STARTING_ROW
@@ -80,13 +79,11 @@ class RowDetector:
 
             # If heading is known:
             else:
+
                 if self.within_row_depth and self.within_row_heading:               # if depth + heading => enter row
-                    self.consistency_counter += 1
-                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                        self.row_state = RowState.STARTING_ROW
-                        self.consistency_counter = 0
-                        self.pred_changed = True
-                        self.point_inner_polygon_in = (longitude, latitude)
+                    self.row_state = RowState.STARTING_ROW
+                    self.pred_changed = True
+                    self.point_inner_polygon_in = (longitude, latitude)
                 else:
                     self.consistency_counter = 0
 
@@ -125,10 +122,12 @@ class RowDetector:
                         self.pred_changed = True
 
                         # Calculate heading:
-                        calculated_row_heading_360, calculated_row_heading_180, _, _ = self.get_heading(
+                        row_heading_360, self.row_heading, _, _ = self.get_heading(
                             self.point_inner_polygon_out[0], self.point_inner_polygon_out[1], self.point_inner_polygon_in[0], self.point_inner_polygon_in[1])
                         if self.EXPECTED_HEADING is None:
-                            self.EXPECTED_HEADING = self.calculated_row_heading_180
+                            self.EXPECTED_HEADING = self.row_heading
+                            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING,
+                                                                                                 self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
                 else:
                     self.consistency_counter = 0
 
@@ -146,11 +145,10 @@ class RowDetector:
         # gnss sensor:
         self.heading_360, self.heading_180, self.previous_longitude, self.previous_latitude  =  self.get_heading(longitude, latitude, self.previous_longitude, self.previous_latitude )
 
-        if self.heading_360 and self.heading_180 is not None:   # The first time the heading is None
-            if self.within_row_heading is not None:
+        if (self.heading_360 and self.heading_180) is not None:   # The first time the heading is None
+            if (self.lower_bound and self.upper_bound) is not None: # In the first row the bounds are None
                 self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
         self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
-        print (f'sensors_decision inner_polygon {self.within_inner_polygon}')
 
     def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None):
 
