@@ -79,7 +79,7 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     # if there is gps data, make 4 subplots, else 2.
     if "heading_360" in df.columns.values:
         n_subplots = 4
-        plt.figure(figsize=(55, 45))
+        plt.figure(figsize=(55, 35))
 
     else:
         n_subplots = 2
@@ -90,10 +90,10 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     sns.set(font_scale=2)
 
     n_subplots = 6
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 1, column_name1="score", column_name2="score_EMA",
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 1, column_name1="score", column_name2="depth_ema",
               thresh1=depth_threshold, thresh2 = None, thresh3 = None, title ='Depth score')
 
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 2, column_name1="angular_velocity_x", column_name2="angular_velocity_x_EMA",
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 2, column_name1="angular_velocity_x", column_name2="ang_vel_ema",
               thresh1=angular_velocity_threshold, thresh2 = -angular_velocity_threshold, thresh3 = None, title ='angular_velocity_x (deg/sec)')
 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_180", column_name2=None,
@@ -126,7 +126,8 @@ def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = Non
     plt.subplot(n_subplots, 1, i_subplot)
 
     # draw the ground truth:
-    plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['GT'] == 1, color='green', alpha=0.15)
+    if 'GT' in df.columns:
+        plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['GT'] == 1, color='green', alpha=0.15)
 
     # draw the plots:
     graph = sns.lineplot(data=df, x=df.index, y=column_name1)
@@ -173,8 +174,7 @@ def extract_time_from_timestamp(df):
 
 
 def GT_to_df(GT, df):
-    GT_intervals = [(pd.to_datetime(row.get('start_time'), format='%M:%S'), pd.to_datetime(row.get('end_time'), format='%M:%S')) for row in
-                    GT]
+    GT_intervals = [(pd.to_datetime(row.get('start_time'), format='%M:%S'), pd.to_datetime(row.get('end_time'), format='%M:%S')) for row in GT]
     # Create a list to store the flag values
     flags = []
     # Iterate over each row in the DataFrame
@@ -274,6 +274,12 @@ def plot_gnss_heading(data, output_dir, column = 'heading_gps', save = True):
 
 def extract_gnss_data(df_merged, df_gps):
     # TODO - i loose index, if it's needed than should be fixed
+
+    df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
+    df_gps.drop('timestamp', axis='columns', inplace=True)
+
+    df_merged["timestamp"] = pd.to_datetime(df_merged["timestamp"], unit="ns").dt.time
+
     # Extract the timestamp values from both DataFrames
     merged_timestamps = df_merged['timestamp'].values
     gps_timestamps = df_gps['timestamp_gnss'].values
@@ -306,96 +312,79 @@ def calculate_heading_bounds(expected_heading, threshold):
 
 
 
-def main(PATH_DEPTH_CSV, save = False):
+def get_sensors_data(PATH_ROW, output_dir, GT = True, save = False):
     # paths:
-    PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
-    path_log_imu = find_subdirs_with_file(PATH_ROW, 'imu_1.log', return_dirs=False, single_file=True)
-    output_dir = os.path.join(PATH_ROW, 'rows_detection')
+    path_log_imu = find_subdirs_with_file(PATH_ROW, 'imu.log', return_dirs=False, single_file=True)
     parent_dir = os.path.dirname(PATH_ROW)
     path_gps = find_subdirs_with_file(parent_dir, '.nav', return_dirs=False, single_file=True)
+
     gt_rows_path = os.path.join(output_dir, 'GT_lines.json')
-    output_name = "_".join(PATH_ROW.split('/')[-4:])
 
     # load depth and imu data, and concat:
     df_imu = read_imu_log(path_log_imu)
-    df_imu = add_exponential_moving_average_EMA_to_df(df_imu, column_name='angular_velocity_x', alpha=0.1) #high alpha is small change
-
-    # load depth data:
-    df_depth = pd.read_csv(PATH_DEPTH_CSV, index_col=0).set_index('frame')
-    df_depth = add_exponential_moving_average_EMA_to_df(df_depth, column_name='score', alpha=0.05)
-    # df_depth = moving_average(df_depth, column_name ='score', window_size = 30)
-
-    # merge depth and imu data:
-    df_merged = pd.concat([df_imu, df_depth], axis=1, join="inner")
-    df_merged["timestamp"] = pd.to_datetime(df_merged["timestamp"], unit="ns").dt.time
-
-
-    # load depth csv:
-    # df_merged = pd.read_csv(PATH_DEPTH_CSV, index_col=0)
-    # df_merged.dropna(subset=['score'], inplace=True) #Todo: To remove rows where the 'score' column contains NaN values
-
 
     # load gps csv:
     df_gps = read_nav_file(path_gps)
-    # Convert the timestamp columns to datetime objects
-    df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
-    df_gps.drop('timestamp', axis='columns', inplace=True)
-    df_gps = get_gnss_heading_360(df_gps) # calculate heading from gnss data:
-    #df_gps = get_gnss_heading_180(df_gps) # calculate delta heading
 
     # merge with imu data:
-    df_merged2 = extract_gnss_data(df_merged, df_gps)
+    df_merged = extract_gnss_data(df_imu, df_gps)
 
-    if df_merged2 is None:
-        df_merged2 = df_merged
-
-    # # calc heading using geographiclib:
-    # df_gps = gnss_heading_Geodesic(df_gps)
-
-    # Load rows ground_truth:
-    with open(gt_rows_path, 'r') as file:
-        GT_rows = json.load(file)
-
-    df_merged2 = GT_to_df(GT_rows,df_merged2)
+    if GT:
+        # Load rows ground_truth:
+        with open(gt_rows_path, 'r') as file:
+            GT_rows = json.load(file)
+        df_merged = GT_to_df(GT_rows,df_merged)
 
     # Save df:
     if save:
-        output_csv_path = os.path.join(output_dir, f'sensors_{output_name}.csv')
-        df_merged2.to_csv(output_csv_path, index=False)
+        output_csv_path = os.path.join(output_dir, f'sensors_data.csv')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        df_merged.to_csv(output_csv_path, index=False)
         print (f'Saved {output_csv_path}')
 
-    return df_merged2
+    return df_merged
 
 if __name__ == "__main__":
 
-    #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
-    PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
-    DEPTH_TRESHOLD = 0.5
-    ANGULAR_VELOCITY_THRESHOLD = 10
-    EXPECTED_HEADING = 100
-    HEADING_TRESHOLD = 30
+    PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/Field_test_210523/VALENCI2'
+    PATH_OUTPUT = r'/home/lihi/FruitSpec/Data/customers/Field_test_210523/VALENCI2/row_10/1'
+
+    output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')
+    df = get_sensors_data(PATH_ROW, output_dir, GT = False, save=True)
 
 
-    PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
-    output_dir = os.path.join(PATH_ROW, 'rows_detection')
-    output_name = "_".join(PATH_ROW.split('/')[-4:])
+    print ('done')
 
-    df = main(PATH_DEPTH_CSV, save=True)
-
-    lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
-
-    # plot sensors data:
-    plot_sensors(df, output_name,
-                 depth_threshold = DEPTH_TRESHOLD,
-                 angular_velocity_threshold = ANGULAR_VELOCITY_THRESHOLD,
-                 expected_heading = EXPECTED_HEADING,
-                 lower_heading_bound = lower_bound,
-                 upper_heading_bound= upper_bound,
-                 save_dir = output_dir)
-
-    plot_latitude_longitude(df, output_dir, save=False)
-
-    print('done')
+# ###############################3
+#     #PATH_ROW = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_2'
+#     PATH_DEPTH_CSV = r'/home/lihi/FruitSpec/Data/customers/EinVered/SUMERGOL/250423/row_1/rows_detection/depth_ein_vered_SUMERGOL_250423_row_1_.csv'
+#     DEPTH_TRESHOLD = 0.5
+#     ANGULAR_VELOCITY_THRESHOLD = 10
+#     EXPECTED_HEADING = 100
+#     HEADING_TRESHOLD = 30
+#
+#
+#     PATH_ROW = os.path.dirname(os.path.dirname(PATH_DEPTH_CSV))
+#     output_dir = os.path.join(PATH_ROW, 'rows_detection')
+#     output_name = "_".join(PATH_ROW.split('/')[-4:])
+#
+#     df = main(PATH_DEPTH_CSV, save=True)
+#
+#     lower_bound, upper_bound = calculate_heading_bounds(EXPECTED_HEADING, HEADING_TRESHOLD)
+#
+#     # plot sensors data:
+#     plot_sensors(df, output_name,
+#                  depth_threshold = DEPTH_TRESHOLD,
+#                  angular_velocity_threshold = ANGULAR_VELOCITY_THRESHOLD,
+#                  expected_heading = EXPECTED_HEADING,
+#                  lower_heading_bound = lower_bound,
+#                  upper_heading_bound= upper_bound,
+#                  save_dir = output_dir)
+#
+#     plot_latitude_longitude(df, output_dir, save=False)
+#
+#     print('done')
 
 
 
