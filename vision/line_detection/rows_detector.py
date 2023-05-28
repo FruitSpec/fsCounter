@@ -34,7 +34,9 @@ class RowDetector:
         self.ANGULAR_VELOCITY_THRESHOLD = 8  #10
         self.ANGULAR_VELOCITY_EMA_ALPHA = 0.02
         self.CONSISTENCY_THRESHOLD = 3
-        self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD)
+        self.lower_bound, self.upper_bound = None, None
+        if self.EXPECTED_HEADING is not None:
+            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD) # todo: calculate after extracting heading
 
         # Init:
         self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
@@ -52,22 +54,41 @@ class RowDetector:
         self.row_state = RowState.NOT_IN_ROW
         self.row_pred = None
         self.pred_changed = False
+        self.point_inner_polygon_in = None
+        self.point_inner_polygon_out = None
+        self.calculated_row_heading_180 = None
 
 
-    def global_decision(self):
+    def global_decision(self, longitude , latitude):
         # Reset state_changed to False at the start of each call
         self.pred_changed = False
 
         # State: Not_in_Row
         if self.row_state == RowState.NOT_IN_ROW:
-            if self.within_row_depth and self.within_row_heading:               # if depth + heading => enter row
-                self.consistency_counter += 1
-                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                    self.row_state = RowState.STARTING_ROW
+            # If heading is unknown:
+            if self.EXPECTED_HEADING is None:
+                if self.within_row_depth and self.within_row_angular_velocity and self.within_inner_polygon:
+                    print(f'global_decision inner_polygon {self.within_inner_polygon}')
+                    self.consistency_counter += 1
+                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+                        self.row_state = RowState.STARTING_ROW
+                        self.consistency_counter = 0
+                        self.pred_changed = True
+                        self.point_inner_polygon_in = (longitude , latitude)
+                else:
                     self.consistency_counter = 0
-                    self.pred_changed = True
+
+            # If heading is known:
             else:
-                self.consistency_counter = 0
+                if self.within_row_depth and self.within_row_heading:               # if depth + heading => enter row
+                    self.consistency_counter += 1
+                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+                        self.row_state = RowState.STARTING_ROW
+                        self.consistency_counter = 0
+                        self.pred_changed = True
+                        self.point_inner_polygon_in = (longitude, latitude)
+                else:
+                    self.consistency_counter = 0
 
         # State: Starting a Row
         elif self.row_state == RowState.STARTING_ROW:
@@ -88,6 +109,7 @@ class RowDetector:
                 if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                     self.row_state = RowState.ENDING_ROW
                     self.consistency_counter = 0
+                    self.point_inner_polygon_out = (longitude, latitude)
 
 
         # State: Ending a Row
@@ -101,6 +123,12 @@ class RowDetector:
                         self.row_state = RowState.NOT_IN_ROW
                         self.consistency_counter = 0
                         self.pred_changed = True
+
+                        # Calculate heading:
+                        calculated_row_heading_360, calculated_row_heading_180, _, _ = self.get_heading(
+                            self.point_inner_polygon_out[0], self.point_inner_polygon_out[1], self.point_inner_polygon_in[0], self.point_inner_polygon_in[1])
+                        if self.EXPECTED_HEADING is None:
+                            self.EXPECTED_HEADING = self.calculated_row_heading_180
                 else:
                     self.consistency_counter = 0
 
@@ -116,29 +144,31 @@ class RowDetector:
         self.within_row_angular_velocity = abs(self.angular_velocity_x_ema) < self.ANGULAR_VELOCITY_THRESHOLD
 
         # gnss sensor:
-        self.heading_360, self.heading_180 =  self.get_heading(longitude, latitude)
+        self.heading_360, self.heading_180, self.previous_longitude, self.previous_latitude  =  self.get_heading(longitude, latitude, self.previous_longitude, self.previous_latitude )
+
         if self.heading_360 and self.heading_180 is not None:   # The first time the heading is None
-            self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)
+            if self.within_row_heading is not None:
+                self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
         self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
+        print (f'sensors_decision inner_polygon {self.within_inner_polygon}')
 
     def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None):
 
         self.percent_far_pixels(depth_img, rgb_img = rgb_img, show_video =False)
         self.sensors_decision(angular_velocity_x, longitude , latitude)
-        self.global_decision()
+        self.global_decision(longitude , latitude)
 
         self.row_pred = int(self.row_state != RowState.NOT_IN_ROW)
         return self.row_pred, self.pred_changed
 
-
-    def get_heading(self, longitude_curr, latitude_curr):
+    def get_heading(self, longitude_curr, latitude_curr, longitude_previous, latitude_previous):
         '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
         coordinate system where the north direction aligns with the positive y-axis. '''
 
-        if self.previous_latitude and self.previous_longitude:  # The first time the heading is None
+        if latitude_previous and longitude_previous:  # The first time the heading is None
             # Calculate the difference in latitude and longitude
-            delta_lat = latitude_curr - self.previous_latitude
-            delta_lon = longitude_curr - self.previous_longitude
+            delta_lat = latitude_curr - latitude_previous
+            delta_lon = longitude_curr - longitude_previous
             # Calculate the heading using atan2
             heading_rad = np.arctan2(delta_lon, delta_lat)
             # Convert the heading from radians to degrees
@@ -146,15 +176,10 @@ class RowDetector:
             # Adjust the heading to be relative to the north
             heading_360 = (heading_deg + 360) % 360
             heading_180 = (heading_deg + 360) % 180
+            return heading_360, heading_180, longitude_curr, latitude_curr
 
-            self.previous_latitude = latitude_curr
-            self.previous_longitude = longitude_curr
-
-            return heading_360, heading_180
         else:
-            self.previous_latitude = latitude_curr
-            self.previous_longitude = longitude_curr
-            return None, None
+            return None, None, longitude_curr, latitude_curr
 
     def parse_kml_file(self):
         # Check if file exists
@@ -202,12 +227,12 @@ class RowDetector:
 
         # Check if the current heading falls within the expected heading range
         if lower_bound <= upper_bound:
-            heading_within_range = lower_bound <= current_heading <= upper_bound
+            is_in_heading = lower_bound <= current_heading <= upper_bound
         else:
             # Handle the case where the expected heading range wraps around 360 degrees
-            heading_within_range = current_heading >= lower_bound or current_heading <= upper_bound
+            is_in_heading = current_heading >= lower_bound or current_heading <= upper_bound
 
-        return heading_within_range
+        return is_in_heading
 
     @staticmethod
     def get_heading_bounds_180(expected_heading, threshold):
