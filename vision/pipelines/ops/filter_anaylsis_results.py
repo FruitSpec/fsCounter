@@ -19,9 +19,10 @@ def filter_results(data, columns, count_threshold, depth_threshold):
 def get_data_filtered_by_count(data, columns, count_threshold):
     unique_track_ids, counts = get_track_ids_and_count(data, columns)
     ids_to_keep = np.argwhere(counts >= count_threshold)
-    data = data[ids_to_keep.flatten()]
+    unique_track_ids = unique_track_ids[ids_to_keep]
+    ids = unique_to_data_ids(data, columns, unique_track_ids)
 
-    return data
+    return data[ids]
 
 def get_data_filtered_by_depth(data, columns, depth_threshold):
     col_id = get_column_number(columns, 'depth')
@@ -57,12 +58,23 @@ def get_track_ids_and_count(data, columns):
 
     return unique_track_ids, counts
 
+def unique_to_data_ids(data, columns, unique_track_ids):
+    column_id = get_column_number(columns)
+    track_ids = data[:, column_id]
+    ids_to_keep = []
+    for id_, trk in enumerate(track_ids):
+        if trk in unique_track_ids:
+            ids_to_keep.append(id_)
+
+    return ids_to_keep
+
 
 
 if __name__ == "__main__":
 
-    fp = "/home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/OLD00000/230523/row_1/tracks_1.csv"
-    depth_threshold = 3.5
+    fp = "/home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/MED00000/230523/row_1/1/tracks.csv"
+    depth_threshold = 5#3.5
     count_threshold = 3
     data, columns = load_csv(fp)
     t = get_validated_tracks(data, columns, count_threshold, depth_threshold)
+    print(t)

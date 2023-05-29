@@ -56,7 +56,7 @@ debug:
 
 adt_debugger:
   scan_type: "multi_scans"
-  row_path: /home/matans/Documents/fruitspec/sandbox/VALENCIA/debugger_test/row_1/1 # path to row for analyzing, this should be a path to the fodler contatning all the files if we have multi scans
+  row_path: /home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/MED00000/230523/row_1/1 # path to row for analyzing, this should be a path to the fodler contatning all the files if we have multi scans
   block_path: "" # path to block for analyzing, if "" will run only on row
   include_rows: ["all"] # which rows to analyze if it includes "all" will run on all
   include_scans: ["all"] # which scans indexes to analyze if it includes "all" will run on all
@@ -64,11 +64,11 @@ adt_debugger:
   frames_limit: [0, 300] # frames to analyze in video
   fps: 10 # fps for writing the movie if 0 will use original fps
   new_vid_name: "" # name for new video: "" is for default value (Result_FSI_{side}_with_dets.mkv)
-  outputs_dir: /home/matans/Documents/fruitspec/sandbox/VALENCIA/debugger_test/debugging/ # where to dump the images
+  outputs_dir: /home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/MED00000/230523/row_1/1 # where to dump the images
   block_suffix: 1 # suffix for output dir naming
   t_index: 6 # index of tracker
   methods: [jai_frame_w_dets, alignment] # which methods to use: ("vid_with_dets", "jai_frame_w_dets", "alignment", "trees")
-  alignment_methods: ["", "depth", "min_samp", "min_samp_depth"] # which alignment filtering styles to use ("", "depth", "min_samp", "min_samp_depth")
+  alignment_methods: ["min_samp_depth"] # which alignment filtering styles to use ("", "depth", "min_samp", "min_samp_depth")
   max_depth: 5 # maxium depth allowed for a detection
   im_output_shape: [600,900] # what output shape to use
   min_samples: 3 # min number of samples for a track to count as valid (>=)
