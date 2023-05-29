@@ -56,6 +56,8 @@ class RowDetector:
         self.pred_changed = False
         self.point_inner_polygon_in = None
         self.point_inner_polygon_out = None
+        self.df = pd.DataFrame()
+        self.index = 0
 
 
     def global_decision(self, longitude , latitude):
@@ -131,8 +133,6 @@ class RowDetector:
                 else:
                     self.consistency_counter = 0
 
-
-
     def sensors_decision(self, angular_velocity_x, longitude, latitude):
         # depth sensor:
         self.depth_ema = self.exponential_moving_average(self.depth_score, self.depth_ema, alpha=self.DEPTH_EMA_ALPHA)
@@ -150,14 +150,16 @@ class RowDetector:
                 self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
         self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
 
-    def detect_row(self,  angular_velocity_x, longitude , latitude, rgb_img = None, depth_img = None):
+    def detect_row(self,  angular_velocity_x, longitude , latitude, imu_timestamp, gps_timestamp, rgb_img = None, depth_img = None):
 
         self.percent_far_pixels(depth_img, rgb_img = rgb_img, show_video =False)
         self.sensors_decision(angular_velocity_x, longitude , latitude)
         self.global_decision(longitude , latitude)
 
         self.row_pred = int(self.row_state != RowState.NOT_IN_ROW)
-        return self.row_pred, self.pred_changed
+        self.update_dataframe_results(imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude)
+        self.index += 1
+        return self.row_pred, self.pred_changed, self.df
 
     def get_heading(self, longitude_curr, latitude_curr, longitude_previous, latitude_previous):
         '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
@@ -291,5 +293,33 @@ class RowDetector:
         depth_3d = cv2.line(depth_3d, pt1=(0, y_high), pt2=(depth_img.shape[1], y_high), color=(0, 255, 0), thickness=5)
         depth_3d = cv2.line(depth_3d, pt1=(0, y_low), pt2=(depth_img.shape[1], y_low), color=(0, 255, 0), thickness=5)
         return depth_3d
+
+    def update_dataframe_results(self, imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude):
+
+        update_values = {
+            'imu_timestamp': imu_timestamp,
+            'angular_velocity_x': angular_velocity_x,
+            'gps_timestamp': gps_timestamp,
+            'longitude': longitude,
+            'latitude': latitude,
+            'score': self.depth_score,
+            'heading_180': self.heading_180,
+            'heading_360': self.heading_360,
+            'row_heading': self.row_heading,
+            'depth_ema': self.depth_ema,
+            'ang_vel_ema': self.angular_velocity_x_ema,
+            'within_row_depth': self.within_row_depth,
+            'within_row_angular_velocity': self.within_row_angular_velocity,
+            'within_row_heading': self.within_row_heading,
+            'within_inner_polygon': self.within_inner_polygon,
+            'row_state': self.row_state.value,
+            'pred_changed': self.pred_changed,
+            'pred': self.row_pred}
+
+        for column, value in update_values.items():
+            self.df.loc[self.index, column] = value
+
+
+
 
 

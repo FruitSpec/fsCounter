@@ -1,30 +1,12 @@
 import pandas as pd
 from vision.line_detection.retrieve_sensors_data import plot_sensors
 import os
-import numpy as np
 import cv2
 import simplekml
 from vision.line_detection.rows_detector import RowDetector
 from vision.line_detection.retrieve_sensors_data import get_sensors_data
 from tqdm import tqdm
 
-def update_dataframe_row_results(df, score, heading_180, heading_360, index, within_row_prediction, pred_changed, row_state, depth_ema, angular_velocity_x_ema, within_row_depth,
-                                 within_angular_velocity, within_heading, within_inner_polygon, row_heading):
-
-    df.at[index, 'score'] = score
-    df.at[index, 'heading_180'] = heading_180
-    df.at[index, 'heading_360'] = heading_360
-    df.at[index, 'row_heading'] = row_heading
-    df.at[index, 'depth_ema'] = depth_ema
-    df.at[index, 'ang_vel_ema'] = angular_velocity_x_ema
-    df.at[index, 'within_row_depth'] = within_row_depth
-    df.at[index, 'within_row_angular_velocity'] = within_angular_velocity
-    df.at[index, 'within_row_heading'] = within_heading
-    df.at[index, 'within_inner_polygon'] = within_inner_polygon
-    df.at[index, 'row_state'] = row_state
-    df.at[index, 'pred_changed'] = pred_changed
-    df.at[index, 'pred'] = within_row_prediction
-    return df
 
 def count_rows(column):
     mask = column == 1
@@ -120,7 +102,7 @@ if __name__ == '__main__':
     print (f'Video_len:{int(cap_depth.get(cv2.CAP_PROP_FRAME_COUNT))}, df_len:{len(df)}')
 
     # load frames:
-    for index, row in tqdm(df.iterrows()):
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
         # Get depth and RGB frames:
         ret1, depth_img = cap_depth.read()
@@ -137,30 +119,14 @@ if __name__ == '__main__':
 
         depth_img = depth_img[:, :, 0].copy()
 
-        is_row, state_changed = row_detector.detect_row(depth_img=depth_img, rgb_img=rgb_img, angular_velocity_x = row.angular_velocity_x, longitude = row.longitude, latitude = row.latitude)
-
+        is_row, state_changed, df_results = row_detector.detect_row(depth_img=depth_img, rgb_img=rgb_img, angular_velocity_x = row.angular_velocity_x, longitude = row.longitude, latitude = row.latitude, imu_timestamp =row.timestamp, gps_timestamp=row.timestamp_gnss)
 
         if cv2.waitKey(25) & 0xFF == ord('q'):    # Wait for 25 milliseconds and check if the user pressed 'q' to quit
             break
 
-        # Update dataframe with results:
-        df = update_dataframe_row_results(df = df, score = row_detector.depth_score,
-                                          heading_180 = row_detector.heading_180,
-                                          heading_360 = row_detector.heading_360,
-                                          index = index,
-                                          within_row_prediction = row_detector.row_pred,
-                                          pred_changed = row_detector.pred_changed,
-                                          row_state = row_detector.row_state.value ,
-                                          depth_ema = row_detector.depth_ema,
-                                          angular_velocity_x_ema = row_detector.angular_velocity_x_ema,
-                                          within_row_depth = row_detector.within_row_depth,
-                                          within_angular_velocity = row_detector.within_row_angular_velocity,
-                                          within_heading = row_detector.within_row_heading,
-                                          within_inner_polygon = row_detector.within_inner_polygon,
-                                          row_heading = row_detector.row_heading)
 
     # save dataframe:
-    df.to_csv(os.path.join(output_dir, f'rows_data.csv'), index=False)
+    df_results.to_csv(os.path.join(output_dir, f'rows_data.csv'), index=False)
 
 
     # rows_in_GT = count_rows(column= df['GT'])
