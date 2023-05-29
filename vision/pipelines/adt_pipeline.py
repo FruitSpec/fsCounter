@@ -357,8 +357,22 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
+    zed_name = "ZED.mkv"
+    depth_name = "DEPTH.mkv"
+    fsi_name = "Result_FSI.mkv"
+    rgb_name = "Result_RGB.mkv"
+    time_stamp = "jaized_timestamps.log"
+
+    row_folder = "/home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/MED00000/230523/row_1/1"
+
+    args.output_folder = row_folder
+    args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+    args.zed.movie_path = os.path.join(row_folder, zed_name)
+    args.depth.movie_path = os.path.join(row_folder, depth_name)
+    args.jai.movie_path = os.path.join(row_folder, fsi_name)
+    args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+
     validate_output_path(args.output_folder)
-    #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
     rc = run(cfg, args)
     rc.dump_feature_extractor(args.output_folder)
