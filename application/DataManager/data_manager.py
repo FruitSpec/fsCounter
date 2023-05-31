@@ -184,26 +184,13 @@ class DataManager(Module):
     def internet_scan():
         while True:
             t0 = time.time()
-            try:
-                # get the upload speed in KB/s
-                upload_in_kbps = speedtest.Speedtest().upload() / (1024 * 8)
-                logging.info(f"INTERNET SCAN - START - UPLOAD SPEED = {upload_in_kbps} KB/s")
-                print(f"INTERNET SCAN - START - UPLOAD SPEED = {upload_in_kbps} KB/s")
-                if upload_in_kbps < 10:
-                    raise speedtest.SpeedtestException
-                # tools.s3_upload_previous_nav_log()
-            except speedtest.SpeedtestException:
-                logging.info(f"INTERNET SCAN - NO CONNECTION")
-                print(f"INTERNET SCAN - NO CONNECTION")
-            finally:
-                # DataManager.scan_files(upload_timeout=data_conf.upload_interval - 30)
-                DataManager.scan_analyzed(scan_timeout=data_conf.upload_interval - 30)
-                t1 = time.time()
-                logging.info(f"INTERNET SCAN - END")
-                print(f"INTERNET SCAN - END")
-                next_execution_time = max(0.1, data_conf.upload_interval - (t1 - t0))
-                if DataManager.shutdown_event.wait(next_execution_time):
-                    break
+            DataManager.scan_analyzed(scan_timeout=data_conf.upload_interval - 30)
+            t1 = time.time()
+            logging.info(f"INTERNET SCAN - END")
+            print(f"INTERNET SCAN - END")
+            next_execution_time = max(0.1, data_conf.upload_interval - (t1 - t0))
+            if DataManager.shutdown_event.wait(next_execution_time):
+                break
         logging.info("INTERNET SCAN - FINISHED")
 
     @staticmethod
@@ -352,11 +339,19 @@ class DataManager(Module):
             pass
 
         t_delta = time.time() - t_scan_start
+        if uploaded_csv_df is not None:
+            print("ANALYZED:\n", analyzed_csv_df)
+            print("UPLOADED:\n", uploaded_csv_df)
+            analyzed_not_uploaded = pd.merge(analyzed_csv_df, uploaded_csv_df, how='left', indicator=True)
+            not_uploaded = analyzed_not_uploaded['_merge'] == 'left_only'
+            analyzed_not_uploaded = analyzed_not_uploaded.loc[not_uploaded, analyzed_not_uploaded.columns != '_merge']
+            print("NOT UPLOADED:\n", analyzed_not_uploaded)
+        else:
+            analyzed_not_uploaded = analyzed_csv_df
+
+        analyzed_groups = analyzed_not_uploaded.groupby(["customer_code", "plot_code", "scan_date"])
         timeout = scan_timeout - t_delta
 
-        analyzed_groups = analyzed_csv_df.groupby(["customer_code", "plot_code", "scan_date"])
-        uploaded_groups = dict(tuple(analyzed_csv_df.groupby(["customer_code", "plot_code", "scan_date"])))
-        print(uploaded_groups)
         for _, analyzed_gr in analyzed_groups:
             customer_code, plot_code, scan_date, uploaded_indices, timeout = upload_analyzed(timeout, analyzed_gr)
             timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date, uploaded_indices)
