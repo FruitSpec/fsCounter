@@ -143,6 +143,13 @@ class DataManager(Module):
                     get_index_dir=True
                 )
             elif action == ModuleTransferAction.STOP_ACQUISITION:
+                if data_conf.use_feather:
+                    filename_csv = f"{data_conf.jaized_timestamps}.csv"
+                    filename_feather = f"{data_conf.jaized_timestamps}.feather"
+                    jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
+                    jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
+                    pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
+
                 today = datetime.now().strftime("%d%m%y")
                 collected_data = {
                     "customer_code": [conf.customer_code],
@@ -158,11 +165,13 @@ class DataManager(Module):
                 input_length = len(data["JAI_frame_number"])
                 data["row"] = [DataManager.current_row] * input_length
                 data["folder_index"] = [DataManager.current_index] * input_length
-                jaized_timestamp_log_path = os.path.join(DataManager.current_path, f"jaized_timestamps.log")
+
+                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
                 jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
                 jaized_timestamp_log_df = pd.DataFrame(data)
-                is_first = not os.path.exists(jaized_timestamp_log_path)
-                jaized_timestamp_log_df.to_csv(jaized_timestamp_log_path, mode='a+', header=is_first, index=False)
+
+                is_first = not os.path.exists(jaized_timestamp_path)
+                jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=is_first, index=False)
                 is_first = not os.path.exists(jaized_timestamp_total_log_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=is_first, index=False)
 
@@ -219,10 +228,11 @@ class DataManager(Module):
             print("uploading group")
             print(analyzed_group)
 
-            def get_data_size(tracks, alignment):
+            def get_data_size(tracks, alignment, jaized_timestamps):
                 tracks_size = os.path.getsize(tracks)
                 alignment_size = os.path.getsize(alignment)
-                return (tracks_size + alignment_size) / 1024
+                timestamps_size = os.path.getsize(jaized_timestamps)
+                return (tracks_size + alignment_size + timestamps_size) / 1024
 
             t0 = time.time()
             _customer_code = analyzed_group["customer_code"].iloc[0]
@@ -241,12 +251,22 @@ class DataManager(Module):
 
                 alignment_path = os.path.join(folder_path, f"{data_conf.alignment}.{ext}")
                 alignment_s3_path = os.path.join(data_conf.upload_prefix, folder_name, f"{data_conf.alignment}.{ext}")
-                data_size_in_kb = get_data_size(tracks_path, alignment_path)
+
+                timestamps_path = os.path.join(folder_path, f"{data_conf.jaized_timestamps}.{ext}")
+                if not os.path.exists(timestamps_path):
+                    timestamps_path_log = timestamps_path.replace('csv', 'log')
+                    os.rename(timestamps_path_log, timestamps_path)
+                    print("renamed ", timestamps_path)
+                timestamps_s3_path = os.path.join(data_conf.upload_prefix, folder_name,
+                                                  f"{data_conf.jaized_timestamps}.{ext}")
+
+                data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
                 if data_size_in_kb >= upload_speed_in_kbps * timeout:
                     continue
                 try:
                     DataManager.s3_client.upload_file(tracks_path, data_conf.upload_bucket_name, tracks_s3_path)
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
+                    DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
                     try:
                         _uploaded_indices[row].append(folder_index)
                     except KeyError:
@@ -294,18 +314,17 @@ class DataManager(Module):
             response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers, timeout=timeout)
             if response.ok:
                 print("request success")
-                _uploaded_dict = pd.DataFrame(
-                    {"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
+                _uploaded_dict = {"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []}
                 for row_name, indices in uploaded_indices.items():
                     row_number = row_name.split('_')[1]
                     for index in indices:
-                        uploaded_dict["customer_code"].append(customer_code)
-                        uploaded_dict["plot_code"].append(plot_code)
-                        uploaded_dict["scan_date"].append(scan_date)
-                        uploaded_dict["row"].append(row_number)
-                        uploaded_dict["folder_index"].append(index)
+                        _uploaded_dict["customer_code"].append(customer_code)
+                        _uploaded_dict["plot_code"].append(plot_code)
+                        _uploaded_dict["scan_date"].append(scan_date)
+                        _uploaded_dict["row"].append(row_number)
+                        _uploaded_dict["folder_index"].append(index)
                 is_first = not os.path.exists(data_conf.uploaded_path)
-                uploaded_dict.to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
+                pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
@@ -326,11 +345,18 @@ class DataManager(Module):
         if analyzed_csv_df is None:
             return
 
+        uploaded_csv_df = None
+        try:
+            uploaded_csv_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
+        except FileNotFoundError:
+            pass
+
         t_delta = time.time() - t_scan_start
         timeout = scan_timeout - t_delta
 
-        uploaded_dict = pd.DataFrame({"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
         analyzed_groups = analyzed_csv_df.groupby(["customer_code", "plot_code", "scan_date"])
+        uploaded_groups = dict(tuple(analyzed_csv_df.groupby(["customer_code", "plot_code", "scan_date"])))
+        print(uploaded_groups)
         for _, analyzed_gr in analyzed_groups:
             customer_code, plot_code, scan_date, uploaded_indices, timeout = upload_analyzed(timeout, analyzed_gr)
             timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date, uploaded_indices)

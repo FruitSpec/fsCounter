@@ -9,8 +9,9 @@ output_path: /home/mic-730ai/Desktop
 file_prefix: 0
 alignment: alignment
 tracks: tracks
+jaized_timestamps: jaized_timestamps
 use_feather: false
 request_timeout: 10
 service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
-upload_bucket_name: fsCounter
+upload_bucket_name: fruitspec-counter
 upload_prefix: uploads

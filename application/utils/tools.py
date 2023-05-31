@@ -53,7 +53,7 @@ def get_imu_path():
 
 def get_jaized_timestamps_path():
     today = datetime.now().strftime("%d%m%y")
-    return os.path.join(data_conf.output_path, conf.customer_code, f'jaized_timestamps_{today}.log')
+    return os.path.join(data_conf.output_path, conf.customer_code, f'{data_conf.jaized_timestamps}_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
     try:
