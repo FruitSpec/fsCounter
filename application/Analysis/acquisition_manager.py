@@ -25,6 +25,7 @@ class AcquisitionManager(Module):
     acquisition_lock = threading.Lock()
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
+    plot, row, folder_index = None, None, None
     output_dir = ""
     output_clahe_fsi, output_equalize_hist_fsi = False, False
     output_rgb, output_800, output_975, output_svo, output_zed_mkv = False, False, False, False, False
@@ -37,8 +38,7 @@ class AcquisitionManager(Module):
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
         AcquisitionManager.jz_recorder = jaized.JaiZed()
-        AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder)
-        AcquisitionManager.set_acquisition_parameters()
+        AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
         AcquisitionManager.connect_cameras()
         # AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
@@ -52,11 +52,9 @@ class AcquisitionManager(Module):
                     actual_zed_connected = AcquisitionManager.jz_recorder.zed_connected()
                     actual_running = AcquisitionManager.jz_recorder.is_running()
                     if AcquisitionManager.jai_connected and (not actual_jai_connected):
-                        print("reviving jai after crash")
                         AcquisitionManager.jz_recorder.disconect_jai()
                         AcquisitionManager.jai_connected = AcquisitionManager.jz_recorder.connect_jai()
                     if AcquisitionManager.zed_connected and (not actual_zed_connected):
-                        print("reviving zed after crash")
                         AcquisitionManager.jz_recorder.disconect_zed()
                         AcquisitionManager.zed_connected = AcquisitionManager.jz_recorder.connect_zed(AcquisitionManager.fps)
                     if AcquisitionManager.running and not actual_running:
@@ -66,6 +64,8 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def connect_cameras():
+        AcquisitionManager.fps = 15
+        AcquisitionManager.debug_mode = True
         jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
                                                                                       AcquisitionManager.debug_mode)
         AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
@@ -74,9 +74,13 @@ class AcquisitionManager(Module):
             AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = jai_connected, zed_connected
 
     @staticmethod
-    def start_acquisition(acquisition_parameters=None, from_healthcheck=False):
+    def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
         with AcquisitionManager.acquisition_lock:
-            AcquisitionManager.set_acquisition_parameters(data=acquisition_parameters, index_only=from_healthcheck)
+            AcquisitionManager.set_acquisition_parameters(
+                data=acquisition_parameters,
+                index_only=from_healthcheck,
+                from_gps=from_gps
+            )
             running = AcquisitionManager.jz_recorder.start_acquisition(
                 AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
                 AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
@@ -91,7 +95,6 @@ class AcquisitionManager(Module):
                 with AcquisitionManager.health_check_lock:
                     AcquisitionManager.running = running
             AcquisitionManager.analyzer.start_acquisition()
-            time.sleep(1)
 
     @staticmethod
     def stop_acquisition():
@@ -102,41 +105,64 @@ class AcquisitionManager(Module):
                 AcquisitionManager.running = False
 
     @staticmethod
-    def set_acquisition_parameters(data=None, index_only=False):
+    def get_row_number(row_name):
+        try:
+            return int(row_name.split('_')[-1])
+        except:
+            return 0
+
+
+
+    @staticmethod
+    def set_acquisition_parameters(data, index_only=False, from_gps=False):
         if index_only:
             row_path = os.path.dirname(AcquisitionManager.output_dir)
-            folder_index = tools.get_folder_index(row_path)
+            AcquisitionManager.row = os.path.basename(row_path)
+            AcquisitionManager.folder_index = tools.get_folder_index(row_path)
 
-            AcquisitionManager.output_dir = os.path.join(row_path, str(folder_index))
+            AcquisitionManager.output_dir = os.path.join(row_path, str(AcquisitionManager.folder_index))
             AcquisitionManager.analyzer.set_output_dir(AcquisitionManager.output_dir)
 
             if not os.path.exists(AcquisitionManager.output_dir):
                 os.makedirs(AcquisitionManager.output_dir)
 
         else:
-            if not data:
-                AcquisitionManager.output_dir = os.path.join(data_conf['output path'], 'jaized_app_temp')
-
-                if analysis_conf["autonomous easy config"]:
-                    weather = analysis_conf["default weather"]
-                    camera_data = analysis_conf["default acquisition parameters"][weather]
-                    output_types = analysis_conf["default acquisition parameters"]["output types"]
+            if from_gps:
+                AcquisitionManager.plot = data
+                plot_dir = os.path.join(data_conf.output_path, conf.customer_code, AcquisitionManager.plot)
+                today = datetime.now().strftime("%d%m%y")
+                today_dir = os.path.join(plot_dir, today)
+                if os.path.exists(plot_dir):
+                    new_row_number = 1 + max([AcquisitionManager.get_row_number(f) for f in os.listdir(today_dir)],
+                                             default=0)
                 else:
-                    camera_data = analysis_conf["custom acquisition parameters"]
+                    new_row_number = 1
+                AcquisitionManager.row = f"row_{new_row_number}"
+                row_path = os.path.join(plot_dir, today, AcquisitionManager.row)
+                AcquisitionManager.folder_index = "1"
+                AcquisitionManager.output_dir = os.path.join(row_path, AcquisitionManager.folder_index)
+
+                if analysis_conf.autonomous_easy_config:
+                    weather = analysis_conf.default_weather
+                    camera_data = analysis_conf.default_acquisition_parameters[weather]
+                    output_types = analysis_conf.default_acquisition_parameters.output_types
+                else:
+                    camera_data = analysis_conf.custom_acquisition_parameters
                     output_types = camera_data["default output types"]
             else:
                 today = datetime.now().strftime("%d%m%y")
-                plot = data["plot"]
-                row = f"row_{data['row']}"
-                row_path = os.path.join(data["outputPath"], conf["customer code"], plot, today, row)
-                folder_index = tools.get_folder_index(row_path)
+                AcquisitionManager.plot = data["plot"]
+                AcquisitionManager.row = f"row_{data['row']}"
+                row_path = os.path.join(data["outputPath"], conf.customer_code, AcquisitionManager.plot, today,
+                                        AcquisitionManager.row)
+                AcquisitionManager.folder_index = tools.get_folder_index(row_path)
 
-                AcquisitionManager.output_dir = os.path.join(row_path, str(folder_index))
+                AcquisitionManager.output_dir = os.path.join(row_path, str(AcquisitionManager.folder_index))
 
                 if 'Default' in data['configType']:
                     weather = data['weather']
-                    camera_data = analysis_conf["default acquisition parameters"][weather]
-                    output_types = analysis_conf["default acquisition parameters"]["output types"]
+                    camera_data = analysis_conf.default_acquisition_parameters[weather]
+                    output_types = analysis_conf.default_acquisition_parameters.output_types
                 else:
                     camera_data = data["Cameras"]
                     output_types = camera_data["outputTypes"]
@@ -148,7 +174,7 @@ class AcquisitionManager(Module):
             AcquisitionManager.exposure_800 = int(camera_data['IntegrationTime800'])
             AcquisitionManager.exposure_975 = int(camera_data['IntegrationTime975'])
             AcquisitionManager.output_clahe_fsi = 'clahe' in output_types or 'fsi' in output_types
-            AcquisitionManager.output_equalize_hist_fsi = 'equalize hist' in output_types or 'fsi' in output_types
+            AcquisitionManager.output_equalize_hist_fsi = 'equalize_hist' in output_types or 'fsi' in output_types
             AcquisitionManager.output_rgb = 'rgb' in output_types
             AcquisitionManager.output_800 = '800' in output_types
             AcquisitionManager.output_975 = '975' in output_types
@@ -168,17 +194,22 @@ class AcquisitionManager(Module):
     def receive_data(sig, frame):
         data, sender_module = AcquisitionManager.qu.get()
         action, data = data["action"], data["data"]
-        global_polygon = GPS_conf["global polygon"]
-        if type(sender_module) is tuple:
-            print("ACQ MAN: ", sender_module, " ,", data)
-            return
+        global_polygon = GPS_conf.global_polygon
         if sender_module == ModulesEnum.GPS:
-            if data != global_polygon:
+            if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
                 logging.info("START ACQUISITION FROM GPS")
-                AcquisitionManager.start_acquisition()
-            else:
-                AcquisitionManager.stop_acquisition()
+                AcquisitionManager.plot = data
+                AcquisitionManager.start_acquisition(AcquisitionManager.plot, from_gps=True)
+                data = {
+                    "plot": AcquisitionManager.plot,
+                    "row": AcquisitionManager.get_row_number(AcquisitionManager.row),
+                    "folder_index": AcquisitionManager.folder_index
+                }
+                AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
+            elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
                 logging.info("STOP ACQUISITION FROM GPS")
+                AcquisitionManager.stop_acquisition()
+                AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)
         elif sender_module == ModulesEnum.GUI:
             if action == ModuleTransferAction.START_ACQUISITION:
                 logging.info("START ACQUISITION FROM GUI")

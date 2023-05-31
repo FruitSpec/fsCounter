@@ -1,8 +1,8 @@
-upload bucket name: fsCounter
-upload prefix: uploads
-counter number: 1
-logs path: "~/Desktop/counter_logs/"
-log name: "log"
+upload_bucket_name: fsCounter
+upload_prefix: uploads
+counter_number: 1
+logs_path: "~/Desktop/counter_logs/"
+log_name: "log"
 GUI: true
-GPS: true
-customer code: "MOTCHA"
+autonomous_acquisition: true
+customer_code: "MOTCHA"

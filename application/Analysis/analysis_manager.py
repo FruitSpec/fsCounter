@@ -8,9 +8,9 @@ import numpy as np
 class AnalysisManager:
     _batcher = None
 
-    def __init__(self, frames_queue):
+    def __init__(self, frames_queue, send_data):
 
-        self._batcher = Batcher(frames_queue)
+        self._batcher = Batcher(frames_queue, send_data)
         self._batch_thread = Thread(target=self.batch, daemon=True)
         self._detect_proc = Process(target=self.detect, daemon=True)
         self._track_proc = Process(target=self.track, daemon=True)

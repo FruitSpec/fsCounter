@@ -57,9 +57,9 @@ class LedSettings:
         while LedSettings._state == LedState.BLINK:
             for i in range(repeat_time):
                 LedSettings.turn_on(color)
-                time.sleep(GPS_conf["led blink sleep time"])
+                time.sleep(GPS_conf.led_blink_sleep_time)
                 LedSettings.turn_off()
-                time.sleep(GPS_conf["led blink sleep time"])
+                time.sleep(GPS_conf.led_blink_sleep_time)
 
             LedSettings.turn_on(color)
             time.sleep(pause_time)

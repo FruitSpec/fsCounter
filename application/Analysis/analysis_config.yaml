@@ -1,12 +1,12 @@
-autonomous easy config: true
-default weather: clear
-default acquisition parameters:
+autonomous_easy_config: true
+default_weather: clear
+default_acquisition_parameters:
   clear:
     FPS: 10
     IntegrationTimeRGB: 1000
     IntegrationTime800: 2000
     IntegrationTime975: 5000
-  partly cloudy:
+  partly_cloudy:
     FPS: 10
     IntegrationTimeRGB: 1000
     IntegrationTime800: 2000
@@ -16,12 +16,12 @@ default acquisition parameters:
     IntegrationTimeRGB: 1000
     IntegrationTime800: 2000
     IntegrationTime975: 5000
-  output types: ["equalize hist", "RGB", "zed"]
-custom acquisition parameters:
+  output_types: ["equalize_hist", "RGB", "zed"]
+custom_acquisition_parameters:
   FPS: 10
   IntegrationTimeRGB: 1000
   IntegrationTime800: 2000
   IntegrationTime975: 5000
-  output types: ["equalize hist", "RGB", "zed"]
-batch size: 4
-max batches: 30
+  output_types: ["equalize_hist", "RGB", "zed"]
+batch_size: 4
+max_batches: 30

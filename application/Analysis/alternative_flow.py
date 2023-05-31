@@ -34,7 +34,7 @@ class AlternativeFlow(Module):
         def read_collected_analyzed():
             while True:
                 try:
-                    collected = pd.read_csv(data_conf['collected path'])
+                    collected = pd.read_csv(data_conf.collected_path)
                     print('collected was read')
                     break
                 except (FileNotFoundError, PermissionError):
@@ -44,7 +44,7 @@ class AlternativeFlow(Module):
                 except Exception:
                     traceback.print_exc()
             try:
-                analyzed = pd.read_csv(data_conf['analyzed path'])
+                analyzed = pd.read_csv(data_conf.analyzed_path)
             except (FileNotFoundError, PermissionError):
                 analyzed = pd.DataFrame()
             return collected, analyzed
@@ -106,7 +106,7 @@ class AlternativeFlow(Module):
 
         row_args = args.copy()
         folder_index = str(int(row['folder_index']))
-        row_folder = os.path.join(data_conf['output path'], row['customer_code'], row['plot_code'],
+        row_folder = os.path.join(data_conf.output_path, row['customer_code'], row['plot_code'],
                                   str(row['scan_date']), f"row_{int(row['row'])}", folder_index)
         row_args.output_folder = row_folder
         row_args.row_name = int(row['row'])

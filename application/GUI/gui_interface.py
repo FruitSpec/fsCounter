@@ -4,7 +4,7 @@ import threading
 from enum import Enum
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
-from application.utils.settings import GUI_conf, conf, analysis_conf
+from application.utils.settings import GUI_conf, conf
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
@@ -30,14 +30,14 @@ class GUIInterface(Module):
             app = socketio.WSGIApp(GUIInterface.sio)
             wsgi_server(GUIInterface.listener, app)
 
-        if not conf["GUI"]:
+        if not conf.GUI:
             return False
 
         super(GUIInterface, GUIInterface).init_module(qu, main_pid, module_name, communication_queue)
         super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
 
-        GUIInterface.listener = wsgi_listen(('', GUI_conf["GUI server port"]))
-        subprocess.Popen(GUI_conf["GUI startup script"], shell=True,
+        GUIInterface.listener = wsgi_listen(('', GUI_conf.GUI_server_port))
+        subprocess.Popen(GUI_conf.GUI_startup_script, shell=True,
                          stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL)
         GUIInterface.server_thread = threading.Thread(target=setup_server, daemon=True)

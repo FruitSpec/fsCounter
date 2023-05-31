@@ -9,7 +9,7 @@ import speedtest
 from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import EndpointConnectionError
-from application.utils.settings import conf, data_conf, GPS_conf, analysis_conf, GUI_conf
+from application.utils.settings import conf, data_conf
 
 
 def s3_path_join(*args):
@@ -40,7 +40,7 @@ def is_svo(filename):
 
 def get_nav_path():
     today = datetime.now().strftime("%d%m%y")
-    nav_dir = os.path.join(data_conf["output path"], conf["customer code"])
+    nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
     if not os.path.exists(nav_dir):
         os.makedirs(nav_dir)
     return os.path.join(nav_dir, f'{today}.nav')
@@ -48,8 +48,12 @@ def get_nav_path():
 
 def get_imu_path():
     today = datetime.now().strftime("%d%m%y")
-    return os.path.join(data_conf["output path"], conf["customer code"], f'{today}.imu')
+    return os.path.join(data_conf.output_path, conf.customer_code, f'{today}.imu')
 
+
+def get_jaized_timestamps_path():
+    today = datetime.now().strftime("%d%m%y")
+    return os.path.join(data_conf.output_path, conf.customer_code, f'jaized_timestamps_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
     try:
@@ -63,13 +67,16 @@ def get_folder_index(row_path, get_next_index=True):
     return folder_index
 
 
-def get_fruits_path(plot, row, index=-1, write_csv=True, get_row_dir=False):
+def get_path(plot, row, index=-1, write_csv=True, get_row_dir=False, get_index_dir=False):
     ext = "csv" if write_csv else "feather"
     today = datetime.now().strftime("%d%m%y")
     row = f"row_{row}"
-    row_dir = os.path.join(data_conf["output path"], conf["customer code"], plot, today, row)
+    row_dir = os.path.join(data_conf.output_path, conf.customer_code, plot, today, row)
     if get_row_dir:
         return row_dir
+    index_dir = os.path.join(row_dir, str(index))
+    if get_index_dir:
+        return index_dir
     filename = f"fruits.{ext}"
     return os.path.join(row_dir, str(index), filename)
 
@@ -94,7 +101,7 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
     valid_indices = []
 
     # iterate through the indices and separate the files by size
-    file_suffix = "feather" if data_conf["use feather"] else "csv"
+    file_suffix = "feather" if data_conf.use_feather else "csv"
     try:
         # get the upload speed (bit/s) and remaining time
         upload_in_bps, timeout = timed_call(timeout, speedtest.Speedtest().upload)
@@ -121,14 +128,14 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
         logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - UPLOADING INDICES {indices_per_row}")
         for index in indices_per_row:
             filename = f"fruits.{file_suffix}"
-            file_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, str(index), filename)
+            file_path = os.path.join(data_conf.output_path, customer_code, plot_code, scan_date, str(index), filename)
             f_size = get_file_size(file_path)
             if timeout <= 1:
                 logging.info(f"DATA MANAGER - UPLOAD TO S3 - TIMEOUT STATUS - {timeout} - STOPPING")
                 break
 
             filename = f"fruits.{file_suffix}"
-            fruits_path = os.path.join(data_conf["output path"], customer_code, plot_code, scan_date, str(index), filename)
+            fruits_path = os.path.join(data_conf.output_path, customer_code, plot_code, scan_date, str(index), filename)
             aws_path = os.path.join(customer_code, plot_code, scan_date, filename)
 
             # f_size is the size of the file in KB.
@@ -138,7 +145,7 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
                 continue
             try:
                 # Attempt to upload the file and update the remaining time
-                timeout = timed_call(timeout, s3_client.upload_file, fruits_path, data_conf["upload bucket name"],
+                timeout = timed_call(timeout, s3_client.upload_file, fruits_path, data_conf.upload_bucket_name,
                                      aws_path)
                 logging.info(f"DATA MANAGER - UPLOAD TO S3 - {current_path}/{filename} - SUCCESS, TIMEOUT STATUS - {timeout}")
                 valid_indices.append(index)
@@ -162,10 +169,10 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
 
 
 def send_request_to_server(customer_code, plot_code, scan_date, indices):
-    file_type = "FEATHER" if data_conf["use feather"] else "CSV"
+    file_type = "FEATHER" if data_conf.use_feather else "CSV"
     fruits_data = {
-        "bucket": conf["upload bucket name"],
-        "prefix": conf["upload prefix"],
+        "bucket": conf.upload_bucket_name,
+        "prefix": conf.upload_prefix,
         "customer_code": customer_code,
         "plot_code": plot_code,
         "date": scan_date,
@@ -173,9 +180,9 @@ def send_request_to_server(customer_code, plot_code, scan_date, indices):
         # "project type": settings.project_type,
         # "season": settings.season,
         "file type": file_type,
-        "counter number": conf["counter number"]
+        "counter number": conf.counter_number
     }
 
     headers = {"Content-Type": "application/json; charset=utf-8", "Accept": "text/plain"}
-    return requests.post(data_conf["service endpoint"], json=fruits_data, headers=headers,
-                         timeout=data_conf["request timeout"])
+    return requests.post(data_conf.service_endpoint, json=fruits_data, headers=headers,
+                         timeout=data_conf.request_timeout)

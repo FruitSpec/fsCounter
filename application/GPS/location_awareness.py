@@ -18,10 +18,10 @@ from application.GPS.led_settings import LedSettings, LedColor
 
 class GPSSampler(Module):
     kml_flag = False
-    global_polygon = GPS_conf["global polygon"]
+    global_polygon = GPS_conf.global_polygon
     locator = None
     sample_thread = None
-    previous_plot, current_plot = GPS_conf["global polygon"], GPS_conf["global polygon"]
+    previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
 
     @staticmethod
     def init_module(qu, main_pid, module_name, communication_queue):
@@ -39,8 +39,8 @@ class GPSSampler(Module):
         while not GPSSampler.kml_flag:
             try:
                 s3_client = boto3.client('s3')
-                kml_aws_path = tools.s3_path_join(conf['customer code'], GPS_conf['s3 kml file name'])
-                s3_client.download_file(GPS_conf["kml bucket name"], kml_aws_path, GPS_conf["kml path"])
+                kml_aws_path = tools.s3_path_join(conf.customer_code, GPS_conf.s3_kml_file_name)
+                s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
                 GPSSampler.kml_flag = True
                 logging.info("LATEST KML FILE RETRIEVED")
             except Exception:
@@ -56,7 +56,7 @@ class GPSSampler(Module):
         time.sleep(1)
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
             try:
-                GPSSampler.locator = GPSLocator(GPS_conf["kml path"])
+                GPSSampler.locator = GPSLocator(GPS_conf.kml_path)
                 logging.info("LOCATOR INITIALIZED")
             except Exception:
                 logging.error("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
@@ -165,9 +165,9 @@ class GPSSampler(Module):
     @staticmethod
     def step_in():
         logging.info(f"STEP IN {GPSSampler.current_plot}")
-        # GPSSampler.send_data(ModuleTransferAction.BLOCK_SWITCH, GPSSampler.current_plot, ModulesEnum.DataManager, ModulesEnum.Analysis)
+        GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
 
     @staticmethod
     def step_out():
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
-        # GPSSampler.send_data(ModuleTransferAction.BLOCK_SWITCH, GPSSampler.global_polygon, ModulesEnum.Analysis)
+        GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
