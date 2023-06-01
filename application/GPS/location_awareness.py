@@ -164,10 +164,12 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_in():
+        print(f"STEP IN {GPSSampler.current_plot}")
         logging.info(f"STEP IN {GPSSampler.current_plot}")
         GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
 
     @staticmethod
     def step_out():
+        print(f"STEP OUT {GPSSampler.previous_plot}")
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
         GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)

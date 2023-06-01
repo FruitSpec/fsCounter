@@ -132,7 +132,7 @@ class AcquisitionManager(Module):
                 plot_dir = os.path.join(data_conf.output_path, conf.customer_code, AcquisitionManager.plot)
                 today = datetime.now().strftime("%d%m%y")
                 today_dir = os.path.join(plot_dir, today)
-                if os.path.exists(plot_dir):
+                if os.path.exists(today_dir):
                     new_row_number = 1 + max([AcquisitionManager.get_row_number(f) for f in os.listdir(today_dir)],
                                              default=0)
                 else:
@@ -207,6 +207,7 @@ class AcquisitionManager(Module):
                 }
                 AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
             elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
+                time.sleep(1)
                 logging.info("STOP ACQUISITION FROM GPS")
                 AcquisitionManager.stop_acquisition()
                 AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)

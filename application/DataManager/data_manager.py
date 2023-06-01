@@ -209,6 +209,10 @@ class DataManager(Module):
         except speedtest.SpeedtestException:
             logging.info("NO INTERNET CONNECTION")
             print("NO INTERNET CONNECTION")
+            return
+        except Exception:
+            logging.exception("unknown handled exception: ")
+            return
 
         def upload_analyzed(timeout_before, analyzed_group):
 

@@ -4,6 +4,7 @@ import time
 import os
 from Jetson import GPIO
 from application.utils.settings import GPS_conf
+import subprocess
 
 
 class LedColor(enum.Enum):
@@ -30,15 +31,19 @@ class LedSettings:
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.ON
         LedSettings._color = color
-        os.system(f'/home/mic-710aix/fruitspec/fsCounter/application/utils/diotest -set {color.value} {GPIO.HIGH}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {color.value} {GPIO.HIGH}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {color.value} {GPIO.HIGH}')
 
     @staticmethod
     def turn_off():
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.OFF
-        os.system(f'/home/mic-710aix/fruitspec/fsCounter/application/utils/diotest -set {LedColor.GREEN.value} {GPIO.LOW}')
-        os.system(f'/home/mic-710aix/fruitspec/fsCounter/application/utils/diotest -set {LedColor.RED.value} {GPIO.LOW}')
-        os.system(f'/home/mic-710aix/fruitspec/fsCounter/application/utils/diotest -set {LedColor.ORANGE.value} {GPIO.LOW}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.GREEN.value} {GPIO.LOW}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.GREEN.value} {GPIO.LOW}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.RED.value} {GPIO.LOW}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.RED.value} {GPIO.LOW}')
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.ORANGE.value} {GPIO.LOW}',)
+        os.system(f'/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest -set {LedColor.ORANGE.value} {GPIO.LOW}')
 
     @staticmethod
     def start_blinking(color_led, repeat_time=2, pause_time=0.5):

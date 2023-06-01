@@ -34,7 +34,7 @@ class AlternativeFlow(Module):
         def read_collected_analyzed():
             while True:
                 try:
-                    collected = pd.read_csv(data_conf.collected_path)
+                    collected = pd.read_csv(data_conf.collected_path, dtype=str)
                     print('collected was read')
                     break
                 except (FileNotFoundError, PermissionError):
@@ -44,7 +44,7 @@ class AlternativeFlow(Module):
                 except Exception:
                     traceback.print_exc()
             try:
-                analyzed = pd.read_csv(data_conf.analyzed_path)
+                analyzed = pd.read_csv(data_conf.analyzed_path, dtype=str)
             except (FileNotFoundError, PermissionError):
                 analyzed = pd.DataFrame()
             return collected, analyzed
@@ -74,12 +74,14 @@ class AlternativeFlow(Module):
                     logging.info(f"Done analyzing {list(row)}")
                 except:
                     logging.exception(f"Failed to analyze {list(row)}")
+                    print(f"Failed to analyze {list(row)}")
                 finally:
                     collected.drop(index=row_index, inplace=True)
             else:
-                print('No new file Found, waiting 1 minute')
                 collected, analyzed = read_collected_analyzed()
-            time.sleep(60)
+                logging.info('No new file found, waiting 1 minute')
+                print('No new file found, waiting 1 minute')
+                time.sleep(60)
 
     @staticmethod
     def seek_new_row(collected, analyzed):
@@ -114,7 +116,7 @@ class AlternativeFlow(Module):
         row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
         row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
         row_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
-        row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps.log")
+        row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps.csv")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
 

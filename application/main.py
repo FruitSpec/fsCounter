@@ -1,7 +1,7 @@
 import os
 import signal
 import logging
-import threading
+from threading import Lock
 from multiprocessing import Queue
 import time
 import sys
@@ -19,7 +19,7 @@ from Analysis.alternative_flow import AlternativeFlow
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
 from GUI.gui_interface import GUIInterface
 
-global manager, communication_queue
+global manager, communication_queue, transfer_data_lock
 
 
 def shutdown():
@@ -29,24 +29,26 @@ def shutdown():
 
 
 def transfer_data(sig, frame):
-    global manager, communication_queue
-    sender_module = communication_queue.get()
-    for i in range(5):
-        try:
-            data, recv_modules = manager[sender_module].retrieve_transferred_data()
-            for recv_module in recv_modules:
-                manager[recv_module].receive_transferred_data(data, sender_module)
+    global manager, communication_queue, transfer_data_lock
+    with transfer_data_lock:
+        sender_module = communication_queue.get()
+        for i in range(5):
+            try:
+                data, recv_modules = manager[sender_module].retrieve_transferred_data()
+                for recv_module in recv_modules:
+                    manager[recv_module].receive_transferred_data(data, sender_module)
+                    time.sleep(0.1)
+                return
+            except DataError:
                 time.sleep(0.1)
-            return
-        except DataError:
-            time.sleep(0.1)
-            # logging.exception("communication error")
+                # logging.exception("communication error")
 
 
 def main():
-    global manager, communication_queue
+    global manager, communication_queue, transfer_data_lock
     manager = dict()
     communication_queue = Queue()
+    transfer_data_lock = Lock()
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager()
     main_pid = os.getpid()

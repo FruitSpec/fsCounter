@@ -4,5 +4,5 @@ counter_number: 1
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
 GUI: true
-autonomous_acquisition: true
+autonomous_acquisition: false
 customer_code: "MOTCHA"
