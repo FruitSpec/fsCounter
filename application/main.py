@@ -12,7 +12,6 @@ from application.utils.settings import set_logger
 
 set_logger()
 
-import ray
 from GPS.location_awareness import GPSSampler
 from DataManager.data_manager import DataManager
 from Analysis.acquisition_manager import AcquisitionManager
