@@ -19,7 +19,6 @@ from application.GPS.led_settings import LedSettings, LedColor
 
 class GPSSampler(Module):
     kml_flag = False
-    global_polygon = GPS_conf.global_polygon
     locator = None
     sample_thread = None
     is_in_row = False
@@ -106,7 +105,7 @@ class GPSSampler(Module):
                 GPSSampler.previous_plot = GPSSampler.current_plot
                 GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
-                if GPSSampler.current_plot == GPSSampler.global_polygon:
+                if GPSSampler.current_plot == GPS_conf.global_polygon:
                     LedSettings.turn_on(LedColor.ORANGE)
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
@@ -127,27 +126,21 @@ class GPSSampler(Module):
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     step_out_count = 0
                     # stepped into new block
-                    if GPSSampler.previous_plot == GPSSampler.global_polygon:
+                    if GPSSampler.previous_plot == GPS_conf.global_polygon:
                         GPSSampler.step_in()
                         allow_step_out = False
                     else:
                         allow_step_out = True
                 else:
                     step_out_count += 1
+                    if step_out_count <= 3:
+                        print(f"IN {GPSSampler.current_plot} FOR {step_out_count} TIMES")
 
                 if allow_step_out and step_out_count == 3:
                     allow_step_out = False
                     GPSSampler.step_out()
+                    GPSSampler.current_plot = GPS_conf.global_polygon
 
-                    # stepped out from block
-                    if GPSSampler.current_plot == GPSSampler.global_polygon:
-                        GPSSampler.step_out()
-
-                    # moved from one block to another
-                    else:
-                        GPSSampler.step_out()
-                        time.sleep(1)
-                        GPSSampler.step_in()
                 err_count = 0
 
             except ValueError as e:
@@ -155,8 +148,8 @@ class GPSSampler(Module):
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
                     logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
                 # release the last detected block into Global if it is over 300 sec without GPS
-                if err_count > 300 and GPSSampler.current_plot != GPSSampler.global_polygon:
-                    GPSSampler.current_plot = GPSSampler.global_polygon
+                if err_count > 300 and GPSSampler.current_plot != GPS_conf.global_polygon:
+                    GPSSampler.current_plot = GPS_conf.global_polygon
                     GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
             except Exception:
