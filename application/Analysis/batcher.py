@@ -95,18 +95,7 @@ class Batcher:
                 batch = []
             if jai_frame.frame_number % 50 == 0:
                 self._send_data(ModuleTransferAction.JAIZED_TIMESTAMPS, timestamps_log_dict, ModulesEnum.DataManager)
-                # jaized_timestamp_log_path = os.path.join(self.output_dir, f"jaized_timestamps.log")
-                # jaized_timestamp_log_df = pd.DataFrame(timestamps_log_dict)
-                # is_first = not os.path.exists(jaized_timestamp_log_path)
-                # jaized_timestamp_log_df.to_csv(jaized_timestamp_log_path, mode='a+', header=is_first, index=False)
-                # timestamps_log_dict = init_timestamp_log_dict()
-
-                # print(f"angular_velocity: ({av.x}, {av.y}, {av.z})")
-                # print(f"linear acceleration: ({la.x}, {la.y}, {la.z})")
-            # if jai_frame.frame_number % 50 == 0:
-            #     cv2.destroyAllWindows()
-            #     cv2.imshow("mat", jai_frame.rgb)
-            #     cv2.waitKey(1000)
+                timestamps_log_dict = init_timestamp_log_dict()
 
     def pop_batch(self):
         return self._batches_queue.get(block=True)
