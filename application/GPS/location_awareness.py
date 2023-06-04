@@ -162,32 +162,19 @@ class GPSSampler(Module):
         LedSettings.turn_off()
         GPSSampler.shutdown_done_event.set()
 
-    # @staticmethod
-    # def block_switch():
-    #     path = os.path.join(settings.output_path, self.save_path)
-    #     GPSSampler.update_file_index(path)  # update file index
-    #     if not os.path.exists(path):  # create path if needed
-    #         Path(path).mkdir(parents=True, exist_ok=True)
-    #     os.kill(settings.server_pid, signal.SIGUSR1)
-    #     globals.path_sender.send((path, self.file_index))
-    #     logging.info(f"CLIENT MANUAL BLOCK SWITCH - PATH: {path} FILE INDEX: {self.file_index}")
 
     @staticmethod
     def step_in():
-        print(f"STEP IN {GPSSampler.current_plot}")
         if not GPSSampler.is_in_row:
+            print(f"STEP IN {GPSSampler.current_plot}")
             logging.info(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
             GPSSampler.is_in_row = True
-        else:
-            print("ERROR IN GPS STEP IN!")
 
     @staticmethod
     def step_out():
-        print(f"STEP OUT {GPSSampler.previous_plot}")
         if GPSSampler.is_in_row:
+            print(f"STEP OUT {GPSSampler.previous_plot}")
             logging.info(f"STEP OUT {GPSSampler.previous_plot}")
             GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
             GPSSampler.is_in_row = False
-        else:
-            print("ERROR IN GPS STEP OUT!")
