@@ -81,20 +81,18 @@ class AlternativeFlow(Module):
         found_new_row = False
         for row_index, row in collected.iterrows():
             unique_str = create_str_from_row(row)
-            if unique_str in analyzed_list:
-                continue
-            else:
+            if unique_str not in analyzed_list:
                 found_new_row = True
                 break
 
         return found_new_row, row, row_index
-
 
     @staticmethod
     def update_runtime_args(args, row):
 
         row_args = args.copy()
         folder_index = str(int(row['folder_index']))
+        ext = row['ext']
         row_folder = os.path.join(data_conf.output_path, row['customer_code'], row['plot_code'],
                                   str(row['scan_date']), f"row_{int(row['row'])}", folder_index)
         row_args.output_folder = row_folder
@@ -103,7 +101,7 @@ class AlternativeFlow(Module):
         row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
         row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
         row_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
-        row_args.sync_data_log_path = os.path.join(row_folder, f"jaized_timestamps.csv")
+        row_args.sync_data_log_path = os.path.join(row_folder, f"{data_conf.jaized_timestamps}.{ext}")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
 
@@ -143,8 +141,8 @@ class AlternativeFlow(Module):
 
 
 def create_str_from_row(row):
-    unique_str = str(row['customer_code']) + '_' + str(row['plot_code']) + '_' +\
-                 str(row['scan_date']) + '_' + str(row['row']) + '_' + str(int(row['folder_index']))
+    unique_str = '_'.join([str(row['customer_code']), str(row['plot_code']), str(row['scan_date']),
+                          str(row['row']), str(int(row['folder_index'])), str(row['ext'])])
 
     return unique_str
 
