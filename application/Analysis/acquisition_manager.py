@@ -207,7 +207,6 @@ class AcquisitionManager(Module):
                 }
                 AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
             elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
-                time.sleep(1)
                 logging.info("STOP ACQUISITION FROM GPS")
                 AcquisitionManager.stop_acquisition()
                 AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)

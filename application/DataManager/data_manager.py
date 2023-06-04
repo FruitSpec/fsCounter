@@ -61,6 +61,41 @@ class DataManager(Module):
 
     @staticmethod
     def receive_data(sig, frame):
+
+        def jaized_timestamps():
+            input_length = len(data["JAI_frame_number"])
+            data["row"] = [DataManager.current_row] * input_length
+            data["folder_index"] = [DataManager.current_index] * input_length
+
+            jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
+            jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
+            jaized_timestamp_log_df = pd.DataFrame(data)
+
+            is_first = not os.path.exists(jaized_timestamp_path)
+            jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=is_first, index=False)
+            is_first = not os.path.exists(jaized_timestamp_total_log_path)
+            jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=is_first, index=False)
+
+        def stop_acquisition():
+            if data_conf.use_feather:
+                filename_csv = f"{data_conf.jaized_timestamps}.csv"
+                filename_feather = f"{data_conf.jaized_timestamps}.feather"
+                jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
+                jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
+                pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
+
+            today = datetime.now().strftime("%d%m%y")
+            collected_data = {
+                "customer_code": [conf.customer_code],
+                "plot_code": [DataManager.current_plot],
+                "scan_date": [today],
+                "row": [str(int(DataManager.current_row))],
+                "folder_index": [str(int(DataManager.current_index))]
+            }
+            tmp_df = pd.DataFrame(data=collected_data, index=[0])
+            DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
+            DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
+
         data, sender_module = DataManager.qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
@@ -152,37 +187,12 @@ class DataManager(Module):
                     get_index_dir=True
                 )
             elif action == ModuleTransferAction.STOP_ACQUISITION:
-                if data_conf.use_feather:
-                    filename_csv = f"{data_conf.jaized_timestamps}.csv"
-                    filename_feather = f"{data_conf.jaized_timestamps}.feather"
-                    jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
-                    jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
-                    pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
-
-                today = datetime.now().strftime("%d%m%y")
-                collected_data = {
-                    "customer_code": [conf.customer_code],
-                    "plot_code": [DataManager.current_plot],
-                    "scan_date": [today],
-                    "row": [str(int(DataManager.current_row))],
-                    "folder_index": [str(int(DataManager.current_index))]
-                }
-                tmp_df = pd.DataFrame(data=collected_data, index=[0])
-                DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
-                DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
+                stop_acquisition()
             elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
-                input_length = len(data["JAI_frame_number"])
-                data["row"] = [DataManager.current_row] * input_length
-                data["folder_index"] = [DataManager.current_index] * input_length
-
-                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
-                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
-                jaized_timestamp_log_df = pd.DataFrame(data)
-
-                is_first = not os.path.exists(jaized_timestamp_path)
-                jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=is_first, index=False)
-                is_first = not os.path.exists(jaized_timestamp_total_log_path)
-                jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=is_first, index=False)
+                jaized_timestamps()
+            elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
+                jaized_timestamps()
+                stop_acquisition()
 
     @staticmethod
     def update_output():
@@ -344,6 +354,8 @@ class DataManager(Module):
 
         if analyzed_csv_df is None:
             return
+
+        analyzed_csv_df = analyzed_csv_df[analyzed_csv_df["status"] == "success"]
 
         uploaded_csv_df = None
         try:
