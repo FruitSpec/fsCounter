@@ -70,7 +70,7 @@ class DataManager(Module):
                 nav_path = tools.get_nav_path()
                 nav_df = pd.DataFrame(data)
                 is_first = not os.path.exists(nav_path)
-                nav_df.to_csv(nav_path, header=is_first, index=False, mode='a')
+                nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
         elif sender_module == ModulesEnum.Analysis:
             if action == ModuleTransferAction.FRUITS_DATA:
                 logging.info(f"FRUIT DATA RECEIVED")
@@ -100,7 +100,6 @@ class DataManager(Module):
                                                  plot_code,
                                                  str(scan_date),
                                                  f"row_{row}")
-
 
                     tracks, tracks_headers = data["tracks"], data["tracks_headers"]
                     tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")

@@ -1,5 +1,6 @@
 import signal
 import threading
+import traceback
 from builtins import staticmethod
 
 import boto3
@@ -21,6 +22,7 @@ class GPSSampler(Module):
     global_polygon = GPS_conf.global_polygon
     locator = None
     sample_thread = None
+    is_in_row = False
     previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
 
     @staticmethod
@@ -28,7 +30,9 @@ class GPSSampler(Module):
         GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
-
+        
+        GPSSampler.is_in_row = False
+        
         GPSSampler.set_locator()
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
@@ -84,6 +88,8 @@ class GPSSampler(Module):
                 time.sleep(5)
         err_count = 0
         sample_count = 0
+        step_out_count = 0
+        allow_step_out = False
         gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             data = ""
@@ -119,18 +125,28 @@ class GPSSampler(Module):
                     gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                    step_out_count = 0
                     # stepped into new block
                     if GPSSampler.previous_plot == GPSSampler.global_polygon:
                         GPSSampler.step_in()
+                        allow_step_out = False
+                    else:
+                        allow_step_out = True
+                else:
+                    step_out_count += 1
+
+                if allow_step_out and step_out_count == 3:
+                    allow_step_out = False
+                    GPSSampler.step_out()
 
                     # stepped out from block
-                    elif GPSSampler.current_plot == GPSSampler.global_polygon:
+                    if GPSSampler.current_plot == GPSSampler.global_polygon:
                         GPSSampler.step_out()
 
                     # moved from one block to another
                     else:
                         GPSSampler.step_out()
-                        time.sleep(0.2)
+                        time.sleep(1)
                         GPSSampler.step_in()
                 err_count = 0
 
@@ -145,6 +161,7 @@ class GPSSampler(Module):
                 LedSettings.turn_on(LedColor.RED)
             except Exception:
                 logging.exception("SAMPLE UNEXPECTED EXCEPTION")
+                traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
         ser.close()
@@ -165,11 +182,19 @@ class GPSSampler(Module):
     @staticmethod
     def step_in():
         print(f"STEP IN {GPSSampler.current_plot}")
-        logging.info(f"STEP IN {GPSSampler.current_plot}")
-        GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
+        if not GPSSampler.is_in_row:
+            logging.info(f"STEP IN {GPSSampler.current_plot}")
+            GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
+            GPSSampler.is_in_row = True
+        else:
+            print("ERROR IN GPS STEP IN!")
 
     @staticmethod
     def step_out():
         print(f"STEP OUT {GPSSampler.previous_plot}")
-        logging.info(f"STEP OUT {GPSSampler.previous_plot}")
-        GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+        if GPSSampler.is_in_row:
+            logging.info(f"STEP OUT {GPSSampler.previous_plot}")
+            GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+            GPSSampler.is_in_row = False
+        else:
+            print("ERROR IN GPS STEP OUT!")

@@ -44,7 +44,6 @@ class Batcher:
                 "IMU_linear_acceleration": []
             }
 
-
         def get_zed_per_jai(jai_frame, current_zed=None):
             while True:
                 previous_zed = current_zed
