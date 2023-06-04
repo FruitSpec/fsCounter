@@ -89,40 +89,50 @@ class DataManager(Module):
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
                 customer_code, plot_code, scan_date, row, folder_index = list(data["row"])
+                is_success = data['status']
                 logging.info(f"ANALYZED DATA ARRIVED: "
                              f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
-                analyzed_path = os.path.join(data_conf.output_path, customer_code, plot_code, str(scan_date), f"row_{row}")
 
                 ext = "feather" if data_conf.use_feather else "csv"
+                if is_success:
+                    analyzed_path = os.path.join(data_conf.output_path,
+                                                 customer_code,
+                                                 plot_code,
+                                                 str(scan_date),
+                                                 f"row_{row}")
 
-                tracks, tracks_headers = data["tracks"], data["tracks_headers"]
-                tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")
-                try:
-                    tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
-                except ValueError:
-                    tracks_df = pd.DataFrame(columns=tracks_headers)
 
-                alignment, alignment_headers = data["alignment"], data["alignment_headers"]
-                alignment_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.alignment}.{ext}")
+                    tracks, tracks_headers = data["tracks"], data["tracks_headers"]
+                    tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")
+                    try:
+                        tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
+                    except ValueError:
+                        tracks_df = pd.DataFrame(columns=tracks_headers)
 
-                try:
-                    alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
-                except ValueError:
-                    alignment_df = pd.DataFrame(columns=alignment_headers)
+                    alignment, alignment_headers = data["alignment"], data["alignment_headers"]
+                    alignment_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.alignment}.{ext}")
 
-                if data_conf.use_feather:
-                    tracks_df.to_feather(tracks_path)
-                    alignment_df.to_feather(alignment_path)
-                else:
-                    tracks_df.to_csv(tracks_path, index=False, header=True)
-                    alignment_df.to_csv(alignment_path, index=False, header=True)
+                    try:
+                        alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
+                    except ValueError:
+                        alignment_df = pd.DataFrame(columns=alignment_headers)
 
+                    if data_conf.use_feather:
+                        tracks_df.to_feather(tracks_path)
+                        alignment_df.to_feather(alignment_path)
+                    else:
+                        tracks_df.to_csv(tracks_path, index=False, header=True)
+                        alignment_df.to_csv(alignment_path, index=False, header=True)
+
+                status = 'success' if is_success else 'failed'
                 analyzed_data = {
                     "customer_code": [customer_code],
                     "plot_code": [plot_code],
-                    "scan_date": [scan_date],
+                    "scan_date": [str(scan_date)],
                     "row": [str(int(row))],
-                    "folder_index": [str(int(folder_index))]
+                    "folder_index": [str(int(folder_index))],
+                    "status": [status],
+                    "ext": [ext]
                 }
 
                 analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])

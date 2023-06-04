@@ -31,25 +31,7 @@ class AlternativeFlow(Module):
     @staticmethod
     def analyze():
 
-        def read_collected_analyzed():
-            while True:
-                try:
-                    collected = pd.read_csv(data_conf.collected_path, dtype=str)
-                    print('collected was read')
-                    break
-                except (FileNotFoundError, PermissionError):
-                    print('collected not read')
-                    time.sleep(60)
-                    pass
-                except Exception:
-                    traceback.print_exc()
-            try:
-                analyzed = pd.read_csv(data_conf.analyzed_path, dtype=str)
-            except (FileNotFoundError, PermissionError):
-                analyzed = pd.DataFrame()
-            return collected, analyzed
-
-        collected, analyzed = read_collected_analyzed()
+        collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
         while True:
             found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
@@ -61,27 +43,32 @@ class AlternativeFlow(Module):
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
                     print(f'Done analyzing row: {list(row)}')
-                    data = {
-                        'tracks': np.array(rc.tracks),
-                        'tracks_headers': rc.tracks_header,
-                        'alignment': np.array(rc.alignment),
-                        'alignment_headers': rc.alignment_header,
-                        'row': row
-                    }
+                    is_succcess = True  # analysis ended without exceptions
+                    data = AlternativeFlow.prepare_data(tracks=rc.tracks,
+                                                        tracks_header=rc.tracks_header,
+                                                        alignment=rc.alignment,
+                                                        alignment_header=rc.alignment_header,
+                                                        row=row,
+                                                        status=is_succcess)
+
                     # send results to data manager
                     print("sending data from analysis: ", time.time())
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                     logging.info(f"Done analyzing {list(row)}")
                 except:
+                    is_succcess = False
                     logging.exception(f"Failed to analyze {list(row)}")
                     print(f"Failed to analyze {list(row)}")
+                    data = AlternativeFlow.prepare_data([], [], [], [], row, is_succcess)
+                    # send results to data manager
+                    AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                 finally:
                     collected.drop(index=row_index, inplace=True)
             else:
-                collected, analyzed = read_collected_analyzed()
                 logging.info('No new file found, waiting 1 minute')
                 print('No new file found, waiting 1 minute')
                 time.sleep(60)
+                collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
     @staticmethod
     def seek_new_row(collected, analyzed):
@@ -122,12 +109,43 @@ class AlternativeFlow(Module):
 
         return row_args
 
+    @staticmethod
+    def prepare_data(tracks, tracks_header, alignment, alignment_header, row, status):
+        data = {
+            'tracks': np.array(tracks),
+            'tracks_headers': tracks_header,
+            'alignment': np.array(alignment),
+            'alignment_headers': alignment_header,
+            'row': row,
+            'status': status
+        }
+
+        return data
+
+    @staticmethod
+    def read_collected_analyzed():
+        while True:
+            try:
+                collected = pd.read_csv(data_conf.collected_path, dtype=str)
+                print('collected was read')
+                break
+            except (FileNotFoundError, PermissionError):
+                print('collected not read')
+                time.sleep(60)
+                pass
+            except Exception:
+                traceback.print_exc()
+        try:
+            analyzed = pd.read_csv(data_conf.analyzed_path, dtype=str)
+        except (FileNotFoundError, PermissionError):
+            analyzed = pd.DataFrame()
+        return collected, analyzed
+
 
 def create_str_from_row(row):
-    try:
-        unique_str = str(row['customer_code']) + '_' + str(row['plot_code']) + '_' + str(
-            row['scan_date']) + '_' + str(row['row']) + '_' + str(
-            int(row['folder_index']))
-    except:
-        print(row)
+    unique_str = str(row['customer_code']) + '_' + str(row['plot_code']) + '_' +\
+                 str(row['scan_date']) + '_' + str(row['row']) + '_' + str(int(row['folder_index']))
+
     return unique_str
+
+
