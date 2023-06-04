@@ -30,8 +30,6 @@ class DataManager(Module):
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
     collected_df = pd.DataFrame(
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
-    uploaded_df = pd.DataFrame(
-        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
 
     @staticmethod
     def init_module(qu, main_pid, module_name, communication_queue):
@@ -52,7 +50,6 @@ class DataManager(Module):
         DataManager.internet_scan_thread = threading.Thread(target=DataManager.internet_scan, daemon=True)
 
         DataManager.collected_df = try_read(data_conf.collected_path)
-        DataManager.uploaded_df = try_read(data_conf.uploaded_path)
 
         # DataManager.update_output_thread.start()
         DataManager.internet_scan_thread.start()
@@ -202,36 +199,49 @@ class DataManager(Module):
     @staticmethod
     def internet_scan():
         while True:
+            upload_speed_in_kbps = 0
+            try:
+                upload_speed_in_bps = speedtest.Speedtest().upload()
+                upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
+                logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
+                print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
+            except speedtest.SpeedtestException:
+                logging.info("NO INTERNET CONNECTION")
+                print("NO INTERNET CONNECTION")
+            except Exception:
+                logging.exception("unknown handled exception: ")
             t0 = time.time()
-            DataManager.scan_analyzed(scan_timeout=data_conf.upload_interval - 30)
+            if upload_speed_in_kbps > 10:
+                DataManager.upload_nav(upload_speed_in_kbps)
+                DataManager.scan_analyzed(data_conf.upload_interval - 30, upload_speed_in_kbps)
+                logging.info(f"INTERNET SCAN - END")
+                print(f"INTERNET SCAN - END")
             t1 = time.time()
-            logging.info(f"INTERNET SCAN - END")
-            print(f"INTERNET SCAN - END")
             next_execution_time = max(0.1, data_conf.upload_interval - (t1 - t0))
             if DataManager.shutdown_event.wait(next_execution_time):
                 break
         logging.info("INTERNET SCAN - FINISHED")
 
     @staticmethod
-    def scan_analyzed(scan_timeout):
+    def upload_nav(upload_speed_in_kbps, timeout=10):
+        nav_path = tools.get_nav_path()
+        try:
+            nav_size_in_kb = os.path.getsize(nav_path) / 1024
+            if nav_size_in_kb >= upload_speed_in_kbps * timeout:
+                return
+            nav_s3_path = tools.get_nav_path(get_s3_path=True)
+            DataManager.s3_client.upload_file(nav_path, data_conf.upload_bucket_name, nav_s3_path)
+            logging.info(f"UPLOAD NAV TO S3 - SUCCESS")
+        except Exception:
+            logging.exception(f"UPLOAD NAV TO S3 - FAILED DUE TO AN ERROR - {nav_path}")
+            traceback.print_exc()
+
+    @staticmethod
+    def scan_analyzed(scan_timeout, upload_speed_in_kbps):
 
         logging.info("START SCANNING ANALYZED FILES")
         print("START SCANNING ANALYZED FILES")
         t_scan_start = time.time()
-        try:
-            upload_speed_in_bps = speedtest.Speedtest().upload()
-            upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
-            logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
-            print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
-            if upload_speed_in_kbps < 10:
-                raise speedtest.SpeedtestException
-        except speedtest.SpeedtestException:
-            logging.info("NO INTERNET CONNECTION")
-            print("NO INTERNET CONNECTION")
-            return
-        except Exception:
-            logging.exception("unknown handled exception: ")
-            return
 
         def upload_analyzed(timeout_before, analyzed_group):
 
@@ -257,18 +267,17 @@ class DataManager(Module):
                 ext = "csv"
                 # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
                 tracks_path = os.path.join(folder_path, f"{data_conf.tracks}.{ext}")
-                tracks_s3_path = os.path.join(data_conf.upload_prefix, folder_name, f"{data_conf.tracks}.{ext}")
+                tracks_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.tracks}.{ext}")
 
                 alignment_path = os.path.join(folder_path, f"{data_conf.alignment}.{ext}")
-                alignment_s3_path = os.path.join(data_conf.upload_prefix, folder_name, f"{data_conf.alignment}.{ext}")
+                alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.alignment}.{ext}")
 
                 timestamps_path = os.path.join(folder_path, f"{data_conf.jaized_timestamps}.{ext}")
                 if not os.path.exists(timestamps_path):
                     timestamps_path_log = timestamps_path.replace('csv', 'log')
                     os.rename(timestamps_path_log, timestamps_path)
                     print("renamed ", timestamps_path)
-                timestamps_s3_path = os.path.join(data_conf.upload_prefix, folder_name,
-                                                  f"{data_conf.jaized_timestamps}.{ext}")
+                timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.jaized_timestamps}.{ext}")
 
                 data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
                 if data_size_in_kb >= upload_speed_in_kbps * timeout:

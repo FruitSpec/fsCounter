@@ -38,12 +38,20 @@ def is_svo(filename):
     return filename[-3:] == "svo"
 
 
-def get_nav_path():
+def get_nav_path(get_s3_path=False):
     today = datetime.now().strftime("%d%m%y")
-    nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-    if not os.path.exists(nav_dir):
-        os.makedirs(nav_dir)
-    return os.path.join(nav_dir, f'{today}.nav')
+    nav_filename = f'{today}.nav'
+    if get_s3_path:
+        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
+        if not os.path.exists(nav_dir):
+            os.makedirs(nav_dir)
+        return os.path.join(nav_dir, nav_filename)
+    else:
+        return create_s3_upload_path(conf.customer_code, nav_filename)
+
+
+def create_s3_upload_path(*args):
+    return s3_path_join(data_conf.upload_prefix, args)
 
 
 def get_imu_path():
