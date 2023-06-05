@@ -3,6 +3,6 @@ upload_prefix: uploads
 counter_number: 1
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
-GUI: false
-autonomous_acquisition: true
+GUI: true
+autonomous_acquisition: flase
 customer_code: "MOTCHA"

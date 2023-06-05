@@ -232,6 +232,8 @@ class DataManager(Module):
             nav_s3_path = tools.get_nav_path(get_s3_path=True)
             DataManager.s3_client.upload_file(nav_path, data_conf.upload_bucket_name, nav_s3_path)
             logging.info(f"UPLOAD NAV TO S3 - SUCCESS")
+        except FileNotFoundError:
+            pass
         except Exception:
             logging.exception(f"UPLOAD NAV TO S3 - FAILED DUE TO AN ERROR - {nav_path}")
             traceback.print_exc()

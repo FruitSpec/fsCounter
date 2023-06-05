@@ -92,7 +92,10 @@ class AlternativeFlow(Module):
 
         row_args = args.copy()
         folder_index = str(int(row['folder_index']))
-        ext = row['ext']
+        # toDo: add ext to collected to understand ext
+        #ext = row['ext']
+        ext = 'csv'
+
         row_folder = os.path.join(data_conf.output_path, row['customer_code'], row['plot_code'],
                                   str(row['scan_date']), f"row_{int(row['row'])}", folder_index)
         row_args.output_folder = row_folder
@@ -104,6 +107,10 @@ class AlternativeFlow(Module):
         row_args.sync_data_log_path = os.path.join(row_folder, f"{data_conf.jaized_timestamps}.{ext}")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
+
+        print(row_args.row_name)
+        print(row_args.zed.movie_path)
+        print(row_args.sync_data_log_path)
 
         return row_args
 
@@ -142,7 +149,7 @@ class AlternativeFlow(Module):
 
 def create_str_from_row(row):
     unique_str = '_'.join([str(row['customer_code']), str(row['plot_code']), str(row['scan_date']),
-                          str(row['row']), str(int(row['folder_index'])), str(row['ext'])])
+                          str(row['row']), str(int(row['folder_index']))])
 
     return unique_str
 
