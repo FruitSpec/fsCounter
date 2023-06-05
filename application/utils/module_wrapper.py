@@ -110,7 +110,7 @@ class Module:
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        Module.out_qu = in_qu
+        Module.in_qu = in_qu
         Module.out_qu = out_qu
         Module.main_pid = main_pid
         Module.module_name = module_name

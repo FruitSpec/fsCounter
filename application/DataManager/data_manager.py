@@ -42,7 +42,7 @@ class DataManager(Module):
                     data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
             return df
 
-        super(DataManager, DataManager).init_module(in_qu, out_qu,main_pid, module_name, communication_queue)
+        super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client("s3")

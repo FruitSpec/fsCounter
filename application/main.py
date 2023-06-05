@@ -37,11 +37,9 @@ def transfer_data(sig, frame):
         print(f"SENDER: ", sender_module)
         for i in range(5):
             try:
-                data, recv_modules = manager[sender_module].retrieve_transferred_data()
-                for recv_module in recv_modules:
-                    manager[recv_module].receive_transferred_data(data, sender_module)
-                    time.sleep(0.1)
-                return
+                data, recv_module = manager[sender_module].retrieve_transferred_data()
+                manager[recv_module].receive_transferred_data(data, sender_module)
+                break
             except DataError:
                 time.sleep(0.1)
                 logging.exception("communication error ", i)
