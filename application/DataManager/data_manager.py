@@ -29,7 +29,7 @@ class DataManager(Module):
     update_output_thread, internet_scan_thread = None, None
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
     collected_df = pd.DataFrame(
-        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
+        data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
 
     @staticmethod
     def init_module(qu, main_pid, module_name, communication_queue):
@@ -39,7 +39,7 @@ class DataManager(Module):
                 df = pd.read_csv(path, dtype=str)
             except FileNotFoundError:
                 df = pd.DataFrame(
-                    data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []})
+                    data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
             return df
 
         super(DataManager, DataManager).init_module(qu, main_pid, module_name, communication_queue)
@@ -82,12 +82,14 @@ class DataManager(Module):
                 pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
 
             today = datetime.now().strftime("%d%m%y")
+            ext = "feather" if data_conf.use_feather else "csv"
             collected_data = {
                 "customer_code": [conf.customer_code],
                 "plot_code": [DataManager.current_plot],
                 "scan_date": [today],
                 "row": [str(int(DataManager.current_row))],
-                "folder_index": [str(int(DataManager.current_index))]
+                "folder_index": [str(int(DataManager.current_index))],
+                "ext": [ext]
             }
             tmp_df = pd.DataFrame(data=collected_data, index=[0])
             DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
@@ -120,12 +122,11 @@ class DataManager(Module):
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
-                customer_code, plot_code, scan_date, row, folder_index = list(data["row"])
-                is_success = data['status']
+                customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
+                is_success = data["status"]
                 logging.info(f"ANALYZED DATA ARRIVED: "
                              f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
 
-                ext = "feather" if data_conf.use_feather else "csv"
                 if is_success:
                     analyzed_path = os.path.join(data_conf.output_path,
                                                  customer_code,

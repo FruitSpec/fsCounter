@@ -43,23 +43,23 @@ class AlternativeFlow(Module):
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
                     print(f'Done analyzing row: {list(row)}')
-                    is_succcess = True  # analysis ended without exceptions
+                    is_success = True  # analysis ended without exceptions
                     data = AlternativeFlow.prepare_data(tracks=rc.tracks,
                                                         tracks_header=rc.tracks_header,
                                                         alignment=rc.alignment,
                                                         alignment_header=rc.alignment_header,
                                                         row=row,
-                                                        status=is_succcess)
+                                                        status=is_success)
 
                     # send results to data manager
                     print("sending data from analysis: ", time.time())
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                     logging.info(f"Done analyzing {list(row)}")
                 except:
-                    is_succcess = False
+                    is_success = False
                     logging.exception(f"Failed to analyze {list(row)}")
                     print(f"Failed to analyze {list(row)}")
-                    data = AlternativeFlow.prepare_data([], [], [], [], row, is_succcess)
+                    data = AlternativeFlow.prepare_data([], [], [], [], row, is_success)
                     # send results to data manager
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                 finally:
