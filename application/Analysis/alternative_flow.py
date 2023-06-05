@@ -13,8 +13,8 @@ import numpy as np
 class AlternativeFlow(Module):
 
     @staticmethod
-    def init_module(qu, main_pid, module_name, communication_queue):
-        super(AlternativeFlow, AlternativeFlow).init_module(qu, main_pid, module_name, communication_queue)
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+        super(AlternativeFlow, AlternativeFlow).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         signal.signal(signal.SIGTERM, AlternativeFlow.shutdown)
         signal.signal(signal.SIGUSR1, AlternativeFlow.receive_data)
         AlternativeFlow.analyze()
@@ -108,9 +108,6 @@ class AlternativeFlow(Module):
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
 
-        print(row_args.row_name)
-        print(row_args.zed.movie_path)
-        print(row_args.sync_data_log_path)
 
         return row_args
 

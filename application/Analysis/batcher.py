@@ -44,7 +44,6 @@ class Batcher:
             "IMU_linear_acceleration": []
         }
 
-
     def prepare_batches(self):
 
         def get_zed_per_jai(jai_frame, current_zed=None):
@@ -111,16 +110,19 @@ class Batcher:
 
     def stop_acquisition(self):
         self._acquisition_start_event.clear()
+        print("BATCHER STOP ACQUISITION")
         if self._timestamps_log_dict["JAI_frame_number"]:
+            print("BATCHER TIME + STOP")
             self._send_data(
                 ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
                 self._timestamps_log_dict,
                 ModulesEnum.DataManager
             )
         else:
+            print("BATCHER STOP ONLY")
             self._send_data(
                 ModuleTransferAction.STOP_ACQUISITION,
                 None,
                 ModulesEnum.DataManager
             )
-
+        self.init_timestamp_log_dict()

@@ -5,6 +5,7 @@ import os
 import signal
 import threading
 import logging
+import traceback
 from builtins import staticmethod
 from multiprocessing import Process, Pipe, Queue
 
@@ -29,7 +30,11 @@ class ModulesEnum(enum.Enum):
         return hash(self.value)
 
     def __eq__(self, other):
-        return self.value == other.value
+        try:
+            return self.value == other.value
+        except AttributeError:
+            print(other)
+            traceback.print_exc()
 
 
 class ModuleTransferAction(enum.Enum):
@@ -63,24 +68,24 @@ class ModuleManager:
         self.pid = -1
         self.module_name = None
         self.communication_queue = None
-        # self.sender, self.receiver = Pipe()
-        self.qu = Queue()
+        self.in_qu = Queue()
+        self.out_qu = Queue()
 
     def set_process(self, target, main_pid, module_name, communication_queue, daemon=True):
         self.module_name = module_name
         # args = (self.sender, self.receiver, main_pid, module_name)
-        args = (self.qu, main_pid, module_name, communication_queue)
+        args = (self.in_qu, self.out_qu, main_pid, module_name, communication_queue)
         self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
 
     def retrieve_transferred_data(self):
         try:
-            return self.qu.get_nowait()
+            return self.out_qu.get_nowait()
         except queue.Empty:
             raise DataError
 
     def receive_transferred_data(self, data, sender_module):
         # self.sender.send((data, sender_module))
-        self.qu.put((data, sender_module))
+        self.in_qu.put((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
     def start(self):
@@ -98,14 +103,15 @@ class ModuleManager:
 class Module:
     """ An abstraction class for all modules """
     # main_pid, sender, receiver, module_name = -1, None, None, None
-    main_pid, qu, module_name = -1, None, None
+    main_pid, in_qu, out_qu, module_name = -1, None, None, None
     communication_queue = None
     shutdown_event = threading.Event()
     shutdown_done_event = threading.Event()
 
     @staticmethod
-    def init_module(qu, main_pid, module_name, communication_queue):
-        Module.qu = qu
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+        Module.out_qu = in_qu
+        Module.out_qu = out_qu
         Module.main_pid = main_pid
         Module.module_name = module_name
         Module.communication_queue = communication_queue
@@ -116,12 +122,12 @@ class Module:
         signal.signal(signal.SIGUSR1, receive_data_func)
 
     @staticmethod
-    def send_data(action, data, *receivers: ModulesEnum):
+    def send_data(action, data, receiver):
         data = {
             "action": action,
             "data": data
         }
-        Module.qu.put((data, receivers))
+        Module.out_qu.put((data, receiver))
         Module.communication_queue.put(Module.module_name)
         time.sleep(0.1)
         os.kill(Module.main_pid, signal.SIGUSR1)

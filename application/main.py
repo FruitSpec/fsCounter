@@ -30,8 +30,11 @@ def shutdown():
 
 def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
+    print("signal arrived")
     with transfer_data_lock:
+        print(f"before")
         sender_module = communication_queue.get()
+        print(f"SENDER: ", sender_module)
         for i in range(5):
             try:
                 data, recv_modules = manager[sender_module].retrieve_transferred_data()
@@ -41,7 +44,7 @@ def transfer_data(sig, frame):
                 return
             except DataError:
                 time.sleep(0.1)
-                # logging.exception("communication error")
+                logging.exception("communication error ", i)
 
 
 def main():

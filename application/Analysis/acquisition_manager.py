@@ -33,8 +33,8 @@ class AcquisitionManager(Module):
     transfer_data, pass_clahe_stream = False, False
 
     @staticmethod
-    def init_module(qu, main_pid, module_name, communication_queue):
-        super(AcquisitionManager, AcquisitionManager).init_module(qu, main_pid, module_name, communication_queue)
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+        super(AcquisitionManager, AcquisitionManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
         AcquisitionManager.jz_recorder = jaized.JaiZed()
@@ -75,6 +75,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
+        print("acq start")
         with AcquisitionManager.acquisition_lock:
             AcquisitionManager.set_acquisition_parameters(
                 data=acquisition_parameters,
@@ -95,12 +96,14 @@ class AcquisitionManager(Module):
                 with AcquisitionManager.health_check_lock:
                     AcquisitionManager.running = running
             AcquisitionManager.analyzer.start_acquisition()
+            print("acq start end")
 
     @staticmethod
     def stop_acquisition():
         with AcquisitionManager.acquisition_lock:
             AcquisitionManager.analyzer.stop_acquisition()
             AcquisitionManager.jz_recorder.stop_acquisition()
+            print("acq stop")
             with AcquisitionManager.health_check_lock:
                 AcquisitionManager.running = False
 
@@ -192,7 +195,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def receive_data(sig, frame):
-        data, sender_module = AcquisitionManager.qu.get()
+        data, sender_module = AcquisitionManager.in_qu.get()
         action, data = data["action"], data["data"]
         global_polygon = GPS_conf.global_polygon
         if sender_module == ModulesEnum.GPS:

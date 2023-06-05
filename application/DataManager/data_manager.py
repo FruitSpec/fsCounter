@@ -32,7 +32,7 @@ class DataManager(Module):
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
 
     @staticmethod
-    def init_module(qu, main_pid, module_name, communication_queue):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
 
         def try_read(path):
             try:
@@ -42,7 +42,7 @@ class DataManager(Module):
                     data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
             return df
 
-        super(DataManager, DataManager).init_module(qu, main_pid, module_name, communication_queue)
+        super(DataManager, DataManager).init_module(in_qu, out_qu,main_pid, module_name, communication_queue)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client("s3")
@@ -95,7 +95,7 @@ class DataManager(Module):
             DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
             DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
 
-        data, sender_module = DataManager.qu.get()
+        data, sender_module = DataManager.in_qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
             if action == ModuleTransferAction.NAV:

@@ -25,7 +25,7 @@ class GUIInterface(Module):
     sio = socketio.Server(cors_allowed_origins='*')
 
     @staticmethod
-    def init_module(qu, main_pid, module_name, communication_queue):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
         def setup_server():
             app = socketio.WSGIApp(GUIInterface.sio)
             wsgi_server(GUIInterface.listener, app)
@@ -33,7 +33,7 @@ class GUIInterface(Module):
         if not conf.GUI:
             return False
 
-        super(GUIInterface, GUIInterface).init_module(qu, main_pid, module_name, communication_queue)
+        super(GUIInterface, GUIInterface).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf.GUI_server_port))
@@ -49,7 +49,7 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def receive_data(sid, environ):
-        data, sender_module = GUIInterface.qu.get()
+        data, sender_module = GUIInterface.in_qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.GUI_SET_DEVICE_STATE:
