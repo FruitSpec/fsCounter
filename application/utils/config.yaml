@@ -6,3 +6,4 @@ log_name: "log"
 GUI: false
 autonomous_acquisition: true
 customer_code: "MOTCHA"
+led_exe_path: /home/mic-730ai/fruitspec/fsCounter/application/utils/diotest
