@@ -298,7 +298,13 @@ def match_descriptors_cuda(des1, des2, stream, threshold=0.7, matcherGPU=None):
     match = []
     matchesMask = [[0, 0] for i in range(len(matches))]
     id = 0
-    for m, n in matches:
+    #for m, n in matches:
+    for i in range(matches.__len__()):
+        if matches[i].__len__() < 2:
+            matches = []
+            matchesMask = [[0, 0] for j in range(len(matches))]
+            break
+        m, n = matches[i]
         if m.distance < threshold * n.distance:
             match.append(m)
             matchesMask[id] = [1, 0]
