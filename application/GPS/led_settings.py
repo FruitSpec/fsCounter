@@ -3,7 +3,7 @@ import threading
 import time
 import os
 from Jetson import GPIO
-from application.utils.settings import GPS_conf, conf
+from application.utils.settings import GPS_conf
 
 
 class LedColor(enum.Enum):
@@ -30,15 +30,15 @@ class LedSettings:
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.ON
         LedSettings._color = color
-        os.system(f'{conf.led_exe_path} -set {color.value} {GPIO.HIGH}')
+        os.system(f"{GPS_conf.led_exe_path} -set {color.value} {GPIO.HIGH}")
 
     @staticmethod
     def turn_off():
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.OFF
-        os.system(f'{conf.led_exe_path} -set {LedColor.GREEN.value} {GPIO.LOW}')
-        os.system(f'{conf.led_exe_path} -set {LedColor.RED.value} {GPIO.LOW}')
-        os.system(f'{conf.led_exe_path} -set {LedColor.ORANGE.value} {GPIO.LOW}')
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.GREEN.value} {GPIO.LOW}")
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.RED.value} {GPIO.LOW}")
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.ORANGE.value} {GPIO.LOW}")
 
     @staticmethod
     def start_blinking(color_led, repeat_time=2, pause_time=0.5):
