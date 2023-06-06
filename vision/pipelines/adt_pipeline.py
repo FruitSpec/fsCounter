@@ -128,9 +128,9 @@ class Pipeline():
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
             if status:
                 if len(detailed) == 1:
-                    self.logger.info(f'Frame {f_id} is saturated, skipping')
+                    self.logger.debug(f'Frame {f_id} is saturated, skipping')
                 else:
-                    self.logger.info(f'Batch starting with frame {f_id} is saturated, skipping')
+                    self.logger.debug(f'Batch starting with frame {f_id} is saturated, skipping')
 
             return status, detailed
         except:
