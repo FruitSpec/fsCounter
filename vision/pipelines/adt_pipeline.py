@@ -53,6 +53,9 @@ def run(cfg, args, metadata=None):
              adt.logger.iterations += 1
              continue
 
+        if f_id == 116:
+            a = 1
+
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
         # detect:
@@ -361,9 +364,9 @@ if __name__ == "__main__":
     depth_name = "DEPTH.mkv"
     fsi_name = "Result_FSI.mkv"
     rgb_name = "Result_RGB.mkv"
-    time_stamp = "jaized_timestamps.log"
+    time_stamp = "jaized_timestamps.csv"
 
-    row_folder = "/home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/MED00000/230523/row_1/1"
+    row_folder = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/row_6/1"
 
     args.output_folder = row_folder
     args.sync_data_log_path = os.path.join(row_folder, time_stamp)
