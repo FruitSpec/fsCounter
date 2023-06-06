@@ -76,17 +76,7 @@ def read_nav_file(file_path):
 
 def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 10, expected_heading = None, lower_heading_bound= None, upper_heading_bound= None, save_dir=None,  margins_threshold =None): #,
 
-    # if there is gps data, make 4 subplots, else 2.
-    if "heading_360" in df.columns.values:
-        n_subplots = 4
-        plt.figure(figsize=(55, 35))
-
-    else:
-        n_subplots = 2
-        plt.figure(figsize=(55, 18))
-
-    # Plot:
-      # Adjust the width and height as desired
+    plt.figure(figsize=(55, 35))
     sns.set(font_scale=2)
 
     n_subplots = 6
@@ -99,15 +89,14 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_180", column_name2=None,
               thresh1=lower_heading_bound, thresh2 = upper_heading_bound, thresh3 = expected_heading, title ='heading_180')
 
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1="within_inner_polygon", column_name2=None,
-              thresh1=None, thresh2 = None, thresh3 = None, title =f"within_inner_polygon")
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1='within_rows_entry_polygons', column_name2=None,
+              thresh1=None, thresh2 = None, thresh3 = None, title =f"rows_entry_polygons")
 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 5, column_name1='row_state', column_name2=None,
               thresh1=None, thresh2 = None, thresh3 = None, title =f"'Row_state. 0: 'not in row', 1: 'starting row', 2: 'middle of row', 3: 'end of row'")
 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 6, column_name1="pred", column_name2=None,
               thresh1=None, thresh2 = None, thresh3 = None, title =f"Prediction. 0: 'not in row', 1: 'starting row'")
-
 
 
     plt.suptitle(title)
@@ -126,8 +115,8 @@ def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = Non
     plt.subplot(n_subplots, 1, i_subplot)
 
     # draw the ground truth:
-    if 'GT' in df.columns:
-        plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['GT'] == 1, color='green', alpha=0.15)
+    if 'ground_truth' in df.columns:
+        plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['ground_truth'] == 1, color='green', alpha=0.15)
 
     # draw the plots:
     graph = sns.lineplot(data=df, x=df.index, y=column_name1)

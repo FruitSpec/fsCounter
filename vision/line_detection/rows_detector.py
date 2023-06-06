@@ -7,6 +7,8 @@ from shapely.geometry import Point, Polygon
 from fastkml import kml
 import simplekml
 from enum import Enum
+from math import asin, atan2, cos, degrees, radians, sin
+import matplotlib.pyplot as plt
 
 
 
@@ -23,9 +25,10 @@ class RowDetector:
         # Constants:
         self.path_kml = path_kml
         self.placemark_name = placemark_name
-        self.MARGINS_THRESHOLD = 3
+        self.MARGINS_THRESHOLD = 6
         self.polygon = self.parse_kml_file()
         self.EXPECTED_HEADING = expected_heading
+        self.rows_entry_polygons = self.get_rows_entry_polygons()
         self.HEADING_THRESHOLD = 30
         self.DEPTH_WINDOW_Y_HIGH = 0.35
         self.DEPTH_WINDOW_Y_LOW = 0.65
@@ -50,7 +53,7 @@ class RowDetector:
         self.within_row_angular_velocity = None
         self.within_row_depth = None
         self.within_row_heading = None
-        self.within_inner_polygon = None
+        self.within_rows_entry_polygons = None
         self.row_state = RowState.NOT_IN_ROW
         self.row_pred = None
         self.pred_changed = False
@@ -59,6 +62,78 @@ class RowDetector:
         self.df = pd.DataFrame()
         self.index = 0
 
+    def get_rows_entry_polygons(self):
+        self.rows_entry_polygons = []
+        # calculate heading for polygon edges:
+        coords = list(self.polygon.exterior.coords)
+        for i in range(len(coords) - 1):
+            lon1, lat1 = coords[i]
+            lon2, lat2 = coords[i + 1]
+
+            heading_360, heading_180, _, _ = self.get_heading(lon2, lat2, lon1, lat1)
+            lower_bound, upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, 25)
+            within_heading = self.heading_within_range(heading_180, lower_bound, upper_bound)
+
+            # if the heading is not within range, create a new polygon
+            if not within_heading:
+                p1_lat1, p1_lon1 = self.get_point_at_distance(lat1, lon1, self.MARGINS_THRESHOLD,
+                                                              self.EXPECTED_HEADING)
+                p1_lat2, p1_lon2 = self.get_point_at_distance(lat1, lon1, self.MARGINS_THRESHOLD,
+                                                              self.EXPECTED_HEADING + 180)
+                p2_lat1, p2_lon1 = self.get_point_at_distance(lat2, lon2, self.MARGINS_THRESHOLD,
+                                                              self.EXPECTED_HEADING)
+                p2_lat2, p2_lon2 = self.get_point_at_distance(lat2, lon2, self.MARGINS_THRESHOLD,
+                                                              self.EXPECTED_HEADING + 180)
+
+                # Call the function with your coordinates
+
+                # generate new polygon from the points p1_lat1, p1_lon1, p1_lat2, p1_lon2,  p2_lat1, p2_lon1, p2_lat2, p2_lon2:
+                new_polygon = Polygon([(p1_lon1, p1_lat1), (p1_lon2, p1_lat2), (p2_lon2, p2_lat2), (p2_lon1, p2_lat1)])
+                self.rows_entry_polygons.append(new_polygon)
+                self.plot_points(new_polygon, lat1, lon1, p1_lat1, p1_lon1, p1_lat2, p1_lon2, lat2, lon2, p2_lat1,
+                                 p2_lon1, p2_lat2, p2_lon2)
+        return self.rows_entry_polygons
+
+
+    def plot_points(self, new_polygon, lat0, lon0, lat1, lon1, lat2, lon2, lat3, lon3, lat4, lon4, lat5, lon5):
+        # Define the coordinates of the points
+        lat_values = [lat0, lat1, lat2, lat3, lat4, lat5]
+        lon_values = [lon0, lon1, lon2, lon3, lon4, lon5]
+
+        # Create the plot
+        plt.scatter(lon_values, lat_values)
+
+        # Add labels for the points
+        for i, txt in enumerate(['Point 0', 'Point 1', 'Point 2', 'Point 10', 'Point 11', 'Point 12']):
+            plt.annotate(txt, (lon_values[i], lat_values[i]))
+
+        # plot the polygon:
+        x,y = new_polygon.exterior.xy
+        plt.plot(x,y)
+        plt.show()
+
+
+
+
+    def get_point_at_distance(self, lat1, lon1, d, bearing, R=6371):
+        """
+        lat: initial latitude, in degrees
+        lon: initial longitude, in degrees
+        d: target distance from initial
+        bearing: (true) heading in degrees
+        R: optional radius of sphere, defaults to mean radius of earth
+
+        Returns new lat/lon coordinate {d}km from initial, in degrees
+        """
+        d = d / 1000  # convert km to meters
+        lat1 = radians(lat1)
+        lon1 = radians(lon1)
+        a = radians(bearing)
+        lat2 = asin(sin(lat1) * cos(d / R) + cos(lat1) * sin(d / R) * cos(a))
+        lon2 = lon1 + atan2(
+            sin(a) * sin(d / R) * cos(lat1),
+            cos(d / R) - sin(lat1) * sin(lat2))
+        return (degrees(lat2), degrees(lon2))
 
     def global_decision(self, longitude , latitude):
         # Reset state_changed to False at the start of each call
@@ -69,7 +144,7 @@ class RowDetector:
         if self.row_state == RowState.NOT_IN_ROW:
             # If heading is unknown:
             if self.EXPECTED_HEADING is None:
-                if self.within_row_depth and self.within_row_angular_velocity and self.within_inner_polygon:
+                if self.within_row_depth and self.within_row_angular_velocity and not (self.within_rows_entry_polygons):
                     self.consistency_counter += 1
                     if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                         self.row_state = RowState.STARTING_ROW
@@ -91,7 +166,7 @@ class RowDetector:
 
         # State: Starting a Row
         elif self.row_state == RowState.STARTING_ROW:
-            if self.within_inner_polygon:
+            if not (self.within_rows_entry_polygons):
                 self.consistency_counter += 1
                 if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
                     self.row_state = RowState.MIDDLE_OF_ROW
@@ -101,7 +176,7 @@ class RowDetector:
 
         # State: Middle of a Row
         elif self.row_state == RowState.MIDDLE_OF_ROW:
-            if self.within_inner_polygon:             # todo: add delay?
+            if not(self.within_rows_entry_polygons):             # todo: add delay?
                 self.consistency_counter = 0
             else:
                 self.consistency_counter += 1
@@ -113,7 +188,7 @@ class RowDetector:
 
         # State: Ending a Row
         elif self.row_state == RowState.ENDING_ROW:
-            if self.within_inner_polygon:
+            if not(self.within_rows_entry_polygons):
                 self.row_state = RowState.MIDDLE_OF_ROW
             else:
                 if not self.within_row_angular_velocity:
@@ -148,16 +223,16 @@ class RowDetector:
         if (self.heading_360 and self.heading_180) is not None:   # The first time the heading is None
             if (self.lower_bound and self.upper_bound) is not None: # In the first row the bounds are None
                 self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
-        self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
+        self.within_rows_entry_polygons = self.point_within_rows_entry_polygons((longitude, latitude))
 
-    def detect_row(self,  angular_velocity_x, longitude , latitude, imu_timestamp, gps_timestamp, rgb_img = None, depth_img = None):
+    def detect_row(self,  angular_velocity_x, longitude , latitude, imu_timestamp, gps_timestamp, ground_truth = None, rgb_img = None, depth_img = None):
 
         self.percent_far_pixels(depth_img, rgb_img = rgb_img, show_video =False)
         self.sensors_decision(angular_velocity_x, longitude , latitude)
         self.global_decision(longitude , latitude)
 
         self.row_pred = int(self.row_state != RowState.NOT_IN_ROW)
-        self.update_dataframe_results(imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude)
+        self.update_dataframe_results(imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude, ground_truth)
         self.index += 1
         return self.row_pred, self.pred_changed, self.df
 
@@ -217,10 +292,10 @@ class RowDetector:
         return inner_polygon
 
 
-    def is_within_inner_polygon(self, gnss_position):
+    def point_within_rows_entry_polygons(self, gnss_position):
         point = Point(gnss_position)
-        self.within_inner_polygon = self.inner_polygon.contains(point)
-        return self.within_inner_polygon
+        self.within_rows_entry_polygons = any(polygon.contains(point) for polygon in self.rows_entry_polygons)
+        return self.within_rows_entry_polygons
 
     @staticmethod
     def heading_within_range(current_heading, lower_bound, upper_bound):
@@ -294,7 +369,7 @@ class RowDetector:
         depth_3d = cv2.line(depth_3d, pt1=(0, y_low), pt2=(depth_img.shape[1], y_low), color=(0, 255, 0), thickness=5)
         return depth_3d
 
-    def update_dataframe_results(self, imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude):
+    def update_dataframe_results(self, imu_timestamp, angular_velocity_x, gps_timestamp, longitude, latitude, ground_truth=None):
 
         update_values = {
             'imu_timestamp': imu_timestamp,
@@ -311,13 +386,16 @@ class RowDetector:
             'within_row_depth': self.within_row_depth,
             'within_row_angular_velocity': self.within_row_angular_velocity,
             'within_row_heading': self.within_row_heading,
-            'within_inner_polygon': self.within_inner_polygon,
+            'within_rows_entry_polygons': self.within_rows_entry_polygons,
             'row_state': self.row_state.value,
             'pred_changed': self.pred_changed,
             'pred': self.row_pred}
 
         for column, value in update_values.items():
             self.df.loc[self.index, column] = value
+
+        if ground_truth is not None:
+            self.df.loc[self.index, 'ground_truth'] = ground_truth
 
 
 
