@@ -93,7 +93,6 @@ class GPSSampler(Module):
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
-            scan_date = datetime.now().strftime("%d%m%y")
             timestamp = datetime.now().strftime("%H:%M:%S.%f")
             try:
                 parser.read_string(data)
