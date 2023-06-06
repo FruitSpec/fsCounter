@@ -10,6 +10,8 @@ file_prefix: 0
 alignment: alignment
 tracks: tracks
 jaized_timestamps: jaized_timestamps
+success: success
+failed: failed
 use_feather: false
 request_timeout: 10
 service_endpoint: "https://counter-api.fruitspec.com/api/post_block"

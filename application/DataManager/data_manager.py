@@ -156,7 +156,7 @@ class DataManager(Module):
                         tracks_df.to_csv(tracks_path, index=False, header=True)
                         alignment_df.to_csv(alignment_path, index=False, header=True)
 
-                status = 'success' if is_success else 'failed'
+                status = data_conf.success if is_success else data_conf.failed
                 analyzed_data = {
                     "customer_code": [customer_code],
                     "plot_code": [plot_code],
@@ -247,21 +247,24 @@ class DataManager(Module):
         t_scan_start = time.time()
 
         def upload_analyzed(timeout_before, analyzed_group):
-
-            print("uploading group")
-            print(analyzed_group)
-
             def get_data_size(tracks, alignment, jaized_timestamps):
                 tracks_size = os.path.getsize(tracks)
                 alignment_size = os.path.getsize(alignment)
                 timestamps_size = os.path.getsize(jaized_timestamps)
                 return (tracks_size + alignment_size + timestamps_size) / 1024
 
+            def add_to_dict(d, k, v):
+                try:
+                    d[k].append(v)
+                except KeyError:
+                    d[k] = [v]
+
             t0 = time.time()
             _customer_code = analyzed_group["customer_code"].iloc[0]
             _plot_code = analyzed_group["plot_code"].iloc[0]
             _scan_date = str(analyzed_group["scan_date"].iloc[0])
             _uploaded_indices = {}
+            _failed_indices = {}
             for _, analyzed_row in analyzed_group.iterrows():
                 folder_index = str(analyzed_row["folder_index"])
                 row = f"row_{analyzed_row['row']}"
@@ -276,10 +279,6 @@ class DataManager(Module):
                 alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.alignment}.{ext}")
 
                 timestamps_path = os.path.join(folder_path, f"{data_conf.jaized_timestamps}.{ext}")
-                if not os.path.exists(timestamps_path):
-                    timestamps_path_log = timestamps_path.replace('csv', 'log')
-                    os.rename(timestamps_path_log, timestamps_path)
-                    print("renamed ", timestamps_path)
                 timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.jaized_timestamps}.{ext}")
 
                 data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
@@ -289,15 +288,13 @@ class DataManager(Module):
                     DataManager.s3_client.upload_file(tracks_path, data_conf.upload_bucket_name, tracks_s3_path)
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
                     DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
-                    try:
-                        _uploaded_indices[row].append(folder_index)
-                    except KeyError:
-                        _uploaded_indices[row] = [folder_index]
+                    add_to_dict(_uploaded_indices, row, folder_index)
                 except TimeoutError:
                     print("timeout error")
                     break
                 except FileNotFoundError:
-                    logging.warning(f"UPLOAD TO S3 - MISSING INDEX - {folder_name}")
+                    add_to_dict(_failed_indices, row, folder_index)
+                    logging.warning(f"UPLOAD TO S3 - MISSING INDEX - {folder_name} - MARKED AS FAILED")
                     print(f"UPLOAD TO S3 - MISSING INDEX - {folder_name}")
                     break
                 except EndpointConnectionError:
@@ -315,10 +312,22 @@ class DataManager(Module):
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
-            return _customer_code, _plot_code, _scan_date, _uploaded_indices, timeout_after
+            return _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices, timeout_after
 
-        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices):
-            if not uploaded_indices:
+        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices):
+
+            def add_row_to_dict(d, status):
+                for row_name, indices in d.items():
+                    row_number = row_name.split('_')[1]
+                    for index in indices:
+                        d["customer_code"].append(_customer_code)
+                        d["plot_code"].append(_plot_code)
+                        d["scan_date"].append(_scan_date)
+                        d["row"].append(row_number)
+                        d["folder_index"].append(index)
+                        d["status"].append(status)
+
+            if not _uploaded_indices:
                 return timeout_before, False
 
             t0 = time.time()
@@ -336,17 +345,15 @@ class DataManager(Module):
             response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers, timeout=timeout)
             if response.ok:
                 print("request success")
-                _uploaded_dict = {"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": []}
-                for row_name, indices in uploaded_indices.items():
-                    row_number = row_name.split('_')[1]
-                    for index in indices:
-                        _uploaded_dict["customer_code"].append(customer_code)
-                        _uploaded_dict["plot_code"].append(plot_code)
-                        _uploaded_dict["scan_date"].append(scan_date)
-                        _uploaded_dict["row"].append(row_number)
-                        _uploaded_dict["folder_index"].append(index)
+                _uploaded_dict = {
+                    "customer_code": [], "plot_code": [], "scan_date": [], "row": [],  "folder_index": [], "status": []
+                }
+                add_row_to_dict(_uploaded_indices, data_conf.sucess)
+
                 is_first = not os.path.exists(data_conf.uploaded_path)
                 pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
+
+            add_row_to_dict(_failed_indices, data_conf.failed)
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
@@ -367,7 +374,7 @@ class DataManager(Module):
         if analyzed_csv_df is None:
             return
 
-        analyzed_csv_df = analyzed_csv_df[analyzed_csv_df["status"] == "success"]
+        analyzed_csv_df = analyzed_csv_df[analyzed_csv_df["status"] == data_conf.sucess]
 
         uploaded_csv_df = None
         try:
@@ -379,7 +386,8 @@ class DataManager(Module):
         if uploaded_csv_df is not None:
             print("ANALYZED:\n", analyzed_csv_df)
             print("UPLOADED:\n", uploaded_csv_df)
-            analyzed_not_uploaded = pd.merge(analyzed_csv_df, uploaded_csv_df, how='left', indicator=True)
+            analyzed_not_uploaded = pd.merge(analyzed_csv_df, uploaded_csv_df, how='left', indicator=True,
+                                             on=["customer_code", "plot_code", "scan_date", "row",  "folder_index"])
             not_uploaded = analyzed_not_uploaded['_merge'] == 'left_only'
             analyzed_not_uploaded = analyzed_not_uploaded.loc[not_uploaded, analyzed_not_uploaded.columns != '_merge']
             print("NOT UPLOADED:\n", analyzed_not_uploaded)
@@ -390,8 +398,10 @@ class DataManager(Module):
         timeout = scan_timeout - t_delta
 
         for _, analyzed_gr in analyzed_groups:
-            customer_code, plot_code, scan_date, uploaded_indices, timeout = upload_analyzed(timeout, analyzed_gr)
-            timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date, uploaded_indices)
+            uploaded_data = upload_analyzed(timeout, analyzed_gr)
+            customer_code, plot_code, scan_date, uploaded_indices, failed_indices, timeout = uploaded_data
+            timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
+                                                uploaded_indices, failed_indices)
 
         # analyzed_groups = analyzed_csv_df.groupby(["customer code", "plot code", "scan date"])
         # for _, analyzed_group in analyzed_groups:
