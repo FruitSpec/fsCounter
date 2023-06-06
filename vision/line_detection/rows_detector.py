@@ -28,7 +28,7 @@ class RowDetector:
         self.MARGINS_THRESHOLD = 6
         self.polygon = self.parse_kml_file()
         self.EXPECTED_HEADING = expected_heading
-        self.rows_entry_polygons = self.get_rows_entry_polygons()
+        self.rows_entry_polygons = None  #self.rows_entry_polygons = self.get_rows_entry_polygons()
         self.HEADING_THRESHOLD = 30
         self.DEPTH_WINDOW_Y_HIGH = 0.35
         self.DEPTH_WINDOW_Y_LOW = 0.65
@@ -40,6 +40,7 @@ class RowDetector:
         self.lower_bound, self.upper_bound = None, None
         if self.EXPECTED_HEADING is not None:
             self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD) # todo: calculate after extracting heading
+            self.rows_entry_polygons = self.get_rows_entry_polygons()
 
         # Init:
         self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
@@ -53,6 +54,7 @@ class RowDetector:
         self.within_row_angular_velocity = None
         self.within_row_depth = None
         self.within_row_heading = None
+        self.within_inner_polygon = None
         self.within_rows_entry_polygons = None
         self.row_state = RowState.NOT_IN_ROW
         self.row_pred = None
@@ -87,7 +89,7 @@ class RowDetector:
 
                 # Call the function with your coordinates
 
-                # generate new polygon from the points p1_lat1, p1_lon1, p1_lat2, p1_lon2,  p2_lat1, p2_lon1, p2_lat2, p2_lon2:
+                # generate new polygon from points:
                 new_polygon = Polygon([(p1_lon1, p1_lat1), (p1_lon2, p1_lat2), (p2_lon2, p2_lat2), (p2_lon1, p2_lat1)])
                 self.rows_entry_polygons.append(new_polygon)
                 self.plot_points(new_polygon, lat1, lon1, p1_lat1, p1_lon1, p1_lat2, p1_lon2, lat2, lon2, p2_lat1,
@@ -111,8 +113,6 @@ class RowDetector:
         x,y = new_polygon.exterior.xy
         plt.plot(x,y)
         plt.show()
-
-
 
 
     def get_point_at_distance(self, lat1, lon1, d, bearing, R=6371):
@@ -144,69 +144,64 @@ class RowDetector:
         if self.row_state == RowState.NOT_IN_ROW:
             # If heading is unknown:
             if self.EXPECTED_HEADING is None:
-                if self.within_row_depth and self.within_row_angular_velocity and not (self.within_rows_entry_polygons):
-                    self.consistency_counter += 1
-                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                        self.row_state = RowState.STARTING_ROW
-                        self.consistency_counter = 0
-                        self.pred_changed = True
-                        self.point_inner_polygon_in = (longitude , latitude)
-                else:
-                    self.consistency_counter = 0
+                if self.within_row_depth and self.within_row_angular_velocity and self.within_inner_polygon:
+                    self.row_state = RowState.STARTING_ROW
+                    self.pred_changed = True
+                    self.point_inner_polygon_in = (longitude , latitude)
 
             # If heading is known:
             else:
-
                 if self.within_row_depth and self.within_row_heading:               # if depth + heading => enter row
                     self.row_state = RowState.STARTING_ROW
                     self.pred_changed = True
                     self.point_inner_polygon_in = (longitude, latitude)
-                else:
-                    self.consistency_counter = 0
+
 
         # State: Starting a Row
         elif self.row_state == RowState.STARTING_ROW:
-            if not (self.within_rows_entry_polygons):
-                self.consistency_counter += 1
-                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+            if self.within_rows_entry_polygons is not None: # if there are rows_entry_polygons
+                if not self.within_rows_entry_polygons:
                     self.row_state = RowState.MIDDLE_OF_ROW
-                    self.consistency_counter = 0
+
             else:
-                self.consistency_counter = 0
+                if self.within_inner_polygon:
+                    self.row_state = RowState.MIDDLE_OF_ROW
+
+
 
         # State: Middle of a Row
         elif self.row_state == RowState.MIDDLE_OF_ROW:
-            if not(self.within_rows_entry_polygons):             # todo: add delay?
-                self.consistency_counter = 0
-            else:
-                self.consistency_counter += 1
-                if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
+            if self.within_rows_entry_polygons is not None:
+                if self.within_rows_entry_polygons:
                     self.row_state = RowState.ENDING_ROW
-                    self.consistency_counter = 0
+                    self.point_inner_polygon_out = (longitude, latitude)
+            else:
+                if self.within_inner_polygon:
+                    self.row_state = RowState.ENDING_ROW
                     self.point_inner_polygon_out = (longitude, latitude)
 
 
         # State: Ending a Row
         elif self.row_state == RowState.ENDING_ROW:
-            if not(self.within_rows_entry_polygons):
-                self.row_state = RowState.MIDDLE_OF_ROW
+            if self.within_rows_entry_polygons is not None:
+                if not(self.within_rows_entry_polygons):
+                    self.row_state = RowState.MIDDLE_OF_ROW
             else:
-                if not self.within_row_angular_velocity:
-                    self.consistency_counter += 1
-                    if self.consistency_counter >= self.CONSISTENCY_THRESHOLD:
-                        self.row_state = RowState.NOT_IN_ROW
-                        self.consistency_counter = 0
-                        self.pred_changed = True
+                if self.within_inner_polygon:
+                    self.row_state = RowState.MIDDLE_OF_ROW
 
-                        # Calculate heading:
-                        row_heading_360, self.row_heading, _, _ = self.get_heading(
-                            self.point_inner_polygon_out[0], self.point_inner_polygon_out[1], self.point_inner_polygon_in[0], self.point_inner_polygon_in[1])
-                        if self.EXPECTED_HEADING is None:
-                            self.EXPECTED_HEADING = self.row_heading
-                            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING,
-                                                                                                 self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
-                else:
-                    self.consistency_counter = 0
+            if (self.row_state == RowState.ENDING_ROW) and (not self.within_row_angular_velocity):
+                self.row_state = RowState.NOT_IN_ROW
+                self.pred_changed = True
+
+                # Calculate heading:
+                row_heading_360, self.row_heading, _, _ = self.get_heading(
+                    self.point_inner_polygon_out[0], self.point_inner_polygon_out[1], self.point_inner_polygon_in[0], self.point_inner_polygon_in[1])
+                if self.EXPECTED_HEADING is None:
+                    self.EXPECTED_HEADING = self.row_heading
+                    self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING,self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
+                    self.rows_entry_polygons = self.get_rows_entry_polygons()
+
 
     def sensors_decision(self, angular_velocity_x, longitude, latitude):
         # depth sensor:
@@ -224,6 +219,7 @@ class RowDetector:
             if (self.lower_bound and self.upper_bound) is not None: # In the first row the bounds are None
                 self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
         self.within_rows_entry_polygons = self.point_within_rows_entry_polygons((longitude, latitude))
+        self.within_inner_polygon = self.is_within_inner_polygon((longitude, latitude))
 
     def detect_row(self,  angular_velocity_x, longitude , latitude, imu_timestamp, gps_timestamp, ground_truth = None, rgb_img = None, depth_img = None):
 
@@ -294,8 +290,17 @@ class RowDetector:
 
     def point_within_rows_entry_polygons(self, gnss_position):
         point = Point(gnss_position)
-        self.within_rows_entry_polygons = any(polygon.contains(point) for polygon in self.rows_entry_polygons)
-        return self.within_rows_entry_polygons
+        if self.rows_entry_polygons is not None:
+            self.within_rows_entry_polygons = any(polygon.contains(point) for polygon in self.rows_entry_polygons)
+            return self.within_rows_entry_polygons
+        else:
+            return None
+
+    def is_within_inner_polygon(self, gnss_position):
+        point = Point(gnss_position)
+        self.within_inner_polygon = self.inner_polygon.contains(point)
+        return self.within_inner_polygon
+
 
     @staticmethod
     def heading_within_range(current_heading, lower_bound, upper_bound):

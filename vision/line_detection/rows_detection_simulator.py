@@ -45,9 +45,6 @@ def generate_new_kml_file(polygon1, polygons, df, output_dir):
         style.linestyle = linestyle
         placemark.style = style
 
-    # Sort the DataFrame by timestamp (replace 'timestamp' with the appropriate column)
-    # df = df.sort_values('timestamp')
-
     # Create a separate LineString for each pair of points with the same 'pred' value.
     for i in range(len(df) - 1):
         row1 = df.iloc[i]
@@ -89,8 +86,8 @@ if __name__ == '__main__':
     DEPTH_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/2023_05_21/VALENCI2/row_10/1/DEPTH.mkv'
     RGB_VIDEO_PATH = r'/home/lihi/FruitSpec/Data/customers/EinVered/2023_05_21/VALENCI2/row_10/1/ZED.mkv'
     PATH_KML = r'/home/lihi/FruitSpec/Data/customers/EinVered/Blocks.kml'
-    #EXPECTED_HEADING = None
-    EXPECTED_HEADING = 100
+    EXPECTED_HEADING = None
+    #EXPECTED_HEADING = 100
 
     PATH_ROW = os.path.dirname(os.path.dirname(CSV_PATH))
     output_dir = os.path.join(PATH_ROW, 'rows_detection')
