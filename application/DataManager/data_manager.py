@@ -407,7 +407,7 @@ class DataManager(Module):
         analyzed_groups = analyzed_not_uploaded.groupby(["customer_code", "plot_code", "scan_date"])
         timeout = scan_timeout - t_delta
         if timeout <= 0:
-            logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout_after}")
+            logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout}")
             timeout = 0.1
 
         for _, analyzed_gr in analyzed_groups:
