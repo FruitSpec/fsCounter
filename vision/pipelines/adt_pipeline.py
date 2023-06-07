@@ -77,7 +77,7 @@ def run(cfg, args, metadata=None):
         results_collector.collect_alignment(alignment_results, f_id)
 
 
-        results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
+        #results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -366,16 +366,19 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    row_folder = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/row_6/1"
+    rows_dir = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/gc1"
+    rows = os.listdir(rows_dir)
+    for row in rows:
+        row_folder = os.path.join(rows_dir, row, '1')
 
-    args.output_folder = row_folder
-    args.sync_data_log_path = os.path.join(row_folder, time_stamp)
-    args.zed.movie_path = os.path.join(row_folder, zed_name)
-    args.depth.movie_path = os.path.join(row_folder, depth_name)
-    args.jai.movie_path = os.path.join(row_folder, fsi_name)
-    args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+        args.output_folder = row_folder
+        args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+        args.zed.movie_path = os.path.join(row_folder, zed_name)
+        args.depth.movie_path = os.path.join(row_folder, depth_name)
+        args.jai.movie_path = os.path.join(row_folder, fsi_name)
+        args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-    validate_output_path(args.output_folder)
+        validate_output_path(args.output_folder)
 
-    rc = run(cfg, args)
-    rc.dump_feature_extractor(args.output_folder)
+        rc = run(cfg, args)
+        rc.dump_feature_extractor(args.output_folder)
