@@ -7,10 +7,7 @@ from shapely.geometry import Point, Polygon
 from fastkml import kml
 import simplekml
 from enum import Enum
-from math import asin, atan2, cos, degrees, radians, sin
-import matplotlib.pyplot as plt
-
-
+from math import asin, atan2, cos, degrees, radians, sin, sqrt
 
 class RowState(Enum):
     NOT_IN_ROW = 0
@@ -63,8 +60,35 @@ class RowDetector:
         self.point_inner_polygon_out = None
         self.point_start_row = None
         self.point_end_of_row = None
+        self.row_number = int(0)
+        self.row_length = None
         self.df = pd.DataFrame()
         self.index = 0
+
+    import math
+
+    def get_distance(self, lon1, lat1, lon2, lat2):
+        """
+        Calculate the Haversine distance in meters, between two points.
+        """
+        # Radius of the Earth in kilometers
+        R = 6371.0
+
+        # Convert degrees to radians
+        lat1_rad, lon1_rad, lat2_rad, lon2_rad = radians(lat1), radians(lon1), radians(lat2), radians(lon2)
+
+        # Differences
+        delta_lat = lat2_rad - lat1_rad
+        delta_lon = lon2_rad - lon1_rad
+
+        # Haversine formula
+        a = sin(delta_lat / 2) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        # Distance
+        distance_meters = R * c * 1000
+        return distance_meters
+
 
     def get_rows_entry_polygons(self):
         self.rows_entry_polygons = []
@@ -88,8 +112,6 @@ class RowDetector:
                                                               self.EXPECTED_HEADING)
                 p2_lat2, p2_lon2 = self.get_point_at_distance(lat2, lon2, self.MARGINS_THRESHOLD,
                                                               self.EXPECTED_HEADING + 180)
-
-                # Call the function with your coordinates
 
                 # generate new polygon from points:
                 new_polygon = Polygon([(p1_lon1, p1_lat1), (p1_lon2, p1_lat2), (p2_lon2, p2_lat2), (p2_lon1, p2_lat1)])
@@ -130,8 +152,7 @@ class RowDetector:
         # if heading is unknown: update expected heading from the first row
         if self.EXPECTED_HEADING is None:
             self.EXPECTED_HEADING = self.row_heading
-            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING,
-                                                                             self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
+            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
             self.rows_entry_polygons = self.get_rows_entry_polygons()
 
     def global_decision(self, longitude , latitude):
@@ -139,6 +160,7 @@ class RowDetector:
         # Reset:
         self.pred_changed = False
         self.row_heading = None
+        self.row_length = None
 
         # State: Not_in_Row
         if self.row_state == RowState.NOT_IN_ROW:
@@ -148,9 +170,9 @@ class RowDetector:
             conditions_to_enter_row_known_heading = self.within_row_depth and self.within_row_heading
             if conditions_to_enter_row_unknown_heading or conditions_to_enter_row_known_heading:
                 self.row_state = RowState.STARTING_ROW
+                self.row_number += 1
                 self.pred_changed = True
                 self.point_start_row = (longitude, latitude)
-
 
 
         # State: Starting a Row
@@ -191,6 +213,7 @@ class RowDetector:
                 self.row_state = RowState.NOT_IN_ROW
                 self.pred_changed = True
                 self.point_end_of_row = (longitude, latitude)
+                self.row_length = self.get_distance(lon1= longitude, lat1=latitude, lon2=self.point_start_row[0], lat2=self.point_start_row[1])
 
                 # update current row heading and expected heading:
                 self._get_observed_row_heading_and_update_expected_heading()
@@ -389,8 +412,10 @@ class RowDetector:
             'within_row_heading': self.within_row_heading,
             'within_rows_entry_polygons': self.within_rows_entry_polygons,
             'row_state': self.row_state.value,
+            'row_length': self.row_length,
             'pred_changed': self.pred_changed,
-            'pred': self.row_pred}
+            'pred': self.row_pred,
+            'row_number': self.row_number if self.row_pred else None}
 
         for column, value in update_values.items():
             self.df.loc[self.index, column] = value
