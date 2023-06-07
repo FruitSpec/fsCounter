@@ -36,10 +36,10 @@ classes:
 
 tracker:
   minimal_max_distance: 10
-  major: 1.5 #3
-  minor: 1 #2.5
+  major: 2 #3
+  minor: 0.5 #2.5
   max_losses: 5  # 10
-  score_weights: [0.25, 1.0, 0.25, 1.0]  # [0.25, 1.0, 0.25, 1]
+  score_weights: [0.25, 1.0, 0.5, 0.0]  # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
@@ -50,7 +50,7 @@ tracker:
 translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
-  dets_only: true # true: perfrom on detections only, false: on entire image
+  dets_only: false # true: perfrom on detections only, false: on entire image
 
 
 sensor_aligner:
