@@ -151,8 +151,10 @@ if __name__ == '__main__':
                  depth_threshold = row_detector.DEPTH_THRESHOLD,
                  angular_velocity_threshold = row_detector.ANGULAR_VELOCITY_THRESHOLD,
                  expected_heading = row_detector.EXPECTED_HEADING,
-                 lower_heading_bound = row_detector.lower_bound,
-                 upper_heading_bound= row_detector.upper_bound,
+                 lower_heading_boundF = row_detector.lower_boundF,
+                 upper_heading_boundF = row_detector.upper_boundF,
+                 lower_heading_boundR = row_detector.lower_boundR,
+                 upper_heading_boundR = row_detector.upper_boundR,
                  margins_threshold = row_detector.MARGINS_THRESHOLD,
                  save_dir = output_dir)
 

@@ -74,7 +74,7 @@ def read_nav_file(file_path):
 
     return df
 
-def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 10, expected_heading = None, lower_heading_bound= None, upper_heading_bound= None, save_dir=None,  margins_threshold =None): #,
+def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 10, expected_heading = None, lower_heading_boundF = None, upper_heading_boundF = None, lower_heading_boundR = None, upper_heading_boundR = None,save_dir=None,  margins_threshold =None): #,
 
     plt.figure(figsize=(55, 35))
     sns.set(font_scale=2)
@@ -86,8 +86,8 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 2, column_name1="angular_velocity_x", column_name2="ang_vel_ema",
               thresh1=angular_velocity_threshold, thresh2 = -angular_velocity_threshold, thresh3 = None, title ='angular_velocity_x (deg/sec)')
 
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_180", column_name2=None,
-              thresh1=lower_heading_bound, thresh2 = upper_heading_bound, thresh3 = expected_heading, title ='heading_180')
+    _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_360", column_name2=None,
+              thresh1=lower_heading_boundF, thresh2 = upper_heading_boundF, thresh3 = lower_heading_boundR, thresh4 = upper_heading_boundR,thresh5 = expected_heading, title ='heading_180')
 
     _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1='within_rows_entry_polygons', column_name2=None,
               thresh1=None, thresh2 = None, thresh3 = None, title =f"rows_entry_polygons")
@@ -110,7 +110,7 @@ def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 
 
     plt.show()
 
-def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = None, thresh1= None, thresh2= None, thresh3= None):
+def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = None, thresh1= None, thresh2= None, thresh3= None, thresh4= None, thresh5= None):
 
     plt.subplot(n_subplots, 1, i_subplot)
 
@@ -129,7 +129,11 @@ def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = Non
         if thresh2:
             graph.axhline(thresh2, color='red', linewidth=2)
             if thresh3:
-                graph.axhline(thresh3, color='blue', linewidth=2)
+                graph.axhline(thresh3, color='red', linewidth=2)
+                if thresh4:
+                    graph.axhline(thresh4, color='red', linewidth=2)
+                    if thresh5:
+                        graph.axhline(thresh5, color='blue', linewidth=2)
 
     plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
     plt.xlim(0, df.index[-1])

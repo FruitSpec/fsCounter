@@ -34,16 +34,18 @@ class RowDetector:
         self.ANGULAR_VELOCITY_THRESHOLD = 8  #10
         self.ANGULAR_VELOCITY_EMA_ALPHA = 0.02
         self.CONSISTENCY_THRESHOLD = 3
-        self.lower_bound, self.upper_bound = None, None
+        self.lower_boundF, self.upper_boundF = None, None
         if self.EXPECTED_HEADING is not None:
-            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD) # todo: calculate after extracting heading
+            self.lower_boundF, self.upper_boundF, self.lower_boundR, self.upper_boundR = self.get_heading_bounds(
+                self.EXPECTED_HEADING, self.HEADING_THRESHOLD)
+
             self.rows_entry_polygons = self.get_rows_entry_polygons()
 
         # Init:
         self.inner_polygon = self.get_inner_polygon(self.polygon, self.MARGINS_THRESHOLD)
         self.depth_ema = 0.5
         self.angular_velocity_x_ema = 0
-        self.heading_360, self.heading_180 = None, None
+        self.heading_360F, self.heading_360R = None, None
         self.consistency_counter = 0
         self.previous_longitude = None
         self.previous_latitude = None
@@ -98,9 +100,12 @@ class RowDetector:
             lon1, lat1 = coords[i]
             lon2, lat2 = coords[i + 1]
 
-            heading_360, heading_180, _, _ = self.get_heading(lon2, lat2, lon1, lat1)
-            lower_bound, upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, 25)
-            within_heading = self.heading_within_range(heading_180, lower_bound, upper_bound)
+            heading_360F, heading_360R, _, _ = self.get_heading(lon2, lat2, lon1, lat1)
+
+            lower_boundF, upper_boundF, lower_boundR, upper_boundR = self.get_heading_bounds(
+                self.EXPECTED_HEADING, 25)
+
+            within_heading = self.heading_within_range_FR(heading_360F, lower_boundF, upper_boundF, lower_boundR, upper_boundR)
 
             # if the heading is not within range, create a new polygon
             if not within_heading:
@@ -146,20 +151,21 @@ class RowDetector:
         # 2. if heading is unknown: update expected heading
         '''
         # Calculate heading when exiting row:
-        row_heading_360, self.row_heading, _, _ = self.get_heading(
+        self.row_heading_360F, row_heading_360R,  _, _ = self.get_heading(
             self.point_inner_polygon_out[0], self.point_inner_polygon_out[1], self.point_inner_polygon_in[0],
             self.point_inner_polygon_in[1])
         # if heading is unknown: update expected heading from the first row
         if self.EXPECTED_HEADING is None:
-            self.EXPECTED_HEADING = self.row_heading
-            self.lower_bound, self.upper_bound = self.get_heading_bounds_180(self.EXPECTED_HEADING, self.HEADING_THRESHOLD)  # todo: calculate after extracting heading
+            self.EXPECTED_HEADING = self.row_heading_360F
+            self.lower_boundF, self.upper_boundF, self.lower_boundR, self.upper_boundR = self.get_heading_bounds(self.EXPECTED_HEADING, self.HEADING_THRESHOLD)
+
             self.rows_entry_polygons = self.get_rows_entry_polygons()
 
     def global_decision(self, longitude , latitude):
 
         # Reset:
         self.pred_changed = False
-        self.row_heading = None
+        self.row_heading_360F = None
         self.row_length = None
 
         # State: Not_in_Row
@@ -230,11 +236,12 @@ class RowDetector:
         self.within_row_angular_velocity = abs(self.angular_velocity_x_ema) < self.ANGULAR_VELOCITY_THRESHOLD
 
         # gnss sensor:
-        self.heading_360, self.heading_180, self.previous_longitude, self.previous_latitude  =  self.get_heading(longitude, latitude, self.previous_longitude, self.previous_latitude )
+        self.heading_360F, self.heading_360R, self.previous_longitude, self.previous_latitude  =  self.get_heading(longitude, latitude, self.previous_longitude, self.previous_latitude)
 
         #  Check if the heading is within the range
-        if (self.heading_360 is not None) and (self.heading_180 is not None) and (self.lower_bound is not None) and (self.upper_bound is not None):
-            self.within_row_heading = self.heading_within_range(self.heading_180, self.lower_bound, self.upper_bound)  # will be None if heading is None
+        if (self.heading_360F is not None) and (self.heading_360R is not None) and (self.lower_boundF is not None) and (self.upper_boundF is not None):
+            self.within_row_heading = self.heading_within_range_FR(self.heading_360R, self.lower_boundF, self.upper_boundF, self.lower_boundR,
+                                                          self.upper_boundR) # will be None if heading is None
 
         # Check if the current location is within the row entry polygons and inner polygon
         self.within_rows_entry_polygons = self.point_within_rows_entry_polygons((longitude, latitude))
@@ -264,9 +271,10 @@ class RowDetector:
             # Convert the heading from radians to degrees
             heading_deg = np.degrees(heading_rad)
             # Adjust the heading to be relative to the north
-            heading_360 = (heading_deg + 360) % 360
-            heading_180 = (heading_deg + 360) % 180
-            return heading_360, heading_180, longitude_curr, latitude_curr
+            heading_360F = (heading_deg + 360) % 360
+            heading_360R = (heading_deg + 180) % 360
+
+            return heading_360F, heading_360R, longitude_curr, latitude_curr
 
         else:
             return None, None, longitude_curr, latitude_curr
@@ -320,9 +328,14 @@ class RowDetector:
         self.within_inner_polygon = self.inner_polygon.contains(point)
         return self.within_inner_polygon
 
+    def heading_within_range_FR(self, heading, lower_boundF, upper_boundF, lower_boundR, upper_boundR):
+        within_headingF = self._heading_within_range(heading, lower_boundF, upper_boundF)
+        within_headingR = self._heading_within_range(heading, lower_boundR, upper_boundR)
+        within_heading = within_headingF or within_headingR   #todo check if return none if heading is none
+        return within_heading
 
     @staticmethod
-    def heading_within_range(current_heading, lower_bound, upper_bound):
+    def _heading_within_range(current_heading, lower_bound, upper_bound):
 
         # Check if the current heading falls within the expected heading range
         if lower_bound <= upper_bound:
@@ -330,19 +343,23 @@ class RowDetector:
         else:
             # Handle the case where the expected heading range wraps around 360 degrees
             is_in_heading = current_heading >= lower_bound or current_heading <= upper_bound
-
         return is_in_heading
 
     @staticmethod
-    def get_heading_bounds_180(expected_heading, threshold):
+    def get_heading_bounds_360(expected_heading, threshold):
         # Normalize the headings to be between 0 and 180 degrees
-        expected_heading = expected_heading % 180
+        expected_heading = expected_heading % 360
 
         # Calculate the lower and upper bounds for the expected heading range
-        lower_bound = (expected_heading - threshold) % 180
-        upper_bound = (expected_heading + threshold) % 180
+        lower_bound = (expected_heading - threshold) % 360
+        upper_bound = (expected_heading + threshold) % 360
 
         return lower_bound, upper_bound
+
+    def get_heading_bounds(self, heading, heading_threshold):
+        self.lower_boundF, self.upper_boundF = self.get_heading_bounds_360(heading, heading_threshold)
+        self.lower_boundR, self.upper_boundR = self.get_heading_bounds_360((heading + 180) % 360, heading_threshold)
+        return self.lower_boundF, self.upper_boundF, self.lower_boundR, self.upper_boundR
 
     @staticmethod
     def exponential_moving_average(x, last_ema, alpha=0.5):
@@ -402,9 +419,9 @@ class RowDetector:
             'longitude': longitude,
             'latitude': latitude,
             'score': self.depth_score,
-            'heading_180': self.heading_180,
-            'heading_360': self.heading_360,
-            'row_heading': self.row_heading,
+            'heading_180': self.heading_360R,
+            'heading_360': self.heading_360F,
+            'row_heading': self.row_heading_360F,
             'depth_ema': self.depth_ema,
             'ang_vel_ema': self.angular_velocity_x_ema,
             'within_row_depth': self.within_row_depth,
