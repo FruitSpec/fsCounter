@@ -312,7 +312,10 @@ class DataManager(Module):
                     break
 
             t_delta = time.time() - t0
-            timeout_after = max(0.1, timeout_before - t_delta)
+            timeout_after = timeout_before - t_delta
+            if timeout_after <= 0:
+                logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
+                timeout_after = 0.1
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices, timeout_after
 
         def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices):
@@ -362,7 +365,11 @@ class DataManager(Module):
             pd.DataFrame(_failed_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
 
             t_delta = time.time() - t0
-            timeout_after = max(0.1, timeout_before - t_delta)
+            timeout_after = timeout_before - t_delta
+            if timeout_after <= 0:
+                logging.warning(f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}")
+                timeout_after = 0.1
+
             return timeout_after, _response_ok
 
         analyzed_csv_df = None
@@ -398,7 +405,10 @@ class DataManager(Module):
             analyzed_not_uploaded = analyzed_csv_df
 
         analyzed_groups = analyzed_not_uploaded.groupby(["customer_code", "plot_code", "scan_date"])
-        timeout = max(0.1, scan_timeout - t_delta)
+        timeout = scan_timeout - t_delta
+        if timeout <= 0:
+            logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout_after}")
+            timeout = 0.1
 
         for _, analyzed_gr in analyzed_groups:
             uploaded_data = upload_analyzed(timeout, analyzed_gr)
