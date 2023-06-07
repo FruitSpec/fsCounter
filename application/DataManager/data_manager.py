@@ -318,9 +318,11 @@ class DataManager(Module):
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
                 timeout_after = 0.1
-            return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, timeout_after
+            return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
+                timeout_after
 
-        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices):
+        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices,
+                         _uploaded_extensions, _failed_indices):
 
             def add_row_to_dict(d, rows_to_indices, status):
                 for row_name, indices in rows_to_indices.items():
@@ -414,10 +416,10 @@ class DataManager(Module):
             timeout = 0.1
 
         for _, analyzed_gr in analyzed_groups:
-            uploaded_data = upload_analyzed(timeout, analyzed_gr)
-            customer_code, plot_code, scan_date, uploaded_indices, failed_indices, timeout = uploaded_data
+            customer_code, plot_code, scan_date, uploaded_indices, uploaded_extensions, failed_indices, \
+                timeout = upload_analyzed(timeout, analyzed_gr)
             timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
-                                                uploaded_indices, failed_indices)
+                                                uploaded_indices, uploaded_extensions, failed_indices)
 
         # analyzed_groups = analyzed_csv_df.groupby(["customer code", "plot code", "scan date"])
         # for _, analyzed_group in analyzed_groups:
