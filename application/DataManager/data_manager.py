@@ -265,6 +265,7 @@ class DataManager(Module):
             _plot_code = analyzed_group["plot_code"].iloc[0]
             _scan_date = str(analyzed_group["scan_date"].iloc[0])
             _uploaded_indices = {}
+            _uploaded_extensions = {}
             _failed_indices = {}
             for _, analyzed_row in analyzed_group.iterrows():
                 folder_index = str(analyzed_row["folder_index"])
@@ -290,6 +291,7 @@ class DataManager(Module):
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
                     DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
                     add_to_dict(_uploaded_indices, row, folder_index)
+                    add_to_dict(_uploaded_extensions, row, ext)
                 except TimeoutError:
                     print("timeout error")
                     break
@@ -316,9 +318,9 @@ class DataManager(Module):
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
                 timeout_after = 0.1
-            return _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices, timeout_after
+            return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, timeout_after
 
-        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices, _failed_indices):
+        def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices):
 
             def add_row_to_dict(d, rows_to_indices, status):
                 for row_name, indices in rows_to_indices.items():
@@ -339,6 +341,7 @@ class DataManager(Module):
                     "plot_code": _plot_code,
                     "scan_date": _scan_date,
                     "indices": _uploaded_indices,
+                    "file_types": _uploaded_extensions,
                     "output dir": os.path.join(_customer_code, _plot_code, _scan_date),
                     "output types": ['FSI']
                 }
