@@ -32,14 +32,21 @@ def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
     with transfer_data_lock:
         sender_module = communication_queue.get()
+        logging.info(f"DATA TRANSFER FROM {sender_module}")
+        success = False
         for i in range(5):
             try:
                 data, recv_module = manager[sender_module].retrieve_transferred_data()
+                logging.info(f"DATA TRANSFER TO {recv_module}")
                 manager[recv_module].receive_transferred_data(data, sender_module)
+                success = True
                 break
             except DataError:
                 time.sleep(0.1)
-                logging.exception("communication error ", i)
+                logging.warning(f"COMMUNICATION ERROR #{i}")
+        if not success:
+            logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+            print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
 
 
 def main():
@@ -53,7 +60,6 @@ def main():
     signal.signal(signal.SIGUSR1, transfer_data)
 
     logging.info(f"MAIN PID: {main_pid}")
-    print(f"MAIN PID: {main_pid}")
 
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,

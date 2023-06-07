@@ -149,6 +149,7 @@ class GPSSampler(Module):
                 traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
+        print("GPS ABOUT TO END. SHUTDOWN EVENT STATUS: ", GPSSampler.shutdown_event.is_set())
         ser.close()
         logging.info("END")
         LedSettings.turn_off()

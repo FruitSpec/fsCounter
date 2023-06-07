@@ -10,6 +10,7 @@ from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
 
+
 class AlternativeFlow(Module):
 
     @staticmethod
@@ -19,10 +20,6 @@ class AlternativeFlow(Module):
         signal.signal(signal.SIGUSR1, AlternativeFlow.receive_data)
         AlternativeFlow.analyze()
         print("Analyze process is up")
-
-    @staticmethod
-    def shutdown(sig, frame):
-        pass
 
     @staticmethod
     def receive_data(sig, frame):

@@ -139,6 +139,8 @@ class Module:
 
     @staticmethod
     def shutdown(sig, frame):
+        print(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
+        logging.warning(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
         Module.shutdown_event.set()
         while not Module.shutdown_done_event.is_set():
             time.sleep(5)
