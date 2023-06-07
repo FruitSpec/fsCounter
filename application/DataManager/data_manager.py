@@ -420,16 +420,3 @@ class DataManager(Module):
                 timeout = upload_analyzed(timeout, analyzed_gr)
             timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
                                                 uploaded_indices, uploaded_extensions, failed_indices)
-
-        # analyzed_groups = analyzed_csv_df.groupby(["customer code", "plot code", "scan date"])
-        # for _, analyzed_group in analyzed_groups:
-        #     group_rows = analyzed_group.groupby(["row"])
-        #     for _, gr in group_rows:
-        #         indices = gr["folder_index"].to_list()
-        #     for _, r in group.iterrows():
-        #         row, folder_index = r["row"], r["folder_index"]
-        #
-        # if scan.csv does not exist, copy scan_df
-        with DataManager.scan_lock:
-            DataManager.scan_df.to_csv(data_conf.scanner_path, mode="w", index=False, header=True)
-        scan_csv_df = DataManager.scan_df
