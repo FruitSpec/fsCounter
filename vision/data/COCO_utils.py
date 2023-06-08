@@ -65,8 +65,8 @@ def create_images_dict(files, ids, height, width):
 
 
 def xyxy2xywh(bboxes):
-    bboxes[:, 2] = bboxes[:, 2] - bboxes[:, 0]
-    bboxes[:, 3] = bboxes[:, 3] - bboxes[:, 1]
+    bboxes[2] = bboxes[2] - bboxes[0]
+    bboxes[3] = bboxes[3] - bboxes[1]
     return bboxes
 
 def generate_coco_format(outputs, info_imgs, ids, img_size,

@@ -5,13 +5,15 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import collections
-
+from json import dump
+import uuid
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
 from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper
+from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
 
 
 
@@ -31,6 +33,7 @@ class ResultsCollector():
         self.hash = {}
         self.jai_width = 1536
         self.jai_height = 2048
+        self.coco = {"categories": [], "images": [], "annotations": []}
 
     def collect_detections(self, batch_results, img_id):
         for i, detection_results in enumerate(batch_results):
@@ -81,7 +84,7 @@ class ResultsCollector():
 
         return results
     def collect_size_measure(self, point_cloud_mat, tracking_results):
-        self.measures += get_dimentions(point_cloud_mat, tracking_results)
+        self.measures += get_dimensions(point_cloud_mat, tracking_results)
 
     def collect_file_name(self, file_anme):
         self.file_names.append(file_anme)
@@ -135,6 +138,10 @@ class ResultsCollector():
             write.writerow(fields)
             write.writerows(rows)
         print(f'Done writing results to csv')
+
+    def dump_to_json(self, output_file_path):
+        with open(output_file_path, "w", encoding='utf8') as f:
+            dump(self.coco, f)
 
     def write_results_on_movie(self, movie_path, output_path, write_tracks=True, write_frames=False):
         """
@@ -261,6 +268,22 @@ class ResultsCollector():
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+
+    def det_to_coco(self, f_id, args, trk_outputs, frame):
+        validate_output_path(os.path.join(args.output_folder, 'frames'))
+        gen = uuid.uuid4().hex[:7]
+        self.draw_and_save(frame.copy(), [], gen, os.path.join(args.output_folder, 'frames'))
+        self.coco["categories"] = [
+            {
+                "supercategory": "Fruits",
+                "id": 1,
+                "name": "orange"
+            }]
+        self.coco["images"].extend(
+            create_images_dict([f'frame_{gen}_res.jpg'], [f_id], args.frame_size[0], args.frame_size[1]))
+        self.coco["annotations"].extend(convert_to_coco_format(trk_outputs, [args.frame_size[0], args.frame_size[1]],
+                                                               [args.frame_size[0], args.frame_size[1]], [1], "dets"))
+
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)

@@ -1,21 +1,8 @@
-# config.yaml
-exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py  # counter
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py       # baseline
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py # pepper
+exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py
 
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_2_13_nov_2022/best_ckpt.pth # tomatoes
-#ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth # pre-trained coco
-#ckpt_file: /home/yotam/FruitSpec/weights/Run_2_7_oct/best_ckpt.pth # counter
-#ckpt_file: /home/yotam/FruitSpec/weights/pepper/Run_3_22_oct_2022/best_ckpt.pth # pepper 200 img train
-#ckpt_file: /home/yotam/FruitSpec/weights/pepper/Run_1_23_oct_2022_400img/best_ckpt.pth # pepper 400 img train
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_26_oct_2022_curated_data/best_ckpt.pth  # new RGB tomatoes
-#ckpt_file: /home/yotam/FruitSpec/weights/tomatoes/Run_28_oct_curated_2x/best_ckpt.pth # new RGB tomatoes 28/11
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_30_oct_2022_1Class_aug_tasq/best_ckpt.pth # new RGB tomatoes 1 class 29/11
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/best_ckpt.pth # RGB tasq v2
-ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
-
-
+ckpt_file: /home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022/best_ckpt.pth
+#ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth
 
 device: cuda
 
@@ -23,12 +10,12 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  confidence: 0.4
-  nms: 0.65
+  confidence: 0.7
+  nms: 0.6
   num_of_classes: 1
-  fp16: true
+  fp16: false
   fuse: false
-  trt: true
+  trt: false
 
 classes:
   full: 0
@@ -43,7 +30,7 @@ tracker:
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
-  compile_data_path: /home/mic-730ai/fruitspec/code/matan/tracker_init.pkl
+  compile_data_path: /home/fruitspec-lab/FruitSpec/Sandbox/tracker_init.pkl
   debug: false
 
 

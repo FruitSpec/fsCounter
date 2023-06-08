@@ -1,8 +1,6 @@
 import os
 import sys
 import torch
-from concurrent.futures import ThreadPoolExecutor
-import time
 
 cwd = os.getcwd()
 sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
@@ -14,19 +12,25 @@ from vision.misc.help_func import scale_dets, scale
 from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 
+def release():
+    torch.cuda.empty_cache()
+
 
 class counter_detection():
 
     def __init__(self, cfg, args):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
-        self.detector, self.decoder_ = self.init_detector(cfg)
+
+        self.detector = self.init_detector(cfg)
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
+
         self.tracker = self.init_tracker(cfg, args)
+
         self.device = cfg.device
 
     @staticmethod
@@ -34,112 +38,58 @@ class counter_detection():
         exp = get_exp(cfg.exp_file)
         model = exp.get_model()
 
+        print("loading checkpoint from {}".format(cfg.ckpt_file))
+        ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
+        model.load_state_dict(ckpt["model"])
+        print("loaded checkpoint done.")
         model.cuda(cfg.device)
-
-        if cfg.detector.fp16:   # can only run on gpu
-            model.half()
-
         model.eval()
 
-        decoder_ = None
+        if cfg.detector.fp16:
+            model.half()
 
-        if not cfg.detector.trt:
-
-            print("loading checkpoint from {}".format(cfg.ckpt_file))
-            ckpt = torch.load(cfg.ckpt_file, map_location=cfg.device)
-            model.load_state_dict(ckpt["model"])
-            print("loaded checkpoint done.")
-
-        if cfg.detector.trt:
-            model.head.decode_in_inference = False
-            decoder_ = model.head.decode_outputs
-
-            from torch2trt import TRTModule
-            model_trt = TRTModule()
-
-            # replace model weights with "model_trt.pth" in the same dir:
-            weights_path = os.path.abspath(cfg.ckpt_file)
-            if os.path.basename(weights_path) != "model_trt.pth":
-                weights_path = os.path.join(os.path.dirname(weights_path), "model_trt.pth")
-            if not os.path.exists(weights_path):
-                raise FileNotFoundError(f"File {weights_path} not found.")
-
-            # load trt-pytorch model
-            model_trt.load_state_dict(torch.load(weights_path))
-            print("loaded TensorRT model.")
-            x = torch.ones(cfg.batch_size, 3, exp.test_size[0], exp.test_size[1]).cuda()
-            tensor_type = torch.cuda.HalfTensor if cfg.detector.fp16 else torch.cuda.FloatTensor
-            x = x.type(tensor_type)
-            model(x)
-            model = model_trt
-
-        return model, decoder_
+        return model
 
     @staticmethod
     def init_tracker(cfg, args):
 
         return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
                          score_weights=cfg.tracker.score_weights,
                          match_type=cfg.tracker.match_type,
                          det_area=cfg.tracker.det_area,
                          max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
-                         major=cfg.tracker.major,
+                         major = cfg.tracker.major,
                          minor=cfg.tracker.minor,
-                         compile_data=cfg.tracker.compile_data_path,
-                         debug_folder=None)
+                         debug_folder=args.debug.tracker)
 
-
-    def detect(self, frames):
-        input_ = self.preprocess_batch(frames)
+    def detect(self, frame):
+        preprc_frame = self.preprocess(frame)
+        input_ = preprc_frame.to(self.device)
 
         if self.fp16:
             input_ = input_.half()
 
         with torch.no_grad():
             output = self.detector(input_)
-            if self.decoder_ is not None:
-                output = self.decoder_(output, dtype=output.type())
 
         # Filter results below confidence threshold and nms threshold
         output = postprocess(output, self.num_of_classes, self.confidence_threshold)
-
         # Scale bboxes to orig image coordinates
-        output = self.scale_output(output, frames[0].shape)
-
+        output = self.scale_output(output, frame.shape)
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, translations, frame_id=None):
+    def track(self, outputs, tx, ty, frame_id=None, dets_depth=None):
 
-        batch_results = []
-        batch_windows = []
-        for i, frame_output in enumerate(outputs):
-            if frame_output is not None:
-                tx, ty = translations[i]
-                if frame_id is not None:
-                    id_ = frame_id + i
-                else:
-                    id_ = None
-                online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_)
-                tracking_results = []
-                for target in online_targets:
-                    target.append(id_)
-                    tracking_results.append(target)
+        if outputs is not None:
+            online_targets, track_windows = self.tracker.update(outputs, tx, ty, frame_id, dets_depth)
+            tracking_results = []
+            for target in online_targets:
+                target.append(frame_id)
+                tracking_results.append(target)
 
-            batch_results.append(tracking_results)
-            batch_windows.append(track_windows)
+            return tracking_results, track_windows
 
-        return batch_results, batch_windows
-
-    def preprocess_batch(self, batch, workers=4):
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            results = list(executor.map(self.preprocess, batch))
-        preprc_batch = torch.stack(results)
-        #preprc_batch = preprc_batch.
-
-        return preprc_batch
 
     def get_imgs_info(self, frame_id):
 
@@ -170,7 +120,10 @@ class counter_detection():
 
         return output
 
-
-
-
-
+    def release(self):
+        import gc
+        self.detector.cpu()
+        del self.detector
+        gc.collect()
+        torch.cuda.empty_cache()
+        print("Release GPU!")
