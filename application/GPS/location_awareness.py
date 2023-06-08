@@ -4,6 +4,7 @@ import traceback
 from builtins import staticmethod
 
 import boto3
+import fscloudutils.exceptions
 
 from application.utils.settings import GPS_conf, conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
@@ -134,7 +135,8 @@ class GPSSampler(Module):
                         time.sleep(3)
                         GPSSampler.step_in()
                 err_count = 0
-
+            except fscloudutils.exceptions.InputError:
+                print(data)
             except ValueError as e:
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:

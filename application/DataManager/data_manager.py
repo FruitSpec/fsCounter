@@ -204,6 +204,7 @@ class DataManager(Module):
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
                 upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
+                upload_speed_in_kbps = upload_speed_in_kbps * 0.8
                 logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
                 print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
             except speedtest.SpeedtestException:
@@ -418,5 +419,9 @@ class DataManager(Module):
         for _, analyzed_gr in analyzed_groups:
             customer_code, plot_code, scan_date, uploaded_indices, uploaded_extensions, failed_indices, \
                 timeout = upload_analyzed(timeout, analyzed_gr)
-            timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
-                                                uploaded_indices, uploaded_extensions, failed_indices)
+            try:
+                timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
+                                                    uploaded_indices, uploaded_extensions, failed_indices)
+            except:
+                traceback.print_exc()
+                break
