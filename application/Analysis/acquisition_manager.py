@@ -75,7 +75,6 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
-        print("acq start")
         with AcquisitionManager.acquisition_lock:
             AcquisitionManager.set_acquisition_parameters(
                 data=acquisition_parameters,
@@ -96,7 +95,6 @@ class AcquisitionManager(Module):
                 with AcquisitionManager.health_check_lock:
                     AcquisitionManager.running = running
             AcquisitionManager.analyzer.start_acquisition()
-            print("acq start end")
 
     @staticmethod
     def stop_acquisition():
