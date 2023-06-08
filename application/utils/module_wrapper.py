@@ -91,7 +91,9 @@ class ModuleManager:
     def start(self):
         self._process.start()
         self.pid = self._process.pid
+        print(f"{self.module_name} PID: {self.pid}")
         logging.info(f"{self.module_name} PID: {self.pid}")
+        return self.pid
 
     def join(self):
         self._process.join()

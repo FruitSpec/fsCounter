@@ -34,7 +34,7 @@ class GUIInterface(Module):
             return False
 
         super(GUIInterface, GUIInterface).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
-        super(GUIInterface, GUIInterface).set_signals(GUIInterface.shutdown, GUIInterface.receive_data)
+        super(GUIInterface, GUIInterface).set_signals(GUIInterface, GUIInterface.receive_data)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf.GUI_server_port))
         subprocess.Popen(GUI_conf.GUI_startup_script, shell=True,

@@ -7,11 +7,11 @@ from datetime import datetime
 import signal
 import logging
 import boto3
+from botocore.config import Config
 import pandas as pd
 import requests
 from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import EndpointConnectionError
-from cupy._core._accelerator import accelerator_type
 from requests.exceptions import RequestException
 from application.utils.settings import data_conf, conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
@@ -45,7 +45,8 @@ class DataManager(Module):
         super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
-        DataManager.s3_client = boto3.client("s3")
+        DataManager.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
+
         # DataManager.update_output_thread = threading.Thread(target=DataManager.update_output, daemon=True)
         DataManager.internet_scan_thread = threading.Thread(target=DataManager.internet_scan, daemon=True)
 
@@ -204,7 +205,7 @@ class DataManager(Module):
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
                 upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
-                upload_speed_in_kbps = upload_speed_in_kbps * 0.8
+                upload_speed_in_kbps = upload_speed_in_kbps
                 logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
                 print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
             except speedtest.SpeedtestException:
@@ -219,7 +220,7 @@ class DataManager(Module):
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
             t1 = time.time()
-            next_execution_time = max(0.1, data_conf.upload_interval - (t1 - t0))
+            next_execution_time = max(0.95, data_conf.upload_interval - (t1 - t0))
             if DataManager.shutdown_event.wait(next_execution_time):
                 break
 
@@ -318,7 +319,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
-                timeout_after = 0.1
+                timeout_after = 0.95
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
                 timeout_after
 
@@ -374,7 +375,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}")
-                timeout_after = 0.1
+                timeout_after = 0.95
 
             return timeout_after, _response_ok
 
@@ -383,7 +384,6 @@ class DataManager(Module):
         while time.time() < future_timeout:
             try:
                 analyzed_csv_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
-                # TODO: READ 'uploaded' AND FILTER OUT THOSE FILES
                 break
             except PermissionError:
                 time.sleep(5)
@@ -414,7 +414,7 @@ class DataManager(Module):
         timeout = scan_timeout - t_delta
         if timeout <= 0:
             logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout}")
-            timeout = 0.1
+            timeout = 0.95
 
         for _, analyzed_gr in analyzed_groups:
             customer_code, plot_code, scan_date, uploaded_indices, uploaded_extensions, failed_indices, \

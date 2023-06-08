@@ -6,3 +6,4 @@ log_name: "log"
 GUI: false
 autonomous_acquisition: true
 customer_code: "NWFMXX"
+use_strace: true
