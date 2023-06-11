@@ -1,8 +1,6 @@
 import os
 import numpy as np
 import cv2
-import matplotlib as mpl
-mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 
 

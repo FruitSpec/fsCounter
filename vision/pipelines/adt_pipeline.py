@@ -7,6 +7,7 @@ import numpy as np
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
+import pickle
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
@@ -32,7 +33,7 @@ def run(cfg, args, metadata=None):
     print(f'Inferencing on {args.jai.movie_path}\n')
 
     frame_drop_jai = get_frame_drop(args)
-    n_frames = get_number_of_frames(adt.jai_cam.get_number_of_frames(), metadata)
+    n_frames = get_number_of_frames(adt.frames_loader.jai_cam.get_number_of_frames(), metadata)
 
     f_id = 0
 
@@ -40,10 +41,8 @@ def run(cfg, args, metadata=None):
     while f_id < n_frames:
         pbar.update(adt.batch_size)
         zed_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
-        #zed_frame, point_cloud, fsi_ret, jai_frame, rgb_ret, rgb_jai_frame = adt.get_frames(f_id)
 
-        #if not fsi_ret or not adt.zed_cam.res or not rgb_ret:  # couldn't get frames, Break the loop
-             #break
+
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
         if rgb_stauts or zed_stauts:
@@ -51,11 +50,9 @@ def run(cfg, args, metadata=None):
                 if f_id + i in frame_drop_jai:
                      adt.sensor_aligner.zed_shift += 1
              f_id += adt.batch_size
+             adt.logger.iterations += 1
              continue
 
-         # align sensors
-        # corr, tx_a, ty_a, sx, sy = adt.align_cameras(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
-        #                                                            rgb_jai_frame)
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
         # detect:
@@ -83,9 +80,9 @@ def run(cfg, args, metadata=None):
     adt.rgb_jai_cam.close()
     adt.dump_log_stats(args)
 
-    results_collector.dump_feature_extractor(args.output_folder)
+    #results_collector.dump_feature_extractor(args.output_folder)
 
-    update_metadata(metadata)
+    update_metadata(metadata, args)
 
     return results_collector
 
@@ -97,8 +94,7 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
-        self.zed_cam, self.rgb_jai_cam, self.jai_cam = init_cams(args)
+        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size
 
 
@@ -290,7 +286,7 @@ def get_number_of_frames(jai_max_frames, metadata=None):
 
     return n_frames
 
-def update_metadata(metadata):
+def update_metadata(metadata, args):
     if metadata is None:
         metadata = {}
     metadata["align_detect_track"] = False

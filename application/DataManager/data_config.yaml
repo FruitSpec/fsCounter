@@ -1,0 +1,10 @@
+global polygon: "global"
+update interval: 10
+upload interval: 300
+scanner path: /home/mic-730ai/Desktop/scan.csv
+collected path: /home/mic-730ai/Desktop/collected.log
+analyzed path: /home/mic-730ai/Desktop/analyzed.log
+file prefix: 0
+use feather: true
+request timeout: 10
+output path: /home/mic-730ai/Desktop

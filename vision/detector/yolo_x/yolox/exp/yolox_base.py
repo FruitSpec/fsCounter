@@ -271,6 +271,11 @@ class Exp(BaseExp):
         return scheduler
 
     def get_eval_loader(self, batch_size, is_distributed, json_file, name=None, testdev=False, legacy=False):
+        if not isinstance(json_file, str):
+            testdev = json_file
+            legacy = name
+            json_file = self.val_ann if not testdev else self.test_ann
+            name = "val2017" if not testdev else "test2017"
         from yolox.data import COCODataset, ValTransform
         if name is None:
             name = "val2017" if not testdev else "test2017"
