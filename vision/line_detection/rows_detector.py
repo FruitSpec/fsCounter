@@ -1,5 +1,4 @@
 import pandas as pd
-from vision.line_detection.retrieve_sensors_data import plot_sensors
 import os
 import numpy as np
 import cv2
@@ -8,6 +7,9 @@ from fastkml import kml
 import simplekml
 from enum import Enum
 from math import asin, atan2, cos, degrees, radians, sin, sqrt
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import seaborn as sns
 
 class RowState(Enum):
     NOT_IN_ROW = 0
@@ -263,18 +265,22 @@ class RowDetector:
         coordinate system where the north direction aligns with the positive y-axis. '''
 
         if latitude_previous and longitude_previous:  # The first time the heading is None
-            # Calculate the difference in latitude and longitude
-            delta_lat = latitude_curr - latitude_previous
-            delta_lon = longitude_curr - longitude_previous
-            # Calculate the heading using atan2
-            heading_rad = np.arctan2(delta_lon, delta_lat)
-            # Convert the heading from radians to degrees
-            heading_deg = np.degrees(heading_rad)
-            # Adjust the heading to be relative to the north
-            heading_360F = (heading_deg + 360) % 360
-            heading_360R = (heading_deg + 180) % 360
+            if (longitude_curr == longitude_previous) and (latitude_curr == latitude_previous): # If the location is the same as the previous one, keep the same heading
+                return self.heading_360F, self.heading_360R, longitude_curr, latitude_curr
 
-            return heading_360F, heading_360R, longitude_curr, latitude_curr
+            else: # If the location is different from the previous one, calculate the heading:
+                # Calculate the difference in latitude and longitude
+                delta_lat = latitude_curr - latitude_previous
+                delta_lon = longitude_curr - longitude_previous
+                # Calculate the heading using atan2
+                heading_rad = np.arctan2(delta_lon, delta_lat)
+                # Convert the heading from radians to degrees
+                heading_deg = np.degrees(heading_rad)
+                # Adjust the heading to be relative to the north
+                heading_360F = (heading_deg + 360) % 360
+                heading_360R = (heading_deg + 180) % 360
+
+                return heading_360F, heading_360R, longitude_curr, latitude_curr
 
         else:
             return None, None, longitude_curr, latitude_curr
@@ -442,5 +448,126 @@ class RowDetector:
 
 
 
+    def generate_new_kml_file(self, output_dir):
+        # Create a new KML document
+        kml = simplekml.Kml()
 
+        # Create a new Polygon placemark with style for outline only
+        polystyle = simplekml.PolyStyle(fill=0, outline=1)  # No fill, outline only
+        linestyle = simplekml.LineStyle(color=simplekml.Color.blue, width=3)  # Blue outline
+        style = simplekml.Style()
+        style.polystyle = polystyle
+        style.linestyle = linestyle
+
+        # First polygon
+        placemark1 = kml.newpolygon(name='Polygon1')
+        placemark1.outerboundaryis = list(self.polygon.exterior.coords)
+        placemark1.style = style
+
+        # Draw polygons with green color
+        for i, polygon in enumerate(self.rows_entry_polygons):
+            placemark = kml.newpolygon(name=f'Polygon{i + 2}')  # Start from 2 since 1 is already used
+            placemark.outerboundaryis = list(polygon.exterior.coords)
+
+            # Change the linestyle color of the polygon to green
+            linestyle = simplekml.LineStyle(color=simplekml.Color.green, width=3)  # Green outline
+            style = simplekml.Style()
+            style.polystyle = polystyle
+            style.linestyle = linestyle
+            placemark.style = style
+
+        # Create a separate LineString for each pair of points with the same 'pred' value.
+        for i in range(len(self.df) - 1):
+            row1 = self.df.iloc[i]
+            row2 = self.df.iloc[i + 1]
+            if row1['pred'] == row2['pred']:
+                coords = [(row1['longitude'], row1['latitude']), (row2['longitude'], row2['latitude'])]
+                linestring = kml.newlinestring(name=f'LineString{i}')
+
+                linestring.style.linestyle.width = 5
+
+                if row1['pred'] == 0:
+                    linestring.style.linestyle.color = simplekml.Color.red  # Red for pred = 0
+                else:
+                    linestring.style.linestyle.color = simplekml.Color.yellow  # Yellow for pred = 1
+                linestring.coords = coords
+
+        # Add labels to the start and end points of the line
+        start_label = kml.newpoint(name='Start', coords=[(self.df.iloc[0]['longitude'], self.df.iloc[0]['latitude'])])
+        end_label = kml.newpoint(name='End', coords=[(self.df.iloc[-1]['longitude'], self.df.iloc[-1]['latitude'])])
+
+        # Save the KML document to a new file
+        output_path = os.path.join(output_dir, 'new_file.kml')
+        kml.save(output_path)
+        print(f'KML file saved to {output_path}')
+
+    def plot_sensors(self, title, save_dir=None, margins_threshold=None):
+
+        plt.figure(figsize=(55, 35))
+        sns.set(font_scale=2)
+
+        n_subplots = 6
+        self._subplot_(n_subplots=n_subplots, i_subplot=1, column_name1="score", column_name2="depth_ema",
+                  thresh1=self.DEPTH_THRESHOLD, thresh2=None, thresh3=None, title='Depth score')
+
+        self._subplot_(n_subplots=n_subplots, i_subplot=2, column_name1="angular_velocity_x", column_name2="ang_vel_ema",
+                  thresh1=self.ANGULAR_VELOCITY_THRESHOLD, thresh2=-self.ANGULAR_VELOCITY_THRESHOLD, thresh3=None,
+                  title='angular_velocity_x (deg/sec)')
+
+        self._subplot_(n_subplots=n_subplots, i_subplot=3, column_name1="heading_360", column_name2=None,
+                  thresh1=self.lower_boundF , thresh2=self.upper_boundF, thresh3=self.lower_boundR,
+                  thresh4=self.upper_boundR, thresh5=self.EXPECTED_HEADING, title='heading_180')
+
+        self._subplot_(n_subplots=n_subplots, i_subplot=4, column_name1='within_rows_entry_polygons', column_name2=None,
+                  thresh1=None, thresh2=None, thresh3=None, title=f"rows_entry_polygons")
+
+        self._subplot_(n_subplots=n_subplots, i_subplot=5, column_name1='row_state', column_name2=None,
+                  thresh1=None, thresh2=None, thresh3=None,
+                  title=f"'Row_state. 0: 'not in row', 1: 'starting row', 2: 'middle of row', 3: 'end of row'")
+
+        self._subplot_(n_subplots=n_subplots, i_subplot=6, column_name1="pred", column_name2=None,
+                  thresh1=None, thresh2=None, thresh3=None, title=f"Prediction. 0: 'not in row', 1: 'starting row'")
+
+        plt.suptitle(title)
+        plt.tight_layout()
+
+        if save_dir:
+            output_path = os.path.join(save_dir, f"plot_{title}.png")
+            plt.savefig(output_path)
+            plt.close()
+            print(f'saved plot to {output_path}')
+
+        plt.show()
+
+    def _subplot_(self, n_subplots, i_subplot, title, column_name1, column_name2=None, thresh1=None, thresh2=None,
+                  thresh3=None, thresh4=None, thresh5=None):
+
+        plt.subplot(n_subplots, 1, i_subplot)
+
+        # draw the ground truth:
+        if 'ground_truth' in self.df.columns:
+            plt.fill_between(self.df.index, self.df[column_name1].min(), self.df[column_name1].max(), where=self.df['ground_truth'] == 1,
+                             color='green', alpha=0.15)
+
+        # draw the plots:
+        graph = sns.lineplot(data=self.df, x=self.df.index, y=column_name1)
+        if column_name2:
+            sns.lineplot(data=self.df, x=self.df.index, y=column_name2)
+
+        # draw thresholds:
+        if thresh1:
+            graph.axhline(thresh1, color='red', linewidth=2)
+            if thresh2:
+                graph.axhline(thresh2, color='red', linewidth=2)
+                if thresh3:
+                    graph.axhline(thresh3, color='red', linewidth=2)
+                    if thresh4:
+                        graph.axhline(thresh4, color='red', linewidth=2)
+                        if thresh5:
+                            graph.axhline(thresh5, color='blue', linewidth=2)
+
+        plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
+        plt.xlim(0, self.df.index[-1])
+        plt.grid(True)
+        plt.title(title)
 

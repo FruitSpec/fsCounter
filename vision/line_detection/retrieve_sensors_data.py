@@ -74,71 +74,7 @@ def read_nav_file(file_path):
 
     return df
 
-def plot_sensors(df, title, depth_threshold = 0.5, angular_velocity_threshold = 10, expected_heading = None, lower_heading_boundF = None, upper_heading_boundF = None, lower_heading_boundR = None, upper_heading_boundR = None,save_dir=None,  margins_threshold =None): #,
 
-    plt.figure(figsize=(55, 35))
-    sns.set(font_scale=2)
-
-    n_subplots = 6
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 1, column_name1="score", column_name2="depth_ema",
-              thresh1=depth_threshold, thresh2 = None, thresh3 = None, title ='Depth score')
-
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 2, column_name1="angular_velocity_x", column_name2="ang_vel_ema",
-              thresh1=angular_velocity_threshold, thresh2 = -angular_velocity_threshold, thresh3 = None, title ='angular_velocity_x (deg/sec)')
-
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 3, column_name1="heading_360", column_name2=None,
-              thresh1=lower_heading_boundF, thresh2 = upper_heading_boundF, thresh3 = lower_heading_boundR, thresh4 = upper_heading_boundR,thresh5 = expected_heading, title ='heading_180')
-
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 4, column_name1='within_rows_entry_polygons', column_name2=None,
-              thresh1=None, thresh2 = None, thresh3 = None, title =f"rows_entry_polygons")
-
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 5, column_name1='row_state', column_name2=None,
-              thresh1=None, thresh2 = None, thresh3 = None, title =f"'Row_state. 0: 'not in row', 1: 'starting row', 2: 'middle of row', 3: 'end of row'")
-
-    _subplot_(df, n_subplots = n_subplots, i_subplot = 6, column_name1="pred", column_name2=None,
-              thresh1=None, thresh2 = None, thresh3 = None, title =f"Prediction. 0: 'not in row', 1: 'starting row'")
-
-
-    plt.suptitle(title)
-    plt.tight_layout()
-
-    if save_dir:
-        output_path = os.path.join(save_dir, f"plot_{title}.png")
-        plt.savefig(output_path)
-        plt.close()
-        print (f'saved plot to {output_path}')
-
-    plt.show()
-
-def _subplot_(df, n_subplots, i_subplot, title, column_name1, column_name2 = None, thresh1= None, thresh2= None, thresh3= None, thresh4= None, thresh5= None):
-
-    plt.subplot(n_subplots, 1, i_subplot)
-
-    # draw the ground truth:
-    if 'ground_truth' in df.columns:
-        plt.fill_between(df.index, df[column_name1].min(), df[column_name1].max(), where=df['ground_truth'] == 1, color='green', alpha=0.15)
-
-    # draw the plots:
-    graph = sns.lineplot(data=df, x=df.index, y=column_name1)
-    if column_name2:
-        sns.lineplot(data=df, x=df.index, y=column_name2)
-
-    # draw thresholds:
-    if thresh1:
-        graph.axhline(thresh1, color='red', linewidth=2)
-        if thresh2:
-            graph.axhline(thresh2, color='red', linewidth=2)
-            if thresh3:
-                graph.axhline(thresh3, color='red', linewidth=2)
-                if thresh4:
-                    graph.axhline(thresh4, color='red', linewidth=2)
-                    if thresh5:
-                        graph.axhline(thresh5, color='blue', linewidth=2)
-
-    plt.gca().xaxis.set_major_locator(ticker.MultipleLocator(200))
-    plt.xlim(0, df.index[-1])
-    plt.grid(True)
-    plt.title(title)
 
 
 # EMA exponential moving average:
