@@ -1,19 +1,13 @@
 import logging
 
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import seaborn as sns
 import numpy as np
 import os
-import re
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from geographiclib.geodesic import Geodesic
-from tqdm import tqdm
-import datetime
 import json
-from vision.tools.utils_general import find_subdirs_with_file, variable_exists
+from vision.tools.utils_general import find_subdirs_with_file
 
 
 def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']):
@@ -76,17 +70,6 @@ def read_nav_file(file_path):
 
 
 
-
-# EMA exponential moving average:
-def add_exponential_moving_average_EMA_to_df(df, column_name, alpha): #todo check span
-    df[column_name + f'_EMA'] = df[column_name].ewm(alpha =alpha).mean()
-    return df
-
-def moving_average(df, column_name, window_size):
-    # Calculate the moving average using the rolling function
-    df[column_name + f'_MA'] = df[column_name].rolling(window=window_size).mean()
-    return df
-
 def extract_time_from_timestamp(df):
     # replace the letter 'O' with zero:
     df['timestamp'] = df['timestamp'].str.replace(r'O', '0', regex=True)
@@ -118,52 +101,6 @@ def GT_to_df(GT, df):
     df['GT'] = flags
     return df
 
-
-def get_gnss_heading_360(df_gps):
-    '''the heading calculation assumes that the GNSS data is provided in the WGS84 coordinate system or a
-    coordinate system where the north direction aligns with the positive y-axis. '''
-
-    # Convert 'latitude' and 'longitude' columns to numeric
-    df_gps['latitude'] = pd.to_numeric(df_gps['latitude'], errors='coerce')
-    df_gps['longitude'] = pd.to_numeric(df_gps['longitude'], errors='coerce')
-
-    # Calculate the difference in latitude and longitude
-    delta_lat = df_gps['latitude'].diff()
-    delta_lon = df_gps['longitude'].diff()
-    # Calculate the heading using atan2
-    heading_rad = np.arctan2(delta_lon, delta_lat)
-    # Convert the heading from radians to degrees
-    heading_deg = np.degrees(heading_rad)
-    # Adjust the heading to be relative to the north
-    df_gps['heading_360'] = (heading_deg + 360) % 360
-    df_gps['heading_180'] = (heading_deg + 360) % 180
-    return df_gps
-
-def gnss_heading_Geodesic(df):
-    headings = [None]  # Set the first output row as None
-    distances = [None]  # Set the first output row distance as None
-
-    # Iterate over each row of the DataFrame starting from the second row
-    for index in range(1, len(df)):
-        # Get the latitude and longitude values for the current and previous rows
-        lat1 = df.at[index - 1, 'latitude']
-        lon1 = df.at[index - 1, 'longitude']
-        lat2 = df.at[index, 'latitude']
-        lon2 = df.at[index, 'longitude']
-
-        # Calculate the bearing and distance using Geodesic.WGS84.Inverse()
-        result = Geodesic.WGS84.Inverse(lat1, lon1, lat2, lon2)
-        bearing = result['azi1']
-        distance = result['s12']
-
-        # Add the calculated bearing and distance to the respective lists
-        headings.append(bearing)
-        distances.append(distance)
-
-    # Add the lists of headings and distances as new columns in the DataFrame
-    df['bearing'] = headings
-    df['distance_meters'] = distances
-    return df
 
 def plot_latitude_longitude(data, output_dir, save = True):
     # Create the plot
@@ -227,18 +164,6 @@ def extract_gnss_data(df_imu, df_gps):
 
     return merged_df
 
-def calculate_heading_bounds(expected_heading, threshold):
-    # Normalize the headings to be between 0 and 180 degrees
-    expected_heading = expected_heading % 180
-
-    # Calculate the lower and upper bounds for the expected heading range
-    lower_bound = (expected_heading - threshold) % 180
-    upper_bound = (expected_heading + threshold) % 180
-
-    return lower_bound, upper_bound
-
-
-
 
 
 def get_sensors_data(PATH_ROW, output_dir, GT = True, save = False):
@@ -280,8 +205,7 @@ if __name__ == "__main__":
     PATH_OUTPUT = r'/home/lihi/FruitSpec/Data/customers/Field_test_210523/VALENCI2/row_10/1'
 
     output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')
-    df = get_sensors_data(PATH_ROW, output_dir, GT = False, save=True)
-
+    df = get_sensors_data(PATH_ROW, output_dir, GT = False, save=True) # GT = True if you have rows ground truth file
 
     print ('done')
 
