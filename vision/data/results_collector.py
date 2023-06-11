@@ -280,7 +280,7 @@ class ResultsCollector():
 
     def det_to_coco(self, f_id, args, trk_outputs, frame):
         validate_output_path(os.path.join(args.output_folder, 'frames'))
-        gen = uuid.uuid4().hex[:7]
+        gen = f"{f_id}_{uuid.uuid4().hex[:7]}"
         self.draw_and_save(frame.copy(), [], gen, os.path.join(args.output_folder, 'frames'))
         self.coco["categories"] = [
             {
