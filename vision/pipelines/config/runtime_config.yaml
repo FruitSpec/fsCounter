@@ -1,11 +1,9 @@
-#movie_path: /home/fruitspec-lab/Downloads/tomato/230123/pre/5/ZED_1.svo
-#output_folder:  /home/fruitspec-lab/Downloads/tomato/analysis/230123/pre/5/output
-movie_path: /media/fruitspec-lab-3/Extreme SSD/syngenta trail/tomato/200323/pre/12/ZED_1.svo
-output_folder:  /home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/Clusters/testing_1_pre_12
-output_folder_track: $(output_folder)/tracking
-output_folder_annotate: $(output_folder)/annotation
+movie_path: /home/fruitspec-lab/FruitSpec/Data/test_tag/Result_FSI.mkv
+output_folder:  /home/fruitspec-lab/FruitSpec/Data/test_tag
+output_folder_track: /home/fruitspec-lab/FruitSpec/Data/test_tag/tracking
+output_folder_annotate: /home/fruitspec-lab/FruitSpec/Data/test_tag/annotation
 
-frame_size: [1920, 1080] # [1920, 1080] # [2048, 1536]
+frame_size: [2048, 1536] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
 depth_minimum: 0.1 # 1 counter
 depth_maximum: 2.5 # 8 counter
@@ -20,5 +18,5 @@ debug:
   tracker: None
   clusters: false
   hue_histogram: false
-  annotate: false
+  annotate: true
 

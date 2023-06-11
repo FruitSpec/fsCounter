@@ -1,15 +1,18 @@
 import os
 import csv
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from json import dump, dumps
-from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.misc.help_func import validate_output_path, scale_dets
-from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
+import collections
+from json import dump
+import uuid
 
+from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
+from vision.depth.zed.svo_operations import get_dimensions
+from vision.tools.video_wrapper import video_wrapper
+from vision.data.COCO_utils import create_images_dict, create_category_dict, convert_to_coco_format
+from vision.misc.help_func import validate_output_path
 
 class ResultsCollector():
 
@@ -277,7 +280,8 @@ class ResultsCollector():
 
     def det_to_coco(self, f_id, args, trk_outputs, frame):
         validate_output_path(os.path.join(args.output_folder, 'frames'))
-        self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+        gen = uuid.uuid4().hex[:7]
+        self.draw_and_save(frame.copy(), [], gen, os.path.join(args.output_folder, 'frames'))
         self.coco["categories"] = [
             {
                 "supercategory": "Fruits",

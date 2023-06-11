@@ -89,7 +89,8 @@ class Track:
         self._count += 1
         self.state = TrackState.Tracked
         self.lost_counter = 0
-        if not np.isnan(depth):
-            self.depth = depth
+        # if not np.isnan(depth):
+        self.depth = depth
+
     def output(self):
         return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]
