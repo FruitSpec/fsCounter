@@ -1,11 +1,8 @@
-import logging
-
 import pandas as pd
 import numpy as np
 import os
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-from geographiclib.geodesic import Geodesic
 import json
 from vision.tools.utils_general import find_subdirs_with_file
 
