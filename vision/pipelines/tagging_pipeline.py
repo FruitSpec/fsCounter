@@ -33,7 +33,7 @@ def run(cfg, args):
     # Read until video is completed
     print(f'Inferencing on {args.movie_path}')
     f_id = -1
-    ids = []
+    count_tracks, count_annotate = 0,0
     pbar = tqdm(total=tot_frames)
     track_frames, annotate_frames = check_task(tot_frames, args.task)
     while (cap.isOpened()):
@@ -64,6 +64,8 @@ def run(cfg, args):
                 results_collector_annotate.det_to_coco(f_id, args, trk_outputs,frame)
                 results_collector_annotate.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
 
+                count_annotate+=1
+
             if args.debug.is_debug and f_id in track_frames:
                 # collect results:
                 results_collector_track.collect_tracks(trk_outputs)
@@ -71,14 +73,14 @@ def run(cfg, args):
                 results_collector_track.det_to_coco(f_id, args, trk_outputs,frame)
                 results_collector_track.debug(f_id, args, trk_outputs, det_outputs, frame, hists=None, trk_windows=trk_windows)
 
-            ids.append(f_id)
+                count_tracks += 1
 
 
         # Break the loop
         elif ret == False:
             break
 
-        elif len(ids) >= len(annotate_frames) and len(ids) >= len(track_frames):
+        elif count_annotate >= len(annotate_frames) and count_tracks >= len(track_frames):
             break
 
     # When everything done, release the video capture object
@@ -106,7 +108,7 @@ if __name__ == "__main__":
     runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
     args = OmegaConf.load(repo_dir + runtime_config)
-    args.task = {'annotation': 100, 'tracking': 0}
+    args.task = {'annotation': 50, 'tracking': 20}
 
     validate_output_path(args.output_folder)
     validate_output_path(args.output_folder_track, flag=args.task['tracking'])
