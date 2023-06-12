@@ -86,7 +86,7 @@ def run(cfg, args):
     # When everything done, release the video capture object
     cap.release()
     # Closes all the frames
-    # cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
 
     results_collector_annotate.dump_to_json(f"{args.output_folder_annotate}/coco.json")
     results_collector_track.dump_to_json(f"{args.output_folder_track}/coco.json")
