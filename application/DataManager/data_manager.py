@@ -262,7 +262,7 @@ class DataManager(Module):
                 logging.exception("unknown handled exception: ")
             t0 = time.time()
             if upload_speed_in_kbps > 10:
-                DataManager.upload_nav(upload_speed_in_kbps)
+                # DataManager.upload_nav(upload_speed_in_kbps)
                 DataManager.scan_analyzed(data_conf.upload_interval - 30, upload_speed_in_kbps)
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
