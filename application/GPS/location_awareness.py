@@ -94,7 +94,7 @@ class GPSSampler(Module):
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
-            timestamp = datetime.now().strftime("%H:%M:%S.%f")
+            timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S.%f")
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
