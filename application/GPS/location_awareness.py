@@ -80,8 +80,11 @@ class GPSSampler(Module):
                 ser.flushInput()
                 logging.info(f"SERIAL PORT INIT - SUCCESS")
                 break
-            except serial.SerialException:
-                logging.info(f"SERIAL PORT ERROR - RETRYING IN 5...")
+            except (serial.SerialException, TimeoutError):
+                logging.warning(f"SERIAL PORT ERROR - RETRYING IN 5...")
+                time.sleep(5)
+            except Exception:
+                logging.exception(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...")
                 time.sleep(5)
         err_count = 0
         sample_count = 0
