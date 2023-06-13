@@ -106,7 +106,7 @@ class DataManager(Module):
                 logging.info(f"WRITING NAV DATA TO FILE")
                 nav_path = tools.get_nav_path()
                 current_nav_df = pd.DataFrame(data)
-                DataManager.nav_df = pd.concat([DataManager.nav_df, current_nav_df], axix=0)
+                # DataManager.nav_df = pd.concat([DataManager.nav_df, current_nav_df], axix=0)
                 is_first = not os.path.exists(nav_path)
                 current_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
         elif sender_module == ModulesEnum.Analysis:
