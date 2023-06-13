@@ -7,6 +7,7 @@ from datetime import datetime
 import signal
 import logging
 import boto3
+import numpy as np
 from botocore.config import Config
 import pandas as pd
 import requests
@@ -25,12 +26,14 @@ class DataManager(Module):
     current_path, current_index = None, -1
     fruits_data = dict()
     fruits_data_lock, scan_lock, analyzed_lock = threading.Lock(), threading.Lock(), threading.Lock()
+    nav_provided_event, nav_df_lock = threading.Event(), threading.Lock()
     s3_client = None
     update_output_thread, internet_scan_thread = None, None
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
     collected_df = pd.DataFrame(
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
     nav_df = pd.DataFrame()
+    jz_ts_df = pd.DataFrame()
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
@@ -63,18 +66,50 @@ class DataManager(Module):
     def receive_data(sig, frame):
 
         def jaized_timestamps():
+            ts_fmt = data_conf.timestamp_format
             input_length = len(data["JAI_frame_number"])
             data["row"] = [DataManager.current_row] * input_length
             data["folder_index"] = [DataManager.current_index] * input_length
+            DataManager.jz_ts_df = pd.DataFrame(data)
+            DataManager.jz_ts_df["ZED_timestamp"] = pd.to_datetime(
+                arg=DataManager.jz_ts_df["ZED_timestamp"],
+                format=data_conf.timestamp_format
+            )
 
             jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
-            jaized_timestamp_log_df = pd.DataFrame(data)
+
+            jz_latest = datetime.strptime(DataManager.jz_ts_df["ZED_timestamp"].iloc[-1], ts_fmt)
+
+            has_gps_data = False
+            for i in range(3):
+                nav_latest = DataManager.nav_df["timestamp"].iloc[-1]
+                has_gps_data = nav_latest >= jz_latest
+                if has_gps_data:
+                    break
+                DataManager.nav_provided_event.clear()
+                DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
+                DataManager.nav_provided_event.wait(timeout=3)
+
+            if has_gps_data:
+                DataManager.jz_ts_df = pd.merge_asof(
+                    left=DataManager.jz_ts_df, right=DataManager.nav_df,
+                    left_on="ZED_timestamp", right_on="timestamp", direction="nearest",
+                )
+                with DataManager.nav_df_lock:
+                    DataManager.nav_df = DataManager.nav_df[DataManager.nav_df >= jz_latest]
+            else:
+                cols = ["timestamps", "latitude", "longitude", "plot"]
+                for col in cols:
+                    DataManager.jz_ts_df[col] = np.NaN
+
+
+
 
             _is_first = not os.path.exists(jaized_timestamp_path)
-            jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
+            DataManager.jz_ts_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
             _is_first = not os.path.exists(jaized_timestamp_total_log_path)
-            jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
+            DataManager.jz_ts_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
 
         def stop_acquisition():
             if data_conf.use_feather:
@@ -106,9 +141,18 @@ class DataManager(Module):
                 logging.info(f"WRITING NAV DATA TO FILE")
                 nav_path = tools.get_nav_path()
                 current_nav_df = pd.DataFrame(data)
-                # DataManager.nav_df = pd.concat([DataManager.nav_df, current_nav_df], axix=0)
+                current_nav_df["timestamp"] = pd.to_datetime(
+                    arg=current_nav_df["timestamp"], 
+                    format=data_conf.timestamp_format
+                )
+
+                with DataManager.nav_df_lock:
+                    DataManager.nav_df = pd.concat([DataManager.nav_df, current_nav_df], axis=0, ignore_index=True)
+                DataManager.nav_provided_event.set()
+
                 is_first = not os.path.exists(nav_path)
                 current_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+
         elif sender_module == ModulesEnum.Analysis:
             if action == ModuleTransferAction.FRUITS_DATA:
                 logging.info(f"FRUIT DATA RECEIVED")

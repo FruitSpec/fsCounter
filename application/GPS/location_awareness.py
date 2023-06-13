@@ -1,12 +1,14 @@
 import signal
 import threading
+from threading import Lock
 import traceback
 from builtins import staticmethod
+from botocore.config import Config
 
 import boto3
 import fscloudutils.exceptions
 
-from application.utils.settings import GPS_conf, conf
+from application.utils.settings import GPS_conf, conf, data_conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 from fscloudutils.utils import NavParser
@@ -22,10 +24,14 @@ class GPSSampler(Module):
     kml_flag = False
     locator = None
     sample_thread = None
+    gps_data = []
+    gps_data_lock = Lock()
     previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
+    s3_client = None
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
@@ -39,9 +45,8 @@ class GPSSampler(Module):
     def get_kml(once=False):
         while not GPSSampler.kml_flag:
             try:
-                s3_client = boto3.client('s3')
                 kml_aws_path = tools.s3_path_join(conf.customer_code, GPS_conf.s3_kml_file_name)
-                s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
+                GPSSampler.s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
                 GPSSampler.kml_flag = True
                 logging.info("LATEST KML FILE RETRIEVED")
             except Exception:
@@ -67,6 +72,11 @@ class GPSSampler(Module):
     def receive_data(sig, frame):
         data, sender_module = GPSSampler.in_qu.get()
         action, data = data["action"], data["data"]
+        if sender_module == ModulesEnum.DataManager:
+            if action == ModuleTransferAction.ASK_FOR_NAV:
+                with GPSSampler.gps_data_lock:
+                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                    GPSSampler.gps_data = []
 
     @staticmethod
     def sample_gps():
@@ -88,16 +98,14 @@ class GPSSampler(Module):
                 time.sleep(5)
         err_count = 0
         sample_count = 0
-        switch_count = 0
-        allow_step_out = False
-        gps_data = []
+        GPSSampler.gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
-            timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S.%f")
+            timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
@@ -110,18 +118,19 @@ class GPSSampler(Module):
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
                 sample_count += 1
-                gps_data.append(
-                    {
-                        "timestamp": timestamp,
-                        "latitude": lat,
-                        "longitude": long,
-                        "plot": GPSSampler.current_plot
-                    }
-                )
+                with GPSSampler.gps_data_lock:
+                    GPSSampler.gps_data.append(
+                        {
+                            "timestamp": timestamp,
+                            "latitude": lat,
+                            "longitude": long,
+                            "plot": GPSSampler.current_plot
+                        }
+                    )
 
-                if sample_count % 30 == 0:
-                    GPSSampler.send_data(ModuleTransferAction.NAV, gps_data, ModulesEnum.DataManager)
-                    gps_data = []
+                    if sample_count % 30 == 0:
+                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
@@ -154,7 +163,6 @@ class GPSSampler(Module):
                 traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
-        print("GPS ABOUT TO END. SHUTDOWN EVENT STATUS: ", GPSSampler.shutdown_event.is_set())
         ser.close()
         logging.info("END")
         LedSettings.turn_off()

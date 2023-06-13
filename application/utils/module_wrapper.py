@@ -39,7 +39,8 @@ class ModulesEnum(enum.Enum):
 
 class ModuleTransferAction(enum.Enum):
     NAV = "NAV"
-    IMU = "IMU"
+    ASK_FOR_NAV = "ASK_FOR_NAV"
+    NAV_ON_DEMAND = "ASK_NAV"
     JAIZED_TIMESTAMPS = "JAIZED_TIMESTAMPS"
     JAIZED_TIMESTAMPS_AND_STOP = "JAIZED_TIMESTAMPS_AND_STOP"
     ANALYZED_DATA = "ANALYZED_DATA"
@@ -84,7 +85,6 @@ class ModuleManager:
             raise DataError
 
     def receive_transferred_data(self, data, sender_module):
-        # self.sender.send((data, sender_module))
         self.in_qu.put((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
