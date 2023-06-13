@@ -300,7 +300,7 @@ class RowDetector:
         f2 = list(features[0].features())
 
         for placemark in f2:
-            if placemark.name == self.placemark_name:
+            if placemark.name.lower() == self.placemark_name.lower():
                 if placemark.geometry.geom_type == 'Polygon':
                     polygon_geom = placemark.geometry
                     return Polygon(polygon_geom.exterior.coords)
@@ -353,7 +353,7 @@ class RowDetector:
 
     @staticmethod
     def get_heading_bounds_360(expected_heading, threshold):
-        # Normalize the headings to be between 0 and 180 degrees
+        # Normalize the headings to be between 0 and 360 degrees
         expected_heading = expected_heading % 360
 
         # Calculate the lower and upper bounds for the expected heading range
@@ -501,7 +501,7 @@ class RowDetector:
         kml.save(output_path)
         print(f'KML file saved to {output_path}')
 
-    def plot_sensors(self, title, save_dir=None, margins_threshold=None):
+    def plot_sensors(self, title, save_dir=None):
 
         plt.figure(figsize=(55, 35))
         sns.set(font_scale=2)
@@ -516,7 +516,7 @@ class RowDetector:
 
         self._subplot_(n_subplots=n_subplots, i_subplot=3, column_name1="heading_360", column_name2=None,
                   thresh1=self.lower_boundF , thresh2=self.upper_boundF, thresh3=self.lower_boundR,
-                  thresh4=self.upper_boundR, thresh5=self.EXPECTED_HEADING, title='heading_180')
+                  thresh4=self.upper_boundR, thresh5=self.EXPECTED_HEADING, title='heading')
 
         self._subplot_(n_subplots=n_subplots, i_subplot=4, column_name1='within_rows_entry_polygons', column_name2=None,
                   thresh1=None, thresh2=None, thresh3=None, title=f"rows_entry_polygons")
