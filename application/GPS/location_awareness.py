@@ -26,11 +26,12 @@ class GPSSampler(Module):
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
-
         GPSSampler.set_locator()
+        time.sleep(10)
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
         GPSSampler.sample_thread.join()
@@ -39,9 +40,8 @@ class GPSSampler(Module):
     def get_kml(once=False):
         while not GPSSampler.kml_flag:
             try:
-                s3_client = boto3.client('s3')
                 kml_aws_path = tools.s3_path_join(conf.customer_code, GPS_conf.s3_kml_file_name)
-                s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
+                GPSSampler.s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
                 GPSSampler.kml_flag = True
                 logging.info("LATEST KML FILE RETRIEVED")
             except Exception:
@@ -52,7 +52,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def set_locator():
-        t = threading.Thread(target=GPSSampler.get_kml  , daemon=True)
+        t = threading.Thread(target=GPSSampler.get_kml, daemon=True)
         t.start()
         time.sleep(1)
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
@@ -80,8 +80,12 @@ class GPSSampler(Module):
                 ser.flushInput()
                 logging.info(f"SERIAL PORT INIT - SUCCESS")
                 break
-            except serial.SerialException:
-                logging.info(f"SERIAL PORT ERROR - RETRYING IN 5...")
+            except (serial.SerialException, TimeoutError) as e:
+                print(repr(e))
+                logging.warning(f"SERIAL PORT ERROR - RETRYING IN 5...")
+                time.sleep(5)
+            except Exception:
+                logging.exception(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...")
                 time.sleep(5)
         err_count = 0
         sample_count = 0
