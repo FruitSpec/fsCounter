@@ -103,7 +103,7 @@ class DataManager(Module):
                 with DataManager.nav_df_lock:
                     DataManager.nav_df = DataManager.nav_df[DataManager.nav_df >= jz_latest]
             else:
-                cols = ["timestamp", "latitude", "longitude", "plot"]
+                cols = ["timestamp", "latitude", "longitude", "plot"
                 for col in cols:
                     DataManager.jz_ts_df[col] = np.NaN
 
