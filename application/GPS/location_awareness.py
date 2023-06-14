@@ -1,12 +1,14 @@
 import signal
 import threading
+from threading import Lock
 import traceback
 from builtins import staticmethod
+from botocore.config import Config
 
 import boto3
 import fscloudutils.exceptions
 
-from application.utils.settings import GPS_conf, conf
+from application.utils.settings import GPS_conf, conf, data_conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 from fscloudutils.utils import NavParser

@@ -7,6 +7,7 @@ from datetime import datetime
 import signal
 import logging
 import boto3
+import numpy as np
 from botocore.config import Config
 import pandas as pd
 import requests
