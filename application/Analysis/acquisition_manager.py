@@ -40,7 +40,7 @@ class AcquisitionManager(Module):
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
         AcquisitionManager.connect_cameras()
-        # AcquisitionManager.cameras_health_check()
+        AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
 
     @staticmethod
@@ -66,12 +66,14 @@ class AcquisitionManager(Module):
     def connect_cameras():
         AcquisitionManager.fps = 15
         AcquisitionManager.debug_mode = True
-        jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
-                                                                                      AcquisitionManager.debug_mode)
-        AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
-                                     ModulesEnum.GUI)
         with AcquisitionManager.health_check_lock:
+            jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
+                                                                                          AcquisitionManager.debug_mode)
+            AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
+                                         ModulesEnum.GUI)
             AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = jai_connected, zed_connected
+            if jai_connected and zed_connected:
+                AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
 
     @staticmethod
     def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
@@ -111,8 +113,6 @@ class AcquisitionManager(Module):
             return int(row_name.split('_')[-1])
         except:
             return 0
-
-
 
     @staticmethod
     def set_acquisition_parameters(data, index_only=False, from_gps=False):

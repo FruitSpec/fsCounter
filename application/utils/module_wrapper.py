@@ -38,9 +38,9 @@ class ModulesEnum(enum.Enum):
 
 
 class ModuleTransferAction(enum.Enum):
+    START_GPS = "START_GPS"
     NAV = "NAV"
     ASK_FOR_NAV = "ASK_FOR_NAV"
-    NAV_ON_DEMAND = "ASK_NAV"
     JAIZED_TIMESTAMPS = "JAIZED_TIMESTAMPS"
     JAIZED_TIMESTAMPS_AND_STOP = "JAIZED_TIMESTAMPS_AND_STOP"
     ANALYZED_DATA = "ANALYZED_DATA"

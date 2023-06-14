@@ -88,8 +88,12 @@ def transfer_data(sig, frame):
                 logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
                 traceback.print_exc()
         if not success:
-            logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
-            print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+            try:
+                logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+                print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+            except:
+                logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
+                print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
 
 
 def main():

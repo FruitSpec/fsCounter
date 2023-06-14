@@ -24,6 +24,7 @@ class GPSSampler(Module):
     kml_flag = False
     locator = None
     sample_thread = None
+    start_sample_event = threading.Event()
     gps_data = []
     gps_data_lock = Lock()
     previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
@@ -31,12 +32,12 @@ class GPSSampler(Module):
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
-        GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
-
+        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
+        GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
+        GPSSampler.start_sample_event.wait()
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
         GPSSampler.sample_thread.join()
@@ -77,7 +78,9 @@ class GPSSampler(Module):
                 with GPSSampler.gps_data_lock:
                     GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
                     GPSSampler.gps_data = []
-
+        if sender_module == ModulesEnum.Acquisition:
+            if action == ModuleTransferAction.START_GPS:
+                GPSSampler.start_sample_event.set()
     @staticmethod
     def sample_gps():
         logging.info("START")
