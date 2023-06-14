@@ -288,13 +288,16 @@ class DataManager(Module):
 
                 try:
                     data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
+                    logging.info(f"TRYING TO UPLOAD {folder_name}")
                     if data_size_in_kb >= upload_speed_in_kbps * timeout:
+                        logging.info(f"UPLOAD {folder_name} - NOT ENOUGH TIME LEFT")
                         continue
                     DataManager.s3_client.upload_file(tracks_path, data_conf.upload_bucket_name, tracks_s3_path)
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
                     DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
                     add_to_dict(_uploaded_indices, row, folder_index)
                     add_to_dict(_uploaded_extensions, row, ext)
+                    logging.info(f"UPLOAD {folder_name} - SUCCESS")
                 except TimeoutError:
                     print("timeout error")
                     break

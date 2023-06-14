@@ -33,7 +33,7 @@ class GPSSampler(Module):
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
         GPSSampler.set_locator()
-        time.sleep(10)
+        time.sleep(15)
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
         GPSSampler.sample_thread.join()
