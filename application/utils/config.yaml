@@ -1,9 +1,9 @@
 upload_bucket_name: fsCounter
 upload_prefix: uploads
-counter_number: 1
+counter_number: 8
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
 GUI: false
 autonomous_acquisition: true
-customer_code: "NWFMXX"
+customer_code: "MOTCHA"
 use_strace: true

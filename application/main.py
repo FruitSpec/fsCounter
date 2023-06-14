@@ -3,6 +3,7 @@ import signal
 import logging
 import subprocess
 import threading
+import traceback
 from threading import Lock
 from multiprocessing import Queue
 from application.utils.settings import conf
@@ -78,8 +79,14 @@ def transfer_data(sig, frame):
             except DataError:
                 time.sleep(0.1)
                 logging.warning(f"COMMUNICATION ERROR #{i}")
+            except ProcessLookupError:
+                success = recv_module == ModulesEnum.GUI
+                if not success:
+                    logging.exception(f"PROCESS LOOKUP ERROR: ")
+                    traceback.print_exc()
             except:
                 logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
+                traceback.print_exc()
         if not success:
             logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
             print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
