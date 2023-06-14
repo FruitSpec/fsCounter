@@ -1,7 +1,6 @@
 global_polygon: "global"
 update_interval: 10
 upload_interval: 300
-scanner_path: /home/mic-730ai/Desktop/scan.csv
 collected_path: /home/mic-730ai/Desktop/collected.log
 analyzed_path: /home/mic-730ai/Desktop/analyzed.log
 uploaded_path: /home/mic-730ai/Desktop/uploaded.log
