@@ -58,7 +58,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def set_locator():
-        t = threading.Thread(target=GPSSampler.get_kml  , daemon=True)
+        t = threading.Thread(target=GPSSampler.get_kml, daemon=True)
         t.start()
         time.sleep(1)
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
@@ -75,9 +75,10 @@ class GPSSampler(Module):
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.DataManager:
             if action == ModuleTransferAction.ASK_FOR_NAV:
-                with GPSSampler.gps_data_lock:
-                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                    GPSSampler.gps_data = []
+                if GPSSampler.gps_data:
+                    with GPSSampler.gps_data_lock:
+                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.gps_data = []
         if sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.START_GPS:
                 GPSSampler.start_sample_event.set()
@@ -132,8 +133,9 @@ class GPSSampler(Module):
                     )
 
                     if sample_count % 30 == 0:
-                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                        GPSSampler.gps_data = []
+                        if GPSSampler.gps_data:
+                            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                            GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block

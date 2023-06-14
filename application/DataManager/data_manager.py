@@ -32,7 +32,7 @@ class DataManager(Module):
     scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
     collected_df = pd.DataFrame(
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
-    nav_df = pd.DataFrame()
+    nav_df = pd.DataFrame({"timestamp": [], "latitude": [], "longitude": [], "plot": []})
     jz_ts_df = pd.DataFrame()
 
     @staticmethod
@@ -79,19 +79,23 @@ class DataManager(Module):
             jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
 
-            jz_latest = datetime.strptime(DataManager.jz_ts_df["ZED_timestamp"].iloc[-1], ts_fmt)
+            jz_latest = DataManager.jz_ts_df["ZED_timestamp"].iloc[-1]
 
             has_gps_data = False
             for i in range(3):
-                nav_latest = DataManager.nav_df["timestamp"].iloc[-1]
-                has_gps_data = nav_latest >= jz_latest
-                if has_gps_data:
-                    break
+                if not DataManager.nav_df.empty:
+                    nav_latest = DataManager.nav_df["timestamp"].iloc[-1]
+                    has_gps_data = nav_latest >= jz_latest
+                    if has_gps_data:
+                        break
+                else:
+                    print("empty nav df")
                 DataManager.nav_provided_event.clear()
                 DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
-                DataManager.nav_provided_event.wait(timeout=3)
+                DataManager.nav_provided_event.wait(timeout=1)
 
             if has_gps_data:
+                print("merge asof")
                 DataManager.jz_ts_df = pd.merge_asof(
                     left=DataManager.jz_ts_df, right=DataManager.nav_df,
                     left_on="ZED_timestamp", right_on="timestamp", direction="nearest",
@@ -99,7 +103,7 @@ class DataManager(Module):
                 with DataManager.nav_df_lock:
                     DataManager.nav_df = DataManager.nav_df[DataManager.nav_df >= jz_latest]
             else:
-                cols = ["timestamps", "latitude", "longitude", "plot"]
+                cols = ["timestamp", "latitude", "longitude", "plot"]
                 for col in cols:
                     DataManager.jz_ts_df[col] = np.NaN
 
@@ -262,7 +266,7 @@ class DataManager(Module):
                 logging.exception("unknown handled exception: ")
             t0 = time.time()
             if upload_speed_in_kbps > 10:
-                # DataManager.upload_nav(upload_speed_in_kbps)
+                DataManager.upload_nav(upload_speed_in_kbps)
                 DataManager.scan_analyzed(data_conf.upload_interval - 30, upload_speed_in_kbps)
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
