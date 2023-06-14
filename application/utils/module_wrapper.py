@@ -39,6 +39,7 @@ class ModulesEnum(enum.Enum):
 
 class ModuleTransferAction(enum.Enum):
     NAV = "NAV"
+    IMU = "IMU"
     ASK_FOR_NAV = "ASK_FOR_NAV"
     NAV_ON_DEMAND = "ASK_NAV"
     JAIZED_TIMESTAMPS = "JAIZED_TIMESTAMPS"

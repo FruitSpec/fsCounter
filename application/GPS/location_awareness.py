@@ -35,7 +35,6 @@ class GPSSampler(Module):
         GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
-
         GPSSampler.set_locator()
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
@@ -57,7 +56,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def set_locator():
-        t = threading.Thread(target=GPSSampler.get_kml  , daemon=True)
+        t = threading.Thread(target=GPSSampler.get_kml, daemon=True)
         t.start()
         time.sleep(1)
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
@@ -74,9 +73,10 @@ class GPSSampler(Module):
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.DataManager:
             if action == ModuleTransferAction.ASK_FOR_NAV:
-                with GPSSampler.gps_data_lock:
-                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                    GPSSampler.gps_data = []
+                if GPSSampler.gps_data:
+                    with GPSSampler.gps_data_lock:
+                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.gps_data = []
 
     @staticmethod
     def sample_gps():
@@ -129,8 +129,9 @@ class GPSSampler(Module):
                     )
 
                     if sample_count % 30 == 0:
-                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                        GPSSampler.gps_data = []
+                        if GPSSampler.gps_data:
+                            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                            GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
