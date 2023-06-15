@@ -50,7 +50,7 @@ class video_wrapper():
             Warning('Grab Not implemented for file type')
 
 
-    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False):
+    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True):
 
         if self.mode != 'svo':
             Warning('Not implemented for file type')
@@ -61,7 +61,7 @@ class video_wrapper():
             _, frame = self.get_frame()
 
             if exclude_point_cloud:
-                depth = self.get_depth()
+                depth = self.get_depth(far_is_black)
                 return frame, depth
 
             elif exclude_depth:
@@ -93,14 +93,18 @@ class video_wrapper():
 
         return ret, frame
 
-    def get_depth(self):
+    def get_depth(self, far_is_black = True):
         depth = None
         if self.mode == 'svo':
             if self.res:
                 cam_run_p = self.cam.get_init_parameters()
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
-                depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                if far_is_black:
+                    depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                else:
+                    depth = (np.clip(depth, 0,cam_run_p.depth_maximum_distance)) * 255 / ( cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+
                 depth = np.clip(depth, 0, 255)
                 depth = depth.astype(np.uint8)
                 bool_mask = np.where(np.isnan(depth), True, False)

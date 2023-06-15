@@ -4,7 +4,7 @@ from vision.misc.help_func import validate_output_path
 
 
 def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
-    cam = video_wrapper(filepath, rotate=rotate)
+    cam = video_wrapper(filepath, rotate=rotate, depth_minimum=0, depth_maximum=8)
     number_of_frames = cam.get_number_of_frames()
     width = cam.get_width()
     height = cam.get_height()
@@ -14,7 +14,7 @@ def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
         # Capture frame-by-frame
         print(index)
         cam.grab(index)
-        frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True)
+        frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False)
 
         cv2.imshow('headline', cv2.resize(frame_depth, (width // 2, height // 2 )))
         cv2.waitKey(1)  # 1 millisecond delay
