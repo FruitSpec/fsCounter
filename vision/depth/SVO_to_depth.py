@@ -1,16 +1,19 @@
 import cv2
+import os
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
 
 
-def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
+def get_depth_video(filepath, rotate=0, index=0):
     cam = video_wrapper(filepath, rotate=rotate, depth_minimum=0, depth_maximum=8)
+    width = cam.get_width()
+    height = cam.get_height()
     number_of_frames = cam.get_number_of_frames()
 
+    output_filename = os.path.join(os.path.dirname(filepath), "DEPTH.mkv")
+    output_video = cv2.VideoWriter(output_filename, cv2.VideoWriter_fourcc(*"X264"), 15, (width, height))
 
-    # Read until video is completed
     while True:
-        # Capture frame-by-frame
         print(index)
         cam.grab(index)
         frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False)
@@ -22,15 +25,15 @@ def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
         cv2.imshow('merged_frame', cv2.resize(merged_frame, None, fx=0.5, fy=0.5))
         cv2.waitKey(1)  # 1 millisecond delay
 
-        # Increment the index for the next frame
+        # save:
+        output_video.write(frame_depth)
+
         index += 1
         if index >= number_of_frames:
             break
 
-    # When everything is done, release the video capture object
+    output_video.release()
     cam.close()
-
-    # Close all the frames
     cv2.destroyAllWindows()
 
 
