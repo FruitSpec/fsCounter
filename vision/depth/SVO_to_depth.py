@@ -15,6 +15,9 @@ def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
         cam.grab(index)
         frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False)
 
+        # expand frame_depth to 3 channels:
+        frame_depth = cv2.cvtColor(frame_depth, cv2.COLOR_GRAY2BGR)
+
         merged_frame = cv2.hconcat([frame, frame_depth])
         cv2.imshow('merged_frame', cv2.resize(merged_frame, (merged_frame.shape[0] // 2, merged_frame.shape[1] // 2 )))
         cv2.waitKey(1)  # 1 millisecond delay
