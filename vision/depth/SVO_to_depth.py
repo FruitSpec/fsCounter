@@ -10,8 +10,8 @@ def get_depth_video(filepath, rotate=0, index=0):
     height = cam.get_height()
     number_of_frames = cam.get_number_of_frames()
 
-    output_filename = os.path.join(os.path.dirname(filepath), "DEPTH.mkv")
-    output_video = cv2.VideoWriter(output_filename, cv2.VideoWriter_fourcc(*"X264"), 15, (width, height))
+    output_filename = os.path.join(os.path.dirname(filepath), "DEPTH.avi")
+    output_video = cv2.VideoWriter(output_filename, cv2.VideoWriter_fourcc(*"MJPG"), 15, (width, height))
 
     #while True:
     for i in range(100):
@@ -30,15 +30,16 @@ def get_depth_video(filepath, rotate=0, index=0):
         cv2.waitKey(1)  # 1 millisecond delay
 
         # save:
-        output_video.write(frame_depth)
+        output_video.write(frame_depth3D)
 
         index += 1
         if index >= number_of_frames:
             break
 
+
+    cam.close()
     output_video.release()
     print (f'Saved to {output_filename}')
-    cam.close()
     cv2.destroyAllWindows()
 
 
