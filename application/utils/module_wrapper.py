@@ -50,6 +50,7 @@ class ModuleTransferAction(enum.Enum):
     EXIT_PLOT = "EXIT_PLOT"
     START_ACQUISITION = "START_ACQUISITION"
     STOP_ACQUISITION = "STOP_ACQUISITION"
+    ACQUISITION_CRASH = "ACQUISITION_CRASH"
     VIEW_START = "VIEW_START"
     VIEW_STOP = "VIEW_STOP"
     GUI_SET_DEVICE_STATE = "GUI_SET_DEVICE_STATE"
@@ -65,19 +66,31 @@ class ModuleTransferAction(enum.Enum):
 
 
 class ModuleManager:
-    def __init__(self):
+    def __init__(self, main_pid, communication_queue):
         self._process = None
         self.pid = -1
+        self.target = None
+        self.main_pid = main_pid
         self.module_name = None
-        self.communication_queue = None
+        self.daemon = True
+        self.communication_queue = communication_queue
         self.in_qu = Queue()
         self.out_qu = Queue()
 
-    def set_process(self, target, main_pid, module_name, communication_queue, daemon=True):
+    def set_process(self, target, module_name, daemon=True):
+        self.target = target
         self.module_name = module_name
-        # args = (self.sender, self.receiver, main_pid, module_name)
-        args = (self.in_qu, self.out_qu, main_pid, module_name, communication_queue)
+        self.daemon = daemon
+        args = (self.in_qu, self.out_qu, self.main_pid, module_name, self.communication_queue)
         self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
+
+    def revive(self):
+        args = (self.in_qu, self.out_qu, self.main_pid, self.module_name, self.communication_queue)
+        self._process = Process(target=self.target, args=args, daemon=self.daemon, name=self.module_name.value)
+        self.start(is_revive=True)
+
+    def is_alive(self):
+        return self._process.is_alive()
 
     def retrieve_transferred_data(self):
         try:
@@ -89,11 +102,15 @@ class ModuleManager:
         self.in_qu.put((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
-    def start(self):
+    def start(self, is_revive=False):
         self._process.start()
         self.pid = self._process.pid
-        print(f"{self.module_name} PID: {self.pid}")
-        logging.info(f"{self.module_name} PID: {self.pid}")
+        if is_revive:
+            print(f"{self.module_name} PROCESS REVIVED - NEW PID: {self.pid}")
+            logging.info(f"{self.module_name} PROCESS REVIVED - NEW PID: {self.pid}")
+        else:
+            print(f"{self.module_name} PID: {self.pid}")
+            logging.info(f"{self.module_name} PID: {self.pid}")
         return self.pid
 
     def join(self):

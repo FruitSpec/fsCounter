@@ -236,7 +236,7 @@ class DataManager(Module):
                     index=DataManager.current_index,
                     get_index_dir=True
                 )
-            elif action == ModuleTransferAction.STOP_ACQUISITION:
+            elif action == ModuleTransferAction.STOP_ACQUISITION or ModuleTransferAction.ACQUISITION_CRASH:
                 stop_acquisition()
             elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                 jaized_timestamps()

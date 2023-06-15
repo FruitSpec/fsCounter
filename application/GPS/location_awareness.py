@@ -37,7 +37,6 @@ class GPSSampler(Module):
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
-        GPSSampler.start_sample_event.wait()
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
         GPSSampler.sample_thread.join()
@@ -82,6 +81,9 @@ class GPSSampler(Module):
         if sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.START_GPS:
                 GPSSampler.start_sample_event.set()
+            if action == ModuleTransferAction.ACQUISITION_CRASH:
+                GPSSampler.start_sample_event.clear()
+
     @staticmethod
     def sample_gps():
         logging.info("START")
@@ -104,6 +106,7 @@ class GPSSampler(Module):
         sample_count = 0
         GPSSampler.gps_data = []
         while not GPSSampler.shutdown_event.is_set():
+            GPSSampler.start_sample_event.wait()
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')

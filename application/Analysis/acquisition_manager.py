@@ -222,3 +222,9 @@ class AcquisitionManager(Module):
                 AcquisitionManager.stop_acquisition()
                 logging.info("STOP ACQUISITION FROM GUI")
                 AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)
+
+    @staticmethod
+    def shutdown(sig, frame):
+        if AcquisitionManager.running:
+            AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.GPS)
+            AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.DataManager)
