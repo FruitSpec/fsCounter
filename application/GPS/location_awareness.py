@@ -29,9 +29,9 @@ class GPSSampler(Module):
     s3_client = None
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name,
-                                                  communication_queue, state_manager)
+                                                  communication_queue, notify_on_death, death_action)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
@@ -166,7 +166,6 @@ class GPSSampler(Module):
                 traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
-        print("GPS ABOUT TO END. SHUTDOWN EVENT STATUS: ", GPSSampler.shutdown_event.is_set())
         ser.close()
         logging.info("END")
         LedSettings.turn_off()

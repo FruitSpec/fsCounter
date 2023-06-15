@@ -7,7 +7,6 @@ from datetime import datetime
 import signal
 import logging
 import boto3
-import numpy as np
 from botocore.config import Config
 import pandas as pd
 import requests
@@ -33,7 +32,7 @@ class DataManager(Module):
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
 
         def try_read(path):
             try:
@@ -45,7 +44,7 @@ class DataManager(Module):
             return df
 
         super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue,
-                                                    state_manager)
+                                                    notify_on_death, death_action)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
@@ -188,7 +187,7 @@ class DataManager(Module):
                     index=DataManager.current_index,
                     get_index_dir=True
                 )
-            elif action == ModuleTransferAction.STOP_ACQUISITION or ModuleTransferAction.ACQUISITION_CRASH:
+            elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
                 stop_acquisition()
             elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                 jaized_timestamps()
@@ -208,7 +207,6 @@ class DataManager(Module):
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
                 upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
-                upload_speed_in_kbps = upload_speed_in_kbps
                 logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
                 print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
             except speedtest.SpeedtestException:
@@ -327,7 +325,7 @@ class DataManager(Module):
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
                 timeout_after = 0.95
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
-                   timeout_after
+                timeout_after
 
         def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices,
                          _uploaded_extensions, _failed_indices):

@@ -12,9 +12,6 @@ from application.utils import tools
 from application.Analysis.analysis_manager import AnalysisManager
 
 import jaized
-import sys
-import cv2
-import numpy as np
 
 
 class AcquisitionManager(Module):
@@ -33,15 +30,16 @@ class AcquisitionManager(Module):
     transfer_data, pass_clahe_stream = False, False
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
         super(AcquisitionManager, AcquisitionManager).init_module(in_qu, out_qu, main_pid, module_name,
-                                                                  communication_queue, state_manager)
+                                                                  communication_queue, notify_on_death, death_action)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
+        signal.signal(signal.SIGUSR2, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
         AcquisitionManager.connect_cameras()
-        AcquisitionManager.cameras_health_check()
+        # AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
 
     @staticmethod
@@ -92,6 +90,7 @@ class AcquisitionManager(Module):
                 AcquisitionManager.output_zed_mkv, AcquisitionManager.view, AcquisitionManager.transfer_data,
                 AcquisitionManager.pass_clahe_stream, AcquisitionManager.debug_mode
             )
+            print("RUNNING")
             if from_healthcheck:
                 AcquisitionManager.running = running
             else:
@@ -104,7 +103,6 @@ class AcquisitionManager(Module):
         with AcquisitionManager.acquisition_lock:
             AcquisitionManager.analyzer.stop_acquisition()
             AcquisitionManager.jz_recorder.stop_acquisition()
-            print("acq stop")
             with AcquisitionManager.health_check_lock:
                 AcquisitionManager.running = False
 
@@ -226,6 +224,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def shutdown(sig, frame):
+        print("acquisition shutdown")
         if AcquisitionManager.running:
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.GPS)
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.DataManager)

@@ -20,7 +20,7 @@ from GPS.location_awareness import GPSSampler
 from DataManager.data_manager import DataManager
 from Analysis.acquisition_manager import AcquisitionManager
 from Analysis.alternative_flow import AlternativeFlow
-from utils.module_wrapper import ModuleManager, DataError, ModulesEnum
+from utils.module_wrapper import ModuleManager, DataError, ModulesEnum, ModuleTransferAction
 from GUI.gui_interface import GUIInterface
 
 global manager, communication_queue, transfer_data_lock
@@ -61,9 +61,14 @@ def process_monitor():
     global manager
 
     while True:
-        print("Monitoring processes")
         for k in manager:
             if not manager[k].is_alive():
+                for recv_module in manager[k].notify_on_death:
+                    data = {
+                        "action": manager[k].death_action,
+                        "data": None
+                    }
+                    manager[recv_module].receive_transferred_data(data, k)
                 manager[k].revive()
         time.sleep(5)
 
@@ -84,13 +89,16 @@ def transfer_data(sig, frame):
             except DataError:
                 time.sleep(0.1)
                 logging.warning(f"COMMUNICATION ERROR #{i}")
+                print(f"COMMUNICATION ERROR #{i}")
             except ProcessLookupError:
                 success = recv_module == ModulesEnum.GUI
                 if not success:
                     logging.exception(f"PROCESS LOOKUP ERROR: ")
+                    print(f"PROCESS LOOKUP ERROR: ")
                     traceback.print_exc()
             except:
                 logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
+                print(f"UNKNOWN COMMUNICATION ERROR: ")
                 traceback.print_exc()
         if not success:
             try:
@@ -116,7 +124,7 @@ def main():
 
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,
-        module_name=ModulesEnum.GPS,
+        module_name=ModulesEnum.GPS
     )
 
     manager[ModulesEnum.GUI].set_process(
@@ -132,6 +140,8 @@ def main():
     manager[ModulesEnum.Acquisition].set_process(
         target=AcquisitionManager.init_module,
         module_name=ModulesEnum.Acquisition,
+        notify_on_death=[ModulesEnum.GPS, ModulesEnum.DataManager],
+        death_action=ModuleTransferAction.ACQUISITION_CRASH,
         daemon=False
     )
 

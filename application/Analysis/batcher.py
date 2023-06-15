@@ -95,6 +95,7 @@ class Batcher:
                         self._batches_queue.get()
                 batch = []
             if jai_frame.frame_number % 50 == 0:
+                print("sending data from batcher")
                 self._send_data(
                     ModuleTransferAction.JAIZED_TIMESTAMPS,
                     self._timestamps_log_dict, 
