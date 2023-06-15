@@ -36,7 +36,7 @@ class DataManager(Module):
     jz_ts_df = pd.DataFrame()
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
 
         def try_read(path):
             try:
@@ -47,7 +47,8 @@ class DataManager(Module):
                           "ext": []})
             return df
 
-        super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
+        super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue,
+                                                    state_manager)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))

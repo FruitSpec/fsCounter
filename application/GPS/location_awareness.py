@@ -31,8 +31,9 @@ class GPSSampler(Module):
     s3_client = None
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+        super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name,
+                                                  communication_queue, state_manager)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
@@ -83,6 +84,8 @@ class GPSSampler(Module):
                 GPSSampler.start_sample_event.set()
             if action == ModuleTransferAction.ACQUISITION_CRASH:
                 GPSSampler.start_sample_event.clear()
+                time.sleep(1)
+                LedSettings.turn_on(LedColor.RED)
 
     @staticmethod
     def sample_gps():

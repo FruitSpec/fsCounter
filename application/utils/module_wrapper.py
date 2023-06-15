@@ -7,9 +7,7 @@ import threading
 import logging
 import traceback
 from builtins import staticmethod
-from multiprocessing import Process, Pipe, Queue
-
-from typing import List
+from multiprocessing import Process, Pipe, Queue, Manager as MPManager
 
 
 class DataError(Exception):
@@ -76,16 +74,17 @@ class ModuleManager:
         self.communication_queue = communication_queue
         self.in_qu = Queue()
         self.out_qu = Queue()
+        self.state_manager = MPManager().dict()
 
     def set_process(self, target, module_name, daemon=True):
         self.target = target
         self.module_name = module_name
         self.daemon = daemon
-        args = (self.in_qu, self.out_qu, self.main_pid, module_name, self.communication_queue)
-        self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
+        args = (self.in_qu, self.out_qu, self.main_pid, self.module_name, self.communication_queue, self.state_manager)
+        self._process = Process(target=target, args=args, daemon=daemon, name=self.module_name.value)
 
     def revive(self):
-        args = (self.in_qu, self.out_qu, self.main_pid, self.module_name, self.communication_queue)
+        args = (self.in_qu, self.out_qu, self.main_pid, self.module_name, self.communication_queue, self.state_manager)
         self._process = Process(target=self.target, args=args, daemon=self.daemon, name=self.module_name.value)
         self.start(is_revive=True)
 
@@ -125,16 +124,19 @@ class Module:
     # main_pid, sender, receiver, module_name = -1, None, None, None
     main_pid, in_qu, out_qu, module_name = -1, None, None, None
     communication_queue = None
+    state_manager = None
     shutdown_event = threading.Event()
     shutdown_done_event = threading.Event()
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
         Module.in_qu = in_qu
         Module.out_qu = out_qu
         Module.main_pid = main_pid
         Module.module_name = module_name
         Module.communication_queue = communication_queue
+        Module.state_manager = state_manager
+
 
     @staticmethod
     def set_signals(shutdown_func, receive_data_func):
@@ -151,6 +153,10 @@ class Module:
         Module.communication_queue.put(Module.module_name)
         time.sleep(0.1)
         os.kill(Module.main_pid, signal.SIGUSR1)
+
+    @staticmethod
+    def set_module_state(state_key, state_value):
+        Module.state_manager[state_key] = state_value
 
     @staticmethod
     def receive_data(sig, frame):
