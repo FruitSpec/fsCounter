@@ -13,7 +13,8 @@ def get_depth_video(filepath, rotate=0, index=0):
     output_filename = os.path.join(os.path.dirname(filepath), "DEPTH.mkv")
     output_video = cv2.VideoWriter(output_filename, cv2.VideoWriter_fourcc(*"X264"), 15, (width, height))
 
-    while True:
+    #while True:
+    for i in range(100):
         print(index)
         cam.grab(index)
         frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False, handle_nan = False, blur = False)
@@ -36,6 +37,7 @@ def get_depth_video(filepath, rotate=0, index=0):
             break
 
     output_video.release()
+    print (f'Saved to {output_filename}')
     cam.close()
     cv2.destroyAllWindows()
 
@@ -52,7 +54,6 @@ if __name__ == "__main__":
         print("CUDA is not available on this system.")
         
     fp = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
-    output_path = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/debugLihi/"
-    validate_output_path(output_path)
-    get_depth_video(fp, output_path, rotate=2, index=0, resize_factor=3)
+    #validate_output_path(output_path)
+    get_depth_video(fp,  rotate=2, index=0)
 
