@@ -16,7 +16,7 @@ def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
         cam.grab(index)
         frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True)
 
-        cv2.imshow('headline', frame_depth)
+        cv2.imshow('headline', cv2.resize(frame_depth, (width // 2, height // 2 )))
         cv2.waitKey(1)  # 1 millisecond delay
 
         # Increment the index for the next frame
