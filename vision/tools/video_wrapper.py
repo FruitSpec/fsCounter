@@ -50,7 +50,7 @@ class video_wrapper():
             Warning('Grab Not implemented for file type')
 
 
-    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True):
+    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True, handle_nan = True, blur = True):
 
         if self.mode != 'svo':
             Warning('Not implemented for file type')
@@ -61,7 +61,7 @@ class video_wrapper():
             _, frame = self.get_frame()
 
             if exclude_point_cloud:
-                depth = self.get_depth(far_is_black)
+                depth = self.get_depth(far_is_black, handle_nan, blur)
                 return frame, depth
 
             elif exclude_depth:
@@ -93,7 +93,7 @@ class video_wrapper():
 
         return ret, frame
 
-    def get_depth(self, far_is_black = True):
+    def get_depth(self, far_is_black = True, handle_nan = True, blur = True):
         depth = None
         if self.mode == 'svo':
             if self.res:
@@ -107,10 +107,14 @@ class video_wrapper():
 
                 depth = np.clip(depth, 0, 255)
                 depth = depth.astype(np.uint8)
-                bool_mask = np.where(np.isnan(depth), True, False)
-                depth[bool_mask] = 0
-
-                depth = cv2.medianBlur(depth, 5)
+                if handle_nan:
+                    bool_mask = np.where(np.isnan(depth), True, False)
+                    if far_is_black:
+                        depth[bool_mask] = 0
+                    else:
+                        depth[bool_mask] = 255
+                if blur:
+                    depth = cv2.medianBlur(depth, 5)
                 depth = self.rotate(depth)
 
         else:
