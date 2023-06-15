@@ -199,8 +199,8 @@ class video_wrapper():
         input_type = sl.InputType()
         input_type.set_from_svo_file(filepath)
         init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
-        init_params.depth_mode = sl.DEPTH_MODE.ULTRA
-        # init_params.depth_mode = sl.DEPTH_MODE.QUALITY
+        #init_params.depth_mode = sl.DEPTH_MODE.ULTRA
+        init_params.depth_mode = sl.DEPTH_MODE.QUALITY
         init_params.coordinate_units = sl.UNIT.METER
         init_params.depth_minimum_distance = depth_minimum
         init_params.depth_maximum_distance = depth_maximum
