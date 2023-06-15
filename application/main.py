@@ -10,8 +10,6 @@ from application.utils.settings import conf
 import time
 import sys
 
-from threadpoolctl import threadpool_limits
-
 sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
 from application.utils.settings import set_logger
@@ -65,6 +63,17 @@ def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, 
     write_pid_to_file(analysis_pid, analysis_output, analysis_cmd)
 
 
+def process_monitor():
+    global manager
+
+    while True:
+        print("Monitoring processes")
+        for k in manager:
+            if not manager[k].is_alive():
+                manager[k].revive()
+        time.sleep(5)
+
+
 def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
     with transfer_data_lock:
@@ -90,8 +99,12 @@ def transfer_data(sig, frame):
                 logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
                 traceback.print_exc()
         if not success:
-            logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
-            print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+            try:
+                logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+                print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+            except:
+                logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
+                print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
 
 
 def main():
@@ -99,9 +112,9 @@ def main():
     manager = dict()
     communication_queue = Queue()
     transfer_data_lock = Lock()
-    for _, module in enumerate(ModulesEnum):
-        manager[module] = ModuleManager()
     main_pid = os.getpid()
+    for _, module in enumerate(ModulesEnum):
+        manager[module] = ModuleManager(main_pid, communication_queue)
     print(f"MAIN PID: {main_pid}")
     signal.signal(signal.SIGUSR1, transfer_data)
 
@@ -109,38 +122,28 @@ def main():
 
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,
-        main_pid=main_pid,
         module_name=ModulesEnum.GPS,
-        communication_queue=communication_queue
     )
 
     manager[ModulesEnum.GUI].set_process(
         target=GUIInterface.init_module,
-        main_pid=main_pid,
-        module_name=ModulesEnum.GUI,
-        communication_queue=communication_queue
+        module_name=ModulesEnum.GUI
     )
 
     manager[ModulesEnum.DataManager].set_process(
         target=DataManager.init_module,
-        main_pid=main_pid,
-        module_name=ModulesEnum.DataManager,
-        communication_queue=communication_queue
+        module_name=ModulesEnum.DataManager
     )
 
     manager[ModulesEnum.Acquisition].set_process(
         target=AcquisitionManager.init_module,
-        main_pid=main_pid,
         module_name=ModulesEnum.Acquisition,
-        communication_queue=communication_queue,
         daemon=False
     )
 
     manager[ModulesEnum.Analysis].set_process(
         target=AlternativeFlow.init_module,
-        main_pid=main_pid,
         module_name=ModulesEnum.Analysis,
-        communication_queue=communication_queue
     )
 
     gps_pid = manager[ModulesEnum.GPS].start()
@@ -148,6 +151,9 @@ def main():
     data_manager_pid = manager[ModulesEnum.DataManager].start()
     acquisition_pid = manager[ModulesEnum.Acquisition].start()
     analysis_pid = manager[ModulesEnum.Analysis].start()
+
+    monitor_t = threading.Thread(target=process_monitor, daemon=True)
+    monitor_t.start()
 
     if conf.use_strace:
         strace_t = threading.Thread(target=start_strace, daemon=True,

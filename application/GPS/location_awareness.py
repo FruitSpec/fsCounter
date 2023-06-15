@@ -24,16 +24,17 @@ class GPSSampler(Module):
     kml_flag = False
     locator = None
     sample_thread = None
+    start_sample_event = threading.Event()
     previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
+    s3_client = None
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
-        GPSSampler.get_kml(once=True)
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
+        GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
+        GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
-        time.sleep(15)
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
         GPSSampler.sample_thread.start()
         GPSSampler.sample_thread.join()
@@ -69,6 +70,11 @@ class GPSSampler(Module):
     def receive_data(sig, frame):
         data, sender_module = GPSSampler.in_qu.get()
         action, data = data["action"], data["data"]
+        if sender_module == ModulesEnum.Acquisition:
+            if action == ModuleTransferAction.START_GPS:
+                GPSSampler.start_sample_event.set()
+            if action == ModuleTransferAction.ACQUISITION_CRASH:
+                GPSSampler.start_sample_event.clear()
 
     @staticmethod
     def sample_gps():
@@ -91,8 +97,6 @@ class GPSSampler(Module):
                 time.sleep(5)
         err_count = 0
         sample_count = 0
-        switch_count = 0
-        allow_step_out = False
         gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             data = ""
@@ -122,7 +126,7 @@ class GPSSampler(Module):
                     }
                 )
 
-                if sample_count % 30 == 0:
+                if sample_count % 30 == 0 and gps_data:
                     GPSSampler.send_data(ModuleTransferAction.NAV, gps_data, ModulesEnum.DataManager)
                     gps_data = []
 
@@ -157,7 +161,6 @@ class GPSSampler(Module):
                 traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
-        print("GPS ABOUT TO END. SHUTDOWN EVENT STATUS: ", GPSSampler.shutdown_event.is_set())
         ser.close()
         logging.info("END")
         LedSettings.turn_off()

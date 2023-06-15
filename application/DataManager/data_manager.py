@@ -40,7 +40,8 @@ class DataManager(Module):
                 df = pd.read_csv(path, dtype=str)
             except FileNotFoundError:
                 df = pd.DataFrame(
-                    data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
+                    data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [],
+                          "ext": []})
             return df
 
         super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
@@ -186,7 +187,7 @@ class DataManager(Module):
                     index=DataManager.current_index,
                     get_index_dir=True
                 )
-            elif action == ModuleTransferAction.STOP_ACQUISITION:
+            elif action == ModuleTransferAction.STOP_ACQUISITION or ModuleTransferAction.ACQUISITION_CRASH:
                 stop_acquisition()
             elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                 jaized_timestamps()
@@ -325,7 +326,7 @@ class DataManager(Module):
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
                 timeout_after = 0.95
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
-                timeout_after
+                   timeout_after
 
         def send_request(timeout_before, _customer_code, _plot_code, _scan_date, _uploaded_indices,
                          _uploaded_extensions, _failed_indices):
@@ -355,16 +356,19 @@ class DataManager(Module):
                 }
 
                 print("request sent")
-                response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers, timeout=timeout)
+                response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers,
+                                         timeout=timeout)
                 _response_ok = response.ok
                 if _response_ok:
                     print("request success")
                     _uploaded_dict = {
-                        "customer_code": [], "plot_code": [], "scan_date": [], "row": [],  "folder_index": [], "status": []
+                        "customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [],
+                        "status": []
                     }
                     add_row_to_dict(_uploaded_dict, _uploaded_indices, data_conf.success)
                     is_first = not os.path.exists(data_conf.uploaded_path)
-                    pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
+                    pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False,
+                                                        header=is_first)
             else:
                 _response_ok = False
 
@@ -408,7 +412,7 @@ class DataManager(Module):
         t_delta = time.time() - t_scan_start
         if uploaded_csv_df is not None:
             analyzed_not_uploaded = pd.merge(analyzed_csv_df, uploaded_csv_df, how='left', indicator=True,
-                                             on=["customer_code", "plot_code", "scan_date", "row",  "folder_index"])
+                                             on=["customer_code", "plot_code", "scan_date", "row", "folder_index"])
             not_uploaded = analyzed_not_uploaded['_merge'] == 'left_only'
             analyzed_not_uploaded = analyzed_not_uploaded.loc[not_uploaded, analyzed_not_uploaded.columns != '_merge']
         else:

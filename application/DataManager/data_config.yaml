@@ -1,7 +1,6 @@
 global_polygon: "global"
 update_interval: 10
 upload_interval: 300
-scanner_path: /home/mic-730ai/Desktop/scan.csv
 collected_path: /home/mic-730ai/Desktop/collected.log
 analyzed_path: /home/mic-730ai/Desktop/analyzed.log
 uploaded_path: /home/mic-730ai/Desktop/uploaded.log
@@ -17,3 +16,4 @@ request_timeout: 10
 service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-counter
 upload_prefix: uploads
+timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
