@@ -16,10 +16,13 @@ def get_depth_video(filepath, rotate=0, index=0):
     while True:
         print(index)
         cam.grab(index)
-        frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False)
+        frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False, handle_nan = False, blur = False)
+
+        b = frame_bgr[:, :, 0].copy()
+        frame_depth[b > 240] = 255
 
         frame_depth3D = cv2.cvtColor(frame_depth, cv2.COLOR_GRAY2BGR) # depth to 3 channels
-        frame_dgr = cv2.merge(frame_depth, frame_bgr[:, :, 1:])
+        frame_dgr = cv2.merge([frame_depth, frame_bgr[:, :, 1], frame_bgr[:, :, 2]])
 
         merged_frame = cv2.hconcat([frame_bgr, frame_depth3D, frame_dgr])
         cv2.imshow('merged_frame', cv2.resize(merged_frame, None, fx=0.5, fy=0.5))
