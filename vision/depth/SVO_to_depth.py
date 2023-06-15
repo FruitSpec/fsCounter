@@ -2,8 +2,8 @@ import cv2
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
 
-def get_depth_video(filepath, output_path,rotate=0, index=0, resize_factor=3):
 
+def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
     cam = video_wrapper(filepath, rotate=rotate)
     number_of_frames = cam.get_number_of_frames()
     width = cam.get_width()
@@ -11,24 +11,27 @@ def get_depth_video(filepath, output_path,rotate=0, index=0, resize_factor=3):
 
     # Read until video is completed
     while True:
-
         # Capture frame-by-frame
         print(index)
         cam.grab(index)
         frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True)
 
         cv2.imshow('headline', frame_depth)
-        k = cv2.waitKey()
-        # Press Q on keyboard to  exit
-        if cv2.waitKey(k) & 0xFF == ord('q'):
-            break
 
+        # Display the frame for a short period of time
+        cv2.waitKey(1)  # 1 millisecond delay
+
+        # Increment the index for the next frame
         index += 1
 
-    # When everything done, release the video capture object
+        # Check if the end of the video is reached
+        if index >= number_of_frames:
+            break
+
+    # When everything is done, release the video capture object
     cam.close()
 
-    # Closes all the frames
+    # Close all the frames
     cv2.destroyAllWindows()
 
 
