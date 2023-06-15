@@ -101,6 +101,8 @@ class video_wrapper():
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
                 depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                depth = np.clip(depth, 0, 255)
+                depth = depth.astype(np.uint8)
                 bool_mask = np.where(np.isnan(depth), True, False)
                 depth[bool_mask] = 0
 

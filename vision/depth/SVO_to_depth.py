@@ -17,14 +17,10 @@ def get_depth_video(filepath, output_path, rotate=0, index=0, resize_factor=3):
         frame, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True)
 
         cv2.imshow('headline', frame_depth)
-
-        # Display the frame for a short period of time
         cv2.waitKey(1)  # 1 millisecond delay
 
         # Increment the index for the next frame
         index += 1
-
-        # Check if the end of the video is reached
         if index >= number_of_frames:
             break
 
@@ -46,8 +42,8 @@ if __name__ == "__main__":
     else:
         print("CUDA is not available on this system.")
         
-    fp = "/home/fruitspec-lab/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
-    output_path = "/home/fruitspec-lab/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/debbug/"
+    fp = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
+    output_path = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/debugLihi/"
     validate_output_path(output_path)
     get_depth_video(fp, output_path, rotate=2, index=0, resize_factor=3)
 
