@@ -76,6 +76,9 @@ class GPSSampler(Module):
                 GPSSampler.start_sample_event.set()
             if action == ModuleTransferAction.ACQUISITION_CRASH:
                 GPSSampler.start_sample_event.clear()
+                time.sleep(1)
+                GPSSampler.previous_plot = GPS_conf.global_polygon
+                LedSettings.turn_on(LedColor.RED)
 
     @staticmethod
     def sample_gps():
