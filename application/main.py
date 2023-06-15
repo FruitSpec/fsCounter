@@ -26,12 +26,6 @@ from GUI.gui_interface import GUIInterface
 global manager, communication_queue, transfer_data_lock
 
 
-def shutdown():
-    manager[ModulesEnum.GPS].shutdown()
-    manager[ModulesEnum.DataManager].shutdown()
-    manager[ModulesEnum.Analysis].shutdown()
-
-
 def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, analysis_pid):
 
     def write_pid_to_file(pid, file_path, cmd):

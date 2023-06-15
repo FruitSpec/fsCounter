@@ -33,7 +33,7 @@ class DataManager(Module):
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
 
         def try_read(path):
             try:
@@ -44,7 +44,8 @@ class DataManager(Module):
                           "ext": []})
             return df
 
-        super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
+        super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue,
+                                                    state_manager)
         super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
 
         DataManager.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
@@ -71,10 +72,10 @@ class DataManager(Module):
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
             jaized_timestamp_log_df = pd.DataFrame(data)
 
-            is_first = not os.path.exists(jaized_timestamp_path)
-            jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=is_first, index=False)
-            is_first = not os.path.exists(jaized_timestamp_total_log_path)
-            jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=is_first, index=False)
+            _is_first = not os.path.exists(jaized_timestamp_path)
+            jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
+            _is_first = not os.path.exists(jaized_timestamp_total_log_path)
+            jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
 
         def stop_acquisition():
             if data_conf.use_feather:

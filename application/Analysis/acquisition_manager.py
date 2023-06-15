@@ -33,14 +33,15 @@ class AcquisitionManager(Module):
     transfer_data, pass_clahe_stream = False, False
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        super(AcquisitionManager, AcquisitionManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+        super(AcquisitionManager, AcquisitionManager).init_module(in_qu, out_qu, main_pid, module_name,
+                                                                  communication_queue, state_manager)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
         AcquisitionManager.connect_cameras()
-        # AcquisitionManager.cameras_health_check()
+        AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
 
     @staticmethod

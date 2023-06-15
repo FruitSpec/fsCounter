@@ -14,8 +14,9 @@ import numpy as np
 class AlternativeFlow(Module):
 
     @staticmethod
-    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue):
-        super(AlternativeFlow, AlternativeFlow).init_module(in_qu, out_qu, main_pid, module_name, communication_queue)
+    def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, state_manager):
+        super(AlternativeFlow, AlternativeFlow).init_module(in_qu, out_qu, main_pid, module_name,
+                                                            communication_queue, state_manager)
         signal.signal(signal.SIGTERM, AlternativeFlow.shutdown)
         signal.signal(signal.SIGUSR1, AlternativeFlow.receive_data)
         AlternativeFlow.analyze()
