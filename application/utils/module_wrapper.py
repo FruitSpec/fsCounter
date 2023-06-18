@@ -87,11 +87,11 @@ class ModuleManager:
                 death_action)
         self._process = Process(target=target, args=args, daemon=daemon, name=module_name.value)
 
-    def revive(self):
+    def respawn(self):
         args = (self.in_qu, self.out_qu, self.main_pid, self.module_name, self.communication_queue,
                 self.notify_on_death, self.death_action)
         self._process = Process(target=self.target, args=args, daemon=self.daemon, name=self.module_name.value)
-        self.start(is_revive=True)
+        self.start(is_respawn=True)
 
     def is_alive(self):
         return self._process.is_alive()
@@ -106,12 +106,12 @@ class ModuleManager:
         self.in_qu.put((data, sender_module))
         os.kill(self.pid, signal.SIGUSR1)
 
-    def start(self, is_revive=False):
+    def start(self, is_respawn=False):
         self._process.start()
         self.pid = self._process.pid
-        if is_revive:
-            print(f"{self.module_name} PROCESS REVIVED - NEW PID: {self.pid}")
-            logging.info(f"{self.module_name} PROCESS REVIVED - NEW PID: {self.pid}")
+        if is_respawn:
+            print(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
+            logging.info(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
         else:
             print(f"{self.module_name} PID: {self.pid}")
             logging.info(f"{self.module_name} PID: {self.pid}")
@@ -120,7 +120,7 @@ class ModuleManager:
     def join(self):
         self._process.join()
 
-    def shutdown(self):
+    def terminate(self):
         os.kill(self.pid, signal.SIGTERM)
 
 

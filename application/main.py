@@ -57,19 +57,32 @@ def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, 
     write_pid_to_file(analysis_pid, analysis_output, analysis_cmd)
 
 
+def restart_application():
+    time.sleep(3)
+    global manager
+    for k in manager:
+        manager[k].terminate()
+    os.system("reboot")
+
+
 def process_monitor():
     global manager
 
     while True:
         for k in manager:
             if not manager[k].is_alive():
-                for recv_module in manager[k].notify_on_death:
-                    data = {
-                        "action": manager[k].death_action,
-                        "data": None
-                    }
-                    manager[recv_module].receive_transferred_data(data, k)
-                manager[k].revive()
+                logging.warning(f"PROCESS {k} IS DEAD - RESPAWNING...")
+                try:
+                    for recv_module in manager[k].notify_on_death:
+                        data = {
+                            "action": manager[k].death_action,
+                            "data": None
+                        }
+                        manager[recv_module].receive_transferred_data(data, k)
+                except TypeError:
+                    pass
+                manager[k].respawn()
+                restart_application()
         time.sleep(5)
 
 
