@@ -58,10 +58,11 @@ def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, 
 
 
 def restart_application():
-    time.sleep(3)
+    time.sleep(2.5)
     global manager
     for k in manager:
         manager[k].terminate()
+    time.sleep(2.5)
     os.system("reboot")
 
 
