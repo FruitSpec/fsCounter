@@ -72,12 +72,16 @@ class AlternativeFlow(Module):
     def seek_new_row(collected, analyzed):
         analyzed_set = set()
         for k, row in analyzed.iterrows():
+            if not is_valid_row(row):
+                continue
             analyzed_set.add(create_str_from_row(row))
 
         row = None  # in case collected is empty - argument sent in return
         row_index = None
         found_new_row = False
         for row_index, row in collected.iterrows():
+            if not is_valid_row(row):
+                continue
             unique_str = create_str_from_row(row)
             if unique_str not in analyzed_set:
                 found_new_row = True
@@ -148,4 +152,8 @@ def create_str_from_row(row):
 
     return unique_str
 
+def is_valid_row(row):
+    # check if any item in the row is NaN
+    valid = True if np.sum(row.isna().to_numpy()) == 0 else False
 
+    return valid
