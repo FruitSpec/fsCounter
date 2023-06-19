@@ -1,4 +1,5 @@
 import os
+import queue
 import signal
 import logging
 import subprocess
@@ -73,6 +74,7 @@ def process_monitor():
     global manager
 
     while True:
+        logging.info("MONITORING MODULES")
         for k in manager:
             if not conf.GUI and k == ModulesEnum.GUI:
                 continue
@@ -96,13 +98,18 @@ def process_monitor():
 def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
     with transfer_data_lock:
-        sender_module = communication_queue.get()
-        logging.info(f"DATA TRANSFER FROM {sender_module}")
+        try:
+            sender_module = communication_queue.get(timeout=1)
+        except queue.Empty:
+            logging.warning(f"TRANSFER DATA FAILED - COMMUNICATION QUEUE WAS EMPTY")
         success = False
+        retrieve_success = False
         for i in range(5):
             try:
                 data, recv_module = manager[sender_module].retrieve_transferred_data()
-                logging.info(f"DATA TRANSFER TO {recv_module}")
+                retrieve_success = True
+                action = data["action"]
+                logging.info(f"DATA TRANSFER:\n\tFROM {sender_module}\n\tTO {recv_module}\n\tACTION: {action}")
                 manager[recv_module].receive_transferred_data(data, sender_module)
                 success = True
                 break
@@ -120,6 +127,9 @@ def transfer_data(sig, frame):
                 logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
                 print(f"UNKNOWN COMMUNICATION ERROR: ")
                 traceback.print_exc()
+        if not retrieve_success:
+            logging.info(f"DATA TRANSFER FROM {sender_module}, NO DESTINATION")
+
         if not success:
             try:
                 logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")

@@ -239,6 +239,10 @@ class DataManager(Module):
             logging.info(f"UPLOAD NAV TO S3 - SUCCESS")
         except FileNotFoundError:
             pass
+        except EndpointConnectionError:
+            logging.warning(f"UPLOAD NAV TO S3 - FAILED DUE TO INTERNET CONNECTION")
+        except S3UploadFailedError:
+            logging.warning(f"UPLOAD NAV TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
         except Exception:
             logging.exception(f"UPLOAD NAV TO S3 - FAILED DUE TO AN ERROR - {nav_path}")
             traceback.print_exc()

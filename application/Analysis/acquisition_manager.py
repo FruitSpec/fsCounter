@@ -72,6 +72,7 @@ class AcquisitionManager(Module):
                                          ModulesEnum.GUI)
             AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = jai_connected, zed_connected
             if jai_connected and zed_connected:
+                time.sleep(1)
                 AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
 
     @staticmethod

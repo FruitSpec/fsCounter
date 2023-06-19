@@ -151,16 +151,19 @@ class GPSSampler(Module):
                     # stepped into new block
                     if GPSSampler.previous_plot == GPS_conf.global_polygon:
                         GPSSampler.step_in()
+                        time.sleep(3)
 
                     # stepped out from block
                     elif GPSSampler.current_plot == GPS_conf.global_polygon:
                         GPSSampler.step_out()
+                        time.sleep(3)
 
                     # moved from one block to another
                     else:
                         GPSSampler.step_out()
                         time.sleep(3)
                         GPSSampler.step_in()
+                        time.sleep(3)
                 err_count = 0
             except fscloudutils.exceptions.InputError:
                 print(data)

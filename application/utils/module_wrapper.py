@@ -79,6 +79,9 @@ class ModuleManager:
         self.in_qu = Queue()
         self.out_qu = Queue()
 
+    def __str__(self):
+        return self.module_name
+
     def set_process(self, target, module_name, notify_on_death=None, death_action=None, daemon=True):
         self.target = target
         self.module_name = module_name
@@ -155,6 +158,7 @@ class Module:
             "action": action,
             "data": data
         }
+        logging.info(f"SENDING DATA")
         Module.out_qu.put((data, receiver))
         Module.communication_queue.put(Module.module_name)
         time.sleep(0.1)
