@@ -34,13 +34,16 @@ class AlternativeFlow(Module):
         while True:
             found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
             if found:
+                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
                 # using try in case of collapse in analysis flow
                 try:
-                    logging.info(f"Analyzing new Row: {list(row)}")
-                    print(f'Analyzing new Row: {list(row)}')
+                    logging.info(f"ANALYZING NEW ROW: {list(row)}")
+                    print(f"ANALYZING NEW ROW: {list(row)}")
+
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
-                    print(f'Done analyzing row: {list(row)}')
+                    logging.info(f"DONE ANALYZING ROW: {list(row)}")
+                    print(f"DONE ANALYZING ROW: {list(row)}")
                     is_success = True  # analysis ended without exceptions
                     data = AlternativeFlow.prepare_data(tracks=rc.tracks,
                                                         tracks_header=rc.tracks_header,
@@ -63,6 +66,7 @@ class AlternativeFlow(Module):
                 finally:
                     collected.drop(index=row_index, inplace=True)
             else:
+                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
                 logging.info('No new file found, waiting 1 minute')
                 print('No new file found, waiting 1 minute')
                 time.sleep(60)

@@ -27,6 +27,7 @@ class GPSSampler(Module):
     start_sample_event = threading.Event()
     previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
     s3_client = None
+    analysis_ongoing = False
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
@@ -79,6 +80,11 @@ class GPSSampler(Module):
                 time.sleep(1)
                 GPSSampler.previous_plot = GPS_conf.global_polygon
                 LedSettings.turn_on(LedColor.RED)
+        if sender_module == ModulesEnum.Analysis:
+            if action == ModuleTransferAction.ANALYSIS_ONGOING:
+                GPSSampler.analysis_ongoing = True
+            if action == ModuleTransferAction.ANALYSIS_DONE:
+                GPSSampler.analysis_ongoing = False
 
     @staticmethod
     def sample_gps():
@@ -103,7 +109,10 @@ class GPSSampler(Module):
         sample_count = 0
         gps_data = []
         while not GPSSampler.shutdown_event.is_set():
-            GPSSampler.start_sample_event.wait()
+            is_start_sample = GPSSampler.start_sample_event.wait(10)
+            if not is_start_sample:
+                LedSettings.turn_on(LedColor.RED)
+                continue
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')
@@ -118,7 +127,10 @@ class GPSSampler(Module):
                 GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
                 if GPSSampler.current_plot == GPS_conf.global_polygon:
-                    LedSettings.turn_on(LedColor.ORANGE)
+                    if GPSSampler.analysis_ongoing:
+                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.GREEN)
+                    else:
+                        LedSettings.turn_on(LedColor.ORANGE)
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
                 sample_count += 1
@@ -166,7 +178,10 @@ class GPSSampler(Module):
                 traceback.print_exc()
                 LedSettings.turn_on(LedColor.RED)
 
-        ser.close()
+        try:
+            ser.close()
+        except AttributeError:
+            pass
         logging.info("END")
         LedSettings.turn_off()
         GPSSampler.shutdown_done_event.set()

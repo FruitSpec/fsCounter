@@ -57,12 +57,15 @@ def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, 
     write_pid_to_file(analysis_pid, analysis_output, analysis_cmd)
 
 
-def restart_application():
-    time.sleep(2.5)
+def restart_application(killer=None):
+    time.sleep(2)
     global manager
     for k in manager:
-        manager[k].terminate()
-    time.sleep(2.5)
+        if not conf.GUI and k == ModulesEnum.GUI:
+            continue
+        elif not killer or k != killer:
+            manager[k].terminate()
+    time.sleep(2)
     os.system("reboot")
 
 
@@ -71,7 +74,9 @@ def process_monitor():
 
     while True:
         for k in manager:
-            if not manager[k].is_alive():
+            if not conf.GUI and k == ModulesEnum.GUI:
+                continue
+            elif not manager[k].is_alive():
                 logging.warning(f"PROCESS {k} IS DEAD - RESPAWNING...")
                 try:
                     for recv_module in manager[k].notify_on_death:
@@ -82,8 +87,9 @@ def process_monitor():
                         manager[recv_module].receive_transferred_data(data, k)
                 except TypeError:
                     pass
-                manager[k].respawn()
-                restart_application()
+                # manager[k].respawn()
+                restart_application(killer=k)
+                return
         time.sleep(5)
 
 
