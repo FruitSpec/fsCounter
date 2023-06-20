@@ -68,7 +68,8 @@ def restart_application(killer=None):
             manager[k].terminate()
     time.sleep(2)
     logging.info("REBOOT")
-    os.system("reboot")
+    print("REBOOT")
+    # os.system("reboot")
 
 
 def process_monitor():
@@ -98,66 +99,62 @@ def process_monitor():
 
 def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
-    is_acquire = transfer_data_lock.acquire(timeout=1)
-    if not is_acquire:
-        print("transfer data is not acquired")
-        logging.warning("DATA TRANSFER lock is not acquired")
-    try:
-        try:
-            sender_module = communication_queue.get(timeout=1)
-        except queue.Empty:
-            logging.warning(f"TRANSFER DATA FAILED - COMMUNICATION QUEUE WAS EMPTY")
-            return
-        success = False
-        retrieve_success = False
-        recv_module = None
-        for i in range(5):
-            try:
-                data, recv_module = manager[sender_module].retrieve_transferred_data()
-                retrieve_success = True
-                action = data["action"]
-                logging.info(f"DATA TRANSFER:\n\tFROM {sender_module}\n\tTO {recv_module}\n\tACTION: {action}")
-                manager[recv_module].receive_transferred_data(data, sender_module)
-                success = True
-                break
-            except DataError:
-                time.sleep(0.1)
-                logging.warning(f"COMMUNICATION ERROR #{i}")
-                print(f"COMMUNICATION ERROR #{i}")
-            except ProcessLookupError:
-                success = recv_module == ModulesEnum.GUI
-                if not success:
-                    logging.exception(f"PROCESS LOOKUP ERROR: ")
-                    print(f"PROCESS LOOKUP ERROR: ")
-                    traceback.print_exc()
-            except:
-                logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
-                print(f"UNKNOWN COMMUNICATION ERROR: ")
-                traceback.print_exc()
-        if not retrieve_success:
-            logging.info(f"DATA TRANSFER FROM {sender_module}, NO DESTINATION")
 
-        if not success:
-            try:
-                logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
-                print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
-            except:
-                logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
-                print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
-    except:
-        print("In 'trasfer_data_lock' except")
-    finally:
-        transfer_data_lock.release()
+    is_acquired = transfer_data_lock.acquire(timeout=1)
+    if not is_acquired:
+        logging.warning("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
+        print("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
+    try:
+        sender_module = communication_queue.get(timeout=1)
+    except queue.Empty:
+        logging.warning("COMMUNICATION ERROR - COMMUNICATION QUEUE IS EMPTY")
+        print("COMMUNICATION ERROR - COMMUNICATION QUEUE IS EMPTY")
+        restart_application()
+        return
+
+    success = False
+    recv_module = None
+    for i in range(5):
+        try:
+            data, recv_module = manager[sender_module].retrieve_transferred_data()
+            action = data["action"]
+            logging.info(f"DATA TRANSFER:\n\tFROM {sender_module}\n\tTO {recv_module}\n\tACTION: {action}")
+            manager[recv_module].receive_transferred_data(data, sender_module)
+            success = True
+            break
+        except DataError:
+            time.sleep(0.1)
+            logging.warning(f"COMMUNICATION ERROR #{i}")
+            print(f"COMMUNICATION ERROR #{i}")
+        except ProcessLookupError:
+            success = recv_module == ModulesEnum.GUI
+            if not success:
+                logging.exception(f"PROCESS LOOKUP ERROR: ")
+                print(f"PROCESS LOOKUP ERROR: ")
+                traceback.print_exc()
+        except Exception:
+            logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
+            print(f"UNKNOWN COMMUNICATION ERROR: ")
+            traceback.print_exc()
+
+    if not success:
+        try:
+            logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
+            print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
+        except:
+            logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
+            print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
+
 
 def main():
-    global manager, communication_queue, transfer_data_lock
+    global manager, communication_queue
     manager = dict()
     communication_queue = Queue()
-    transfer_data_lock = Lock()
     main_pid = os.getpid()
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager(main_pid, communication_queue)
     print(f"MAIN PID: {main_pid}")
+    # transfer_data_t = threading.Thread(target=transfer_data)
     signal.signal(signal.SIGUSR1, transfer_data)
 
     logging.info(f"MAIN PID: {main_pid}")

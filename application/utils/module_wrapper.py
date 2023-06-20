@@ -7,7 +7,7 @@ import threading
 import logging
 import traceback
 from builtins import staticmethod
-from multiprocessing import Process, Pipe, Queue, Manager as MPManager
+from multiprocessing import Process, Queue
 
 
 class DataError(Exception):
@@ -159,9 +159,12 @@ class Module:
             "data": data
         }
         logging.info(f"SENDING DATA")
-        Module.out_qu.put((data, receiver))
-        Module.communication_queue.put(Module.module_name)
-        time.sleep(0.1)
+        try:
+            Module.communication_queue.put(Module.module_name, timeout=1)
+        except queue.Full:
+            logging.warning("COMMUNICATION QUEUE IS FULL!")
+            return
+        Module.out_qu.put((data, receiver), timeout=1)
         os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod
