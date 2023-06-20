@@ -24,6 +24,8 @@ class LedSettings:
 
     @staticmethod
     def turn_on(color: LedColor, stop_blinking=True):
+        # print(f"turn on color: {LedSettings._color}")
+        # print(f"turn on state: {LedSettings._state}")
         if color == LedSettings._color and LedSettings._state == LedState.ON:
             return
         if stop_blinking:
@@ -37,6 +39,8 @@ class LedSettings:
 
     @staticmethod
     def turn_off(exclude=None):
+        # print(f"turn off color: {LedSettings._color}")
+        # print(f"turn off state: {LedSettings._state}")
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.OFF
         if exclude != LedColor.GREEN:
@@ -48,6 +52,8 @@ class LedSettings:
 
     @staticmethod
     def start_blinking(*colors):
+        #print(f"blinking color: {LedSettings._color}")
+        #print(f"blinking state: {LedSettings._state}")
         if LedSettings._state == LedState.BLINK:
             return
         LedSettings._state = LedState.BLINK

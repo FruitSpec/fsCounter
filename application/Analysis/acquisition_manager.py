@@ -68,8 +68,9 @@ class AcquisitionManager(Module):
         with AcquisitionManager.health_check_lock:
             jai_connected, zed_connected = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
                                                                                           AcquisitionManager.debug_mode)
-            AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
-                                         ModulesEnum.GUI)
+            if conf.GUI:
+                AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, (jai_connected, zed_connected),
+                                             ModulesEnum.GUI)
             AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = jai_connected, zed_connected
             if jai_connected and zed_connected:
                 time.sleep(1)

@@ -67,6 +67,7 @@ def restart_application(killer=None):
         elif not killer or k != killer:
             manager[k].terminate()
     time.sleep(2)
+    logging.info("REBOOT")
     os.system("reboot")
 
 
@@ -97,13 +98,19 @@ def process_monitor():
 
 def transfer_data(sig, frame):
     global manager, communication_queue, transfer_data_lock
-    with transfer_data_lock:
+    is_acquire = transfer_data_lock.acquire(timeout=1)
+    if not is_acquire:
+        print("transfer data is not acquired")
+        logging.warning("DATA TRANSFER lock is not acquired")
+    try:
         try:
             sender_module = communication_queue.get(timeout=1)
         except queue.Empty:
             logging.warning(f"TRANSFER DATA FAILED - COMMUNICATION QUEUE WAS EMPTY")
+            return
         success = False
         retrieve_success = False
+        recv_module = None
         for i in range(5):
             try:
                 data, recv_module = manager[sender_module].retrieve_transferred_data()
@@ -137,7 +144,10 @@ def transfer_data(sig, frame):
             except:
                 logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
                 print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
-
+    except:
+        print("In 'trasfer_data_lock' except")
+    finally:
+        transfer_data_lock.release()
 
 def main():
     global manager, communication_queue, transfer_data_lock
