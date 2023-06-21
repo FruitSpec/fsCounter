@@ -24,7 +24,7 @@ from Analysis.alternative_flow import AlternativeFlow
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum, ModuleTransferAction
 from GUI.gui_interface import GUIInterface
 
-global manager, communication_queue, transfer_data_lock
+global manager, communication_queue
 
 
 def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, analysis_pid):
@@ -97,52 +97,47 @@ def process_monitor():
         time.sleep(5)
 
 
-def transfer_data(sig, frame):
-    global manager, communication_queue, transfer_data_lock
+def transfer_data():
+    global manager, communication_queue
 
-    is_acquired = transfer_data_lock.acquire(timeout=1)
-    if not is_acquired:
-        logging.warning("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
-        print("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
-        restart_application()
-        return
-    try:
-        sender_module = communication_queue.get(timeout=1)
-    except queue.Empty:
-        logging.warning("COMMUNICATION ERROR - COMMUNICATION QUEUE IS EMPTY")
-        print("COMMUNICATION ERROR - COMMUNICATION QUEUE IS EMPTY")
-        restart_application()
-        return
-
-    success = False
-    recv_module = None
-    action = None
-    for i in range(5):
+    while True:
+        sender_module = communication_queue.get()
+        success, recv_module, action, err_msg = False, None, None, None
         try:
             data, recv_module = manager[sender_module].retrieve_transferred_data()
             action = data["action"]
-            logging.info(f"DATA TRANSFER:\n\tFROM {sender_module}\n\tTO {recv_module}\n\tACTION: {action}")
+            logging.info(
+                f"DATA TRANSFER:\n\t"
+                f"FROM {sender_module}\n\t"
+                f"TO {recv_module}\n\t"
+                f"ACTION: {action}"
+            )
             manager[recv_module].receive_transferred_data(data, sender_module)
             success = True
-            break
         except DataError:
-            time.sleep(0.1)
-            logging.warning(f"COMMUNICATION ERROR #{i}")
-            print(f"COMMUNICATION ERROR #{i}")
+            err_msg = "COMMUNICATION_ERROR"
         except ProcessLookupError:
-            logging.exception(f"PROCESS LOOKUP ERROR: ")
-            print(f"PROCESS LOOKUP ERROR: ")
+            err_msg = "PROCESS LOOKUP ERROR"
+        except Exception as e:
+            err_msg = "UNKNOWN ERROR: " + str(e)
+            logging.exception("!UNKNOWN ERROR!")
             traceback.print_exc()
-            break
-        except Exception:
-            logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
-            print(f"UNKNOWN COMMUNICATION ERROR: ")
-            traceback.print_exc()
-
-    transfer_data_lock.release()
-    if not success:
-        logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
-        print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
+        finally:
+            if not success:
+                logging.warning(
+                    f"IPC FAILURE\n\t"
+                    f"FROM {sender_module}\n\t"
+                    f"TO {recv_module}\n\t"
+                    f"ACTION {action}\n\t"
+                    f"ERROR {err_msg}"
+                )
+                print(
+                    f"IPC FAILURE\n\t"
+                    f"FROM {sender_module}\n\t"
+                    f"TO {recv_module}\n\t"
+                    f"ACTION {action}\n\t"
+                    f"ERROR {err_msg}"
+                )
 
 
 def main():
@@ -154,8 +149,9 @@ def main():
         manager[module] = ModuleManager(main_pid, communication_queue)
     print(f"MAIN PID: {main_pid}")
 
-    # transfer_data_t = threading.Thread(target=transfer_data)
-    signal.signal(signal.SIGUSR1, transfer_data)
+    transfer_data_t = threading.Thread(target=transfer_data)
+    transfer_data_t.start()
+    # signal.signal(signal.SIGUSR1, transfer_data)
 
     logging.info(f"MAIN PID: {main_pid}")
 

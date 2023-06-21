@@ -103,13 +103,16 @@ class ModuleManager:
 
     def retrieve_transferred_data(self):
         try:
-            return self.out_qu.get_nowait()
+            return self.out_qu.get(timeout=0.5)
         except queue.Empty:
             raise DataError
 
     def receive_transferred_data(self, data, sender_module):
-        self.in_qu.put((data, sender_module))
-        os.kill(self.pid, signal.SIGUSR1)
+        try:
+            self.in_qu.put((data, sender_module), timeout=0.5)
+            os.kill(self.pid, signal.SIGUSR1)
+        except queue.Empty:
+            raise DataError
 
     def start(self, is_respawn=False):
         self._process.start()
@@ -161,11 +164,11 @@ class Module:
         logging.info(f"SENDING DATA")
         try:
             Module.communication_queue.put(Module.module_name, timeout=1)
+            Module.out_qu.put((data, receiver))
         except queue.Full:
             logging.warning("COMMUNICATION QUEUE IS FULL!")
             return
-        Module.out_qu.put((data, receiver), timeout=1)
-        os.kill(Module.main_pid, signal.SIGUSR1)
+        # os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod
     def receive_data(sig, frame):
