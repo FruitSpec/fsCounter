@@ -69,7 +69,7 @@ def restart_application(killer=None):
     time.sleep(2)
     logging.info("REBOOT")
     print("REBOOT")
-    # os.system("reboot")
+    os.system("reboot")
 
 
 def process_monitor():
@@ -104,6 +104,8 @@ def transfer_data(sig, frame):
     if not is_acquired:
         logging.warning("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
         print("TRANSFER DATA LOCK COULD NOT BE ACQUIRED")
+        restart_application()
+        return
     try:
         sender_module = communication_queue.get(timeout=1)
     except queue.Empty:
@@ -114,6 +116,7 @@ def transfer_data(sig, frame):
 
     success = False
     recv_module = None
+    action = None
     for i in range(5):
         try:
             data, recv_module = manager[sender_module].retrieve_transferred_data()
@@ -127,23 +130,19 @@ def transfer_data(sig, frame):
             logging.warning(f"COMMUNICATION ERROR #{i}")
             print(f"COMMUNICATION ERROR #{i}")
         except ProcessLookupError:
-            success = recv_module == ModulesEnum.GUI
-            if not success:
-                logging.exception(f"PROCESS LOOKUP ERROR: ")
-                print(f"PROCESS LOOKUP ERROR: ")
-                traceback.print_exc()
+            logging.exception(f"PROCESS LOOKUP ERROR: ")
+            print(f"PROCESS LOOKUP ERROR: ")
+            traceback.print_exc()
+            break
         except Exception:
             logging.exception(f"UNKNOWN COMMUNICATION ERROR: ")
             print(f"UNKNOWN COMMUNICATION ERROR: ")
             traceback.print_exc()
 
+    transfer_data_lock.release()
     if not success:
-        try:
-            logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
-            print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {data['action']}")
-        except:
-            logging.warning(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
-            print(f"IPC FAILURE - FROM {sender_module} - NO RECEIVER FOUND")
+        logging.warning(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
+        print(f"IPC FAILURE - FROM {sender_module} TO {recv_module} WITH ACTION {action}")
 
 
 def main():
@@ -154,6 +153,7 @@ def main():
     for _, module in enumerate(ModulesEnum):
         manager[module] = ModuleManager(main_pid, communication_queue)
     print(f"MAIN PID: {main_pid}")
+
     # transfer_data_t = threading.Thread(target=transfer_data)
     signal.signal(signal.SIGUSR1, transfer_data)
 
