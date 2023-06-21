@@ -14,9 +14,9 @@ def variable_exists(var_name):
     
 def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file=True):
     """
-    Find file in a folder.
+    Find file containing a given substring in a folder.
     Return parent dir of the file if 'return_dirs' == True, else return the file path.
-    Input file name can be a file name as 'file_name.csv' or just suffix as '.csv'.
+    Input substring can be a part of a file name as 'file_name.csv' or just suffix as '.csv'.
     If a single file is expected (single_file=True) and more than one found, raise error
     """
     subdirs_with_file = []
@@ -32,7 +32,7 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
                     subdirs_with_file.append(file_path)
 
     if len(subdirs_with_file) == 0:
-        raise FileNotFoundError(f"No matching files were found in the folder '{folder_path}'.")
+        raise FileNotFoundError(f"No files containing '{file_name}' were found in the folder '{folder_path}'.")
 
     if len(subdirs_with_file) > 1:
         if single_file:
@@ -120,6 +120,39 @@ def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', s
                     else:
                         s3.download_file(bucket_name, key, local_file_path)
                         print(f"Downloaded: {local_file_path}")
+
+
+from botocore.exceptions import ClientError
+import logging
+
+import boto3
+import os
+from botocore.exceptions import ClientError
+
+def upload_to_s3(file_name, full_s3_path):
+    """
+    Upload a file to an S3 bucket
+
+    :param file_name: File to upload
+    :param full_s3_path: Full path to S3 directory to upload to (e.g., 'mybucket/mydir/')
+    :return: True if file was uploaded, else False
+    """
+    # Separate bucket from the rest of the path
+    bucket, s3_dir = full_s3_path.split('/', 1)
+
+    # Combine the S3 directory with the file name
+    object_name = os.path.join(s3_dir, os.path.basename(file_name))
+
+    # Initialize the S3 client
+    s3_client = boto3.client('s3')
+
+    try:
+        s3_client.upload_file(file_name, bucket, object_name)
+    except ClientError as e:
+        print(f"Error uploading file to S3: {e}")
+        return False
+    return True
+
 
 
 
