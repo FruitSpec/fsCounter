@@ -102,9 +102,12 @@ def transfer_data():
 
     while True:
         sender_module = communication_queue.get()
-        success, recv_module, action, err_msg = False, None, None, None
+        success, retrieved = False, False
+        recv_module, action, err_msg = None, None, None
+
         try:
             data, recv_module = manager[sender_module].retrieve_transferred_data()
+            retrieved = True
             action = data["action"]
             logging.info(
                 f"DATA TRANSFER:\n\t"
@@ -115,7 +118,7 @@ def transfer_data():
             manager[recv_module].receive_transferred_data(data, sender_module)
             success = True
         except DataError:
-            err_msg = "COMMUNICATION_ERROR"
+            err_msg = "DATA ERROR"
         except ProcessLookupError:
             err_msg = "PROCESS LOOKUP ERROR"
         except Exception as e:
@@ -124,6 +127,11 @@ def transfer_data():
             traceback.print_exc()
         finally:
             if not success:
+                if not retrieved:
+                    communication_queue.put(sender_module)
+                else:
+                    logging.warning(f"IPC WARNING - SIGNAL LOST")
+
                 logging.warning(
                     f"IPC FAILURE\n\t"
                     f"FROM {sender_module}\n\t"

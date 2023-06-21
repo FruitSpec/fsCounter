@@ -103,13 +103,13 @@ class ModuleManager:
 
     def retrieve_transferred_data(self):
         try:
-            return self.out_qu.get(timeout=0.5)
+            return self.out_qu.get(timeout=1)
         except queue.Empty:
             raise DataError
 
     def receive_transferred_data(self, data, sender_module):
         try:
-            self.in_qu.put((data, sender_module), timeout=0.5)
+            self.in_qu.put((data, sender_module), timeout=1)
             os.kill(self.pid, signal.SIGUSR1)
         except queue.Empty:
             raise DataError

@@ -185,8 +185,9 @@ class GPSSampler(Module):
             ser.close()
         except AttributeError:
             pass
+
         logging.info("END")
-        LedSettings.turn_off()
+        LedSettings.turn_on(LedColor.RED)
         GPSSampler.shutdown_done_event.set()
 
     @staticmethod
@@ -200,3 +201,4 @@ class GPSSampler(Module):
         print(f"STEP OUT {GPSSampler.previous_plot}")
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
         GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+
