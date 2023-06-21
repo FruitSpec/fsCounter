@@ -66,7 +66,7 @@ def restart_application(killer=None):
             continue
         elif not killer or k != killer:
             manager[k].terminate()
-    time.sleep(2)
+    time.sleep(5)
     logging.info("REBOOT")
     print("REBOOT")
     os.system("reboot")
