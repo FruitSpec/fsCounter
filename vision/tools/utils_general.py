@@ -1,5 +1,5 @@
 import os
-
+import boto3
 
 def variable_exists(var_name):
     '''
@@ -40,4 +40,100 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
         else: return subdirs_with_file
 
     else: return subdirs_with_file[0] # if there is only one file
+
+########   S3 UTILS
+
+def s3_full_path_to_bucket_and_prefix(s3_path):
+    path_parts = s3_path.replace('s3://', '').split('/', 1)
+    bucket_name = path_parts[0]
+    prefix = path_parts[1] if len(path_parts) > 1 else ''
+    return bucket_name, prefix
+
+
+def get_s3_file_paths(s3_path, string_param=None, suffix='.json'):
+
+    """
+    Retrieves S3 file paths that match a specific string parameter and suffix.
+
+    Args:
+        s3_path (str): The full S3 path, e.g., 's3://bucket-name/prefix/'.
+        string_param (str, optional): The specific string parameter to match in the file paths.
+                                     Defaults to None.
+        suffix (str, optional): The suffix of the file names to consider. Defaults to '.json'.
+
+    Returns:
+        list: A list of S3 file paths that match the specified criteria.
+    """
+    s3 = boto3.resource('s3')
+    bucket_name, prefix = s3_full_path_to_bucket_and_prefix(s3_path)
+
+    files = []
+
+    bucket = s3.Bucket(bucket_name)
+    for obj in bucket.objects.filter(Prefix=prefix):
+        key = obj.key
+        if key.endswith(suffix) and (string_param is None or string_param in key):
+            files.append(key)
+            print(key)
+
+    return files
+
+
+
+import os
+import boto3
+
+def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', skip_existing=True):
+    """
+    Downloads S3 files matching the specified criteria and maintains the folder structure locally.
+
+    Args:
+        s3_path (str): The full S3 path, e.g., 's3://bucket-name/prefix/'.
+        output_path (str): The local output path to save the files.
+        string_param (str, optional): The specific string parameter to match in the file paths.
+                                     Defaults to None. Example: string_param='slice_data' (files that contain this string)
+        suffix (str, optional): The suffix of the file names to consider. Defaults to '.json'.
+        skip_existing (bool, optional): Whether to skip downloading a file if it already exists locally.
+                                        Defaults to False.
+    """
+    s3 = boto3.client('s3')
+    bucket_name, prefix = s3_full_path_to_bucket_and_prefix(s3_path)
+    local_folder = os.path.basename(prefix)
+    local_output_path = os.path.join(output_path, local_folder)
+
+    # Create the local output path if it doesn't exist
+    os.makedirs(local_output_path, exist_ok=True)
+
+    paginator = s3.get_paginator('list_objects_v2')
+    operation_parameters = {'Bucket': bucket_name, 'Prefix': prefix}
+
+    for page in paginator.paginate(**operation_parameters):
+        if 'Contents' in page:
+            for obj in page['Contents']:
+                key = obj['Key']
+                if key.endswith(suffix) and (string_param is None or string_param in key):
+                    local_file_path = os.path.join(local_output_path, key.replace(prefix.lstrip('/'), ''))
+                    local_file_dir = os.path.dirname(local_file_path)
+                    os.makedirs(local_file_dir, exist_ok=True)  # Create local directories if they don't exist
+                    if skip_existing and os.path.exists(local_file_path):
+                        print(f"Skipped: {local_file_path} (File already exists)")
+                    else:
+                        s3.download_file(bucket_name, key, local_file_path)
+                        print(f"Downloaded: {local_file_path}")
+
+
+
+if __name__ == "__main__":
+
+
+    s3_path = 's3://fruitspec.dataset/Temp Counter/DEWAGB/'
+    files_paths = get_s3_file_paths(s3_path, string_param = 'slice_data', suffix='.json', skip_existing=True)
+
+    for file in files_paths:
+        print(file)
+
+    output_path = '/home/lihi/FruitSpec/Data/customers/DEWAGD'
+    download_s3_files(s3_path, output_path =output_path, string_param='slice_data', suffix='.json', skip_existing=True)
+
+
 
