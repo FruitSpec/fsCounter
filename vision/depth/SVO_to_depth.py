@@ -11,14 +11,13 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
     number_of_frames = cam.get_number_of_frames()
     print (f'Found {number_of_frames} frames in {filepath}')
 
+    output_path_depth = os.path.join(os.path.dirname(filepath), "zed_depth.avi")
+    output_path_BGR = os.path.join(os.path.dirname(filepath), "zed_rgb.avi")
+    output_path_DGR = os.path.join(os.path.dirname(filepath), "zed_rgd.avi")
+
     if save:
-        # output_path_depth = os.path.join(os.path.dirname(filepath), "zed_depth.avi")
-        # output_depth_video = cv2.VideoWriter(output_path_depth, cv2.VideoWriter_fourcc(*"MJPG"), 15, (width, height)) # TODO - it doesnt let me save as .mkv file
-
-        output_path_BGR = os.path.join(os.path.dirname(filepath), "zed_rgb.avi")
+        output_depth_video = cv2.VideoWriter(output_path_depth, cv2.VideoWriter_fourcc(*"MJPG"), 15, (width, height)) # TODO - it doesnt let me save as .mkv file
         output_BGR_video = cv2.VideoWriter(output_path_BGR, cv2.VideoWriter_fourcc(*"MJPG"), 15, (width, height))
-
-        output_path_DGR = os.path.join(os.path.dirname(filepath), "zed_rgd.avi")
         output_DGR_video = cv2.VideoWriter(output_path_DGR, cv2.VideoWriter_fourcc(*"MJPG"), 15, (width, height))
 
     with tqdm(total=number_of_frames) as pbar:
@@ -27,7 +26,7 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
             if index != 0:
                 if index % 30 == 0:   # save the previous frame to prevent frame shift
                     if save:
-                        # output_depth_video.write(frame_depth)
+                        output_depth_video.write(frame_depth)
                         output_BGR_video.write(frame_bgr)
                         output_DGR_video.write(frame_dgr)
                     index += 1
@@ -39,15 +38,16 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
             frame_depth[b > 170] = 255
 
             frame_dgr = cv2.merge([frame_depth, frame_bgr[:, :, 1], frame_bgr[:, :, 2]])
+            frame_depth3D = cv2.cvtColor(frame_depth, cv2.COLOR_GRAY2BGR)  # depth to 3 channels
 
             if not save:
-                frame_depth3D = cv2.cvtColor(frame_depth, cv2.COLOR_GRAY2BGR)  # depth to 3 channels
+
                 merged_frame = cv2.hconcat([frame_bgr, frame_depth3D, frame_dgr])
                 cv2.imshow('merged_frame', cv2.resize(merged_frame, None, fx=0.5, fy=0.5))
                 cv2.waitKey(1)  # 1 millisecond delay
 
             if save:
-                # output_depth_video.write(frame_depth)
+                output_depth_video.write(frame_depth3D)
                 output_BGR_video.write(frame_bgr)
                 output_DGR_video.write(frame_dgr)
 
@@ -59,14 +59,15 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
 
     cam.close()
     if save:
-        # output_depth_video.release()
+        output_depth_video.release()
         output_BGR_video.release()
         output_DGR_video.release()
-        print (f'Saved to {os.path.dirname(filepath)}')
+
+        print (f'Saved localy to {os.path.dirname(filepath)}')
     else:
         cv2.destroyAllWindows()
 
-    return output_path_BGR, output_path_DGR
+    return output_depth_video, output_path_BGR, output_path_DGR
 
 if __name__ == "__main__":
 

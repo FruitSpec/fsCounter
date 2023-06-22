@@ -79,10 +79,6 @@ def get_s3_file_paths(s3_path, string_param=None, suffix='.json'):
     return files
 
 
-
-import os
-import boto3
-
 def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', skip_existing=True):
     """
     Downloads S3 files matching the specified criteria and maintains the folder structure locally.
@@ -134,11 +130,11 @@ def upload_to_s3(file_name, full_s3_path):
     Upload a file to an S3 bucket
 
     :param file_name: File to upload
-    :param full_s3_path: Full path to S3 directory to upload to (e.g., 'mybucket/mydir/')
+    :param full_s3_path: Full path to S3 directory
     :return: True if file was uploaded, else False
     """
     # Separate bucket from the rest of the path
-    bucket, s3_dir = full_s3_path.split('/', 1)
+    bucket, s3_dir = s3_full_path_to_bucket_and_prefix(full_s3_path)
 
     # Combine the S3 directory with the file name
     object_name = os.path.join(s3_dir, os.path.basename(file_name))
@@ -158,7 +154,13 @@ def upload_to_s3(file_name, full_s3_path):
 
 if __name__ == "__main__":
 
+    # upload to s3:
+    path_s3 = 's3://fruitspec.dataset/Temp Counter/'
+    local_path = r'/home/lihi/FruitSpec/code/lihi/fsCounter/vision/lihi_debug_delete_me.py'
+    res = upload_to_s3(local_path, path_s3)
+    print (res)
 
+######################################
     s3_path = 's3://fruitspec.dataset/Temp Counter/DEWAGB/'
     files_paths = get_s3_file_paths(s3_path, string_param = 'slice_data', suffix='.json', skip_existing=True)
 
