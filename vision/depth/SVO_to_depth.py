@@ -11,6 +11,7 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
     number_of_frames = cam.get_number_of_frames()
     print (f'Found {number_of_frames} frames in {filepath}')
 
+
     output_path_depth = os.path.join(os.path.dirname(filepath), "zed_depth.avi")
     output_path_BGR = os.path.join(os.path.dirname(filepath), "zed_rgb.avi")
     output_path_DGR = os.path.join(os.path.dirname(filepath), "zed_rgd.avi")
@@ -22,7 +23,7 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
 
     with tqdm(total=number_of_frames) as pbar:
         while True:
-            # #########
+            #TODO - remove, it's a bug fix:
             if index != 0:
                 if index % 30 == 0:   # save the previous frame to prevent frame shift
                     if save:
@@ -30,9 +31,10 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
                         output_BGR_video.write(frame_bgr)
                         output_DGR_video.write(frame_dgr)
                     index += 1
+                    pbar.update(1)
             # #########
             cam.grab(index)
-            frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False, handle_nan = False, blur = False)
+            frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False, blur = False)
 
             b = frame_bgr[:, :, 0].copy()
             frame_depth[b > 170] = 255
@@ -67,7 +69,7 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
     else:
         cv2.destroyAllWindows()
 
-    return output_depth_video, output_path_BGR, output_path_DGR
+    return output_path_depth, output_path_BGR, output_path_DGR
 
 if __name__ == "__main__":
 

@@ -50,7 +50,7 @@ class video_wrapper():
             Warning('Grab Not implemented for file type')
 
 
-    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True, handle_nan = True, blur = True):
+    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True, blur = True):
 
         if self.mode != 'svo':
             Warning('Not implemented for file type')
@@ -61,7 +61,7 @@ class video_wrapper():
             _, frame = self.get_frame()
 
             if exclude_point_cloud:
-                depth = self.get_depth(far_is_black, handle_nan, blur)
+                depth = self.get_depth(far_is_black, blur)
                 return frame, depth
 
             elif exclude_depth:
@@ -69,7 +69,7 @@ class video_wrapper():
                 return frame, point_cloud
 
             else:
-                depth = self.get_depth()
+                depth = self.get_depth(far_is_black, blur)
                 point_cloud = self.get_point_cloud()
                 return frame, depth, point_cloud
 
@@ -93,26 +93,26 @@ class video_wrapper():
 
         return ret, frame
 
-    def get_depth(self, far_is_black = True, handle_nan = True, blur = True):
+    def get_depth(self, far_is_black = True, blur = True):
         depth = None
         if self.mode == 'svo':
             if self.res:
                 cam_run_p = self.cam.get_init_parameters()
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
+                nan_mask = np.where(np.isnan(depth), True, False)
+
                 if far_is_black:
                     depth = (cam_run_p.depth_maximum_distance - np.clip(depth, cam_run_p.depth_minimum_distance, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 255   # set nan to 255 (otherwise nan gets o by astype(np.uint8) function)
+
                 else:
                     depth = (np.clip(depth, cam_run_p.depth_minimum_distance,cam_run_p.depth_maximum_distance)) * 255 / ( cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 0   # set nan to 0
 
                 depth = np.clip(depth, 0, 255)
-                depth = depth.astype(np.uint8)
-                if handle_nan:
-                    bool_mask = np.where(np.isnan(depth), True, False)
-                    if far_is_black:
-                        depth[bool_mask] = 0
-                    else:
-                        depth[bool_mask] = 255
+                depth = depth.astype(np.uint8)  # coverts nan to 0
+
                 if blur:
                     depth = cv2.medianBlur(depth, 5)
                 depth = self.rotate(depth)

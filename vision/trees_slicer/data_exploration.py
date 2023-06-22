@@ -19,34 +19,28 @@ local_path = r'/home/lihi/FruitSpec/Data/customers/DEWAGD'
 paths_svo = find_subdirs_with_file(local_path, file_name ='.svo', return_dirs=False, single_file=False)
 
 # itterate over all svo files and convert to depth:
-data = pd.DataFrame(columns=['Depth Path', 'BGR Path', 'DGR Path'])
 for svo_path in paths_svo:
 
     path_output = os.path.join(os.path.dirname(svo_path), "zed_rgb.avi")
     if not os.path.isfile(path_output):
         print(svo_path)
-        local_path_depth, local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(svo_path, index=0,rotate=2, save = False)
+        try:
+            local_path_depth, local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(svo_path, index=0,rotate=2, save = False)
 
-        # upload to s3:
-        output_s3_depth_path = os.path.join(s3_path, os.path.sep.join(local_path_depth.strip('/').split('/')[-4:]) )
-        res = upload_to_s3(local_path_depth, output_s3_depth_path)
-        print (f'S3 uploaded: {output_s3_depth_path}')
+            # upload to s3:
+            output_s3_depth_path = os.path.join(s3_path, os.path.sep.join(local_path_depth.strip('/').split('/')[-4:-1]) )
+            res = upload_to_s3(local_path_depth, output_s3_depth_path)
+            output_s3_BGR_path = os.path.join(s3_path, os.path.sep.join(local_path_BGR.strip('/').split('/')[-4:-1]) )
+            res = upload_to_s3(local_path_BGR, output_s3_BGR_path)
+            output_s3_DGR_path = os.path.join(s3_path, os.path.sep.join(local_path_DGR.strip('/').split('/')[-4:-1]) )
+            res = upload_to_s3(local_path_DGR, output_s3_DGR_path)
 
-        output_s3_BGR_path = os.path.join(s3_path, os.path.sep.join(local_path_BGR.strip('/').split('/')[-4:]) )
-        res = upload_to_s3(local_path_BGR, output_s3_BGR_path)
-        print (f'S3 uploaded: {output_s3_BGR_path}')
+        except Exception as e:
+            print(f'Exception: {e}')
+            continue
 
-        output_s3_DGR_path = os.path.join(s3_path, os.path.sep.join(local_path_DGR.strip('/').split('/')[-4:]) )
-        res = upload_to_s3(local_path_DGR, output_s3_DGR_path)
-        print (f'S3 uploaded: {output_s3_DGR_path}')
-
-        # Append a new row to the DataFrame
-        data = data.append({'Depth Path': output_s3_depth_path,'BGR Path': output_s3_BGR_path, 'DGR Path': output_s3_DGR_path}, ignore_index=True)
-        data.to_csv('output_paths.csv', index=False)
     else:
         print (f'Skip {svo_path}')
-
-data.to_csv('output_paths.csv', index=False)
 
 print ('Done')
 ############################
