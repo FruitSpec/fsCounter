@@ -12,15 +12,20 @@ import os
 # download_s3_files(s3_path, output_path =output_path, string_param='slice_data_R', suffix='.json', skip_existing=True)
 # download_s3_files(s3_path, output_path =output_path, string_param='all_slices', suffix='.csv', skip_existing=True)
 #####################################################################################################################
-folder_path = r'/home/lihi/FruitSpec/Data/customers/DEWAGD'
+#folder_path = r'/home/lihi/FruitSpec/Data/customers/DEWAGD'
+folder_path = r'/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
+
 paths_svo = find_subdirs_with_file(folder_path, file_name = '.svo', return_dirs=False, single_file=False)
 
 # itterate over all svo files and convert to depth:
 for svo_path in paths_svo:
-    print(svo_path)
-    path_output = os.path.join(os.path.dirname(svo_path), "zed_bgr.avi")
+
+    path_output = os.path.join(os.path.dirname(svo_path), "zed_rgb.avi")
     if not os.path.isfile(path_output):
-        local_path_depth, local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(svo_path, index=0,rotate=2, save = True)
+        print(svo_path)
+        local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(svo_path, index=0,rotate=2, save = False)
+    else:
+        print (f'Skip {svo_path}')
 
 print ('Done')
 ############################
