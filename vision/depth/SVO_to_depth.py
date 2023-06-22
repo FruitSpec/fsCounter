@@ -24,8 +24,13 @@ def convert_svo_to_depth_bgr_dgr(filepath, rotate=0, index=0, save = False):
     with tqdm(total=number_of_frames) as pbar:
         while True:
             # #########
-            # if index % 30 == 0:
-            #     index += 1
+            if index != 0:
+                if index % 30 == 0:   # save the previous frame to prevent frame shift
+                    if save:
+                        output_depth_video.write(frame_depth)
+                        output_BGR_video.write(frame_bgr)
+                        output_DGR_video.write(frame_dgr)
+                    index += 1
             # #########
             cam.grab(index)
             frame_bgr, frame_depth = cam.get_zed(frame_number=index, exclude_depth=False, exclude_point_cloud=True, far_is_black = False, handle_nan = False, blur = False)
@@ -72,7 +77,7 @@ if __name__ == "__main__":
     else:
         print("CUDA is not available on this system.")
         
-    fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
+    fp = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A/ZED_1.svo"
     #validate_output_path(output_path)
-    local_path_depth, local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(fp, rotate=2, index=0, save = True)
+    local_path_depth, local_path_BGR, local_path_DGR = convert_svo_to_depth_bgr_dgr(fp, rotate=2, index=0, save = False)
 
