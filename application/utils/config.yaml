@@ -1,6 +1,6 @@
 upload_bucket_name: fsCounter
 upload_prefix: uploads
-counter_number: 4
+counter_number: 8
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
 GUI: false

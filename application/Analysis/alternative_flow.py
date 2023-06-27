@@ -34,7 +34,7 @@ class AlternativeFlow(Module):
         while True:
             found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
             if found:
-                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
+                # AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
                 # using try in case of collapse in analysis flow
                 try:
                     logging.info(f"ANALYZING NEW ROW: {list(row)}")
@@ -66,7 +66,7 @@ class AlternativeFlow(Module):
                 finally:
                     collected.drop(index=row_index, inplace=True)
             else:
-                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
+                # AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
                 logging.info('No new file found, waiting 1 minute')
                 print('No new file found, waiting 1 minute')
                 time.sleep(60)

@@ -23,32 +23,22 @@ class LedSettings:
     _color = LedColor.ORANGE
 
     @staticmethod
-    def turn_on(color: LedColor, stop_blinking=True):
-        # print(f"turn on color: {LedSettings._color}")
-        # print(f"turn on state: {LedSettings._state}")
-        if color == LedSettings._color and LedSettings._state == LedState.ON:
+    def turn_on(color: LedColor):
+        if color == LedSettings._color and LedSettings._state != LedState.OFF:
             return
-        if stop_blinking:
-            LedSettings._state = LedState.OFF
-        os.system(f"{GPS_conf.led_exe_path} -set {color.value} {GPIO.HIGH}")
-        LedSettings._color = color
-        LedSettings.turn_off(exclude=color)
+        LedSettings.turn_off()
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.ON
         LedSettings._color = color
+        os.system(f"{GPS_conf.led_exe_path} -set {color.value} {GPIO.HIGH}")
 
     @staticmethod
-    def turn_off(exclude=None):
-        # print(f"turn off color: {LedSettings._color}")
-        # print(f"turn off state: {LedSettings._state}")
+    def turn_off():
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.OFF
-        if exclude != LedColor.GREEN:
-            os.system(f"{GPS_conf.led_exe_path} -set {LedColor.GREEN.value} {GPIO.LOW}")
-        if exclude != LedColor.ORANGE:
-            os.system(f"{GPS_conf.led_exe_path} -set {LedColor.ORANGE.value} {GPIO.LOW}")
-        if exclude != LedColor.RED:
-            os.system(f"{GPS_conf.led_exe_path} -set {LedColor.RED.value} {GPIO.LOW}")
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.GREEN.value} {GPIO.LOW}")
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.RED.value} {GPIO.LOW}")
+        os.system(f"{GPS_conf.led_exe_path} -set {LedColor.ORANGE.value} {GPIO.LOW}")
 
     @staticmethod
     def start_blinking(*colors):

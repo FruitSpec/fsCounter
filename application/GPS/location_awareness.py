@@ -80,11 +80,11 @@ class GPSSampler(Module):
                 time.sleep(1)
                 GPSSampler.previous_plot = GPS_conf.global_polygon
                 LedSettings.turn_on(LedColor.RED)
-        if sender_module == ModulesEnum.Analysis:
-            if action == ModuleTransferAction.ANALYSIS_ONGOING:
-                GPSSampler.analysis_ongoing = True
-            if action == ModuleTransferAction.ANALYSIS_DONE:
-                GPSSampler.analysis_ongoing = False
+        # if sender_module == ModulesEnum.Analysis:
+        #     if action == ModuleTransferAction.ANALYSIS_ONGOING:
+        #         GPSSampler.analysis_ongoing = True
+        #     if action == ModuleTransferAction.ANALYSIS_DONE:
+        #         GPSSampler.analysis_ongoing = False
 
     @staticmethod
     def sample_gps():
