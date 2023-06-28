@@ -117,7 +117,7 @@ class Pipeline():
             raise
 
 
-    def is_saturated(self, frame, f_id, percentile=0.6, cam_name='JAI'):
+    def is_saturated(self, frame, f_id, percentile=0.4, cam_name='JAI'):
         try:
             name = batch_is_saturated.__name__
             s = time.time()
