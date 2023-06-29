@@ -139,22 +139,22 @@ def copy_images(coco_images, input_folder, output_folder):
 
 
 if __name__ == "__main__":
-    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/jsons"
-    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623"
+    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/jsons"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
     categories = ['fruit']
     ver = 1
 
     aggraegate_coco_files(folder, output_folder, categories, ver)
 
-    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/coco.json"
-    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/images"
-    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623"
+    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/coco.json"
+    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/images"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
     split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.15)
 
     expected_dims = [2048, 1536]
     rotation = 'counterclockwise'
-    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/train2017", expected_dims, rotation)
-    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/val2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/train2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017", expected_dims, rotation)
 
 
 

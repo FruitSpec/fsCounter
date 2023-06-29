@@ -34,9 +34,13 @@ def vizualize_coco_results(file_dict, data_path, img_size=[1536, 2048], labels=[
         dataset_name = create_name()
 
     ann_dict = {}
+    coco_paths = []
+    name_to_ids = {}
     for k, v in file_dict.items():
         print(f'creating {k} hash')
+        coco_paths.append(v)
         coco = load_coco_file(v)
+        name_to_ids[k] = map_name_to_id(coco)
         ann_dict[k] = create_hash(coco)
 
     samples = []
@@ -44,9 +48,15 @@ def vizualize_coco_results(file_dict, data_path, img_size=[1536, 2048], labels=[
     for image in tqdm(coco['images']):
         sample = fo.Sample(filepath=os.path.join(data_path, image['file_name']))
         for k, hash_ in ann_dict.items():
+            names = list(name_to_ids[k].keys())
+            if image['file_name'] in names:
+                img_id = name_to_ids[k][image['file_name']]
+            else:
+                continue
+
             id_list = list(hash_.keys())
-            if image['id'] in id_list:
-                annotations = hash_[image['id']]
+            if img_id in id_list:
+                annotations = hash_[img_id]
             else:
                 continue
             # Convert detections to FiftyOne format
@@ -99,6 +109,17 @@ def create_hash(coco):
 
     return ann_mapping
 
+def map_name_to_id(coco):
+
+    name_to_id = {}
+    imgs = coco['images']
+
+    for img in imgs:
+        name_to_id[img['file_name']] = img['id']
+
+    return name_to_id
+
+
 def create_name():
 
     c_time = datetime.datetime.now()
@@ -109,9 +130,10 @@ def create_name():
 
 
 if __name__ == '__main__':
-    data_path = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/val2017"
-    files = {"GT": "/home/fruitspec-lab-3/FruitSpec/Data/Counter/val_coco.json"} #,
+    data_path = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017"
+    files = {"gt": "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/annotations/instances_val.json"}
+             #"tasq": "/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/tasq_chile_apples/Export_apple291222_originalTasq/jsons/Export_apple291222_originalTasq.json"} #,
              #"yolox": "/home/fruitspec-lab/FruitSpec/Sandbox/yolox_tiny_hires_1024X1024/instances_res3.json",
              #'yoloV5': "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6_COCO/coco_resV5.json"}
-    vizualize_coco_results(files, data_path, dataset_name="apples_val_2")
+    vizualize_coco_results(files, data_path, dataset_name="test")
 
