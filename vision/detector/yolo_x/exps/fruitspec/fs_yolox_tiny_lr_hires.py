@@ -21,11 +21,11 @@ class Exp(MyExp):
 
         # Define yourself dataset path
         # self.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
-        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_270623/coco"
+        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_270623/'
+        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_010723/'
         self.num_classes = 1
 
         # -------------- training config --------------------- #
@@ -33,7 +33,7 @@ class Exp(MyExp):
         self.max_epoch = 250
         self.warmup_lr = 0.0005
         #self.basic_lr_per_img = 0.01 / 32.0
-        self.basic_lr_per_img = 0.01 / 16.0
+        self.basic_lr_per_img = 0.01 / 32.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 25
         self.min_lr_ratio = 0.3

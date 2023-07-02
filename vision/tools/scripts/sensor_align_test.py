@@ -13,122 +13,94 @@ from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
-from vision.pipelines.detection_flow import counter_detection
+from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
-from vision.tools.camera import is_sturated, stretch_rgb
-from vision.tools.image_stitching import resize_img
-from vision.pipelines.ops.simulator import get_n_frames, init_cams, get_frame_drop
+from vision.tools.image_stitching import draw_matches
+from vision.pipelines.ops.simulator import get_n_frames, init_cams
+from vision.pipelines.detection_flow import counter_detection
 
 
-
-import kornia as k
-import torch
-
-matcher = k.feature.LoFTR(pretrained="outdoor")
-
-
-
-
-def run(cfg, args, n_frames=None):
+def run(cfg, args, n_frames=200):
     print(f'Inferencing on {args.jai.movie_path}\n')
+    rc = ResultsCollector(rotate=args.rotate)
+    sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
+ #   det = counter_detection(cfg, args)
+    det_outputs = None
+    res = []
+    frame_loader = FramesLoader(cfg, args)
+    crop = [sensor_aligner.x_s, sensor_aligner.y_s, sensor_aligner.x_e, sensor_aligner.y_e]
 
-    sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
-    results_collector = ResultsCollector(rotate=args.rotate)
-    detector = counter_detection(cfg, args)
-
-    zed_cam, rgb_jai_cam, jai_cam = init_cams(args)
-    frame_drop_jai = get_frame_drop(args)
-
-    clahe = cv2.createCLAHE(2, (10, 10))
-
-    det_scale_factor_x = sensor_aligner.roix / 1536
-    det_scale_factor_y = sensor_aligner.roiy / 2046
-    #sift = cv2.SIFT_create()
-    # sift.setNOctaveLayers(6)
-    # sift.setEdgeThreshold(20)
-    # sift.setSigma(1)
-    # sift.setContrastThreshold(0.03)
-
-    #matcher = k.feature.LoFTR(pretrained="outdoor")
-    #matcher = matcher.cuda()
+    keypoints_path = os.path.join(args.output_folder, 'kp_match')
+    validate_output_path(keypoints_path)
+    loaded_path = os.path.join(args.output_folder, 'loaded')
+    validate_output_path(loaded_path)
 
     f_id = 0
-    n_frames = zed_cam.get_number_of_frames() if n_frames is None else min(n_frames, zed_cam.get_number_of_frames())
+    n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
     pbar = tqdm(total=n_frames)
-    res = []
     while f_id < n_frames:
-        pbar.update(1)
-        if f_id in frame_drop_jai:
-            sensor_aligner.zed_shift += 1
+        pbar.update(cfg.batch_size)
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id, 0)
 
-        zed_frame, _, fsi_ret, jai_frame, rgb_ret, rgb_jai_frame = get_frames(zed_cam, jai_cam,
-                                                                              rgb_jai_cam, f_id,
-                                                                              sensor_aligner)
-
-        if not fsi_ret or not zed_cam.res or not rgb_ret:  # couldn't get frames, Break the loop
-            break
-        if is_sturated(rgb_jai_frame, 0.6) or is_sturated(zed_frame, 0.6):
-            print(f'frame {f_id} is saturated, skipping')
-            f_id += 1
+        debug = []
+        for i in range(cfg.batch_size):
+            debug.append({'output_path': keypoints_path, 'f_id': f_id + i})
+        alignment_results = sensor_aligner.align_on_batch(zed_batch, rgb_batch, debug=debug)
+#        det_outputs = det.detect(jai_batch)
+        rc.collect_alignment(alignment_results, f_id)
+        if len(zed_batch) < cfg.batch_size:
+            f_id += cfg.batch_size
             continue
-
-        rgb_jai_frame = stretch_rgb(rgb_jai_frame, clahe=clahe)
-        rgb_jai_frame = cv2.cvtColor(rgb_jai_frame, cv2.COLOR_RGB2BGR)
-        # align sensors
-        #corr, tx_a, ty_a, sx, sy, kp_z, kp_r, match, st = sensor_aligner.align_sensors(zed_frame, rgb_jai_frame)
-
-        corr, tx_a, ty_a, kp_zed, kp_jai, gray_zed, gray_jai, match, st = sensor_aligner.align_sensors(zed_frame,
-                                                                                                       rgb_jai_frame)
-
-        det_outputs = detector.detect(jai_frame)
-        jai_res_frame = results_collector.draw_dets(jai_frame, det_outputs)
+        for id_ in range(cfg.batch_size):
 
 
-        det_outputs_zed = np.array(det_outputs)
-        if len(det_outputs_zed) > 0:
-            det_outputs_zed[:, 0] *= det_scale_factor_x
-            det_outputs_zed[:, 2] *= det_scale_factor_x
-            det_outputs_zed[:, 1] *= det_scale_factor_y
-            det_outputs_zed[:, 3] *= det_scale_factor_y
+            # save_aligned(zed_batch[id_],
+            #              jai_batch[id_],
+            #              args.output_folder,
+            #              f_id + id_,
+            #              #corr=alignment_results[id_][0], dets=det_outputs[id_])
+            #              corr=alignment_results[id_][0], dets=det_outputs)
+            # save_loaded_images(zed_batch[id_],
+            #                    jai_batch[id_], f_id + id_, loaded_path, crop)
 
-        zed_res_frame = zed_frame[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :].copy()
-        zed_res_frame = results_collector.draw_dets(zed_res_frame, det_outputs_zed)
+            res.append(alignment_results[id_])
 
-        save_aligned(zed_res_frame, jai_res_frame, args.output_folder, f_id, sub_folder='dets')
-
-
-        used_matches = np.sum(st.reshape(-1).astype(np.bool_))
-
-        draw_matches(zed_frame, kp_zed, rgb_jai_frame, kp_jai, match, st, args.output_folder, f_id)
-        save_aligned(zed_frame, rgb_jai_frame, args.output_folder, f_id, corr=corr)
-
-        res.append({'x1': corr[0],
-                    'y1': corr[1],
-                    'x2': corr[2],
-                    'y2': corr[3],
-                    'tx': tx_a,
-                    'ty': ty_a,
-                    #'sx': sx,
-                    #'sy': sy,
-                    'umatches': used_matches,
-                    'zed_shift': sensor_aligner.zed_shift})
-
-        f_id += 1
+        f_id += cfg.batch_size
 
 
     pbar.close()
-    zed_cam.close()
-    jai_cam.close()
-    rgb_jai_cam.close()
+    frame_loader.close_cameras()
+    output_path = os.path.join(args.output_folder, "alignment.csv")
+    rc.dump_to_csv(output_path, "alignment")
 
-    res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', 'tx', 'ty', 'sx', 'sy', 'umatches', 'zed_shift'])
-    res_df.to_csv(os.path.join(args.output_folder, "res.csv"))
+#    res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', 'tx', 'ty', 'sx', 'sy', 'umatches', 'zed_shift'])
+#   res_df.to_csv(os.path.join(args.output_folder, "res.csv"))
 
     return
 
+
+def save_loaded_images(zed_frame, jai_frame, f_id, output_fp, crop=[]):
+    if len(crop) > 0:
+        x1 = crop[0]
+        y1 = crop[1]
+        x2 = crop[2]
+        y2 = crop[3]
+        cropped = zed_frame[int(y1):int(y2), int(x1):int(x2)]
+        cropped = cv2.resize(cropped, (480, 640))
+    else:
+        cropped = cv2.resize(zed_frame, (480, 640))
+
+    jai_frame = cv2.resize(jai_frame, (480, 640))
+
+    canvas = np.zeros((700, 1000, 3), dtype=np.uint8)
+    canvas[10:10 + cropped.shape[0], 10:10 + cropped.shape[1], :] = cropped
+    canvas[10:10 + jai_frame.shape[0], 510:510 + jai_frame.shape[1], :] = jai_frame
+
+    file_name = os.path.join(output_fp, f"frame_{f_id}.jpg")
+    cv2.imwrite(file_name, canvas)
 
 
 
@@ -221,17 +193,26 @@ def estimate_M(kp1, kp2, match, ransac=10):
     return M, status
 
 
-def draw_matches(img1, kp1, img2, kp2, match, status, draw_output, id_):
-    out_img = cv2.drawMatches(img1, kp1, img2, kp2, np.array(match)[status.reshape(-1).astype(np.bool_)],
-                              None, (255, 0, 0), (0, 0, 255), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-    cv2.imwrite(os.path.join(draw_output, f"alignment_f{id_}.jpg"), out_img)
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV'):
-    if corr is not None:
+
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None):
+    if corr is not None and np.sum(np.isnan(corr)) == 0:
         zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
     zed = cv2.resize(zed, (680, 960))
     jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        dets = np.array(dets)
+        dets[:, 0] = dets[:, 0] * gx
+        dets[:, 2] = dets[:, 2] * gx
+        dets[:, 1] = dets[:, 1] * gy
+        dets[:, 3] = dets[:, 3] * gy
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -316,7 +297,44 @@ def update_args(args, row_dict):
 
     return new_args
 
+def validate_from_files(alignment, tracks, cfg, args):
+    dets = track_to_det(tracks)
+    jai_frames = list(dets.keys())
+    a_hash = get_alignment_hash(alignment)
 
+    frame_loader = FramesLoader(cfg, args)
+    frame_loader.batch_size = 1
+    for id_ in tqdm(jai_frames):
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+
+        save_aligned(zed_batch[0],
+                     jai_batch[0],
+                     args.output_folder,
+                     id_,
+                     corr=a_hash[id_], dets=dets[id_])
+
+
+def track_to_det(tracks_df):
+    dets = {}
+    for i, row in tracks_df.iterrows():
+        if row['frame_id'] in list(dets.keys()):
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+        else:
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+
+
+    return dets
+
+def get_alignment_hash(alignment):
+    data = alignment.to_numpy()
+    frames = data[:, 6]
+    corr = data[:, :4]
+
+    hash = {}
+    for i in range(len(frames)):
+        hash[frames[i]] = list(corr[i, :])
+
+    return hash
 
 
 if __name__ == "__main__":
@@ -326,14 +344,20 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
+    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_1/1"
+    args.zed.movie_path = os.path.join(folder, "ZED.mkv")
+    args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
+    args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+    args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/NWFMXX", 'SA')
     validate_output_path(args.output_folder)
-    #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
-    rows = [{'p':"/media/fruitspec-lab-3/cam172/customers/DEWAGD/190123/DWDBLE33/R11A", 'r': 2}] #,
-            #{'p':"/media/fruitspec-lab-3/cam172/customers/DEWAGD/240123/DWDBNB07/R1A", 'r': 1},
-            #{'p':"/media/fruitspec-lab-3/cam172/customers/DEWAGD/240123/DWDBNB05/R5A", 'r': 2},
-            #{'p':"/media/fruitspec-lab-3/cam172/customers/DEWAGD/230123/DWDBVM20/R7A", 'r': 2}]
-
-    for r_ in rows:
-        t_args = update_args(args, r_)
-        run(cfg, t_args, 1000)
+    run(cfg, args, None)
+    # t_p = os.path.join(folder, "tracks.csv")
+    # a_p = os.path.join(folder, "alignment.csv")
+    # tracks = pd.read_csv(t_p)
+    # alignment = pd.read_csv(a_p)
+    # args.output_folder = os.path.join(folder, 'SA_validate')
+    # validate_output_path(args.output_folder)
+    # validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args)
