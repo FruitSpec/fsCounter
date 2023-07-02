@@ -409,7 +409,6 @@ class FsTracker():
 
 
     def update_accumulated_dist(self):
-
         new_tracklets_list = []
         for track in self.tracklets:
             if track.is_activated is False:  # not found in current frame
@@ -427,9 +426,9 @@ class FsTracker():
 
                     valid = self.validate_track_location(track, self.frame_size[1])
                     if valid:
-                        new_tracklets_list.append(track)
+                        new_tracklets_list.append(track.copy())
             else:
-                new_tracklets_list.append(track)
+                new_tracklets_list.append(track.copy())
 
         self.tracklets = new_tracklets_list
 
@@ -441,6 +440,7 @@ class FsTracker():
         box_end = int(track.bbox[2])
 
         if box_start >= 0 & box_start < frame_width & box_end > 0 & box_end <= frame_width:
+        #if (box_start >= 0) & (box_start < frame_width) & (box_end > 0) & (box_end <= frame_width):
             # inside frame
             valid = True
         elif box_start < 0:
@@ -449,6 +449,9 @@ class FsTracker():
         elif box_end > frame_width: # on right edge
             if box_start < frame_width:
                 valid = True
+
+        if valid == False:
+            a = 1
 
         return valid
     @staticmethod

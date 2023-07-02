@@ -53,8 +53,7 @@ def run(cfg, args, metadata=None):
              adt.logger.iterations += 1
              continue
 
-        if f_id == 116:
-            a = 1
+
 
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
@@ -78,6 +77,7 @@ def run(cfg, args, metadata=None):
 
 
         #results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
+        #esults_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -122,7 +122,7 @@ class Pipeline():
             raise
 
 
-    def is_saturated(self, frame, f_id, percentile=0.6, cam_name='JAI'):
+    def is_saturated(self, frame, f_id, percentile=0.1, cam_name='JAI'):
         try:
             name = batch_is_saturated.__name__
             s = time.time()
@@ -366,12 +366,16 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    rows_dir = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/gc1"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/NWFM/tracker_1"
+    validate_output_path(output_path)
+
+    rows_dir = "/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27/130623"
     rows = os.listdir(rows_dir)
+    #rows = ["/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
-        args.output_folder = row_folder
+        args.output_folder = os.path.join(output_path, row)
         args.sync_data_log_path = os.path.join(row_folder, time_stamp)
         args.zed.movie_path = os.path.join(row_folder, zed_name)
         args.depth.movie_path = os.path.join(row_folder, depth_name)
