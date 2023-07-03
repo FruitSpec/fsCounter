@@ -1,8 +1,8 @@
 # config.yaml
-exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py # Lab 1
+exp_file: /home/yotam/FruitSpec/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py # Lab 1
 #exp_file: /home/fruitspec-lab-3/FruitSpec/Code/Matan/fsCounter_1/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py  # tomatoes lab3
 
-ckpt_file: /home/fruitspec-lab/FruitSpec/weights/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 Lab 1
+ckpt_file: /home/yotam/FruitSpec/FruitSpec/weights/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 Lab 1
 #ckpt_file: /home/fruitspec-lab-3/FruitSpec/weights/Run_6_Dec_2022_1Class_aug_tasqV2/best_ckpt.pth # RGB tasq v2 lab3
 
 device: cuda

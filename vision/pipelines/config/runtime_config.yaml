@@ -1,7 +1,7 @@
-movie_path: /home/fruitspec-lab/FruitSpec/Data/tasq/batch1/te/Result_FSI.mkv
-output_folder: /home/fruitspec-lab/FruitSpec/Data/tasq/batch1/te
-output_folder_track: /home/fruitspec-lab/FruitSpec/Data/tasq/batch1/te/tracking
-output_folder_annotate: /home/fruitspec-lab/FruitSpec/Data/tasq/batch1/te/annotation
+movie_path: /home/yotam/FruitSpec/Data/tasq/batch3/A/Result_FSI.mkv
+output_folder: /home/yotam/FruitSpec/Data/tasq/batch3/A
+output_folder_track: /home/yotam/FruitSpec/Data/tasq/batch3/A/tracking
+output_folder_annotate: /home/yotam/FruitSpec/Data/tasq/batch3/A/annotation
 
 frame_size: [2048, 1536] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
