@@ -88,8 +88,10 @@ def run(cfg, args):
     # Closes all the frames
     cv2.destroyAllWindows()
 
-    results_collector_annotate.dump_to_json(f"{args.output_folder_annotate}/coco.json")
-    results_collector_track.dump_to_json(f"{args.output_folder_track}/coco.json")
+    if len(annotate_frames) > 0:
+        results_collector_annotate.dump_to_json(f"{args.output_folder_annotate}/coco.json")
+    if len(track_frames) > 0:
+        results_collector_track.dump_to_json(f"{args.output_folder_track}/coco.json")
 
 
 def check_task(frames, task):
@@ -108,7 +110,7 @@ if __name__ == "__main__":
     runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
     args = OmegaConf.load(repo_dir + runtime_config)
-    args.task = {'annotation': 50, 'tracking': 20}
+    args.task = {'annotation': 0, 'tracking': 20}
 
     validate_output_path(args.output_folder)
     validate_output_path(args.output_folder_track, flag=args.task['tracking'])
