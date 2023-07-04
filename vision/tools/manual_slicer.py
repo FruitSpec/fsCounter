@@ -94,15 +94,18 @@ def print_lines(params):
     y = int(params['height'] // params['resize_factor'])
 
     if params['data'][params['index']]['start'] is not None:
-        x = params['data'][params['index']]['start']
+        x = int(params['data'][params['index']]['start'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
-        x = params['data'][params['index']]['end']
+        x = int(params['data'][params['index']]['end'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
 
 def print_rectangles(frame, params):
+    k = list(params['data'][params['index']].keys())
+    if  'left_clusters' not in k or 'right_clusters' not in k:
+        return frame
     left_clusters = params['data'][params['index']]['left_clusters']
     right_clusters = params['data'][params['index']]['right_clusters']
 
@@ -147,17 +150,17 @@ def update_index(k, params):
     index = params['index']
     params['find_translation'] = False
 
-    if k == 122:
+    if k == ord('z'):
         index = max(index - 1, 0)
 
-    if k == 99:
+    if k == ord('c'):
         index += 1
 
-    elif k == 115:
+    elif k == ord('s'):
         index += 100
 
-    elif k == 120:
-        index = max(index - 100, 0)
+    elif k == ord('x'):
+        index = max(index - 101, 0)
 
     elif k == 32:
         index = index
@@ -171,12 +174,13 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath,  output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3, save=True):
     """
-    this is where the magic happens, palys the video
+    this is where the magic happens, plays the video
+    data: path to json annotations file
     """
-    if data is None:
-        data = load_json(filepath, output_path)
+    if not isinstance(data, dict):
+        data = load_json(data)
     params = {"filepath": filepath,
               "output_path": output_path,
               "data": data,
@@ -204,6 +208,10 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
 
     # Read until video is completed
     while True:
+        # # todo remove this:
+        # if params["index"] % 30 == 0:
+        #     params["index"] += 1
+        #     #########################
         # Capture frame-by-frame
         print(params["index"])
         if cam.mode == 'svo':
@@ -228,10 +236,13 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         k = cv2.waitKey()
         # Press Q on keyboard to  exit
         if cv2.waitKey(k) & 0xFF == ord('q'):
-            write_json(params)
+            if save:
+                write_json(params)
             break
         params = update_index(k, params)
-        write_json(params)
+
+        if save:
+            write_json(params)
 
     # When everything done, release the video capture object
     cam.close()
@@ -299,14 +310,10 @@ def write_json(params):
         json.dump(params['data'], f)
 
 
-def load_json(filepath, output_path):
-    temp_str = filepath
-    temp_str = temp_str.split('.')[0]
-    clip_name = temp_str.split('/')[-1]
+def load_json(filepath):
 
-    input_file_name = os.path.join(output_path, f'{clip_name}_slice_data.json')
-    if os.path.exists(input_file_name):
-        with open(input_file_name, 'r') as f:
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
             loaded_data = json.load(f)
         data = {}
         for k, v in loaded_data.items():
@@ -316,8 +323,26 @@ def load_json(filepath, output_path):
         data = {}
     return data
 
+# def load_json(filepath, output_path):
+#     # temp_str = filepath
+#     # temp_str = temp_str.split('.')[0]
+#     # clip_name = temp_str.split('/')[-1]
+#     #
+#     # input_file_name = os.path.join(output_path, f'{clip_name}_slice_data.json')
+#     #if os.path.exists(input_file_name):
+#     if os.path.exists(filepath):
+#         with open(filepath, 'r') as f:
+#             loaded_data = json.load(f)
+#         data = {}
+#         for k, v in loaded_data.items():
+#             data[int(k)] = v
+#
+#     else:
+#         data = {}
+#     return data
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+
+def slice_to_trees(data_file, video_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -333,7 +358,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
     trees_data, border_data = parse_data_to_trees(data)
 
     if not on_fly:
-        cap = cv2.VideoCapture(file_path)
+        cap = cv2.VideoCapture(video_path)
         if (cap.isOpened() == False):
             print("Error opening video stream or file")
 
@@ -651,12 +676,48 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
-    validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=2)
 
-    data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
+
+    fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/zed_rgb.avi"
+    output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/"
+    validate_output_path(output_path)
+    json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/zed_rgb_slicer.json"
+
+    manual_slicer(fp, output_path,data = json_path, rotate=0,save=False)
+    print('Done')
+
+    #####################################################################################
+    # fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/Result_RGB_1.mkv"
+    # output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/"
+    # validate_output_path(output_path)
+    # json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/Result_FSI_1_slice_data_R17A.json"
+    #
+    # manual_slicer(fp, output_path,data = json_path, rotate=1, save=False)
+    # print('Done')
+
+    ####################################################################################3
+    # fp = "/home/lihi/FruitSpec/Data/customers/EWAGD/190123/DWDBLE33/R29A/Result_FSI_1.mkv"
+    # output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A"
+    # validate_output_path(output_path)
+    # json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A/Result_FSI_1_slice_data.json"
+    #
+    # with open(json_path, 'r') as f:
+    #     loaded_data = json.load(f)
+    # data = {}
+    # for k, v in loaded_data.items():
+    #     data[int(k)] = v
+    #
+    # manual_slicer(fp, output_path,data = data, rotate=1)
+    # print('Done')
+
+    ######################################################################################
+    # fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/Result_FSI_1.mkv"
+    # output_path = '/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A'
+    # validate_output_path(output_path)
+    # manual_slicer(fp, output_path, rotate=1)
+    # print('Done')
+    ##############################################33333
+    # data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
+    # slice_to_trees(data_file, None, None, h=1920, w=1080)
 
 
