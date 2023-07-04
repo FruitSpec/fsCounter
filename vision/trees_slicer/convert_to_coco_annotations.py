@@ -44,9 +44,9 @@ class CocoAnnotationsUpdater:
                 "info": { "videos": []}}
         return coco_dict
 
-    def update_image_coco_dict(self, output_img_name, frame):
+    def update_image_coco_dict(self, output_img_name, image_id, frame):
         img_dict = {
-            "id": output_img_name,
+            "id": image_id,
             "license": 1,
             "file_name": output_img_name,
             "height": frame.shape[0],
@@ -61,7 +61,7 @@ class CocoAnnotationsUpdater:
         self.coco_dict['info']['videos'].append(video_name)
         return self.coco_dict
 
-    def update_annotation_coco_dict(self, output_img_name, bbox, id_bbox=0):
+    def update_annotation_coco_dict(self, output_img_name, bbox, id_bbox):
         x, y, w, h = bbox
         annotation_dict = {
             "id": id_bbox,
@@ -103,6 +103,13 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
     # if annotations file exists, load it
     coco = CocoAnnotationsUpdater(COCO_ANNOTATIONS_PATH)
 
+    if len(coco.coco_dict['images']) == 0:
+        image_id = 0
+        bbox_id = 0
+    else: # get the maximal image id exist in the json
+        image_id = max(image['id'] for image in coco.coco_dict['images']) + 1
+        bbox_id = max(annotation['id'] for annotation in coco.coco_dict['annotations'])
+
     if not coco.video_exist_in_json(video_name):
         while cap.isOpened():
             if not paused:
@@ -123,14 +130,16 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                         if should_save_frames:  # Save frames that has annotations
                             save_frames(frame, OUTPUT_FRAMES_PATH, output_img_name)
 
-                        coco.update_image_coco_dict(output_img_name, frame)
+                        coco.update_image_coco_dict(output_img_name, image_id, frame)
+                        image_id += 1
 
                         for _, row in frame_data.iterrows():
                             x, y, w, h = int(row['x']), int(row['y']), int(row['w']), int(row['h'])
 
                             # update annotation in coco dict
                             coco.update_annotation_coco_dict(output_img_name, bbox=[x, y, w, h],
-                                                                         id_bbox=0)
+                                                                         id_bbox=bbox_id)
+                            bbox_id += 1
 
                             # Draw bounding boxes on the frame
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 15)  # Draw the bounding box
@@ -171,11 +180,15 @@ if __name__ == '__main__':
     saves frames from a video and creates a coco annotations file for the frames.
     If the video already exists in the annotations file, it will not be added again.
     """
-    ANNOTATIONS_FILE_PATH = "/home/lihi/Desktop/manual_tagging_trees/190123/DWDBLE43/R10B/R10B.json"
+    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"
     INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/zed_rgd.avi"
     OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
     COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
+    # ANNOTATIONS_FILE_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/trees_manual_annotations_R21B.json"
+    # INPUT_VIDEO_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/zed_rgd.avi"
+    # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
+    # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
     save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
     print ('done')
