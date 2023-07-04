@@ -25,7 +25,8 @@ class AcquisitionManager(Module):
     plot, row, folder_index = None, None, None
     output_dir = ""
     output_clahe_fsi, output_equalize_hist_fsi = False, False
-    output_rgb, output_800, output_975, output_svo, output_zed_mkv = False, False, False, False, False
+    output_rgb, output_800, output_975, output_svo = False, False, False, False
+    output_zed_gray, output_zed_depth, output_zed_pc = False, False, False
     view, debug_mode = False, False
     transfer_data, pass_clahe_stream = False, False
 
@@ -89,8 +90,9 @@ class AcquisitionManager(Module):
                 AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
                 AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb,
                 AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
-                AcquisitionManager.output_zed_mkv, AcquisitionManager.view, AcquisitionManager.transfer_data,
-                AcquisitionManager.pass_clahe_stream, AcquisitionManager.debug_mode
+                AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc,
+                AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
+                AcquisitionManager.debug_mode
             )
             print("RUNNING")
             if from_healthcheck:
@@ -181,7 +183,9 @@ class AcquisitionManager(Module):
             AcquisitionManager.output_800 = '800' in output_types
             AcquisitionManager.output_975 = '975' in output_types
             AcquisitionManager.output_svo = 'svo' in output_types
-            AcquisitionManager.output_zed_mkv = 'zed' in output_types
+            AcquisitionManager.output_zed_gray = 'zed_gray' in output_types
+            AcquisitionManager.output_zed_depth = 'zed_depth' in output_types
+            AcquisitionManager.output_zed_pc = 'zed_pc' in output_types
             AcquisitionManager.view = False
             AcquisitionManager.transfer_data = True
             AcquisitionManager.pass_clahe_stream = False
