@@ -297,21 +297,28 @@ def update_args(args, row_dict):
 
     return new_args
 
-def validate_from_files(alignment, tracks, cfg, args):
+def validate_from_files(alignment, tracks, cfg, args, jai_only=False):
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
     a_hash = get_alignment_hash(alignment)
 
     frame_loader = FramesLoader(cfg, args)
     frame_loader.batch_size = 1
+
     for id_ in tqdm(jai_frames):
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+        if jai_only:
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=7, text=False)
+            fp = os.path.join(args.output_folder, 'Dets')
+            validate_output_path(fp)
 
-        save_aligned(zed_batch[0],
-                     jai_batch[0],
-                     args.output_folder,
-                     id_,
-                     corr=a_hash[id_], dets=dets[id_])
+            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), jai)
+        else:
+            save_aligned(zed_batch[0],
+                         jai_batch[0],
+                         args.output_folder,
+                         id_,
+                         corr=a_hash[id_], dets=dets[id_])
 
 
 def track_to_det(tracks_df):
@@ -344,20 +351,24 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_1/1"
+    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/NWFMXX", 'SA')
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'orig')
     validate_output_path(args.output_folder)
 
-    run(cfg, args, None)
-    # t_p = os.path.join(folder, "tracks.csv")
+    #run(cfg, args, None)
+    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
+    #t_p = os.path.join(folder, "tracks.csv")
     # a_p = os.path.join(folder, "alignment.csv")
-    # tracks = pd.read_csv(t_p)
-    # alignment = pd.read_csv(a_p)
-    # args.output_folder = os.path.join(folder, 'SA_validate')
-    # validate_output_path(args.output_folder)
-    # validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args)
+    t_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/G10000XX/070623/row_12/1/tracks.csv"
+    a_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/G10000XX/070623/row_12/1/alignment.csv"
+
+    tracks = pd.read_csv(t_p)
+    alignment = pd.read_csv(a_p)
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'new')
+    validate_output_path(args.output_folder)
+    validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True)

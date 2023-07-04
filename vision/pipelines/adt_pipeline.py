@@ -42,7 +42,6 @@ def run(cfg, args, metadata=None):
         pbar.update(adt.batch_size)
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
-
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
         if rgb_stauts or zed_stauts:
@@ -122,7 +121,7 @@ class Pipeline():
             raise
 
 
-    def is_saturated(self, frame, f_id, percentile=0.1, cam_name='JAI'):
+    def is_saturated(self, frame, f_id, percentile=0.4, cam_name='JAI'):
         try:
             name = batch_is_saturated.__name__
             s = time.time()
@@ -366,12 +365,13 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/NWFM/tracker_1"
+    output_path = "/media/matans/My Book/FruitSpec/WASHDE/June_29/validation"
     validate_output_path(output_path)
 
     rows_dir = "/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27/130623"
+    #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
-    #rows = ["/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27"]
+    rows = ["row_5"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
