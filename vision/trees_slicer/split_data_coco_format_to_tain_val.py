@@ -68,8 +68,12 @@ def split_train_val_images(all_images_dir, coco_annotation_file, train_ratio):
     print("Train and validation images and annotations are split and copied successfully.")
 
 
-# Example usage
-all_images_dir = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images'
-coco_annotation_file = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
-train_ratio = 0.8  # Train-Validation split ratio (e.g., 0.8 for 80% train and 20% validation)
-split_train_val_images(all_images_dir, coco_annotation_file, train_ratio)
+# # Example usage
+# all_images_dir = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images'
+# coco_annotation_file = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+
+all_images_dir = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images'
+coco_annotation_file = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+
+
+split_train_val_images(all_images_dir, coco_annotation_file, train_ratio=0.8)

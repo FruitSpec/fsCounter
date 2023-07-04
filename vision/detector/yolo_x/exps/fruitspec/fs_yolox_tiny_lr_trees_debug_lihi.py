@@ -20,11 +20,11 @@ class Exp(MyExp):
         self.seed = 42
 
         # Define yourself dataset path
-        self.data_dir = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd"
+        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/lihi/FruitSpec/code/lihi/fsCounter/vision/detector/yolo_x/exps/lihi_experiments'
+        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/trees_slicer'
         self.num_classes = 1
 
         # -------------- training config --------------------- #
