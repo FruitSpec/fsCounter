@@ -261,6 +261,11 @@ def arrange_ids(jai_frame_ids, zed_frame_ids):
     jai_offset = j[start_index]
     j -= jai_offset
 
+    output_z = z[start_index + 1:].tolist()
+    output_j = j[start_index: -1].tolist()
+
+    output_z.sort()
+    output_j.sort()
     #return z[start_index:].tolist(), j[start_index:].tolist()
-    return z[start_index + 1:].tolist(), j[start_index: -1].tolist()
+    return output_z, output_j
 
