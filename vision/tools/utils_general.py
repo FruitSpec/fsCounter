@@ -125,16 +125,16 @@ import boto3
 import os
 from botocore.exceptions import ClientError
 
-def upload_to_s3(file_name, full_s3_path):
+def upload_to_s3(file_name, full_path_s3_dir):
     """
     Upload a file to an S3 bucket
 
     :param file_name: File to upload
-    :param full_s3_path: Full path to S3 directory
+    :param full_path_s3_dir: Full path to S3 directory
     :return: True if file was uploaded, else False
     """
     # Separate bucket from the rest of the path
-    bucket, s3_dir = s3_full_path_to_bucket_and_prefix(full_s3_path)
+    bucket, s3_dir = s3_full_path_to_bucket_and_prefix(full_path_s3_dir)
 
     # Combine the S3 directory with the file name
     object_name = os.path.join(s3_dir, os.path.basename(file_name))
@@ -147,6 +147,7 @@ def upload_to_s3(file_name, full_s3_path):
     except ClientError as e:
         print(f"Error uploading file to S3: {e}")
         return False
+    print (f"Uploaded: {full_path_s3_dir}")
     return True
 
 
