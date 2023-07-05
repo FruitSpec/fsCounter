@@ -91,13 +91,15 @@ class FramesLoader():
                 else:
                     cam.grab()
                 self.zed_last_id = f_id
-                _, frame = cam.get_frame()
-                depth = cam.get_depth()
-                batch.append(frame)
-                depth_batch.append(depth)
+                ret, frame = cam.get_frame()
+                if ret:
+                    depth = cam.get_depth()
+                    batch.append(frame)
+                    depth_batch.append(depth)
             else:
-                _, frame = cam.get_frame()
-                batch.append(frame)
+                ret, frame = cam.get_frame()
+                if ret:
+                    batch.append(frame)
 
         return batch, depth_batch
 
@@ -201,7 +203,29 @@ class FramesLoader():
         self.rgb_jai_last_id = rgb_jai_last_id
         self.depth_last_id = depth_last_id
 
+        zed_batch, depth_batch, jai_batch, rgb_jai_batch = self.validate_batch_length(zed_batch,
+                                                                                      depth_batch,
+                                                                                      jai_batch,
+                                                                                      rgb_jai_batch)
+
         return zed_batch, depth_batch, jai_batch, rgb_jai_batch
+
+    def validate_batch_length(self, zed_batch, depth_batch, jai_batch, rgb_jai_batch):
+        is_full_batch = True
+        if len(zed_batch) < self.batch_size:
+            is_full_batch = False
+        if len(depth_batch) < self.batch_size:
+            is_full_batch = False
+        if len(jai_batch) < self.batch_size:
+            is_full_batch = False
+        if len(rgb_jai_batch) < self.batch_size:
+            is_full_batch = False
+
+        if not is_full_batch:
+            zed_batch, depth_batch, jai_batch, rgb_jai_batch = [], [], [], []
+            print('Not full batch')
+        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
+
 
     def close_cameras(self):
         self.zed_cam.close()
@@ -223,7 +247,6 @@ class FramesLoader():
 
         return zed_ids, jai_ids
 
-
 def arrange_ids(jai_frame_ids, zed_frame_ids):
 
     z = np.array(zed_frame_ids)
@@ -238,5 +261,11 @@ def arrange_ids(jai_frame_ids, zed_frame_ids):
     jai_offset = j[start_index]
     j -= jai_offset
 
-    return z[start_index:].tolist(), j[start_index:].tolist()
+    output_z = z[start_index + 1:].tolist()
+    output_j = j[start_index: -1].tolist()
+
+    output_z.sort()
+    output_j.sort()
+
+    return output_z, output_j
 
