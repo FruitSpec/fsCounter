@@ -2,6 +2,7 @@ import cv2
 from vision.tools.manual_slicer import slice_to_trees
 import os
 import json
+from vision.tools.utils_general import find_subdirs_with_file
 
 def add_bbox_to_slice_trees(df, frame_width = 1080, frame_height = 1920):
     # Add bbox coco format [top left x position, top left y position, width, height]
@@ -90,6 +91,10 @@ class CocoAnnotationsUpdater:
 
 def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,
                                 should_save_frames=True):
+    # check if video exist:
+    if not os.path.exists(INPUT_VIDEO_PATH):
+        raise Exception(f"Video {INPUT_VIDEO_PATH} does not exist")
+
     video_name = '_'.join(INPUT_VIDEO_PATH.split('.')[0].split('/')[-5:])
 
     df, df2 = slice_to_trees(ANNOTATIONS_FILE_PATH, video_path=INPUT_VIDEO_PATH, resize_factor=3, output_path=None,
@@ -175,21 +180,38 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
 
 
 if __name__ == '__main__':
+
     """
     This script display video with annotations, 
     saves frames from a video and creates a coco annotations file for the frames.
     If the video already exists in the annotations file, it will not be added again.
     """
-    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"
-    INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/zed_rgd.avi"
+
+    # Itterate folders:
+    FOLDER_PATH = '/home/lihi/FruitSpec/Data/customers/DEWAGD'
     OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
     COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
-    # ANNOTATIONS_FILE_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/trees_manual_annotations_R21B.json"
-    # INPUT_VIDEO_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/zed_rgd.avi"
-    # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
-    # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    annotation_files = find_subdirs_with_file(FOLDER_PATH, file_name = 'trees_manual_annotations_', return_dirs=False, single_file=False)
+    for file_path in annotation_files:
+        print(file_path)
+        video_path = os.path.join(os.path.dirname(file_path), 'zed_rgd.avi')
+        save_frames_and_annotations(file_path, video_path, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,
+                                should_save_frames=True)
 
-    save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
-    print ('done')
+    print ('Done')
+    ###########################################################################################
+
+    # ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"
+    # INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/zed_rgd.avi"
+    # OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
+    # COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    #
+    # # ANNOTATIONS_FILE_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/trees_manual_annotations_R21B.json"
+    # # INPUT_VIDEO_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/zed_rgd.avi"
+    # # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
+    # # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    #
+    # save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
+    # print ('done')
 
