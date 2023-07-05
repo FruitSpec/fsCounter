@@ -95,17 +95,54 @@ def read_nav_file(file_path):
 
     return df
 
+def interploate_distance(distance):
+    nonzero_indices = np.nonzero(distance)
+    # Check if there are any non-zero elements
+    if len(nonzero_indices[0]) > 0:
+        first_index = nonzero_indices[0][0]
 
 
-if __name__ == "__main__":
-    PATH_OUTPUT = r'/home/matans/Documents/fruitspec/sandbox/'
-    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/060623.nav"
-    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/jaized_timestamps.csv"
+    interval = 1
+    interploated_distance = []
+    for i in range(len(distance)):
+        if i<= first_index:
+            interploated_distance.append(0)
+            continue
+        if distance[i] == 0:
+            interval += 1
+        else:
+            avg_step = distance[i] / interval
+            interval_values = []
+            for j in range(interval):
+                interval_values.append(avg_step)
+            interploated_distance += interval_values
+            interval = 1
 
-    output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')
-    df_gps = read_nav_file(PATH_GPS)
-    df_jz = pd.read_csv(PATH_JZ)
+    if interval > 1:
+        for j in range(interval - 1):
+            interploated_distance.append(avg_step)
 
+    if len(interploated_distance) != len(distance):
+        print('error')
+
+    return interploated_distance
+
+
+def get_slices_vector(distances, splits):
+    slices = []
+    slices_index = 0
+    for i in range(len(distances)):
+        if distances[i] == 0:
+            slices.append(slices_index)
+            continue
+
+        if i in splits[0]:
+            slices_index += 1
+        slices.append(slices_index)
+
+    return slices
+
+def get_gps_distances(df_jz, df_gps):
     df = extract_gnss_data(df_jz, df_gps)
 
     # init distance detector:
@@ -119,8 +156,33 @@ if __name__ == "__main__":
         dist = dist_detector.get_distance(lon, lat)
         distances.append(dist)
 
-    df['distances'] = distances
+    return distances, df
 
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    PATH_OUTPUT = r'/home/matans/Documents/fruitspec/sandbox/'
+    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/060623.nav"
+    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/jaized_timestamps.csv"
+    split_range = 5
+
+    output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')
+    df_gps = read_nav_file(PATH_GPS)
+    df_jz = pd.read_csv(PATH_JZ)
+
+    distances, df = get_gps_distances(df_jz, df_gps)
+    distances = interploate_distance(distances)
+    cumsum = np.cumsum(distances)
+    splits = np.where(cumsum % split_range < 0.1)
+    slices = get_slices_vector(distances, splits)
+
+    df['distances'] = distances
+    df['slices'] = slices
 
     # accumulative_distance: 19.87736697659144 meters
     # Distance: 19.719186996980007 meters

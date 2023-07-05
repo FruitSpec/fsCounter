@@ -351,7 +351,8 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
+    #folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
+    folder = "/media/matans/My Book/FruitSpec/jun6/HC2000XX/060623/row_4/1"
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
@@ -361,14 +362,14 @@ if __name__ == "__main__":
     validate_output_path(args.output_folder)
 
     #run(cfg, args, None)
-    folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
+    #folder = "/media/matans/My Book/FruitSpec/jun6/HC1000XX/060623/row_4/1"
     #t_p = os.path.join(folder, "tracks.csv")
     # a_p = os.path.join(folder, "alignment.csv")
-    t_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/G10000XX/070623/row_12/1/tracks.csv"
-    a_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/G10000XX/070623/row_12/1/alignment.csv"
+    t_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/tracks.csv"
+    a_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/alignment.csv"
 
     tracks = pd.read_csv(t_p)
     alignment = pd.read_csv(a_p)
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'new')
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'HC1_row4')
     validate_output_path(args.output_folder)
     validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True)

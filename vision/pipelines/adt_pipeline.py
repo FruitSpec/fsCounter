@@ -66,7 +66,7 @@ def run(cfg, args, metadata=None):
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
 
         # depth:
-        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
+        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
         trk_outputs = append_to_trk(trk_outputs, depth_results)
 
         #collect results:
