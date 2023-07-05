@@ -13,7 +13,7 @@ Split a set of images and their corresponding Coco annotations into train and va
 It organizes the train and validation images in separate directories and saves the train and validation annotation 
 files in an annotations directory. This can be useful for preparing data for YOLOX custom training or similar tasks.
 '''
-def split_train_val_images(all_images_dir, coco_annotation_file, train_ratio):
+def split_train_val_images(all_images_dir, coco_annotation_file, train_ratio = 0.8):
     # Load Coco annotations from JSON file
     with open(coco_annotation_file, 'r') as f:
         coco_annotations = json.load(f)
