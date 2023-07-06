@@ -327,7 +327,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
-            timeout = max(10, timeout)
+            timeout_after = max(10, timeout_after)
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
                 timeout_after
 
@@ -386,7 +386,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}")
-            timeout = max(10, timeout)
+            timeout_after = max(10, timeout_after)
             return timeout_after, _response_ok
 
         analyzed_csv_df = None
