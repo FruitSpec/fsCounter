@@ -221,7 +221,7 @@ class DataManager(Module):
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
             t1 = time.time()
-            next_execution_time = max(0.95, data_conf.upload_interval - (t1 - t0))
+            next_execution_time = max(10, data_conf.upload_interval - (t1 - t0))
             if DataManager.shutdown_event.wait(next_execution_time):
                 break
 
@@ -327,7 +327,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
-                timeout_after = 0.95
+            timeout = max(10, timeout)
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
                 timeout_after
 
@@ -386,8 +386,7 @@ class DataManager(Module):
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
                 logging.warning(f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}")
-                timeout_after = 0.95
-
+            timeout = max(10, timeout)
             return timeout_after, _response_ok
 
         analyzed_csv_df = None
@@ -425,7 +424,7 @@ class DataManager(Module):
         timeout = scan_timeout - t_delta
         if timeout <= 0:
             logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout}")
-            timeout = 0.95
+        timeout = max(10, timeout)
 
         for _, analyzed_gr in analyzed_groups:
             customer_code, plot_code, scan_date, uploaded_indices, uploaded_extensions, failed_indices, \
