@@ -188,16 +188,20 @@ if __name__ == '__main__':
     """
 
     # Itterate folders:
-    FOLDER_PATH = '/home/lihi/FruitSpec/Data/customers/DEWAGD'
-    OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
-    COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    FOLDER_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
+    OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
+    COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
     annotation_files = find_subdirs_with_file(FOLDER_PATH, file_name = 'trees_manual_annotations_', return_dirs=False, single_file=False)
     for file_path in annotation_files:
         print(file_path)
         video_path = os.path.join(os.path.dirname(file_path), 'zed_rgd.avi')
-        save_frames_and_annotations(file_path, video_path, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,
-                                should_save_frames=True)
+        save_frames_and_annotations(file_path, video_path, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,should_save_frames=True)
+    print('Finished generating dataset')
+
+    from vision.trees_slicer.split_data_coco_format_to_tain_val import split_train_val_images
+
+    split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
 
     print ('Done')
     ###########################################################################################
