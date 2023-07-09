@@ -8,6 +8,7 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import json
 from vision.tools.utils_general import find_subdirs_with_file
+from vision.line_detection.gps_distance import DistanceGPS
 
 
 def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']):
@@ -224,6 +225,9 @@ if __name__ == "__main__":
     df = pd.read_csv(CSV_PATH)
     print(f'Loaded {CSV_PATH}')
 
+    # init distance detector:
+    dist_detector = DistanceGPS()
+
     # init rows detector:
     row_detector = RowDetector(expected_heading = EXPECTED_HEADING, path_kml = PATH_KML, placemark_name = POLYGON_NAME)
 
@@ -232,6 +236,10 @@ if __name__ == "__main__":
     cap_depth = cv2.VideoCapture(DEPTH_VIDEO_PATH)
     print(f'Loaded {DEPTH_VIDEO_PATH}')
     print (f'Video_len:{int(cap_depth.get(cv2.CAP_PROP_FRAME_COUNT))}, df_len:{len(df)}')
+
+    initial_lon = df.longitude.iloc[0]
+    initial_lat = df.latitude.iloc[0]
+    accumulative_distance = 0
 
     # load frames:
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
@@ -251,6 +259,12 @@ if __name__ == "__main__":
 
         depth_img = depth_img[:, :, 0].copy()
         gt = row.GT if 'GT' in df.columns.values else None
+        ###############
+        dist = dist_detector.get_distance(lon1=row.longitude, lat1=row.latitude)
+        if dist !=0:
+            accumulative_distance += dist
+            print (f'lon: {row.longitude}, lat: {row.latitude}, distance: {dist}, accumulative_distance: {accumulative_distance}')
+
         is_row, state_changed, df_results = row_detector.detect_row(depth_img=depth_img,
                                                                     rgb_img=rgb_img,
                                                                     angular_velocity_x = row.angular_velocity_x,
