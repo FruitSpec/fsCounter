@@ -130,13 +130,14 @@ if __name__ == "__main__":
     args = make_parser().parse_args()
 
     args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_trees_debug_lihi.py"
-    args.batch_size = 8
+    args.batch_size = 64
     args.experiment_name = 'trees_lihi_debug_040723'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
     args.ckpt = '/home/fruitspec-lab-3/FruitSpec/weights/pre_trained/yolox_tiny.pth'
     args.logger = 'wandb'
     args.opts = ['wandb-project', 'Counter_detector', 'wandb-name', args.experiment_name]
+
 
 
 

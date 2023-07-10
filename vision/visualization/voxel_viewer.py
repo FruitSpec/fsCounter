@@ -130,10 +130,10 @@ def create_name():
 
 
 if __name__ == '__main__':
-    data_path = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017"
-    files = {"gt": "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/annotations/instances_val.json"}
+    data_path = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/train2017"
+    files = {"gt": "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/instances_train.json"}
              #"tasq": "/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/tasq_chile_apples/Export_apple291222_originalTasq/jsons/Export_apple291222_originalTasq.json"} #,
              #"yolox": "/home/fruitspec-lab/FruitSpec/Sandbox/yolox_tiny_hires_1024X1024/instances_res3.json",
              #'yoloV5': "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6_COCO/coco_resV5.json"}
-    vizualize_coco_results(files, data_path, dataset_name="test")
+    vizualize_coco_results(files, data_path,  img_size=[1080, 1920], labels=['tree'])
 
