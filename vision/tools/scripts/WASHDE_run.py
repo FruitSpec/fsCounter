@@ -31,9 +31,9 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/media/matans/My Book/FruitSpec/BERESG/res"
+    output_path = "/media/matans/My Book/FruitSpec/Factors_subset_res"
     validate_output_path(output_path)
-    plots_dir = "/media/matans/My Book/FruitSpec/BERESG/plots"
+    plots_dir = "/media/matans/My Book/FruitSpec/Factors_subset"
     #plots_dir = "/media/matans/My Book/FruitSpec/jun6"
     plots = os.listdir(plots_dir)
     #rows = ["/home/matans/Documents/fruitspec/sandbox/NWFM/val"]

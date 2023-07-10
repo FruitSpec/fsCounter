@@ -136,7 +136,7 @@ def get_slices_vector(distances, splits):
             slices.append(slices_index)
             continue
 
-        if i in splits[0]:
+        if i in splits:
             slices_index += 1
         slices.append(slices_index)
 
@@ -159,17 +159,28 @@ def get_gps_distances(df_jz, df_gps):
     return distances, df
 
 
+def remove_adjacent(splits):
+    old_splits = splits[0]
+    new_splits = [old_splits[0]]
+    last_split = old_splits[0]
+    for split in old_splits[1:]:
+        if split == last_split + 1:
+            last_split = split
+            continue
+        else:
+            new_splits.append(split)
+            last_split = split
 
-
+    return new_splits
 
 
 
 
 if __name__ == "__main__":
     PATH_OUTPUT = r'/home/matans/Documents/fruitspec/sandbox/'
-    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/060623.nav"
-    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/jaized_timestamps.csv"
-    split_range = 5
+    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/debugging/distance_slicer/060723.nav"
+    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/debugging/distance_slicer/jaized_timestamps_citrus2.csv"
+    split_range = 3
 
     output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')
     df_gps = read_nav_file(PATH_GPS)
@@ -178,7 +189,8 @@ if __name__ == "__main__":
     distances, df = get_gps_distances(df_jz, df_gps)
     distances = interploate_distance(distances)
     cumsum = np.cumsum(distances)
-    splits = np.where(cumsum % split_range < 0.1)
+    splits_tuple = np.where(cumsum % split_range < 0.1)
+    splits = remove_adjacent(splits_tuple)
     slices = get_slices_vector(distances, splits)
 
     df['distances'] = distances
