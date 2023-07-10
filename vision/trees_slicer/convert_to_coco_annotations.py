@@ -169,7 +169,6 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                             save_frames(frame, OUTPUT_FRAMES_PATH, output_img_name)
 
                         coco.update_image_coco_dict(output_img_name, image_id, frame)
-                        image_id += 1
 
                         for _, row in frame_data.iterrows():
                             x, y, w, h = int(row['x']), int(row['y']), int(row['w']), int(row['h'])
@@ -181,6 +180,8 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
 
                             # Draw bounding boxes on the frame
                             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 15)  # Draw the bounding box
+
+                        image_id += 1
 
                     # Write frame number on the frame
                     cv2.putText(frame, f'Frame: {frame_id}', (20, 60), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1,
@@ -252,7 +253,7 @@ if __name__ == '__main__':
 
     num_images, num_duplicates, duplicate_images = count_images_in_coco_file(COCO_ANNOTATIONS_PATH)
 
-    split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
+    #split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
 
     print ('Done')
     ###########################################################################################
