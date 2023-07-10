@@ -66,11 +66,11 @@ class CocoAnnotationsUpdater:
         self.coco_dict['info']['videos'].append(video_name)
         return self.coco_dict
 
-    def update_annotation_coco_dict(self, output_img_name, bbox, id_bbox):
+    def update_annotation_coco_dict(self, image_id, bbox, id_bbox):
         x, y, w, h = bbox
         annotation_dict = {
             "id": id_bbox,
-            "image_id": output_img_name,
+            "image_id": image_id,
             "category_id": 0,
             "bbox": [x, y, w, h],
             "area": w * h,
@@ -175,7 +175,7 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                             x, y, w, h = int(row['x']), int(row['y']), int(row['w']), int(row['h'])
 
                             # update annotation in coco dict
-                            coco.update_annotation_coco_dict(output_img_name, bbox=[x, y, w, h],
+                            coco.update_annotation_coco_dict(image_id, bbox=[x, y, w, h],
                                                                          id_bbox=bbox_id)
                             bbox_id += 1
 
