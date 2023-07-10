@@ -1,9 +1,12 @@
 import cv2
-from vision.tools.manual_slicer import slice_to_trees
 import os
 import json
-from vision.tools.utils_general import find_subdirs_with_file
 import pandas as pd
+import json
+from collections import Counter
+from vision.trees_slicer.split_data_coco_format_to_tain_val import split_train_val_images
+from vision.tools.utils_general import find_subdirs_with_file
+from vision.tools.manual_slicer import slice_to_trees
 
 def add_bbox_to_slice_trees(df, frame_width = 1080, frame_height = 1920):
     # Add bbox coco format [top left x position, top left y position, width, height]
@@ -92,6 +95,11 @@ class CocoAnnotationsUpdater:
 
 def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,
                                 should_save_frames=True):
+    """
+    This script display video with annotations,
+    saves frames from a video and creates a coco annotations file for the frames.
+    If the video already exists in the annotations file, it will not be added again.
+    """
 
     camera = 'zed' if 'zed' in INPUT_VIDEO_PATH else 'jai'
     frame_width = 1080 if camera =='zed' else 1536
@@ -203,73 +211,62 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
         cap.release()
         cv2.destroyAllWindows()
 
+def count_images_in_coco_file(json_file):
+    with open(json_file, 'r') as f:
+        data = json.load(f)
+
+    image_names = [image['file_name'] for image in data['images']]
+    image_counts = Counter(image_names)
+
+    num_images = len(data['images'])
+    duplicate_images = [name for name, count in image_counts.items() if count > 1]
+    num_duplicates = len(duplicate_images)
+
+    print(f"Total number of images: {num_images}")
+    print(f"Number of duplicate images: {num_duplicates}")
+    print("Duplicate image names:", duplicate_images)
+
+    return num_images, num_duplicates, duplicate_images
+
+def save_frames_and_annotations_scraping_dirs(dir_path, output_frames_path, COCO_ANNOTATIONS_PATH, file_name = 'trees_manual_annotations_'):
+    '''
+    itterate over folders, and preform 'save_frames_and_annotations' for the folders containing the desired file_name
+    (file_name = 'trees_manual_annotations_')
+    '''
+    annotation_files = find_subdirs_with_file(dir_path, file_name = file_name, return_dirs=False, single_file=False)
+    for file_path in annotation_files:
+        print(file_path)
+        video_path = os.path.join(os.path.dirname(file_path), 'zed_rgd.avi')
+        save_frames_and_annotations(file_path, video_path, output_frames_path, COCO_ANNOTATIONS_PATH,should_save_frames=True)
+    print('Finished generating dataset')
+
 
 if __name__ == '__main__':
-#     ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/SUMGLD/R2A/all_slices.csv"
-#     INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/SUMGLD/R2A/Result_RGB_1.mkv"
-#     OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/customers/SUMGLD/R2A/lihi_debug"
-#     COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/customers/SUMGLD/R2A/lihi_debug/all_annotations.json'
-#
-#     save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
-#     print ('done')
-# ###################################################################################3
-    """
-    This script display video with annotations, 
-    saves frames from a video and creates a coco annotations file for the frames.
-    If the video already exists in the annotations file, it will not be added again.
-    """
 
-    # # Itterate folders:
-    # FOLDER_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
-    # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
-    # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
-    #
-    # annotation_files = find_subdirs_with_file(FOLDER_PATH, file_name = 'trees_manual_annotations_', return_dirs=False, single_file=False)
-    # for file_path in annotation_files:
-    #     print(file_path)
-    #     video_path = os.path.join(os.path.dirname(file_path), 'zed_rgd.avi')
-    #     save_frames_and_annotations(file_path, video_path, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,should_save_frames=True)
-    # print('Finished generating dataset')
-    #
-    # from vision.trees_slicer.split_data_coco_format_to_tain_val import split_train_val_images
-    #
-    # split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
-    #
-    # print ('Done')
+    # Itterate subfolders, save frames and coco annotations:
+    FOLDER_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
+    OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
+    COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+
+    save_frames_and_annotations_scraping_dirs(FOLDER_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, file_name = 'trees_manual_annotations_')
+
+    num_images, num_duplicates, duplicate_images = count_images_in_coco_file(COCO_ANNOTATIONS_PATH)
+
+    split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
+
+    print ('Done')
     ###########################################################################################
 
-    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"
-    INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/zed_rgd.avi"
-    OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
-    COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    # ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"
+    # INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/zed_rgd.avi"
+    # OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/all_images"
+    # COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
     # ANNOTATIONS_FILE_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/trees_manual_annotations_R21B.json"
     # INPUT_VIDEO_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R21B/zed_rgd.avi"
     # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
     # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
 
-    save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
-    print ('done')
+    # save_frames_and_annotations(ANNOTATIONS_FILE_PATH,INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH)
+    # print ('done')
 
-    import json
-    from collections import Counter
-
-
-    def count_images(json_file):
-        with open(json_file, 'r') as f:
-            data = json.load(f)
-
-        image_names = [image['file_name'] for image in data['images']]
-        image_counts = Counter(image_names)
-
-        num_images = len(data['images'])
-        duplicate_images = [name for name, count in image_counts.items() if count > 1]
-        num_duplicates = len(duplicate_images)
-
-        return num_images, num_duplicates, duplicate_images
-
-    num_images, num_duplicates, duplicate_images = count_images(COCO_ANNOTATIONS_PATH)
-
-    print(f"Total number of images: {num_images}")
-    print(f"Number of duplicate images: {num_duplicates}")
-    print("Duplicate image names:", duplicate_images)
