@@ -17,3 +17,5 @@ service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-counter
 upload_prefix: uploads
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+date_format: "%d%m%y"
+nav_extension: "nav"

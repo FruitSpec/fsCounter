@@ -84,7 +84,7 @@ class DataManager(Module):
                 jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
                 pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
 
-            today = datetime.now().strftime("%d%m%y")
+            today = datetime.now().strftime(data_conf.date_format)
             ext = "feather" if data_conf.use_feather else "csv"
             collected_data = {
                 "customer_code": [conf.customer_code],
@@ -229,23 +229,35 @@ class DataManager(Module):
 
     @staticmethod
     def upload_nav(upload_speed_in_kbps, timeout=10):
-        nav_path = tools.get_nav_path()
-        try:
-            nav_size_in_kb = os.path.getsize(nav_path) / 1024
-            if nav_size_in_kb >= upload_speed_in_kbps * timeout:
-                return
-            nav_s3_path = tools.get_nav_path(get_s3_path=True)
-            DataManager.s3_client.upload_file(nav_path, data_conf.upload_bucket_name, nav_s3_path)
-            logging.info(f"UPLOAD NAV TO S3 - SUCCESS")
-        except FileNotFoundError:
-            pass
-        except EndpointConnectionError:
-            logging.warning(f"UPLOAD NAV TO S3 - FAILED DUE TO INTERNET CONNECTION")
-        except S3UploadFailedError:
-            logging.warning(f"UPLOAD NAV TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
-        except Exception:
-            logging.exception(f"UPLOAD NAV TO S3 - FAILED DUE TO AN ERROR - {nav_path}")
-            traceback.print_exc()
+        def _upload(_path, _s3_path):
+            _filename = os.path.basename(_path)
+            try:
+                _size_in_kb = os.path.getsize(_path) / 1024
+                if _size_in_kb >= upload_speed_in_kbps * timeout:
+                    logging.info(f"UPLOAD {_filename} - NOT ENOUGH TIME LEFT")
+                    return
+                # _s3_path = tools.get_nav_path(get_s3_path=True)
+                DataManager.s3_client.upload_file(_path, data_conf.upload_bucket_name, _s3_path)
+                logging.info(f"UPLOAD {_filename} TO S3 - SUCCESS")
+            except FileNotFoundError:
+                logging.info(f"UPLOAD {_filename} - FILE NOT EXIST")
+            except EndpointConnectionError:
+                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO INTERNET CONNECTION")
+            except S3UploadFailedError:
+                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
+            except Exception:
+                logging.exception(f"UPLOAD {_filename} TO S3 - FAILED DUE TO AN ERROR - {_path}")
+                traceback.print_exc()
+
+        today_nav_path = tools.get_nav_path()
+        today_nav_s3_path = tools.get_nav_path(get_s3_path=True)
+
+        previous_nav_path = tools.get_previous_nav_path()
+        previous_nav_s3_path = tools.get_previous_nav_path(get_s3_path=True)
+
+        _upload(today_nav_s3_path, today_nav_s3_path)
+        if previous_nav_path:
+            _upload(previous_nav_path, previous_nav_s3_path)
 
     @staticmethod
     def scan_analyzed(scan_timeout, upload_speed_in_kbps):
