@@ -1,0 +1,78 @@
+output_folder: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2
+debug_folder: /media/fruitspec-lab/easystore/testing_playground
+
+rotate: false
+max_z: 5 # max depeth for fruit counting
+max_x_pix: 512 # max size for x axis
+max_y_pix: 682 # max size for y axis
+direction: "right" # where do new frames come from
+batch_size: 4
+verbosity: 0 # 0: no printing of timing. 1: printing of timing
+
+# feature extractions
+min_number_of_tracks: [1,2,3,4,5] #fruits with less tracks than this will be dropped
+vol_style: "cone" # what volume style to use
+cv_only: false # flag for extracting only cv
+vegetation_indexes: [] # what VI to extract ["ndvi", "ndri", "sipi", "gli"]
+
+
+# frame sample params
+minimal_frames_params: [0.9,0.1,2] # lower precent, upper percent, sammpling rate, read docstring for explanation
+physical_features_region: [1/3, 1/6] # cut image region for pyisical features (perimeter and width)
+
+
+# filtering
+filter_nans: true # flag for filtring out fruits that has no depth
+remove_high_blues: true # flag for applying high blue area removal
+red_green_filter: true # flag for applying red green filtring for foliage robustness
+
+# 3D Point cloud params
+plot_localiztion_cloud: true # flag for plotting localization cloud results
+min_dets_3d_init: 0.1 # chosen first frame for 3d space must have n_trackes >  quantile(min_dets_3d_init)
+max_depth_change: 5 # filters fruit with higher depth change between tracklets, 0 means no filtering
+
+# tracker related params
+tracker_format: [6, 0, 1, 2, 3, 9, 8, 10, 11, 12] # track_id, x1,y1,x2,y2, pc_x, pc_y, pc_z, width, height
+
+# translation related params
+dets_only: false # whether to use only the detections for the translation between images or the full image
+
+
+
+zed:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2ZED.svo
+  frame_size: [1920, 1080]
+  rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  depth_minimum: 0.5 # 1 counter
+  depth_maximum: 8 # 8 counter
+
+jai:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_FSI.mkv
+  frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+
+rgb_jai:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_RGB.mkv
+  frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+
+frame_size: [2048, 1536]
+
+debug:
+  ndvi_images: false # will show the ndvi creration process
+  translation:
+    apply: false
+    save_to: "/media/fruitspec-lab/easystore/translation keypoints dets only"
+    save_only: true
+    one_frame: false
+  alignment:
+    apply: false # will save alignment results
+    save_to: "/media/fruitspec-lab/easystore/alignment_FE"
+  preprocess:
+    apply: false
+    preprocess_saving_folder: "/media/fruitspec-lab/easystore/testing_playground"
+  3d_space: false
+
+
+
+

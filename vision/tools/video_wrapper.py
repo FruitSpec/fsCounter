@@ -28,9 +28,9 @@ class video_wrapper():
         cuda_supported = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False  # indicate that opencv compiled localy
         if cuda_supported:
             if channels == 3:
-                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! nvv4l2decoder ! video/x-raw(memory:NVMM),format=NV12 ! nvvidconv ! video/x-raw,format=BGRx ! appsink"
+                pipeline = f"filesrc location='file://{filepath}' ! matroskademux ! h265parse ! nvv4l2decoder ! video/x-raw(memory:NVMM),format=NV12 ! nvvidconv ! video/x-raw,format=BGRx ! appsink"
             else: # 1 channel - grayscale
-                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! omxh265dec ! videoconvert ! video/x-raw,format=BGRx ! appsink"
+                pipeline = f"filesrc location='file://{filepath}' ! matroskademux ! h265parse ! omxh265dec ! videoconvert ! video/x-raw,format=BGRx ! appsink"
             cam = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
             if not cam.isOpened():
                 print('gstreamer pipline for camera not opened. using opencv')

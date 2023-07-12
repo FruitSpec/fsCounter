@@ -20,13 +20,15 @@ from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
 from vision.tools.image_stitching import draw_matches
 from vision.pipelines.ops.simulator import get_n_frames, init_cams
-
+from vision.pipelines.detection_flow import counter_detection
 
 
 def run(cfg, args, n_frames=200):
     print(f'Inferencing on {args.jai.movie_path}\n')
     rc = ResultsCollector(rotate=args.rotate)
     sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
+ #   det = counter_detection(cfg, args)
+    det_outputs = None
     res = []
     frame_loader = FramesLoader(cfg, args)
     crop = [sensor_aligner.x_s, sensor_aligner.y_s, sensor_aligner.x_e, sensor_aligner.y_e]
@@ -47,15 +49,22 @@ def run(cfg, args, n_frames=200):
         for i in range(cfg.batch_size):
             debug.append({'output_path': keypoints_path, 'f_id': f_id + i})
         alignment_results = sensor_aligner.align_on_batch(zed_batch, rgb_batch, debug=debug)
+#        det_outputs = det.detect(jai_batch)
         rc.collect_alignment(alignment_results, f_id)
+        if len(zed_batch) < cfg.batch_size:
+            f_id += cfg.batch_size
+            continue
         for id_ in range(cfg.batch_size):
-            save_aligned(zed_batch[id_],
-                         jai_batch[id_],
-                         args.output_folder,
-                         f_id + id_,
-                         corr=alignment_results[id_][0], sub_folder='roi')
-            save_loaded_images(zed_batch[id_],
-                               jai_batch[id_], f_id + id_, loaded_path, crop)
+
+
+            # save_aligned(zed_batch[id_],
+            #              jai_batch[id_],
+            #              args.output_folder,
+            #              f_id + id_,
+            #              #corr=alignment_results[id_][0], dets=det_outputs[id_])
+            #              corr=alignment_results[id_][0], dets=det_outputs)
+            # save_loaded_images(zed_batch[id_],
+            #                    jai_batch[id_], f_id + id_, loaded_path, crop)
 
             res.append(alignment_results[id_])
 
@@ -187,11 +196,23 @@ def estimate_M(kp1, kp2, match, ransac=10):
 
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV'):
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None):
     if corr is not None and np.sum(np.isnan(corr)) == 0:
         zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
     zed = cv2.resize(zed, (680, 960))
     jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        dets = np.array(dets)
+        dets[:, 0] = dets[:, 0] * gx
+        dets[:, 2] = dets[:, 2] * gx
+        dets[:, 1] = dets[:, 1] * gy
+        dets[:, 3] = dets[:, 3] * gy
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -276,7 +297,51 @@ def update_args(args, row_dict):
 
     return new_args
 
+def validate_from_files(alignment, tracks, cfg, args, jai_only=False):
+    dets = track_to_det(tracks)
+    jai_frames = list(dets.keys())
+    a_hash = get_alignment_hash(alignment)
 
+    frame_loader = FramesLoader(cfg, args)
+    frame_loader.batch_size = 1
+
+    for id_ in tqdm(jai_frames):
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+        if jai_only:
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=7, text=False)
+            fp = os.path.join(args.output_folder, 'Dets')
+            validate_output_path(fp)
+
+            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), jai)
+        else:
+            save_aligned(zed_batch[0],
+                         jai_batch[0],
+                         args.output_folder,
+                         id_,
+                         corr=a_hash[id_], dets=dets[id_])
+
+
+def track_to_det(tracks_df):
+    dets = {}
+    for i, row in tracks_df.iterrows():
+        if row['frame_id'] in list(dets.keys()):
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+        else:
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+
+
+    return dets
+
+def get_alignment_hash(alignment):
+    data = alignment.to_numpy()
+    frames = data[:, 6]
+    corr = data[:, :4]
+
+    hash = {}
+    for i in range(len(frames)):
+        hash[frames[i]] = list(corr[i, :])
+
+    return hash
 
 
 if __name__ == "__main__":
@@ -295,4 +360,15 @@ if __name__ == "__main__":
     args.output_folder = os.path.join(folder, 'SA_freeze')
     validate_output_path(args.output_folder)
 
-    run(cfg, args, None)
+    #run(cfg, args, None)
+    #folder = "/media/matans/My Book/FruitSpec/jun6/HC1000XX/060623/row_4/1"
+    #t_p = os.path.join(folder, "tracks.csv")
+    # a_p = os.path.join(folder, "alignment.csv")
+    t_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/tracks.csv"
+    a_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/alignment.csv"
+
+    tracks = pd.read_csv(t_p)
+    alignment = pd.read_csv(a_p)
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'HC1_row4')
+    validate_output_path(args.output_folder)
+    validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True)

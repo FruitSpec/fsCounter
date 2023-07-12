@@ -10,13 +10,16 @@ overwrite:
   adt: true
   trees: false
 create_full_features: true
+last_slice: false
+model_config: /home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/model_config.yaml
 
 zed:
   movie_path: /home/mic-730ai/fruitspec/test_data/ZED_1.svo
   frame_size: [1920, 1080]
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
-  depth_minimum: 0.5 # 1 counter
-  depth_maximum: 20 # 8 counter
+  depth_minimum: 1 # 1 counter
+  depth_maximum: 8 # 8 counter
+  #channels: 1
   channels: 3
 
 depth:
@@ -49,6 +52,7 @@ debug:
   trees: false
   features: false
   align_graph: true
+  clusters: false
   run_type: RGB_siftv1_kp_equalize # align graph naming
 
 

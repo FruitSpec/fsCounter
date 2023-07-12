@@ -42,7 +42,6 @@ def run(cfg, args, metadata=None):
         pbar.update(adt.batch_size)
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
-
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
         if rgb_stauts or zed_stauts:
@@ -73,7 +72,8 @@ def run(cfg, args, metadata=None):
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
 
-#        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
+        #results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
+        #esults_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -354,8 +354,30 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    validate_output_path(args.output_folder)
-    #copy_configs(pipeline_config, runtime_config, args.output_folder)
+    zed_name = "ZED.mkv"
+    depth_name = "DEPTH.mkv"
+    fsi_name = "Result_FSI.mkv"
+    rgb_name = "Result_RGB.mkv"
+    time_stamp = "jaized_timestamps.csv"
+
+    output_path = "/media/matans/My Book/FruitSpec/WASHDE/June_29/validation"
+    validate_output_path(output_path)
+
+    rows_dir = "/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27/130623"
+    #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
+    rows = os.listdir(rows_dir)
+    rows = ["row_5"]
+    for row in rows:
+        row_folder = os.path.join(rows_dir, row, '1')
+
+        args.output_folder = os.path.join(output_path, row)
+        args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+        args.zed.movie_path = os.path.join(row_folder, zed_name)
+        args.depth.movie_path = os.path.join(row_folder, depth_name)
+        args.jai.movie_path = os.path.join(row_folder, fsi_name)
+        args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+
+        validate_output_path(args.output_folder)
 
     rc = run(cfg, args)
     rc.dump_feature_extractor(args.output_folder)

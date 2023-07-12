@@ -104,7 +104,7 @@ class SensorAligner:
 
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
-        if len(zed_batch) < 1:
+        if False:#len(zed_batch) < 1:
             corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
             results = [[corr, tx, ty]]
         else:
