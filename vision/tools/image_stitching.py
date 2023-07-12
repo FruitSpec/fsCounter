@@ -544,8 +544,16 @@ def translation_based(M, height, width, r):
         else:
             mask[:-ty, :-tx] = 1
 
+def get_tx_mask(tx, width, height):
+    mask = np.zeros((height, width))
+    if np.abs(tx) > width:
+        print("tx is too big")
+        return None
+    if tx < 0:
+        mask[:, -tx:] = 1
+    else:
+        mask[:, :-tx] = 1
     return mask
-
 
 def find_translation(kp1, des1, kp2, des2, r):
     M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)

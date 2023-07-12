@@ -10,6 +10,8 @@ overwrite:
   adt: true
   trees: false
 create_full_features: true
+last_slice: false
+model_config: /home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/model_config.yaml
 
 zed:
   movie_path: /home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/OLD00000/230523/row_1/1/ZED.mkv
@@ -17,7 +19,8 @@ zed:
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 1 # 1 counter
   depth_maximum: 8 # 8 counter
-  channels: 1
+  #channels: 1
+  channels: 3
 
 depth:
   movie_path: /home/matans/Documents/fruitspec/sandbox/Apples_Golan_heights/OLD00000/230523/row_1/1/DEPTH.mkv

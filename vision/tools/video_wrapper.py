@@ -1,6 +1,6 @@
 import cv2
-#import pyzed.sl as sl
-import numpy as sl
+import pyzed.sl as sl
+#import numpy as sl
 import numpy as np
 import copy
 
