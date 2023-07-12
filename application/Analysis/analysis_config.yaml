@@ -16,12 +16,12 @@ default_acquisition_parameters:
     IntegrationTimeRGB: 1000
     IntegrationTime800: 2000
     IntegrationTime975: 5000
-  output_types: ["equalize_hist", "RGB", "zed_gray", "zed_pc"]
+  output_types: ["equalize_hist", "RGB", "zed_gray", "zed_depth", "svo"]
 custom_acquisition_parameters:
   FPS: 10
   IntegrationTimeRGB: 1000
   IntegrationTime800: 2000
   IntegrationTime975: 5000
-  output_types: ["equalize_hist", "RGB", "zed_gray", "zed_pc" ]
+  output_types: ["equalize_hist", "RGB", "zed_gray", "zed_depth", "svo"]
 batch_size: 4
 max_batches: 30
