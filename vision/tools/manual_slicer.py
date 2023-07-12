@@ -678,10 +678,10 @@ def get_state(loc):
 if __name__ == "__main__":
 
 
-    fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/zed_rgb.avi"
-    output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/"
+    fp = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/240123/DWDBLE42/R29B/zed_rgb.avi"
+    output_path = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/240123/DWDBLE42/R29B/"
     validate_output_path(output_path)
-    json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R35A/zed_rgb_slicer.json"
+    json_path = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/240123/DWDBLE42/R29B/trees_manual_annotations_R29B.json"
 
     manual_slicer(fp, output_path,data = json_path, rotate=0,save=False)
     print('Done')
