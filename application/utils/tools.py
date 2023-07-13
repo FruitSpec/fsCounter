@@ -1,5 +1,4 @@
 import os
-import glob
 import logging
 import time
 import traceback
@@ -40,8 +39,8 @@ def is_svo(filename):
 
 
 def get_nav_path(get_s3_path=False):
-    today = datetime.now().strftime(data_conf.date_format)
-    nav_filename = f'{today}.{data_conf.nav_extension}'
+    today = datetime.now().strftime("%d%m%y")
+    nav_filename = f'{today}.nav'
     if not get_s3_path:
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
         if not os.path.exists(nav_dir):
@@ -51,40 +50,18 @@ def get_nav_path(get_s3_path=False):
         return create_s3_upload_path(conf.customer_code, nav_filename)
 
 
-def get_previous_nav_path(get_s3_path=False):
-    try:
-        today = datetime.now().strftime(data_conf.date_format)
-        today_nav_filename = f'{today}.{data_conf.nav_extension}'
-        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{data_conf.nav_extension}"))
-        nav_file_names.remove(today_nav_filename)
-        previous_nav_date = max(
-            nav_file_names,
-            key=lambda f: datetime.strptime(f.split(".")[0], data_conf.date_format)
-        )
-        nav_filename = f'{previous_nav_date}.{data_conf.nav_extension}'
-        if not get_s3_path:
-            if not os.path.exists(nav_dir):
-                os.makedirs(nav_dir)
-            return os.path.join(nav_dir, nav_filename)
-        else:
-            return create_s3_upload_path(conf.customer_code, nav_filename)
-    except:
-        return None
-
-
 def create_s3_upload_path(*args):
     args = (data_conf.upload_prefix, ) + args
     return s3_path_join(*args)
 
 
 def get_imu_path():
-    today = datetime.now().strftime(data_conf.date_format)
+    today = datetime.now().strftime("%d%m%y")
     return os.path.join(data_conf.output_path, conf.customer_code, f'{today}.imu')
 
 
 def get_jaized_timestamps_path():
-    today = datetime.now().strftime(data_conf.date_format)
+    today = datetime.now().strftime("%d%m%y")
     return os.path.join(data_conf.output_path, conf.customer_code, f'{data_conf.jaized_timestamps}_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
@@ -101,7 +78,7 @@ def get_folder_index(row_path, get_next_index=True):
 
 def get_path(plot, row, index=-1, write_csv=True, get_row_dir=False, get_index_dir=False):
     ext = "csv" if write_csv else "feather"
-    today = datetime.now().strftime(data_conf.date_format)
+    today = datetime.now().strftime("%d%m%y")
     row = f"row_{row}"
     row_dir = os.path.join(data_conf.output_path, conf.customer_code, plot, today, row)
     if get_row_dir:
