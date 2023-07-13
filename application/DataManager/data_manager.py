@@ -12,6 +12,7 @@ import pandas as pd
 import requests
 from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import EndpointConnectionError
+from pandas.core.dtypes.missing import na_value_for_dtype
 from requests.exceptions import RequestException
 from application.utils.settings import data_conf, conf
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
@@ -24,10 +25,11 @@ class DataManager(Module):
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
-    fruits_data_lock, scan_lock, analyzed_lock = threading.Lock(), threading.Lock(), threading.Lock()
+    fruits_data_lock, analyzed_lock, nav_lock = threading.Lock(), threading.Lock(), threading.Lock()
+    ask_nav_event = threading.Event()
     s3_client = None
     update_output_thread, internet_scan_thread = None, None
-    scan_df = pd.DataFrame(data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "filename": []})
+    nav_df = pd.DataFrame(data={"timestamp": [], "latitude": [], "longitude": [], "plot": []})
     collected_df = pd.DataFrame(
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
 
@@ -71,7 +73,30 @@ class DataManager(Module):
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
             jaized_timestamp_log_df = pd.DataFrame(data)
 
+            jz_latest = datetime.strptime(jaized_timestamp_log_df["ZED_timestamp"].iloc[-1], data_conf.timestamp_format)
+            nav_latest = datetime.strptime(DataManager.nav_df["timestamp"].iloc[-1], data_conf.timestamp_format)
+
+            print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
+            print(f"JZ LATEST: {jz_latest}")
+            print(f"NAV LATEST BEFORE: {nav_latest}")
+
+            DataManager.ask_nav_event.clear()
+            DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
+            DataManager.ask_nav_event.wait(3)
+            nav_latest = datetime.strptime(DataManager.nav_df["timestamp"].iloc[-1], data_conf.timestamp_format)
+            has_gps_data = nav_latest >= jz_latest
+
+            if has_gps_data:
+                with DataManager.nav_lock:
+                    current_nav_df = DataManager.nav_df
+                    DataManager.nav_df = pd.DataFrame(data={"timestamp": [], "latitude": [], "longitude": [], "plot": []})
+
+            print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
+            print(f"NAV LATEST AFTER: {nav_latest}")
+            print(f"HAS GPS DATA: {has_gps_data}")
+
             _is_first = not os.path.exists(jaized_timestamp_path)
+
             jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
             _is_first = not os.path.exists(jaized_timestamp_total_log_path)
             jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
@@ -102,12 +127,16 @@ class DataManager(Module):
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
             if action == ModuleTransferAction.NAV:
-                # write GPS data to .nav file
-                logging.info(f"WRITING NAV DATA TO FILE")
-                nav_path = tools.get_nav_path()
-                nav_df = pd.DataFrame(data)
-                is_first = not os.path.exists(nav_path)
-                nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+                with DataManager.nav_lock:
+                    # write GPS data to .nav file
+                    logging.info(f"WRITING NAV DATA TO FILE")
+                    nav_path = tools.get_nav_path()
+                    new_nav_df = pd.DataFrame(data)
+                    DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0).drop_duplicates()
+                    DataManager.ask_nav_event.set()
+                    is_first = not os.path.exists(nav_path)
+                    new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+
         elif sender_module == ModulesEnum.Analysis:
             if action == ModuleTransferAction.FRUITS_DATA:
                 logging.info(f"FRUIT DATA RECEIVED")

@@ -15,7 +15,7 @@ class Batcher:
     _frames_queue = None
     _batches_queue = None
     _drop_next_zed = False
-    _lock = threading.Lock()
+    _send_jaized_timestamps_lock = threading.Lock()
     _batch_push_event = threading.Event()
     _shutdown_event = threading.Event()
     _acquisition_start_event = threading.Event()
@@ -94,14 +94,15 @@ class Batcher:
                     except queue.Full:
                         self._batches_queue.get()
                 batch = []
-            if jai_frame.frame_number % 50 == 0:
-                print("sending data from batcher")
-                self._send_data(
-                    ModuleTransferAction.JAIZED_TIMESTAMPS,
-                    self._timestamps_log_dict, 
-                    ModulesEnum.DataManager
-                )
-                self.init_timestamp_log_dict()
+            if jai_frame.frame_number % 100 == 0:
+                with self._send_jaized_timestamps_lock:
+                    print("sending data from batcher")
+                    self._send_data(
+                        ModuleTransferAction.JAIZED_TIMESTAMPS,
+                        self._timestamps_log_dict,
+                        ModulesEnum.DataManager
+                    )
+                    self.init_timestamp_log_dict()
 
     def pop_batch(self):
         return self._batches_queue.get(block=True)
@@ -110,20 +111,21 @@ class Batcher:
         self._acquisition_start_event.set()
 
     def stop_acquisition(self):
-        self._acquisition_start_event.clear()
-        print("BATCHER STOP ACQUISITION")
-        if self._timestamps_log_dict["JAI_frame_number"]:
-            print("BATCHER TIME + STOP")
-            self._send_data(
-                ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
-                self._timestamps_log_dict,
-                ModulesEnum.DataManager
-            )
-        else:
-            print("BATCHER STOP ONLY")
-            self._send_data(
-                ModuleTransferAction.STOP_ACQUISITION,
-                None,
-                ModulesEnum.DataManager
-            )
-        self.init_timestamp_log_dict()
+        with self._send_jaized_timestamps_lock:
+            self._acquisition_start_event.clear()
+            print("BATCHER STOP ACQUISITION")
+            if self._timestamps_log_dict["JAI_frame_number"]:
+                print("BATCHER TIME + STOP")
+                self._send_data(
+                    ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
+                    self._timestamps_log_dict,
+                    ModulesEnum.DataManager
+                )
+            else:
+                print("BATCHER STOP ONLY")
+                self._send_data(
+                    ModuleTransferAction.STOP_ACQUISITION,
+                    None,
+                    ModulesEnum.DataManager
+                )
+            self.init_timestamp_log_dict()
