@@ -70,7 +70,7 @@ sensor_aligner:
     homography: false
 
 frame_loader:
-  mode: sync_svo # sync_mkv, async,  sync_svo
+  mode: sync_mkv # sync_mkv, async,  sync_svo
 
 
 filters:

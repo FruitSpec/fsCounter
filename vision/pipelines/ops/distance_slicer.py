@@ -178,8 +178,8 @@ def remove_adjacent(splits):
 
 if __name__ == "__main__":
     PATH_OUTPUT = r'/home/matans/Documents/fruitspec/sandbox/'
-    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/debugging/distance_slicer/060723.nav"
-    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/debugging/distance_slicer/jaized_timestamps_citrus2.csv"
+    PATH_GPS = "/home/matans/Documents/fruitspec/sandbox/distance/060723.nav"
+    PATH_JZ = "/home/matans/Documents/fruitspec/sandbox/distance/plot/template_row/1/jaized_timestamps.csv"
     split_range = 3
 
     output_dir = os.path.join(PATH_OUTPUT, 'rows_detection')

@@ -73,6 +73,7 @@ def run(cfg, args, metadata=None):
         results_collector.collect_detections(det_outputs, f_id)
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
+        results_collector.collect_jai_translation(translation_results, f_id)
 
 
         #results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
@@ -82,10 +83,7 @@ def run(cfg, args, metadata=None):
         adt.logger.iterations += 1
 
     pbar.close()
-    adt.frames_loader.zed_cam.close()
-    adt.frames_loader.jai_cam.close()
-    adt.frames_loader.rgb_jai_cam.close()
-    adt.frames_loader.depth_cam.close()
+    adt.frames_loader.close_cameras()
     adt.dump_log_stats(args)
 
     update_metadata(metadata, args)
