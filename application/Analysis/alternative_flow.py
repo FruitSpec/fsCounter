@@ -120,12 +120,15 @@ class AlternativeFlow(Module):
         return row_args
 
     @staticmethod
-    def prepare_data(tracks, tracks_header, alignment, alignment_header, row, status):
+    def prepare_data(tracks, tracks_header, alignment, alignment_header, jai_translation,
+                                                        jai_translation_header, row, status):
         data = {
             'tracks': np.array(tracks),
             'tracks_headers': tracks_header,
             'alignment': np.array(alignment),
             'alignment_headers': alignment_header,
+            'jai_translation': jai_translation,
+            'jai_translation_header': jai_translation_header,
             'row': row,
             'status': status
         }
