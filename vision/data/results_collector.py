@@ -29,11 +29,28 @@ class ResultsCollector():
         self.rotate = rotate
         self.alignment = []
         self.alignment_header = ["x1", "y1", "x2", "y2", "tx", "ty", "frame", "zed_shift"]
+        self.jai_translation = []
+        self.jai_translation_header = ["tx", "ty", "frame"]
         self.jai_zed = {}
         self.trees = {}
         self.hash = {}
         self.jai_width = 1536
         self.jai_height = 2048
+        self.percent_seen = {}
+
+
+    def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
+        self.collect_tracks(trk_outputs)
+        self.collect_alignment(alignment_results, f_id)
+        self.collect_percent_seen(percent_seen, f_id)
+        self.collect_jai_translation(jai_translation_results, f_id)
+
+    def collect_jai_translation(self, jai_translation_results, f_id):
+        if not jai_translation_results:
+            return
+        for i, translations in enumerate(jai_translation_results):
+            self.jai_translation.append(list(translations) + [f_id+i])
+
 
     def collect_detections(self, batch_results, img_id):
         for i, detection_results in enumerate(batch_results):
@@ -43,6 +60,7 @@ class ResultsCollector():
                     det.append(img_id + i)
                     output.append(det)
                 self.detections += output
+
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -122,6 +140,9 @@ class ResultsCollector():
         if type == 'detections':
             fields = self.detections_header
             rows = self.detections
+        elif type == "jai_translations":
+            fields = self.jai_translation_header
+            rows = self.jai_translation
         elif type == 'measures':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",
                       "width", "color", "color_std"]

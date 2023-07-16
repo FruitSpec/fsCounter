@@ -128,7 +128,7 @@ class DataManager(Module):
 
                 def write_locally(_name):
                     _data_key = _name
-                    _headers_key = f"{_name}_headers"
+                    _headers_key = f"{_name}_header"
                     _filename = _name
                     nonlocal ext, data, analyzed_path, folder_index
                     _df_data, _df_headers = data[_data_key], data[_headers_key]

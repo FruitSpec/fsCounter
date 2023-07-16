@@ -72,6 +72,7 @@ def run(cfg, args, metadata=None):
         results_collector.collect_detections(det_outputs, f_id)
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
+        results_collector.collect_jai_translation(translation_results, f_id)
 
 #        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
 

@@ -49,6 +49,8 @@ class AlternativeFlow(Module):
                                                         tracks_header=rc.tracks_header,
                                                         alignment=rc.alignment,
                                                         alignment_header=rc.alignment_header,
+                                                        jai_translation=rc.jai_translation,
+                                                        jai_translation_header=rc.jai_translation_header,
                                                         row=row,
                                                         status=is_success)
 
