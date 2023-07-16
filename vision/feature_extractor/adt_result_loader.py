@@ -51,8 +51,9 @@ class ADTSBatchLoader:
         self.tree_id = tree_id
         self.slicer_results, self.alignment, self.tracker_results = [], [], {}
         self.jai_translation = pd.DataFrame({})
-        self.load_dfs()
-        self.frame_loader = FramesLoader(cfg, args)
+        #self.load_dfs()
+        self.get_row_data(args)
+        self.frame_loader = FramesLoader(cfg, args, args.frame_loader.mode)
         self.jaized_timestamps = jaized_timestamps
 
     @staticmethod
@@ -123,6 +124,18 @@ class ADTSBatchLoader:
                 df.drop("Unnamed: 0", axis=1, inplace=True)
         if "frame_id" in self.tracker_results.columns:
             self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+
+    def get_row_data(self, args):
+
+        self.tracker_results = pd.read_csv(args.tracker_results)
+        self.alignment = pd.read_csv(args.alignment)
+        self.jai_translation = pd.read_csv(args.jai_translations)
+        for df in [self.tracker_results, self.alignment, self.jai_translation]:
+            if "Unnamed: 0" in df.columns:
+                df.drop("Unnamed: 0", axis=1, inplace=True)
+        if "frame_id" in self.tracker_results.columns:
+            self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+
 
     @staticmethod
     def validate_align(b_align, frame_ids):

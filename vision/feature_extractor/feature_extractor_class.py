@@ -1095,6 +1095,18 @@ class FeatureExtractor:
             tree_physical_params.pop(key)
         return tree_physical_params
 
+    def reset(self, args, tree_id, row_id, block_name):
+
+        self.__init__(args, tree_id, row_id, block_name)
+        # self.cv_res = {}
+        # self.tree_physical_features = self.init_physical_parmas(np.nan)
+        # self.tree_fruit_params = self.init_fruit_params()
+        # self.fruit_3d_space = {}
+        # self.tree_physical_params = self.init_physical_parmas([])
+        # self.tree_vi = {**self.get_additional_vegetation_indexes(0, 0, 0, fill=[],
+        #                                                          vegetation_indexes_keys=self.vegetation_indexes_keys)}
+        # self.tree_start, self.tree_end = False, False
+
 
 def run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids=False):
     n_batchs = len(tree_frames) // batch_size

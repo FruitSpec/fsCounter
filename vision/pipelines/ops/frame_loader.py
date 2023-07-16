@@ -8,8 +8,11 @@ from vision.pipelines.ops.simulator import init_cams
 
 class FramesLoader():
 
-    def __init__(self, cfg, args):
-        self.mode = cfg.frame_loader.mode
+    def __init__(self, cfg, args, mode=None):
+        if mode is None:
+            self.mode = cfg.frame_loader.mode
+        else:
+            self.mode = mode
         self.zed_cam, self.rgb_jai_cam, self.jai_cam, self.depth_cam = init_cams(args, self.mode)
         self.batch_size = cfg.batch_size
         self.zed_last_id = 0
@@ -106,7 +109,7 @@ class FramesLoader():
     @staticmethod
     def get_camera_frame_sync(cam, f_ids, last_fid):
         batch = []
-        depth_batch = []
+        pc_batch = []
         max_frame_number = cam.get_number_of_frames()
         for f_id in f_ids:
             if f_id >= max_frame_number:
@@ -116,21 +119,26 @@ class FramesLoader():
                     while f_id > last_fid + 1:
                         cam.grab()
                         last_fid += 1
+                elif f_id < last_fid:
+                    cam.grab(f_id-1)
                 cam.grab()
                 last_fid = f_id
                 _, frame = cam.get_frame()
+                point_cloud = cam.get_point_cloud()
                 batch.append(frame)
-                depth_batch.append(cam.get_depth())
+                pc_batch.append(point_cloud)
             else:
                 if f_id > last_fid + 1:
                     while f_id > last_fid + 1:
                         _, _ = cam.get_frame()
                         last_fid += 1
+                elif f_id < last_fid:
+                    cam.get_frame(f_id - 1)
                 last_fid = f_id
                 _, frame = cam.get_frame()
                 batch.append(frame)
 
-        return batch, depth_batch, last_fid
+        return batch, pc_batch, last_fid
 
     @staticmethod
     def get_batch_results_sync(results, mode):
@@ -246,7 +254,6 @@ class FramesLoader():
         zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
 
         return zed_ids, jai_ids
-
 
 def arrange_ids(jai_frame_ids, zed_frame_ids):
 

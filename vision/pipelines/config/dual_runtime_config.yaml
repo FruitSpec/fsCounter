@@ -5,7 +5,7 @@ frame_drop_path: /home/mic-730ai/fruitspec/test_data/frame_drop_1.log
 debug_folder: $(output_folder)/debug
 rotate: false
 zed_shift: 0 # default 0
-max_z: 8
+max_z: 5
 overwrite:
   adt: true
   trees: false
@@ -41,6 +41,8 @@ rgb_jai:
   channels: 3
 
 frame_size: [2048, 1536]
+frame_loader:
+  mode: sync_svo
 
 debug:
   tracker_windows: false

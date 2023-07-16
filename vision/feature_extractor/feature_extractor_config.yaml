@@ -1,6 +1,33 @@
 output_folder: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2
 debug_folder: /media/fruitspec-lab/easystore/testing_playground
 
+tracker_results: /path/to/tracks.csv
+alignment: /path/to/alignment.csv
+jai_translations: /path/to/jai_translations.csv
+sync_data_log_path: /path/to/jaized_timestamps.csv
+
+zed:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2ZED.svo
+  frame_size: [1920, 1080]
+  rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  depth_minimum: 1 # 1 counter
+  depth_maximum: 8 # 8 counter
+
+jai:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_FSI.mkv
+  frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
+
+rgb_jai:
+  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_RGB.mkv
+  frame_size: [2048, 1536]
+  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
+
+frame_loader:
+  mode: sync_svo # sync_mkv, async,  sync_svo
+
 rotate: false
 max_z: 5 # max depeth for fruit counting
 max_x_pix: 512 # max size for x axis
@@ -36,25 +63,6 @@ tracker_format: [6, 0, 1, 2, 3, 9, 8, 10, 11, 12] # track_id, x1,y1,x2,y2, pc_x,
 
 # translation related params
 dets_only: false # whether to use only the detections for the translation between images or the full image
-
-
-
-zed:
-  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2ZED.svo
-  frame_size: [1920, 1080]
-  rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
-  depth_minimum: 0.5 # 1 counter
-  depth_maximum: 8 # 8 counter
-
-jai:
-  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_FSI.mkv
-  frame_size: [2048, 1536]
-  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
-
-rgb_jai:
-  movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2/Result_RGB.mkv
-  frame_size: [2048, 1536]
-  rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
 
 frame_size: [2048, 1536]
 

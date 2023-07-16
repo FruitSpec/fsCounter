@@ -335,17 +335,97 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
         res = list(map(run_on_row, paths_list, [suffix] * n, [print_fids] * n))
     return list(chain.from_iterable(res + process_data))
 
+def get_tree_features(fe):
+    return {k: v for features in fe.get_tree_results() for k, v in features.items()}
+
+def run(cfg, fe_args, adt_args, slices, row):
+    """
+    Process a row scan.
+
+    Args:
+        row_scan_path (str): Path to the row scan.
+        suffix (str, optional): Suffix for the output files. Defaults to "".
+        print_fids (bool, optional): Whether to print frame IDs. Defaults to False.
+
+    Returns:
+        list: List of tree features dictionaries for the row scan.
+    """
+
+    block_name = row['plot_code']
+    row_id = row['row']
+
+    #fe = FeatureExtractor(fe_args, 0, row_id, block_name)
+    adts_loader = ADTSBatchLoader(cfg, fe_args, block_name, adt_args.output_folder, tree_id=0)
+
+    trees = slices["tree_id"].unique()
+    row_tree_features = []
+    for tree_id in trees:
+        #fe.reset(fe_args, tree_id, row_id, block_name)
+        fe = FeatureExtractor(fe_args, tree_id, row_id, block_name)
+        fe, adts_loader, tree_frames = update_tree_data(fe, adts_loader, slices, tree_id)
+        run_on_tree(tree_frames, fe, adts_loader, cfg.batch_size)
+        row_tree_features.append(get_tree_features(fe))
+
+
+
+    if len(row_tree_features):
+        row_tree_features = pd.DataFrame(row_tree_features)
+
+    return row_tree_features
+
+def update_tree_data(fe, adts_loader, slices, tree_id):
+    fe.tree_id = tree_id
+    adts_loader.tree_id = tree_id
+    adts_loader.slicer_results = slices[slices["tree_id"] == tree_id]
+    tree_frames = slices["frame_id"][slices["tree_id"] == tree_id].apply(str).values
+
+    return fe, adts_loader, tree_frames
+
+def update_run_args(fe_args, adt_args, row_folder):
+    adt_args.zed.movie_path = os.path.join(row_folder, f"ZED.mkv")
+    adt_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
+    adt_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
+    adt_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
+    adt_args.output_folder = row_folder
+
+    fe_args.zed.movie_path = os.path.join(row_folder, f"ZED.svo")
+    fe_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
+    fe_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
+    fe_args.tracker_results = os.path.join(row_folder, f"tracks.csv")
+    fe_args.alignment = os.path.join(row_folder,"alignment.csv")
+    fe_args.jai_translations = os.path.join(row_folder, "jai_translations.csv")
+    fe_args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
+
+    slices = pd.read_csv(os.path.join(row_folder, "slices.csv"))
+
+
+    return fe_args, adt_args, slices
+
+
 
 if __name__ == '__main__':
-    folder_path = "/media/matans/My Book/FruitSpec/Feature_Extraction/test_data/row_3/1"
-    # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2"
-    final_df_output = "/media/matans/My Book/FruitSpec/Feature_Extraction/MOTCHA_features_new_slice.csv"
+    repo_dir = get_repo_dir()
+    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
+    fe_config = "/vision/feature_extractor/feature_extractor_config.yaml"
+    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    adt_args = OmegaConf.load(repo_dir + runtime_config)
+    fe_args = OmegaConf.load(repo_dir + fe_config)
+    folder_path = "/home/mic-730ai/fruitspec/test_data/row_3/1"
+    output_path = "/home/mic-730ai/fruitspec/test_data/MOTCHA_features_refactor_3.csv"
+    row = {'plot_code': 'test_data',
+           'row': 1}
     over_write = True
     njobs = 1
     suffix = ""
     print_fids = False
     run_only_done_adt = True
 
-    results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt)
-    pd.DataFrame(results).to_csv(final_df_output)
-    pd.DataFrame(results)
+    fe_args, adt_args, slices = update_run_args(fe_args, adt_args, folder_path)
+    features_df = run(cfg, fe_args, adt_args, slices, row)
+    #
+    features_df.to_csv(output_path)
+    # final_df_output = "/home/mic-730ai/fruitspec/test_data/MOTCHA_features_orig.csv"
+    # results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt)
+    # pd.DataFrame(results).to_csv(final_df_output)
+    # pd.DataFrame(results)

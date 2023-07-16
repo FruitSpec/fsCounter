@@ -34,7 +34,6 @@ class AlternativeFlow(Module):
         while True:
             found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
             if found:
-                # AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
                 # using try in case of collapse in analysis flow
                 try:
                     logging.info(f"ANALYZING NEW ROW: {list(row)}")
