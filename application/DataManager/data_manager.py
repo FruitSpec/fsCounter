@@ -3,7 +3,7 @@ import threading
 import traceback
 from builtins import staticmethod
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import signal
 import logging
 import boto3
@@ -73,23 +73,45 @@ class DataManager(Module):
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
             jaized_timestamp_log_df = pd.DataFrame(data)
 
-            jz_latest = datetime.strptime(jaized_timestamp_log_df["ZED_timestamp"].iloc[-1], data_conf.timestamp_format)
-            nav_latest = datetime.strptime(DataManager.nav_df["timestamp"].iloc[-1], data_conf.timestamp_format)
+            jz_latest = pd.to_datetime(
+                jaized_timestamp_log_df["ZED_timestamp"].iloc[-1],
+                format=data_conf.timestamp_format
+            )
+            jz_earliest = pd.to_datetime(
+                jaized_timestamp_log_df["ZED_timestamp"].iloc[0],
+                format=data_conf.timestamp_format
+            )
+            try:
+                nav_latest = pd.to_datetime(
+                    DataManager.nav_df["timestamp"].iloc[-1],
+                    format=data_conf.timestamp_format
+                )
+            except IndexError:
+                nav_latest = jz_latest - timedelta(seconds=5)
 
             print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
             print(f"JZ LATEST: {jz_latest}")
             print(f"NAV LATEST BEFORE: {nav_latest}")
 
-            DataManager.ask_nav_event.clear()
-            DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
-            DataManager.ask_nav_event.wait(3)
-            nav_latest = datetime.strptime(DataManager.nav_df["timestamp"].iloc[-1], data_conf.timestamp_format)
-            has_gps_data = nav_latest >= jz_latest
+            retries_count = 0
+            while nav_latest < jz_latest - timedelta(seconds=3) and retries_count < 3:
+                retries_count += 1
+                DataManager.ask_nav_event.clear()
+                DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
+                DataManager.ask_nav_event.wait(3)
+                try:
+                    nav_latest = pd.to_datetime(
+                        DataManager.nav_df["timestamp"].iloc[-1],
+                        format=data_conf.timestamp_format
+                    )
+                except IndexError:
+                    pass
 
+            has_gps_data = nav_latest >= jz_latest - timedelta(seconds=3)
             if has_gps_data:
-                with DataManager.nav_lock:
-                    current_nav_df = DataManager.nav_df
-                    DataManager.nav_df = pd.DataFrame(data={"timestamp": [], "latitude": [], "longitude": [], "plot": []})
+                nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
+                current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
+                DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest]
 
             print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
             print(f"NAV LATEST AFTER: {nav_latest}")
@@ -126,16 +148,18 @@ class DataManager(Module):
         data, sender_module = DataManager.in_qu.get()
         action, data = data["action"], data["data"]
         if sender_module == ModulesEnum.GPS:
-            if action == ModuleTransferAction.NAV:
-                with DataManager.nav_lock:
-                    # write GPS data to .nav file
-                    logging.info(f"WRITING NAV DATA TO FILE")
-                    nav_path = tools.get_nav_path()
-                    new_nav_df = pd.DataFrame(data)
-                    DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0).drop_duplicates()
-                    DataManager.ask_nav_event.set()
-                    is_first = not os.path.exists(nav_path)
-                    new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+            if action == ModuleTransferAction.NAV or action == ModuleTransferAction.ASK_FOR_NAV:
+                # write GPS data to .nav file
+                logging.info(f"WRITING NAV DATA TO FILE")
+                # if action == ModuleTransferAction.ASK_FOR_NAV:
+                #     print(f"{datetime.now()} - NAV ARRIVED AFTER ASK_FOR_NAV")
+                new_nav_df = pd.DataFrame(data)
+                DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0).drop_duplicates()
+                DataManager.ask_nav_event.set()
+                # print(f"{datetime.now()} - ask_nav_event IS_SET: {DataManager.ask_nav_event.is_set()}")
+                nav_path = tools.get_nav_path()
+                is_first = not os.path.exists(nav_path)
+                new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
 
         elif sender_module == ModulesEnum.Analysis:
             if action == ModuleTransferAction.FRUITS_DATA:

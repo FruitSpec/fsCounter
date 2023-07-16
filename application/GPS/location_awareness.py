@@ -86,7 +86,7 @@ class GPSSampler(Module):
             if action == ModuleTransferAction.ASK_FOR_NAV:
                 if GPSSampler.gps_data:
                     with GPSSampler.nav_data_lock:
-                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.send_data(ModuleTransferAction.ASK_FOR_NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
                         GPSSampler.gps_data = []
 
     @staticmethod
@@ -121,7 +121,7 @@ class GPSSampler(Module):
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
-            timestamp = datetime.now().strftime("%H:%M:%S.%f")
+            timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
@@ -147,7 +147,7 @@ class GPSSampler(Module):
                         }
                     )
 
-                if sample_count % 30 == 0 and GPSSampler.gps_data:
+                if sample_count % 20 == 0 and GPSSampler.gps_data:
                     with GPSSampler.nav_data_lock:
                         GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
                         GPSSampler.gps_data = []

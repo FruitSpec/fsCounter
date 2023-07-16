@@ -94,7 +94,7 @@ class Batcher:
                     except queue.Full:
                         self._batches_queue.get()
                 batch = []
-            if jai_frame.frame_number % 100 == 0:
+            if jai_frame.frame_number % 200 == 0:
                 with self._send_jaized_timestamps_lock:
                     print("sending data from batcher")
                     self._send_data(
