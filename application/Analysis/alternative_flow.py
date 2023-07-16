@@ -124,9 +124,9 @@ class AlternativeFlow(Module):
                                                         jai_translation_header, row, status):
         data = {
             'tracks': np.array(tracks),
-            'tracks_headers': tracks_header,
+            'tracks_header': tracks_header,
             'alignment': np.array(alignment),
-            'alignment_headers': alignment_header,
+            'alignment_header': alignment_header,
             'jai_translation': jai_translation,
             'jai_translation_header': jai_translation_header,
             'row': row,
