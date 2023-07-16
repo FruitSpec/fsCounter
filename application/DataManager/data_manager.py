@@ -125,39 +125,38 @@ class DataManager(Module):
                 is_first = not os.path.exists(imu_path)
                 imu_df.to_csv(imu_path, header=is_first)
             elif action == ModuleTransferAction.ANALYZED_DATA:
+
+                def write_locally(_name):
+                    _data_key = _name
+                    _headers_key = f"{_name}_headers"
+                    _filename = _name
+                    nonlocal ext, data, analyzed_path, folder_index
+                    _df_data, _df_headers = data[_data_key], data[_headers_key]
+                    _file_path = os.path.join(analyzed_path, str(folder_index), f"{_filename}.{ext}")
+                    try:
+                        _df = pd.DataFrame(data=_df_data, columns=_df_headers)
+                    except ValueError:
+                        _df = pd.DataFrame(columns=_df_headers)
+
+                    if data_conf.use_feather:
+                        _df.to_feather(_file_path)
+                    else:
+                        _df.to_csv(_file_path, index=False, header=True)
+
                 customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
                 is_success = data["status"]
                 logging.info(f"ANALYZED DATA ARRIVED: "
                              f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
 
                 if is_success:
-                    analyzed_path = os.path.join(data_conf.output_path,
-                                                 customer_code,
-                                                 plot_code,
-                                                 str(scan_date),
-                                                 f"row_{row}")
+                    analyzed_path = os.path.join(
+                        data_conf.output_path, customer_code, plot_code,
+                        str(scan_date), f"row_{row}"
+                    )
 
-                    tracks, tracks_headers = data["tracks"], data["tracks_headers"]
-                    tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")
-                    try:
-                        tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
-                    except ValueError:
-                        tracks_df = pd.DataFrame(columns=tracks_headers)
-
-                    alignment, alignment_headers = data["alignment"], data["alignment_headers"]
-                    alignment_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.alignment}.{ext}")
-
-                    try:
-                        alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
-                    except ValueError:
-                        alignment_df = pd.DataFrame(columns=alignment_headers)
-
-                    if data_conf.use_feather:
-                        tracks_df.to_feather(tracks_path)
-                        alignment_df.to_feather(alignment_path)
-                    else:
-                        tracks_df.to_csv(tracks_path, index=False, header=True)
-                        alignment_df.to_csv(alignment_path, index=False, header=True)
+                    write_locally(data_conf.tracks)
+                    write_locally(data_conf.alignment)
+                    write_locally(data_conf.jai_translation)
 
                 status = data_conf.success if is_success else data_conf.failed
                 analyzed_data = {
