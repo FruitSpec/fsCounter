@@ -111,7 +111,12 @@ class DataManager(Module):
                     pass
 
             nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-            current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
+            try:
+                current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
+            except:
+                logging.exception("NAV FILTERING ERROR:")
+                traceback.print_exc()
+                raise Exception
             DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
 
             merged_df = pd.merge_asof(
