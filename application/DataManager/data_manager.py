@@ -126,9 +126,11 @@ class DataManager(Module):
                 )
 
                 jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
+                jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
+                jaized_timestamp_log_df["longitude"] = merged_df["longitude"]
+                jaized_timestamp_log_df["plot"] = merged_df["plot"]
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
-
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
                 _is_first = not os.path.exists(jaized_timestamp_total_log_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
