@@ -57,7 +57,10 @@ def get_previous_nav_path(get_s3_path=False):
         today_nav_filename = f'{today}.{data_conf.nav_extension}'
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
         nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{data_conf.nav_extension}"))
-        nav_file_names.remove(today_nav_filename)
+        try:
+            nav_file_names.remove(today_nav_filename)
+        except:
+            pass
         previous_nav_date = max(
             nav_file_names,
             key=lambda f: datetime.strptime(f.split(".")[0], data_conf.date_format)
@@ -70,7 +73,7 @@ def get_previous_nav_path(get_s3_path=False):
         else:
             return create_s3_upload_path(conf.customer_code, nav_filename)
     except:
-        logging.exception("PREVIOUS NAV ERROR: ")
+        logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{data_conf.nav_extension}')}")
         traceback.print_exc()
         return None
 
