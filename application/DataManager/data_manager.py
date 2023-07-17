@@ -112,7 +112,7 @@ class DataManager(Module):
 
             nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
             try:
-                current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
+                current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]
             except:
                 logging.exception("NAV FILTERING ERROR:")
                 traceback.print_exc()
