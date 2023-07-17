@@ -254,7 +254,7 @@ class DataManager(Module):
         previous_nav_path = tools.get_previous_nav_path()
         previous_nav_s3_path = tools.get_previous_nav_path(get_s3_path=True)
 
-        _upload(today_nav_s3_path, today_nav_s3_path)
+        _upload(today_nav_path, today_nav_s3_path)
         if previous_nav_path:
             _upload(previous_nav_path, previous_nav_s3_path)
 
