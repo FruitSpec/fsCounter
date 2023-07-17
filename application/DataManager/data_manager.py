@@ -73,20 +73,23 @@ class DataManager(Module):
             jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
             jaized_timestamp_log_df = pd.DataFrame(data)
 
-            jz_latest = pd.to_datetime(
-                jaized_timestamp_log_df["ZED_timestamp"].iloc[-1],
+            jz_ts_key, nav_ts_key = "ZED_timestamp", "timestamp"
+
+            jaized_timestamp_log_df[jz_ts_key] = pd.to_datetime(
+                jaized_timestamp_log_df[jz_ts_key],
                 format=data_conf.timestamp_format
             )
-            jz_earliest = pd.to_datetime(
-                jaized_timestamp_log_df["ZED_timestamp"].iloc[0],
-                format=data_conf.timestamp_format
-            )
+
+            jz_earliest = jaized_timestamp_log_df[jz_ts_key].iloc[0]
+            jz_latest = jaized_timestamp_log_df[jz_ts_key].iloc[-1]
+
             try:
-                nav_latest = pd.to_datetime(
-                    DataManager.nav_df["timestamp"].iloc[-1],
+                DataManager.nav_df[nav_ts_key] = pd.to_datetime(
+                    DataManager.nav_df[nav_ts_key],
                     format=data_conf.timestamp_format
                 )
-            except IndexError:
+                nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
+            except (IndexError, KeyError):
                 nav_latest = jz_latest - timedelta(seconds=5)
 
             print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
@@ -107,15 +110,23 @@ class DataManager(Module):
                 except IndexError:
                     pass
 
-            has_gps_data = nav_latest >= jz_latest - timedelta(seconds=3)
-            if has_gps_data:
-                nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-                current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
-                DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest]
+            nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
+            current_nav_df = DataManager.nav_df[nav_ts <= jz_latest & nav_ts >= jz_earliest]
+            DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
+
+            merged_df = pd.merge_asof(
+                left=jaized_timestamp_log_df,
+                right=current_nav_df,
+                left_on=jz_ts_key,
+                right_on=nav_ts_key,
+                direction="nearest",
+                tolerance=timedelta(seconds=3)
+            )
+
+            jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
 
             print(f"JZ TS: {DataManager.current_plot}/{DataManager.current_row}")
             print(f"NAV LATEST AFTER: {nav_latest}")
-            print(f"HAS GPS DATA: {has_gps_data}")
 
             _is_first = not os.path.exists(jaized_timestamp_path)
 
