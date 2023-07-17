@@ -20,6 +20,7 @@ class Batcher:
     _shutdown_event = threading.Event()
     _acquisition_start_event = threading.Event()
     _timestamps_log_dict = {}
+    _data_manager_batch_number = 0
     output_dir = ""
 
     def __init__(self, frames_queue, send_data):
@@ -96,10 +97,11 @@ class Batcher:
                 batch = []
             if jai_frame.frame_number % 200 == 0:
                 with self._send_jaized_timestamps_lock:
+                    self._data_manager_batch_number += 1
                     print("sending data from batcher")
                     self._send_data(
                         ModuleTransferAction.JAIZED_TIMESTAMPS,
-                        self._timestamps_log_dict,
+                        (self._data_manager_batch_number, self._timestamps_log_dict),
                         ModulesEnum.DataManager
                     )
                     self.init_timestamp_log_dict()
@@ -113,12 +115,13 @@ class Batcher:
     def stop_acquisition(self):
         with self._send_jaized_timestamps_lock:
             self._acquisition_start_event.clear()
+            self._data_manager_batch_number += 1
             print("BATCHER STOP ACQUISITION")
             if self._timestamps_log_dict["JAI_frame_number"]:
                 print("BATCHER TIME + STOP")
                 self._send_data(
                     ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
-                    self._timestamps_log_dict,
+                    (self._data_manager_batch_number, self._timestamps_log_dict),
                     ModulesEnum.DataManager
                 )
             else:
@@ -129,3 +132,4 @@ class Batcher:
                     ModulesEnum.DataManager
                 )
             self.init_timestamp_log_dict()
+            self._data_manager_batch_number = 0
