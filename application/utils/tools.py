@@ -70,6 +70,8 @@ def get_previous_nav_path(get_s3_path=False):
         else:
             return create_s3_upload_path(conf.customer_code, nav_filename)
     except:
+        logging.exception("PREVIOUS NAV ERROR: ")
+        traceback.print_exc()
         return None
 
 
