@@ -57,6 +57,7 @@ def get_previous_nav_path(get_s3_path=False):
         today_nav_filename = f'{today}.{data_conf.nav_extension}'
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
         nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{data_conf.nav_extension}"))
+        nav_file_names = [os.path.basename(f) for f in nav_file_names]
         try:
             nav_file_names.remove(today_nav_filename)
         except:
