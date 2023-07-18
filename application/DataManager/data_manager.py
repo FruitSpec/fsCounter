@@ -66,79 +66,85 @@ class DataManager(Module):
     def receive_data(sig, frame):
 
         def jaized_timestamps():
-            with DataManager.jaized_timestamps_lock:
+            _acquired = DataManager.jaized_timestamps_lock.acquire(timeout=5)
+            if not _acquired:
+                logging.warning(f"JAIZED TIMESTAMPS LOCK NOT ACQUIRED "
+                                f"{DataManager.current_plot}/{DataManager.current_row}")
+                return
+            try:
+                input_length = len(data["JAI_frame_number"])
+                data["row"] = [DataManager.current_row] * input_length
+                data["folder_index"] = [DataManager.current_index] * input_length
+
+                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
+                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
+                jaized_timestamp_log_df = pd.DataFrame(data)
+
+                jz_ts_key, nav_ts_key = "ZED_timestamp", "timestamp"
+
+                jaized_timestamp_log_df[jz_ts_key] = pd.to_datetime(
+                    jaized_timestamp_log_df[jz_ts_key],
+                    format=data_conf.timestamp_format
+                )
+
+                jz_earliest = jaized_timestamp_log_df[jz_ts_key].iloc[0]
+                jz_latest = jaized_timestamp_log_df[jz_ts_key].iloc[-1]
+
                 try:
-                    input_length = len(data["JAI_frame_number"])
-                    data["row"] = [DataManager.current_row] * input_length
-                    data["folder_index"] = [DataManager.current_index] * input_length
-
-                    jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
-                    jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
-                    jaized_timestamp_log_df = pd.DataFrame(data)
-
-                    jz_ts_key, nav_ts_key = "ZED_timestamp", "timestamp"
-
-                    jaized_timestamp_log_df[jz_ts_key] = pd.to_datetime(
-                        jaized_timestamp_log_df[jz_ts_key],
+                    DataManager.nav_df[nav_ts_key] = pd.to_datetime(
+                        DataManager.nav_df[nav_ts_key],
                         format=data_conf.timestamp_format
                     )
+                    nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
+                except (IndexError, KeyError):
+                    nav_latest = jz_latest - timedelta(seconds=5)
 
-                    jz_earliest = jaized_timestamp_log_df[jz_ts_key].iloc[0]
-                    jz_latest = jaized_timestamp_log_df[jz_ts_key].iloc[-1]
-
+                retries_count = 0
+                while (nav_latest < jz_latest - timedelta(seconds=3)) and (retries_count < 5):
+                    retries_count += 1
+                    DataManager.ask_nav_event.clear()
+                    DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
+                    DataManager.ask_nav_event.wait(1)
                     try:
-                        DataManager.nav_df[nav_ts_key] = pd.to_datetime(
-                            DataManager.nav_df[nav_ts_key],
+                        nav_latest = pd.to_datetime(
+                            DataManager.nav_df["timestamp"].iloc[-1],
                             format=data_conf.timestamp_format
                         )
-                        nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
-                    except (IndexError, KeyError):
-                        nav_latest = jz_latest - timedelta(seconds=5)
+                    except IndexError:
+                        pass
 
-                    retries_count = 0
-                    while nav_latest < jz_latest - timedelta(seconds=3) and retries_count < 5:
-                        retries_count += 1
-                        DataManager.ask_nav_event.clear()
-                        DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
-                        DataManager.ask_nav_event.wait(1)
-                        try:
-                            nav_latest = pd.to_datetime(
-                                DataManager.nav_df["timestamp"].iloc[-1],
-                                format=data_conf.timestamp_format
-                            )
-                        except IndexError:
-                            pass
+                nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
+                current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]
+                current_nav_df[nav_ts_key] = pd.to_datetime(
+                    current_nav_df[nav_ts_key],
+                    format=data_conf.timestamp_format
+                )
 
-                    nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-                    current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]
-                    current_nav_df[nav_ts_key] = pd.to_datetime(
-                        current_nav_df[nav_ts_key],
-                        format=data_conf.timestamp_format
-                    )
+                DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
 
-                    DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
+                merged_df = pd.merge_asof(
+                    left=jaized_timestamp_log_df,
+                    right=current_nav_df,
+                    left_on=jz_ts_key,
+                    right_on=nav_ts_key,
+                    direction="nearest",
+                    tolerance=timedelta(seconds=3)
+                )
 
-                    merged_df = pd.merge_asof(
-                        left=jaized_timestamp_log_df,
-                        right=current_nav_df,
-                        left_on=jz_ts_key,
-                        right_on=nav_ts_key,
-                        direction="nearest",
-                        tolerance=timedelta(seconds=3)
-                    )
+                jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
+                jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
+                jaized_timestamp_log_df["longitude"] = merged_df["longitude"]
+                jaized_timestamp_log_df["plot"] = merged_df["plot"]
 
-                    jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
-                    jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
-                    jaized_timestamp_log_df["longitude"] = merged_df["longitude"]
-                    jaized_timestamp_log_df["plot"] = merged_df["plot"]
-
-                    _is_first = not os.path.exists(jaized_timestamp_path)
-                    jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
-                    _is_first = not os.path.exists(jaized_timestamp_total_log_path)
-                    jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
-                except:
-                    logging.exception("JAIZED TIMESTAMP ERROR")
-                    traceback.print_exc()
+                _is_first = not os.path.exists(jaized_timestamp_path)
+                jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
+                _is_first = not os.path.exists(jaized_timestamp_total_log_path)
+                jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
+            except:
+                logging.exception("JAIZED TIMESTAMP ERROR")
+                traceback.print_exc()
+            finally:
+                DataManager.jaized_timestamps_lock.release()
 
         def stop_acquisition():
             if data_conf.use_feather:
