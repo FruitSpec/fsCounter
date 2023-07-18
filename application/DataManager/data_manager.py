@@ -72,8 +72,7 @@ class DataManager(Module):
                                 f"{DataManager.current_plot}/{DataManager.current_row}")
                 for i in range(100):
                     print("!!!")
-                print(f"JAIZED TIMESTAMPS LOCK NOT ACQUIRED "
-                                f"{DataManager.current_plot}/{DataManager.current_row}")
+                print(f"JAIZED TIMESTAMPS LOCK NOT ACQUIRED {DataManager.current_plot}/{DataManager.current_row}")
                 return
             try:
                 input_length = len(data["JAI_frame_number"])
