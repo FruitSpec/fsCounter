@@ -26,7 +26,6 @@ class DataManager(Module):
     current_path, current_index = None, -1
     fruits_data = dict()
     fruits_data_lock, analyzed_lock, nav_lock = threading.Lock(), threading.Lock(), threading.Lock()
-    jaized_timestamps_lock = threading.Lock()
     ask_nav_event = threading.Event()
     s3_client = None
     update_output_thread, internet_scan_thread = None, None
@@ -66,14 +65,6 @@ class DataManager(Module):
     def receive_data(sig, frame):
 
         def jaized_timestamps():
-            _acquired = DataManager.jaized_timestamps_lock.acquire(timeout=5)
-            if not _acquired:
-                logging.warning(f"JAIZED TIMESTAMPS LOCK NOT ACQUIRED "
-                                f"{DataManager.current_plot}/{DataManager.current_row}")
-                for i in range(100):
-                    print("!!!")
-                print(f"JAIZED TIMESTAMPS LOCK NOT ACQUIRED {DataManager.current_plot}/{DataManager.current_row}")
-                return
             try:
                 input_length = len(data["JAI_frame_number"])
                 data["row"] = [DataManager.current_row] * input_length
@@ -146,16 +137,17 @@ class DataManager(Module):
             except:
                 logging.exception("JAIZED TIMESTAMP ERROR")
                 traceback.print_exc()
-            finally:
-                DataManager.jaized_timestamps_lock.release()
 
         def stop_acquisition():
+            filename_csv = f"{data_conf.jaized_timestamps}.csv"
+            jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
+            jz_ts_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by="JAI_frame_number")
             if data_conf.use_feather:
-                filename_csv = f"{data_conf.jaized_timestamps}.csv"
                 filename_feather = f"{data_conf.jaized_timestamps}.feather"
-                jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
                 jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
-                pd.read_csv(jaized_timestamps_csv_path).to_feather(jaized_timestamps_feather_path)
+                jz_ts_df.to_feather(jaized_timestamps_feather_path)
+            else:
+                jz_ts_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
 
             today = datetime.now().strftime("%d%m%y")
             ext = "feather" if data_conf.use_feather else "csv"
@@ -252,18 +244,17 @@ class DataManager(Module):
                     analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
         elif sender_module == ModulesEnum.Acquisition:
             if action == ModuleTransferAction.START_ACQUISITION:
-                with DataManager.jaized_timestamps_lock:
-                    DataManager.previous_plot = DataManager.current_plot
-                    DataManager.current_plot = data["plot"]
-                    DataManager.current_row = data["row"]
-                    DataManager.current_index = data["folder_index"]
+                DataManager.previous_plot = DataManager.current_plot
+                DataManager.current_plot = data["plot"]
+                DataManager.current_row = data["row"]
+                DataManager.current_index = data["folder_index"]
 
-                    DataManager.current_path = tools.get_path(
-                        plot=DataManager.current_plot,
-                        row=DataManager.current_row,
-                        index=DataManager.current_index,
-                        get_index_dir=True
-                    )
+                DataManager.current_path = tools.get_path(
+                    plot=DataManager.current_plot,
+                    row=DataManager.current_row,
+                    index=DataManager.current_index,
+                    get_index_dir=True
+                )
             elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
                 stop_acquisition()
             elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
