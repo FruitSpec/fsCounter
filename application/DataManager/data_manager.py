@@ -108,7 +108,7 @@ class DataManager(Module):
                         pass
 
                 nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-                current_nav_df = DataManager.nav_df[DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]]
+                current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]
                 current_nav_df[nav_ts_key] = pd.to_datetime(
                     current_nav_df[nav_ts_key],
                     format=data_conf.timestamp_format
