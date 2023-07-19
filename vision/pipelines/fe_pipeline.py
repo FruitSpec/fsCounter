@@ -12,6 +12,7 @@ from itertools import chain
 from vision.tools.manual_slicer import slice_to_trees_df
 from vision.pipelines.ops.frame_loader import FramesLoader
 from tqdm import tqdm
+import time
 
 
 def get_row_name(row_scan_path):
@@ -421,10 +422,14 @@ if __name__ == '__main__':
     print_fids = False
     run_only_done_adt = True
 
+    s = time.time()
     fe_args, adt_args, slices = update_run_args(fe_args, adt_args, folder_path)
     features_df = run(cfg, fe_args, adt_args, slices, row)
     #
     features_df.to_csv(output_path)
+    e = time.time()
+
+    print(f"total row runtime: {e-s}")
     # final_df_output = "/home/mic-730ai/fruitspec/test_data/MOTCHA_features_orig.csv"
     # results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt)
     # pd.DataFrame(results).to_csv(final_df_output)
