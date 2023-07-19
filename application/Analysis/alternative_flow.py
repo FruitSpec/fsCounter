@@ -62,7 +62,7 @@ class AlternativeFlow(Module):
                     is_success = False
                     logging.exception(f"Failed to analyze {list(row)}")
                     print(f"Failed to analyze {list(row)}")
-                    data = AlternativeFlow.prepare_data([], [], [], [], row, is_success)
+                    data = AlternativeFlow.prepare_data([], [], [], [], [], [], row, is_success)
                     # send results to data manager
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                 finally:
