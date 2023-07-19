@@ -173,6 +173,17 @@ class GPSSampler(Module):
             except fscloudutils.exceptions.InputError:
                 print(data)
             except ValueError as e:
+                timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                with GPSSampler.nav_data_lock:
+                    GPSSampler.gps_data.append(
+                        {
+                            "timestamp": timestamp,
+                            "latitude": None,
+                            "longitude": None,
+                            "plot": GPSSampler.current_plot
+                        }
+                    )
+                sample_count += 1
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
                     logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
