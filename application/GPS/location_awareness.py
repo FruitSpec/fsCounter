@@ -102,7 +102,6 @@ class GPSSampler(Module):
                 logging.info(f"SERIAL PORT INIT - SUCCESS")
                 break
             except (serial.SerialException, TimeoutError) as e:
-                print(repr(e))
                 logging.warning(f"SERIAL PORT ERROR - RETRYING IN 5...")
                 time.sleep(5)
             except Exception:
@@ -123,6 +122,11 @@ class GPSSampler(Module):
                 continue
             timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
+                if sample_count % 20 == 0 and GPSSampler.gps_data:
+                    with GPSSampler.nav_data_lock:
+                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.gps_data = []
+
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
                 lat, long = point.get_lat(), point.get_long()
