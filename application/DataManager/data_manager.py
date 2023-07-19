@@ -178,7 +178,7 @@ class DataManager(Module):
                 # write GPS data to .nav file
                 logging.info(f"WRITING NAV DATA TO FILE")
                 new_nav_df = pd.DataFrame(data)
-                DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0).drop_duplicates()
+                DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
                 DataManager.ask_nav_event.set()
                 nav_path = tools.get_nav_path()
                 is_first = not os.path.exists(nav_path)
