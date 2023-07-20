@@ -108,7 +108,7 @@ class DataManager(Module):
                         pass
 
                 nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-                current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)]
+                current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)].copy()
                 current_nav_df[nav_ts_key] = pd.to_datetime(
                     current_nav_df[nav_ts_key],
                     format=data_conf.timestamp_format
@@ -149,19 +149,20 @@ class DataManager(Module):
             else:
                 jz_ts_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
 
-            today = datetime.now().strftime("%d%m%y")
-            ext = "feather" if data_conf.use_feather else "csv"
-            collected_data = {
-                "customer_code": [conf.customer_code],
-                "plot_code": [DataManager.current_plot],
-                "scan_date": [today],
-                "row": [str(int(DataManager.current_row))],
-                "folder_index": [str(int(DataManager.current_index))],
-                "ext": [ext]
-            }
-            tmp_df = pd.DataFrame(data=collected_data, index=[0])
-            DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
-            DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
+            if conf.collect_data:
+                today = datetime.now().strftime("%d%m%y")
+                ext = "feather" if data_conf.use_feather else "csv"
+                collected_data = {
+                    "customer_code": [conf.customer_code],
+                    "plot_code": [DataManager.current_plot],
+                    "scan_date": [today],
+                    "row": [str(int(DataManager.current_row))],
+                    "folder_index": [str(int(DataManager.current_index))],
+                    "ext": [ext]
+                }
+                tmp_df = pd.DataFrame(data=collected_data, index=[0])
+                DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
+                DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
 
         data, sender_module = DataManager.in_qu.get()
         action, data = data["action"], data["data"]
