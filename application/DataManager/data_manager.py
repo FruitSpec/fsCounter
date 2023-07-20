@@ -116,14 +116,26 @@ class DataManager(Module):
 
                 DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
 
-                merged_df = pd.merge_asof(
-                    left=jaized_timestamp_log_df,
-                    right=current_nav_df,
-                    left_on=jz_ts_key,
-                    right_on=nav_ts_key,
-                    direction="nearest",
-                    tolerance=timedelta(seconds=3)
-                )
+                try:
+                    merged_df = pd.merge_asof(
+                        left=jaized_timestamp_log_df,
+                        right=current_nav_df,
+                        left_on=jz_ts_key,
+                        right_on=nav_ts_key,
+
+                        direction="nearest",
+                        tolerance=timedelta(seconds=3)
+                    )
+                except ValueError:
+                    jaized_timestamp_log_df.sort_values(by="JAI_frame_number")
+                    merged_df = pd.merge_asof(
+                        left=jaized_timestamp_log_df,
+                        right=current_nav_df,
+                        left_on=jz_ts_key,
+                        right_on=nav_ts_key,
+                        direction="nearest",
+                        tolerance=timedelta(seconds=3)
+                    )
 
                 jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
                 jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
@@ -134,6 +146,8 @@ class DataManager(Module):
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
                 _is_first = not os.path.exists(jaized_timestamp_total_log_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
+            except ValueError:
+                print(jaized_timestamp_log_df)
             except:
                 logging.exception("JAIZED TIMESTAMP ERROR")
                 traceback.print_exc()
