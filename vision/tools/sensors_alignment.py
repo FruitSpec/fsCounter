@@ -70,16 +70,16 @@ class SensorAligner:
         :param gray_zed: image of gray_scale_zed
         :return: cropped image
         """
-        zed_mid_h = gray_zed.shape[0] // 2
-        zed_half_height = int(zed_mid_h / (self.zed_angles[0] / 2) * (self.jai_angles[0] / 2))
-        if isinstance(self.y_s, type(None)):
-            self.y_s = zed_mid_h - zed_half_height - 100
-        if isinstance(self.y_e, type(None)):
-            self.y_e = zed_mid_h + zed_half_height + 100
-        if isinstance(self.x_e, type(None)):
-            self.x_e = gray_zed.shape[1]
-        if isinstance(self.x_s, type(None)):
-            self.x_s = 0
+        #zed_mid_h = gray_zed.shape[0] // 2
+        #zed_half_height = int(zed_mid_h / (self.zed_angles[0] / 2) * (self.jai_angles[0] / 2))
+        #if isinstance(self.y_s, type(None)):
+        #    self.y_s = zed_mid_h - zed_half_height - 100
+        #if isinstance(self.y_e, type(None)):
+        #    self.y_e = zed_mid_h + zed_half_height + 100
+        #if isinstance(self.x_e, type(None)):
+        #    self.x_e = gray_zed.shape[1]
+        #if isinstance(self.x_s, type(None)):
+        #    self.x_s = 0
         cropped_zed = gray_zed[self.y_s: self.y_e, self.x_s:self.x_e]
         return cropped_zed
 
@@ -104,7 +104,7 @@ class SensorAligner:
 
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
-        if len(zed_batch) < 1:
+        if False:#len(zed_batch) < 1:
             corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
             results = [[corr, tx, ty]]
         else:
@@ -120,16 +120,20 @@ class SensorAligner:
                 debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
-                results = list(executor.map(align_sensors_cuda,
-                                            zed_input,
-                                            jai_input,
-                                            self.sxs,
-                                            self.sys,
-                                            self.origins,
-                                            self.rois,
-                                            self.ransacs,
-                                            debug))
-                #
+                if cv2.cuda.getCudaEnabledDeviceCount():
+                    results = list(executor.map(align_sensors_cuda,
+                                                zed_input,
+                                                jai_input,
+                                                self.sxs,
+                                                self.sys,
+                                                self.origins,
+                                                self.rois,
+                                                self.ransacs,
+                                                debug))
+
+
+                else:
+                    results = list(executor.map(self.align_sensors, zed_input, jai_input))
 
         output = []
         for r in results:
@@ -162,8 +166,7 @@ class SensorAligner:
 
         kp_zed, des_zed = find_keypoints(gray_zed, self.matcher)  # consumes 33% of time
         kp_jai, des_jai = find_keypoints(gray_jai, self.matcher)  # consumes 33% of time
-        M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac,
-                                         self.fixed_scaling)  # consumes 33% of time
+        M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac) # consumes 33% of time
 
         dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
         dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
@@ -186,7 +189,9 @@ class SensorAligner:
             x2 = tx + self.roix
 
         if ty < 0:
-            y1 = self.y_s
+            y1 = self.y_s + ty
+            if y1 < 0:
+                y1 = self.y_s
             y2 = self.y_s + self.roiy
         elif ty + self.roiy > (self.y_e - self.y_s):
             y2 = self.y_e
