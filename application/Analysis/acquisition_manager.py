@@ -20,6 +20,7 @@ class AcquisitionManager(Module):
     jai_connected, zed_connected, running = False, False, False
     health_check_lock = threading.Lock()
     acquisition_lock = threading.Lock()
+    receive_data_thread = None
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     plot, row, folder_index = None, None, None
@@ -35,12 +36,16 @@ class AcquisitionManager(Module):
                                                                   communication_queue, notify_on_death, death_action)
         signal.signal(signal.SIGTERM, AcquisitionManager.shutdown)
         signal.signal(signal.SIGUSR2, AcquisitionManager.shutdown)
-        signal.signal(signal.SIGUSR1, AcquisitionManager.receive_data)
+
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
         AcquisitionManager.connect_cameras()
         # AcquisitionManager.cameras_health_check()
+        AcquisitionManager.receive_data_thread = threading.Thread(target=AcquisitionManager.receive_data, daemon=True)
+        AcquisitionManager.receive_data_thread.start()
+
         AcquisitionManager.analyzer.start_analysis()
+        AcquisitionManager.receive_data_thread.join()
 
     @staticmethod
     def cameras_health_check():
@@ -193,36 +198,35 @@ class AcquisitionManager(Module):
                 os.makedirs(AcquisitionManager.output_dir)
 
     @staticmethod
-    def receive_data(sig, frame):
-        data, sender_module = AcquisitionManager.in_qu.get()
-        action, data = data["action"], data["data"]
-        global_polygon = GPS_conf.global_polygon
-        if sender_module == ModulesEnum.GPS:
-            if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
-                logging.info("START ACQUISITION FROM GPS")
-                AcquisitionManager.plot = data
-                AcquisitionManager.start_acquisition(AcquisitionManager.plot, from_gps=True)
-                data = {
-                    "plot": AcquisitionManager.plot,
-                    "row": AcquisitionManager.get_row_number(AcquisitionManager.row),
-                    "folder_index": AcquisitionManager.folder_index
-                }
-                AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
-            elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
-                logging.info("STOP ACQUISITION FROM GPS")
-                AcquisitionManager.stop_acquisition()
-                AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)
-        elif sender_module == ModulesEnum.GUI:
-            if action == ModuleTransferAction.START_ACQUISITION:
-                logging.info("START ACQUISITION FROM GUI")
-                AcquisitionManager.start_acquisition(acquisition_parameters=data)
-                row_path = os.path.dirname(AcquisitionManager.output_dir)
-                data["folder_index"] = tools.get_folder_index(row_path, get_next_index=False)
-                AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
-            elif action == ModuleTransferAction.STOP_ACQUISITION:
-                AcquisitionManager.stop_acquisition()
-                logging.info("STOP ACQUISITION FROM GUI")
-                AcquisitionManager.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.DataManager)
+    def receive_data():
+        while True:
+            data, sender_module = AcquisitionManager.in_qu.get()
+            action, data = data["action"], data["data"]
+            global_polygon = GPS_conf.global_polygon
+            if sender_module == ModulesEnum.GPS:
+                if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
+                    logging.info("START ACQUISITION FROM GPS")
+                    AcquisitionManager.plot = data
+                    AcquisitionManager.start_acquisition(AcquisitionManager.plot, from_gps=True)
+                    data = {
+                        "plot": AcquisitionManager.plot,
+                        "row": AcquisitionManager.get_row_number(AcquisitionManager.row),
+                        "folder_index": AcquisitionManager.folder_index
+                    }
+                    AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
+                elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
+                    logging.info("STOP ACQUISITION FROM GPS")
+                    AcquisitionManager.stop_acquisition()
+            elif sender_module == ModulesEnum.GUI:
+                if action == ModuleTransferAction.START_ACQUISITION:
+                    logging.info("START ACQUISITION FROM GUI")
+                    AcquisitionManager.start_acquisition(acquisition_parameters=data)
+                    row_path = os.path.dirname(AcquisitionManager.output_dir)
+                    data["folder_index"] = tools.get_folder_index(row_path, get_next_index=False)
+                    AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
+                elif action == ModuleTransferAction.STOP_ACQUISITION:
+                    AcquisitionManager.stop_acquisition()
+                    logging.info("STOP ACQUISITION FROM GUI")
 
     @staticmethod
     def shutdown(sig, frame):

@@ -110,7 +110,6 @@ class ModuleManager:
     def receive_transferred_data(self, data, sender_module):
         try:
             self.in_qu.put((data, sender_module), timeout=1)
-            os.kill(self.pid, signal.SIGUSR1)
         except queue.Empty:
             raise DataError
 
@@ -151,9 +150,8 @@ class Module:
         Module.death_action = death_action
 
     @staticmethod
-    def set_signals(shutdown_func, receive_data_func):
+    def set_signals(shutdown_func):
         signal.signal(signal.SIGTERM, shutdown_func)
-        signal.signal(signal.SIGUSR1, receive_data_func)
 
     @staticmethod
     def send_data(action, data, receiver, require_ack=False):
@@ -171,7 +169,7 @@ class Module:
         # os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod
-    def receive_data(sig, frame):
+    def receive_data():
         """ every module has to implement that on his own """
         pass
 

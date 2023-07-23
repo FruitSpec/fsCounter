@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 import os
 import time
+import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import pipeline_conf, runtime_args, data_conf
@@ -18,12 +19,15 @@ class AlternativeFlow(Module):
         super(AlternativeFlow, AlternativeFlow).init_module(in_qu, out_qu, main_pid, module_name,
                                                             communication_queue, notify_on_death, death_action)
         signal.signal(signal.SIGTERM, AlternativeFlow.shutdown)
-        signal.signal(signal.SIGUSR1, AlternativeFlow.receive_data)
+        AlternativeFlow.receive_data_thread = threading.Thread(target=AlternativeFlow.receive_data, daemon=True)
+
+        AlternativeFlow.receive_data_thread.start()
+
         AlternativeFlow.analyze()
-        print("Analyze process is up")
+        AlternativeFlow.receive_data_thread.join()
 
     @staticmethod
-    def receive_data(sig, frame):
+    def receive_data():
         pass
 
     @staticmethod

@@ -1,7 +1,6 @@
 import logging
 import subprocess
 import threading
-from enum import Enum
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import GUI_conf, conf
@@ -35,35 +34,42 @@ class GUIInterface(Module):
 
         super(GUIInterface, GUIInterface).init_module(in_qu, out_qu, main_pid, module_name,
                                                       communication_queue, notify_on_death, death_action)
-        super(GUIInterface, GUIInterface).set_signals(GUIInterface, GUIInterface.receive_data)
+        super(GUIInterface, GUIInterface).set_signals(GUIInterface)
 
         GUIInterface.listener = wsgi_listen(('', GUI_conf.GUI_server_port))
         subprocess.Popen(GUI_conf.GUI_startup_script, shell=True,
                          stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL)
+
+        GUIInterface.receive_data_thread = threading.Thread(target=GUIInterface.receive_data, daemon=True)
         GUIInterface.server_thread = threading.Thread(target=setup_server, daemon=True)
+
+        GUIInterface.receive_data_thread.start()
         GUIInterface.server_thread.start()
+
+        GUIInterface.receive_data_thread.join()
         GUIInterface.server_thread.join()
 
     # default events
 
     @staticmethod
     @sio.event
-    def receive_data(sid, environ):
-        data, sender_module = GUIInterface.in_qu.get()
-        action, data = data["action"], data["data"]
-        if sender_module == ModulesEnum.Acquisition:
-            if action == ModuleTransferAction.GUI_SET_DEVICE_STATE:
-                jai_connected, zed_connected = data
-                GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
-                GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
-                states = json.dumps({
-                    "JAI": GUIInterface.jai_state,
-                    "ZED": GUIInterface.zed_state
-                })
-                GUIInterface.sio.emit('set_camera_state', states)
-                logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
-                                          f" ZED -> {GUIInterface.zed_state}")
+    def receive_data(sid=None, environ=None):
+        while True:
+            data, sender_module = GUIInterface.in_qu.get()
+            action, data = data["action"], data["data"]
+            if sender_module == ModulesEnum.Acquisition:
+                if action == ModuleTransferAction.GUI_SET_DEVICE_STATE:
+                    jai_connected, zed_connected = data
+                    GUIInterface.jai_state = DeviceStates.ON if jai_connected else DeviceStates.OFF
+                    GUIInterface.zed_state = DeviceStates.ON if zed_connected else DeviceStates.OFF
+                    states = json.dumps({
+                        "JAI": GUIInterface.jai_state,
+                        "ZED": GUIInterface.zed_state
+                    })
+                    GUIInterface.sio.emit('set_camera_state', states)
+                    logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
+                                              f" ZED -> {GUIInterface.zed_state}")
 
     @staticmethod
     @sio.event
