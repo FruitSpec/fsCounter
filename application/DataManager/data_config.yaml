@@ -7,6 +7,7 @@ uploaded_path: /home/mic-730ai/Desktop/uploaded.log
 output_path: /home/mic-730ai/Desktop
 file_prefix: 0
 alignment: alignment
+jai_translation: jai_translation
 tracks: tracks
 jaized_timestamps: jaized_timestamps
 success: success
@@ -17,3 +18,5 @@ service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-counter
 upload_prefix: uploads
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+date_format: "%d%m%y"
+nav_extension: "nav"
