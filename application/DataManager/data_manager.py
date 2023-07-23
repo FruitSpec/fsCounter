@@ -323,11 +323,13 @@ class DataManager(Module):
         try:
             nav_size_in_kb = os.path.getsize(nav_path) / 1024
             if nav_size_in_kb >= upload_speed_in_kbps * timeout:
+                logging.info("UPLOAD NAV TO S3 - NOT ENOUGH TIME LEFT")
                 return
             nav_s3_path = tools.get_nav_path(get_s3_path=True)
             DataManager.s3_client.upload_file(nav_path, data_conf.upload_bucket_name, nav_s3_path)
             logging.info(f"UPLOAD NAV TO S3 - SUCCESS")
         except FileNotFoundError:
+            logging.warning("UPLOAD NAV TO S3 - FILE NOT EXIST")
             pass
         except EndpointConnectionError:
             logging.warning(f"UPLOAD NAV TO S3 - FAILED DUE TO INTERNET CONNECTION")
