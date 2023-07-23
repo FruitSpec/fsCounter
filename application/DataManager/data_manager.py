@@ -26,9 +26,8 @@ class DataManager(Module):
     current_path, current_index = None, -1
     fruits_data = dict()
     fruits_data_lock, analyzed_lock, nav_lock = threading.Lock(), threading.Lock(), threading.Lock()
-    ask_nav_event = threading.Event()
     s3_client = None
-    update_output_thread, internet_scan_thread = None, None
+    internet_scan_thread, receive_data_thread = None, None
     nav_df = pd.DataFrame(data={"timestamp": [], "latitude": [], "longitude": [], "plot": []})
     collected_df = pd.DataFrame(
         data={"customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "ext": []})
@@ -47,22 +46,22 @@ class DataManager(Module):
 
         super(DataManager, DataManager).init_module(in_qu, out_qu, main_pid, module_name, communication_queue,
                                                     notify_on_death, death_action)
-        super(DataManager, DataManager).set_signals(DataManager.shutdown, DataManager.receive_data)
+        super(DataManager, DataManager).set_signals(DataManager.shutdown)
 
         DataManager.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
 
-        # DataManager.update_output_thread = threading.Thread(target=DataManager.update_output, daemon=True)
+        DataManager.receive_data_thread = threading.Thread(target=DataManager.receive_data, daemon=True)
         DataManager.internet_scan_thread = threading.Thread(target=DataManager.internet_scan, daemon=True)
 
         DataManager.collected_df = try_read(data_conf.collected_path)
 
-        # DataManager.update_output_thread.start()
+        DataManager.receive_data_thread.start()
         DataManager.internet_scan_thread.start()
-        # DataManager.update_output_thread.join()
+
         DataManager.internet_scan_thread.join()
 
     @staticmethod
-    def receive_data(sig, frame):
+    def receive_data():
 
         def jaized_timestamps():
             try:
@@ -107,23 +106,11 @@ class DataManager(Module):
                 nav_latest = jz_latest - timedelta(seconds=5)
 
             if nav_latest < jz_latest - timedelta(seconds=3):
-                DataManager.ask_nav_event.clear()
-                DataManager.send_data(ModuleTransferAction.ASK_FOR_NAV, None, ModulesEnum.GPS)
-                print(f"{datetime.now().time()}: ASK FOR NAV - SENT FROM DM")
-                DataManager.ask_nav_event.wait(3)
-                try:
-                    nav_latest = pd.to_datetime(
-                        DataManager.nav_df["timestamp"].iloc[-1],
-                        format=data_conf.timestamp_format
-                    )
-                except IndexError:
-                    pass
-
-            if nav_latest < jz_latest - timedelta(seconds=3):
                 logging.warning(f"STITCHING PROBLEM AT {DataManager.current_plot}/{DataManager.current_row}")
                 return
 
             nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
+
             current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)].copy()
             current_nav_df[nav_ts_key] = pd.to_datetime(
                 current_nav_df[nav_ts_key],
@@ -132,26 +119,15 @@ class DataManager(Module):
 
             DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
 
-            try:
-                merged_df = pd.merge_asof(
-                    left=jaized_timestamp_log_df,
-                    right=current_nav_df,
-                    left_on=jz_ts_key,
-                    right_on=nav_ts_key,
+            merged_df = pd.merge_asof(
+                left=jaized_timestamp_log_df,
+                right=current_nav_df,
+                left_on=jz_ts_key,
+                right_on=nav_ts_key,
 
-                    direction="nearest",
-                    tolerance=timedelta(seconds=3)
-                )
-            except ValueError:
-                jaized_timestamp_log_df.sort_values(by="JAI_frame_number")
-                merged_df = pd.merge_asof(
-                    left=jaized_timestamp_log_df,
-                    right=current_nav_df,
-                    left_on=jz_ts_key,
-                    right_on=nav_ts_key,
-                    direction="nearest",
-                    tolerance=timedelta(seconds=3)
-                )
+                direction="nearest",
+                tolerance=timedelta(seconds=3)
+            )
 
             jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
             jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
@@ -161,9 +137,9 @@ class DataManager(Module):
             if data_conf.use_feather:
                 filename_feather = f"{data_conf.jaized_timestamps}.feather"
                 jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
-                jz_ts_df.to_feather(jaized_timestamps_feather_path)
+                jaized_timestamp_log_df.to_feather(jaized_timestamps_feather_path)
             else:
-                jz_ts_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
+                jaized_timestamp_log_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
 
             if conf.collect_data:
                 today = datetime.now().strftime("%d%m%y")
@@ -180,108 +156,105 @@ class DataManager(Module):
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
                 DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
 
-        data, sender_module = DataManager.in_qu.get()
-        action, data = data["action"], data["data"]
-        if sender_module == ModulesEnum.GPS:
-            if action == ModuleTransferAction.NAV or action == ModuleTransferAction.ASK_FOR_NAV:
-                # write GPS data to .nav file
-                logging.info(f"WRITING NAV DATA TO FILE")
-                new_nav_df = pd.DataFrame(data)
-                DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
-                if action == ModuleTransferAction.ASK_FOR_NAV:
-                    DataManager.ask_nav_event.set()
-                    logging.info(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO DM")
-                    print(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO DM")
-                nav_path = tools.get_nav_path()
-                is_first = not os.path.exists(nav_path)
-                new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+        while True:
+            data, sender_module = DataManager.in_qu.get()
+            action, data = data["action"], data["data"]
+            if sender_module == ModulesEnum.GPS:
+                if action == ModuleTransferAction.NAV:
+                    # write GPS data to .nav file
+                    logging.info(f"WRITING NAV DATA TO FILE")
+                    new_nav_df = pd.DataFrame(data)
+                    DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
+                    nav_path = tools.get_nav_path()
+                    is_first = not os.path.exists(nav_path)
+                    new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
 
-        elif sender_module == ModulesEnum.Analysis:
-            if action == ModuleTransferAction.FRUITS_DATA:
-                logging.info(f"FRUIT DATA RECEIVED")
-                with DataManager.fruits_data_lock:
-                    for k, v in data.items():
+            elif sender_module == ModulesEnum.Analysis:
+                if action == ModuleTransferAction.FRUITS_DATA:
+                    logging.info(f"FRUIT DATA RECEIVED")
+                    with DataManager.fruits_data_lock:
+                        for k, v in data.items():
+                            try:
+                                DataManager.fruits_data[k] += v
+                            except KeyError:
+                                DataManager.fruits_data[k] = v
+                elif action == ModuleTransferAction.IMU:
+                    # write IMU data to .imu file
+                    logging.info(f"WRITING NAV DATA TO FILE")
+                    imu_path = tools.get_imu_path()
+                    imu_df = pd.DataFrame(data)
+                    is_first = not os.path.exists(imu_path)
+                    imu_df.to_csv(imu_path, header=is_first)
+                elif action == ModuleTransferAction.ANALYZED_DATA:
+                    customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
+                    is_success = data["status"]
+                    logging.info(f"ANALYZED DATA ARRIVED: "
+                                 f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
+
+                    if is_success:
+                        analyzed_path = os.path.join(data_conf.output_path,
+                                                     customer_code,
+                                                     plot_code,
+                                                     str(scan_date),
+                                                     f"row_{row}")
+
+                        tracks, tracks_headers = data["tracks"], data["tracks_headers"]
+                        tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")
                         try:
-                            DataManager.fruits_data[k] += v
-                        except KeyError:
-                            DataManager.fruits_data[k] = v
-            elif action == ModuleTransferAction.IMU:
-                # write IMU data to .imu file
-                logging.info(f"WRITING NAV DATA TO FILE")
-                imu_path = tools.get_imu_path()
-                imu_df = pd.DataFrame(data)
-                is_first = not os.path.exists(imu_path)
-                imu_df.to_csv(imu_path, header=is_first)
-            elif action == ModuleTransferAction.ANALYZED_DATA:
-                customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
-                is_success = data["status"]
-                logging.info(f"ANALYZED DATA ARRIVED: "
-                             f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
+                            tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
+                        except ValueError:
+                            tracks_df = pd.DataFrame(columns=tracks_headers)
 
-                if is_success:
-                    analyzed_path = os.path.join(data_conf.output_path,
-                                                 customer_code,
-                                                 plot_code,
-                                                 str(scan_date),
-                                                 f"row_{row}")
+                        alignment, alignment_headers = data["alignment"], data["alignment_headers"]
+                        alignment_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.alignment}.{ext}")
 
-                    tracks, tracks_headers = data["tracks"], data["tracks_headers"]
-                    tracks_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.tracks}.{ext}")
-                    try:
-                        tracks_df = pd.DataFrame(data=tracks, columns=tracks_headers)
-                    except ValueError:
-                        tracks_df = pd.DataFrame(columns=tracks_headers)
+                        try:
+                            alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
+                        except ValueError:
+                            alignment_df = pd.DataFrame(columns=alignment_headers)
 
-                    alignment, alignment_headers = data["alignment"], data["alignment_headers"]
-                    alignment_path = os.path.join(analyzed_path, str(folder_index), f"{data_conf.alignment}.{ext}")
+                        if data_conf.use_feather:
+                            tracks_df.to_feather(tracks_path)
+                            alignment_df.to_feather(alignment_path)
+                        else:
+                            tracks_df.to_csv(tracks_path, index=False, header=True)
+                            alignment_df.to_csv(alignment_path, index=False, header=True)
 
-                    try:
-                        alignment_df = pd.DataFrame(data=alignment, columns=alignment_headers)
-                    except ValueError:
-                        alignment_df = pd.DataFrame(columns=alignment_headers)
+                    status = data_conf.success if is_success else data_conf.failed
+                    analyzed_data = {
+                        "customer_code": [customer_code],
+                        "plot_code": [plot_code],
+                        "scan_date": [str(scan_date)],
+                        "row": [str(int(row))],
+                        "folder_index": [str(int(folder_index))],
+                        "status": [status],
+                        "ext": [ext]
+                    }
 
-                    if data_conf.use_feather:
-                        tracks_df.to_feather(tracks_path)
-                        alignment_df.to_feather(alignment_path)
-                    else:
-                        tracks_df.to_csv(tracks_path, index=False, header=True)
-                        alignment_df.to_csv(alignment_path, index=False, header=True)
+                    analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
+                    is_first = not os.path.exists(data_conf.analyzed_path)
+                    with DataManager.analyzed_lock:
+                        analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
+            elif sender_module == ModulesEnum.Acquisition:
+                if action == ModuleTransferAction.START_ACQUISITION:
+                    DataManager.previous_plot = DataManager.current_plot
+                    DataManager.current_plot = data["plot"]
+                    DataManager.current_row = data["row"]
+                    DataManager.current_index = data["folder_index"]
 
-                status = data_conf.success if is_success else data_conf.failed
-                analyzed_data = {
-                    "customer_code": [customer_code],
-                    "plot_code": [plot_code],
-                    "scan_date": [str(scan_date)],
-                    "row": [str(int(row))],
-                    "folder_index": [str(int(folder_index))],
-                    "status": [status],
-                    "ext": [ext]
-                }
-
-                analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
-                is_first = not os.path.exists(data_conf.analyzed_path)
-                with DataManager.analyzed_lock:
-                    analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
-        elif sender_module == ModulesEnum.Acquisition:
-            if action == ModuleTransferAction.START_ACQUISITION:
-                DataManager.previous_plot = DataManager.current_plot
-                DataManager.current_plot = data["plot"]
-                DataManager.current_row = data["row"]
-                DataManager.current_index = data["folder_index"]
-
-                DataManager.current_path = tools.get_path(
-                    plot=DataManager.current_plot,
-                    row=DataManager.current_row,
-                    index=DataManager.current_index,
-                    get_index_dir=True
-                )
-            elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
-                stop_acquisition()
-            elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
-                jaized_timestamps()
-            elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
-                jaized_timestamps()
-                stop_acquisition()
+                    DataManager.current_path = tools.get_path(
+                        plot=DataManager.current_plot,
+                        row=DataManager.current_row,
+                        index=DataManager.current_index,
+                        get_index_dir=True
+                    )
+                elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
+                    stop_acquisition()
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+                    jaized_timestamps()
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
+                    jaized_timestamps()
+                    stop_acquisition()
 
     @staticmethod
     def update_output():

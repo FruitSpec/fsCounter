@@ -35,13 +35,19 @@ class GPSSampler(Module):
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
         super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name,
                                                   communication_queue, notify_on_death, death_action)
-        super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown, GPSSampler.receive_data)
+        super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown)
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
+
         GPSSampler.sample_thread = threading.Thread(target=GPSSampler.sample_gps, daemon=True)
+        GPSSampler.receive_data_thread = threading.Thread(target=GPSSampler.receive_data, daemon=True)
+
         GPSSampler.sample_thread.start()
+        GPSSampler.receive_data_thread.start()
+
         GPSSampler.sample_thread.join()
+        GPSSampler.receive_data_thread.join()
 
     @staticmethod
     def get_kml(once=False):
@@ -71,29 +77,30 @@ class GPSSampler(Module):
                 time.sleep(30)
 
     @staticmethod
-    def receive_data(sig, frame):
-        data, sender_module = GPSSampler.in_qu.get()
-        action, data = data["action"], data["data"]
-        if sender_module == ModulesEnum.Acquisition:
-            if action == ModuleTransferAction.START_GPS:
-                GPSSampler.start_sample_event.set()
-            if action == ModuleTransferAction.ACQUISITION_CRASH:
-                GPSSampler.start_sample_event.clear()
-                time.sleep(1)
-                GPSSampler.previous_plot = GPS_conf.global_polygon
-                LedSettings.turn_on(LedColor.RED)
-        elif sender_module == ModulesEnum.DataManager:
-            if action == ModuleTransferAction.ASK_FOR_NAV:
-                logging.info(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
-                print(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
-                if GPSSampler.gps_data:
-                    with GPSSampler.nav_data_lock:
-                        GPSSampler.send_data(
-                            ModuleTransferAction.ASK_FOR_NAV,
-                            GPSSampler.gps_data,
-                            ModulesEnum.DataManager
-                        )
-                        GPSSampler.gps_data = []
+    def receive_data():
+        while True:
+            data, sender_module = GPSSampler.in_qu.get()
+            action, data = data["action"], data["data"]
+            if sender_module == ModulesEnum.Acquisition:
+                if action == ModuleTransferAction.START_GPS:
+                    GPSSampler.start_sample_event.set()
+                if action == ModuleTransferAction.ACQUISITION_CRASH:
+                    GPSSampler.start_sample_event.clear()
+                    time.sleep(1)
+                    GPSSampler.previous_plot = GPS_conf.global_polygon
+                    LedSettings.turn_on(LedColor.RED)
+            elif sender_module == ModulesEnum.DataManager:
+                if action == ModuleTransferAction.ASK_FOR_NAV:
+                    logging.info(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
+                    print(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
+                    if GPSSampler.gps_data:
+                        with GPSSampler.nav_data_lock:
+                            GPSSampler.send_data(
+                                ModuleTransferAction.ASK_FOR_NAV,
+                                GPSSampler.gps_data,
+                                ModulesEnum.DataManager
+                            )
+                            GPSSampler.gps_data = []
 
     @staticmethod
     def sample_gps():
