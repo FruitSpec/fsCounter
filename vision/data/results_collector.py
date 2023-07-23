@@ -20,7 +20,7 @@ class ResultsCollector():
     def __init__(self, rotate=False):
 
         self.detections = []
-        self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
+        self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "depth", "frame_id"]
         self.tracks = []
         self.tracks_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id", "depth"]
         self.results = []
@@ -52,12 +52,12 @@ class ResultsCollector():
             self.jai_translation.append(list(translations) + [f_id+i])
 
 
-    def collect_detections(self, batch_results, img_id):
+    def collect_detections(self, batch_results, index, relevant_frames_idx):
         for i, detection_results in enumerate(batch_results):
             if detection_results is not None:
                 output = []
                 for det in detection_results:
-                    det.append(img_id + i)
+                    det.append(relevant_frames_idx[index +i])
                     output.append(det)
                 self.detections += output
 

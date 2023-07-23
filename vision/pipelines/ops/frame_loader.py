@@ -3,8 +3,8 @@ import time
 import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
-
 from vision.pipelines.ops.simulator import init_cams
+from vision.pipelines.distance_slicer import get_frames_df
 
 class FramesLoader():
 
@@ -18,7 +18,12 @@ class FramesLoader():
         self.rgb_jai_last_id = 0
 
         if self.mode in ['sync_svo', 'sync_mkv']:
-            self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
+            ####################
+            row_path = os.path.dirname(args.sync_data_log_path)
+            path_gps_jai_zed = f"{row_path}/gps_jai_zed.csv"
+            df = get_frames_df(path_JZ=args.sync_data_log_path, PATH_GPS=args.nav_path, output_path = path_gps_jai_zed, depth_meters=args.depth_in_meters)
+            self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(path_gps_jai_zed)
+            ###################
 
     def get_frames(self, f_id, zed_shift):
         if self.mode == 'async':
@@ -58,7 +63,7 @@ class FramesLoader():
                 print('Not full batch')
                 return [[], [], [], []]
             zed_batch.append(self.sync_zed_ids[fid + id_])
-            jai_batch.append(fid + id_)  # jai is after frame drops - no frame jumps
+            jai_batch.append(self.sync_jai_ids[fid + id_])  # jai is after frame drops - no frame jumps
         if self.mode == 'sync_svo':
             return [zed_batch, jai_batch, jai_batch]
         elif self.mode == 'sync_mkv':
@@ -130,7 +135,7 @@ class FramesLoader():
                 _, frame = cam.get_frame()
                 batch.append(frame)
 
-        return batch, depth_batch, last_fid
+        return batch, depth_batch, last_fid  # todo - check why batch looks like depth, and depth is empty
 
     @staticmethod
     def get_batch_results_sync(results, mode):
@@ -235,17 +240,27 @@ class FramesLoader():
             self.depth_cam.close()
 
 
+    # @staticmethod
+    # def get_cameras_sync_data(log_fp):
+    #     zed_ids = []
+    #     jai_ids = []
+    #     log_df = pd.read_csv(log_fp)
+    #     jai_frame_ids = list(log_df['JAI_frame_number'])
+    #     zed_frame_ids = list(log_df['ZED_frame_number'])
+    #
+    #     zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
+    #
+    #     return zed_ids, jai_ids
+
     @staticmethod
-    def get_cameras_sync_data(log_fp):
-        zed_ids = []
-        jai_ids = []
-        log_df = pd.read_csv(log_fp)
-        jai_frame_ids = list(log_df['JAI_frame_number'])
-        zed_frame_ids = list(log_df['ZED_frame_number'])
+    def get_cameras_sync_data(df_path):
 
-        zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
+        df = pd.read_csv(df_path)
+        df_screened = df[df['get_frame'] == True]
+        zed_ids = df_screened['ZED_frame_number']
+        jai_ids = df_screened['JAI_frame_number']
 
-        return zed_ids, jai_ids
+        return list(zed_ids), list(jai_ids)
 
 
 def arrange_ids(jai_frame_ids, zed_frame_ids):

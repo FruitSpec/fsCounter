@@ -33,7 +33,7 @@ def run(cfg, args, metadata=None):
     print(f'Inferencing on {args.jai.movie_path}\n')
 
     frame_drop_jai = get_frame_drop(args)
-    n_frames = len(adt.frames_loader.sync_jai_ids)
+    n_frames = len(adt.c.sync_jai_ids)
 
     f_id = 0
 
