@@ -120,16 +120,20 @@ class SensorAligner:
                 debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
-                results = list(executor.map(align_sensors_cuda,
-                                            zed_input,
-                                            jai_input,
-                                            self.sxs,
-                                            self.sys,
-                                            self.origins,
-                                            self.rois,
-                                            self.ransacs,
-                                            debug))
-                #
+                if cv2.cuda.getCudaEnabledDeviceCount():
+                    results = list(executor.map(align_sensors_cuda,
+                                                zed_input,
+                                                jai_input,
+                                                self.sxs,
+                                                self.sys,
+                                                self.origins,
+                                                self.rois,
+                                                self.ransacs,
+                                                debug))
+
+
+                else:
+                    results = list(executor.map(self.align_sensors, zed_input, jai_input))
 
         output = []
         for r in results:
@@ -186,7 +190,9 @@ class SensorAligner:
             x2 = tx + self.roix
 
         if ty < 0:
-            y1 = self.y_s
+            y1 = self.y_s + ty
+            if y1 < 0:
+                y1 = self.y_s
             y2 = self.y_s + self.roiy
         elif ty + self.roiy > (self.y_e - self.y_s):
             y2 = self.y_e
@@ -541,8 +547,10 @@ def get_zed_roi(tx, ty, roi, origin, zed_size):
         x2 = tx + roi[0]
 
     if ty < 0:
-        y1 = origin[1]
-        y2 = origin[1] + roi[1]
+        y1 = origin[1] + ty
+        if y1 < 0:
+            y1 = origin[1]
+        y2 = y1 + roi[1]
     elif ty + roi[1] > zed_size[1]:
         y2 = origin[3]
         y1 = origin[3] - roi[1]

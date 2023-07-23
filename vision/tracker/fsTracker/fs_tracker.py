@@ -439,8 +439,7 @@ class FsTracker():
         box_start = int(track.bbox[0])
         box_end = int(track.bbox[2])
 
-        if box_start >= 0 & box_start < frame_width & box_end > 0 & box_end <= frame_width:
-        #if (box_start >= 0) & (box_start < frame_width) & (box_end > 0) & (box_end <= frame_width):
+        if (box_start >= 0) & (box_start < frame_width) & (box_end > 0) & (box_end <= frame_width):
             # inside frame
             valid = True
         elif box_start < 0:
