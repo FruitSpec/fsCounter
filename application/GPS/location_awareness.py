@@ -84,9 +84,15 @@ class GPSSampler(Module):
                 LedSettings.turn_on(LedColor.RED)
         elif sender_module == ModulesEnum.DataManager:
             if action == ModuleTransferAction.ASK_FOR_NAV:
+                logging.info(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
+                print(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
                 if GPSSampler.gps_data:
                     with GPSSampler.nav_data_lock:
-                        GPSSampler.send_data(ModuleTransferAction.ASK_FOR_NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                        GPSSampler.send_data(
+                            ModuleTransferAction.ASK_FOR_NAV,
+                            GPSSampler.gps_data,
+                            ModulesEnum.DataManager
+                        )
                         GPSSampler.gps_data = []
 
     @staticmethod
@@ -220,5 +226,9 @@ class GPSSampler(Module):
     def step_out():
         print(f"STEP OUT {GPSSampler.previous_plot}")
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
-        GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
 
+        with GPSSampler.nav_data_lock:
+            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+            GPSSampler.gps_data = []
+
+        GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
