@@ -304,8 +304,9 @@ class DataManager(Module):
                 logging.exception("unknown handled exception: ")
             t0 = time.time()
             if upload_speed_in_kbps > 10:
-                DataManager.upload_nav(upload_speed_in_kbps)
-                DataManager.scan_analyzed(data_conf.upload_interval - 30, upload_speed_in_kbps)
+                timeout = data_conf.upload_interval - 30
+                timeout = DataManager.upload_nav(upload_speed_in_kbps, timeout=timeout)
+                DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
             t1 = time.time()
@@ -317,6 +318,7 @@ class DataManager(Module):
 
     @staticmethod
     def upload_nav(upload_speed_in_kbps, timeout=10):
+        t0 = time.time()
         nav_path = tools.get_nav_path()
         try:
             nav_size_in_kb = os.path.getsize(nav_path) / 1024
@@ -334,9 +336,11 @@ class DataManager(Module):
         except Exception:
             logging.exception(f"UPLOAD NAV TO S3 - FAILED DUE TO AN ERROR - {nav_path}")
             traceback.print_exc()
+        t1 = time.time()
+        return max(timeout - (t1 - t0), 10)
 
     @staticmethod
-    def scan_analyzed(scan_timeout, upload_speed_in_kbps):
+    def scan_analyzed(upload_speed_in_kbps, scan_timeout):
 
         logging.info("START SCANNING ANALYZED FILES")
         print("START SCANNING ANALYZED FILES")
