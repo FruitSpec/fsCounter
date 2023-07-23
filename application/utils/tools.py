@@ -72,9 +72,10 @@ def get_previous_nav_path(get_s3_path=False):
             return os.path.join(nav_dir, previous_nav_filename)
         else:
             return create_s3_upload_path(conf.customer_code, previous_nav_filename)
+    except ValueError:
+        return None
     except:
         logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{data_conf.nav_extension}')}")
-        traceback.print_exc()
         return None
 
 
@@ -197,7 +198,7 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
                 logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}")
                 return False, []
             except Exception:
-                logging.error(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
+                logging.exception(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
                 traceback.print_exc()
                 return False, []
 
