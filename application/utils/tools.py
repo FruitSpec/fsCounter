@@ -197,7 +197,7 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
                 logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}")
                 return False, []
             except Exception:
-                logging.exception(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
+                logging.error(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
                 traceback.print_exc()
                 return False, []
 

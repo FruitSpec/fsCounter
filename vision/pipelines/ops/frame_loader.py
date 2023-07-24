@@ -247,6 +247,7 @@ class FramesLoader():
 
         return zed_ids, jai_ids
 
+
 def arrange_ids(jai_frame_ids, zed_frame_ids):
 
     z = np.array(zed_frame_ids)
