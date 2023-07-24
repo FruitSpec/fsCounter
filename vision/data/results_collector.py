@@ -540,7 +540,7 @@ class ResultsCollector():
         self.dump_state(output_path)
         self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
-        self.dump_to_csv(os.path.join(output_path, 'jai_cors_in_zed.csv'), type="alignment")
+        self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
 
     def converted_slice_data(self, sliced_data):
         converted_sliced_data = {}

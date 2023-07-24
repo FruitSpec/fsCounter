@@ -35,7 +35,7 @@ def run(cfg, args, metadata=None):
 
     print(f'Inferencing on {args.jai.movie_path}\n')
 
-    frame_drop_jai = get_frame_drop(args) #todo-?
+    frame_drop_jai = get_frame_drop(args)
     relevant_frames_idx = adt.frames_loader.sync_jai_ids
     n_relevant_frames = len(relevant_frames_idx)
 
@@ -50,7 +50,6 @@ def run(cfg, args, metadata=None):
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_idx)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_idx)
         if rgb_stauts or zed_stauts:
-            # todo - check this:
              for i in range(adt.batch_size):
                 if f_idx + i in frame_drop_jai:
                      adt.sensor_aligner.zed_shift += 1
@@ -63,23 +62,14 @@ def run(cfg, args, metadata=None):
         # detect:
         det_outputs = adt.detect(jai_batch)
 
-        # find translation
-        translation_results = adt.get_translation(jai_batch, det_outputs)
-
-        # track:
-        #trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
-
         # depth:
-        #depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
         depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
-        # trk_outputs = append_to_trk(trk_outputs, depth_results)
         det_outputs = append_to_trk(det_outputs, depth_results)
 
         #collect results:
         results_collector.collect_detections(det_outputs, index, relevant_frames_idx)
-        #results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_idx) #todo - i need this?
-        results_collector.collect_jai_translation(translation_results, f_idx) #todo - i need this?
+
 
         #results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
 
@@ -94,6 +84,8 @@ def run(cfg, args, metadata=None):
     adt.dump_log_stats(args)
 
     update_metadata(metadata, args)
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'), 'detections')
+    save_detection_results(detection_csv_path=os.path.join(args.output_folder, 'detections.csv'), gps_jai_zed_csv_path = os.path.join(args.output_folder, 'gps_jai_zed.csv'), output_dir = args.output_folder, DEPTH_THRESHOLD = 2)
 
     return results_collector
 
@@ -351,6 +343,33 @@ def append_to_trk(trk_batch_res, results):
     return trk_batch_res
 
 
+def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir, DEPTH_THRESHOLD):
+    '''
+    This function gets detection csv file, gps_jai_zed csv file, and DEPTH_THRESHOLD,
+    and saves a csv file with the frame_id, number of detections in depth per frame, and
+    longitude , latitude of the frame.
+    '''
+
+    # read csv files:
+    df_gps_jai_zed = pd.read_csv(gps_jai_zed_csv_path)
+
+    df_detection = pd.read_csv(detection_csv_path)
+    df_detection['in_depth'] = df_detection['depth'] <= DEPTH_THRESHOLD
+    df_detection = df_detection[df_detection['in_depth'] == True]
+
+    # count detections per frame:
+    df_detections_count = df_detection.groupby(['frame_id']).size().reset_index(name='counts').set_index('frame_id')
+
+    # get df_gps_jai_zed df where JAI_frame_number is in df_detections_count['frame_id']:
+    df_gps_jai_zed = df_gps_jai_zed[df_gps_jai_zed['JAI_frame_number'].isin(df_detections_count.index.values)]
+
+    df_detections_count['longitude'] = df_gps_jai_zed['longitude']
+    df_detections_count['latitude'] = df_gps_jai_zed['latitude']
+    # save df_detections_count to csv:
+    output_path = os.path.join (output_dir, 'detection_results.csv')
+    df_detections_count.to_csv(output_path)
+    print (f'Saved {output_path}')
+    return df_detections_count
 
 
 if __name__ == "__main__":
@@ -388,4 +407,4 @@ if __name__ == "__main__":
         validate_output_path(args.output_folder)
 
         rc = run(cfg, args)
-        rc.dump_feature_extractor(args.output_folder)
+

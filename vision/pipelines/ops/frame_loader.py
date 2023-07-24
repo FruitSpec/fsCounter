@@ -19,8 +19,7 @@ class FramesLoader():
 
         if self.mode in ['sync_svo', 'sync_mkv']:
             ####################
-            row_path = os.path.dirname(args.sync_data_log_path)
-            path_gps_jai_zed = f"{row_path}/gps_jai_zed.csv"
+            path_gps_jai_zed = f"{args.output_folder}/gps_jai_zed.csv"
             df = get_frames_df(path_JZ=args.sync_data_log_path, PATH_GPS=args.nav_path, output_path = path_gps_jai_zed, depth_meters=args.depth_in_meters)
             self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(path_gps_jai_zed)
             ###################
