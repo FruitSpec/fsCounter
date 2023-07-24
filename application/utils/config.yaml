@@ -5,6 +5,6 @@ log_name: "log"
 GUI: false
 autonomous_acquisition: true
 customer_code: "MOTCHA"
-crop: apple # VALID VALUES: citrus / apple
+crop: citrus
 use_strace: false
 collect_data: true

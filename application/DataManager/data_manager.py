@@ -441,6 +441,7 @@ class DataManager(Module):
                 }
 
                 print("request sent")
+                logging.info(f"REQUEST SENT - {_plot_code}: {_uploaded_indices}")
                 response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers,
                                          timeout=timeout)
                 _response_ok = response.ok

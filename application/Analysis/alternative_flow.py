@@ -6,7 +6,7 @@ import time
 import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
-from application.utils.settings import pipeline_conf, runtime_args, data_conf
+from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf
 from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
@@ -49,14 +49,27 @@ class AlternativeFlow(Module):
                     logging.info(f"DONE ANALYZING ROW: {list(row)}")
                     print(f"DONE ANALYZING ROW: {list(row)}")
                     is_success = True  # analysis ended without exceptions
-                    data = AlternativeFlow.prepare_data(tracks=rc.tracks,
-                                                        tracks_header=rc.tracks_header,
-                                                        alignment=rc.alignment,
-                                                        alignment_header=rc.alignment_header,
-                                                        jai_translation=rc.jai_translation,
-                                                        jai_translation_header=rc.jai_translation_header,
-                                                        row=row,
-                                                        status=is_success)
+
+                    if conf.crop == "citrus":
+                        data = AlternativeFlow.prepare_data(
+                            tracks=rc.tracks,
+                            tracks_header=rc.tracks_header,
+                            alignment=rc.alignment,
+                            alignment_header=rc.alignment_header,
+                            jai_translation=rc.jai_translation,
+                            jai_translation_header=rc.jai_translation_header,
+                            row=row,
+                            status=is_success
+                        )
+                    else:
+                        data = AlternativeFlow.prepare_data(
+                            tracks=rc.tracks,
+                            tracks_header=rc.tracks_header,
+                            alignment=rc.alignment,
+                            alignment_header=rc.alignment_header,
+                            row=row,
+                            status=is_success
+                        )
 
                     # send results to data manager
                     print("sending data from analysis: ", time.time())
@@ -66,7 +79,7 @@ class AlternativeFlow(Module):
                     is_success = False
                     logging.exception(f"Failed to analyze {list(row)}")
                     print(f"Failed to analyze {list(row)}")
-                    data = AlternativeFlow.prepare_data([], [], [], [], row, is_success)
+                    data = AlternativeFlow.prepare_data(row=row, status=is_success)
                     # send results to data manager
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                 finally:
@@ -124,8 +137,8 @@ class AlternativeFlow(Module):
         return row_args
 
     @staticmethod
-    def prepare_data(tracks, tracks_header, alignment, alignment_header, jai_translation,
-                                                        jai_translation_header, row, status):
+    def prepare_data(tracks=[], tracks_header=[], alignment=[], alignment_header=[], jai_translation=[],
+                     jai_translation_header=[], row=-1, status=None):
         data = {
             'tracks': np.array(tracks),
             'tracks_header': tracks_header,
