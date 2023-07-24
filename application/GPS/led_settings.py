@@ -1,6 +1,7 @@
 import enum
 import threading
 import time
+import logging
 import os
 from Jetson import GPIO
 from application.utils.settings import GPS_conf
@@ -26,6 +27,8 @@ class LedSettings:
     def turn_on(color: LedColor):
         if color == LedSettings._color and LedSettings._state != LedState.OFF:
             return
+        logging.info(f"LED TURN ON {color.name}")
+        print(f"LED TURN ON {color.name}")
         LedSettings.turn_off()
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.ON
@@ -36,6 +39,8 @@ class LedSettings:
     def turn_off():
         if LedSettings._state != LedState.BLINK:
             LedSettings._state = LedState.OFF
+        logging.info("LED TURN OFF")
+        print("LED TURN OFF")
         os.system(f"{GPS_conf.led_exe_path} -set {LedColor.GREEN.value} {GPIO.LOW}")
         os.system(f"{GPS_conf.led_exe_path} -set {LedColor.RED.value} {GPIO.LOW}")
         os.system(f"{GPS_conf.led_exe_path} -set {LedColor.ORANGE.value} {GPIO.LOW}")
