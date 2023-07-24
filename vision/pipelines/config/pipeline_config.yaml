@@ -2,7 +2,8 @@
 exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 
 #ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
-ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
+#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
+ckpt_file: /home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
 
 
 
@@ -17,7 +18,7 @@ detector:
   num_of_classes: 1
   fp16: true
   fuse: false
-  trt: true
+  trt: false
 
 classes:
   full: 0
@@ -39,7 +40,7 @@ tracker:
 translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
-  dets_only: true # true: perfrom on detections only, false: on entire image
+  dets_only: false # true: perfrom on detections only, false: on entire image
 
 
 sensor_aligner:

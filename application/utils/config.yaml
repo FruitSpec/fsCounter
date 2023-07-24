@@ -1,5 +1,4 @@
 upload_bucket_name: fsCounter
-upload_prefix: uploads
 counter_number: 4
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
@@ -7,4 +6,4 @@ GUI: false
 autonomous_acquisition: true
 customer_code: "MOTCHA"
 use_strace: false
-collect_data: false
+collect_data: true

@@ -80,7 +80,6 @@ def get_previous_nav_path(get_s3_path=False):
 
 
 def create_s3_upload_path(*args):
-    args = (data_conf.upload_prefix, ) + args
     return s3_path_join(*args)
 
 
@@ -210,7 +209,6 @@ def send_request_to_server(customer_code, plot_code, scan_date, indices):
     file_type = "FEATHER" if data_conf.use_feather else "CSV"
     fruits_data = {
         "bucket": conf.upload_bucket_name,
-        "prefix": conf.upload_prefix,
         "customer_code": customer_code,
         "plot_code": plot_code,
         "date": scan_date,
