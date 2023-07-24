@@ -221,7 +221,8 @@ class DataManager(Module):
 
                         write_locally(data_conf.tracks)
                         write_locally(data_conf.alignment)
-                        write_locally(data_conf.jai_translation)
+                        if conf.crop == "citrus":
+                            write_locally(data_conf.jai_translation)
 
                     status = data_conf.success if is_success else data_conf.failed
                     analyzed_data = {
