@@ -8,11 +8,10 @@ from concurrent.futures import ThreadPoolExecutor
 import matplotlib.pyplot as plt
 
 from vision.tools.image_stitching import (resize_img, find_keypoints, find_keypoints_cuda, match_descriptors_cuda, get_affine_homography, affine_to_values,
-                                          calc_affine_transform, get_fine_translation, get_affine_matrix, resize_img_cuda)
-                                          #get_fine_affine_translation, find_loftr_translation)
-#from vision.tools.image_stitching import calc_affine_transform, calc_homography, plot_2_imgs
+                                          calc_affine_transform, get_affine_matrix, resize_img_cuda, draw_matches)
+                                          #from vision.tools.image_stitching import calc_affine_transform, calc_homography, plot_2_imgs
 #from vision.feature_extractor.image_processing import multi_convert_gray
-import seaborn as sns
+# import seaborn as sns
 #import cupy as cp
 np.random.seed(123)
 cv2.setRNGSeed(123)
@@ -55,7 +54,7 @@ class SensorAligner:
 
         self.sxs = sxs
         self.sys = sys
-        self.origins = origins
+        self.origins = origins # x1, y1, x2, y2
         self.rois = rois
         self.ransacs = ransacs
 
@@ -104,7 +103,7 @@ class SensorAligner:
         return cropped_zed_GPU
 
 
-    def align_on_batch(self, zed_batch, jai_batch, workers=4):
+    def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
         if len(zed_batch) < 1:
             corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
             results = [[corr, tx, ty]]
@@ -117,7 +116,8 @@ class SensorAligner:
                     zed_input.append(z)
                     jai_input.append(j)
                     #streams.append(cv2.cuda_Stream())
-
+            if debug is None:
+                debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
                 results = list(executor.map(align_sensors_cuda,
@@ -127,12 +127,13 @@ class SensorAligner:
                                             self.sys,
                                             self.origins,
                                             self.rois,
-                                            self.ransacs))
-                #                           streams))
+                                            self.ransacs,
+                                            debug))
+                #
 
         output = []
         for r in results:
-            self.update_zed_shift(r[1])
+        #    self.update_zed_shift(r[1])
             output.append([r[0], r[1], r[2], self.zed_shift])
 
         return output
@@ -439,7 +440,7 @@ def plot_homography(zed_rgb, M_homography):
     plt.show()
     print(M_homography)
 
-def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_factor=4, debug=False):
+def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4 ):
     """
     aligns both sensors and updates the zed shift
     :param zed_rgb: rgb image
@@ -456,7 +457,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     zed_gray = cv2.cvtColor(zed_rgb, cv2.COLOR_RGB2GRAY)
     h, w = zed_gray.shape
     zed_size = [w, h]
-
+    zed_cpu = zed_gray[origin[1]: origin[3], origin[0]: origin[2]] # origin: x1, y1, x2, y2
     stream1 = cv2.cuda_Stream()
     stream2 = cv2.cuda_Stream()
 
@@ -464,10 +465,9 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     jai_GPU = cv2.cuda_GpuMat()
     jai_GPU.upload(jai_gray, stream1)
     zed_GPU = cv2.cuda_GpuMat()
-    zed_GPU.upload(zed_gray, stream2)
+    zed_GPU.upload(zed_cpu, stream2)
 
     # adjust zed scale to be the same as jai using calibrated scale x and y
-    zed_GPU = zed_GPU.adjustROI(origin[1], origin[0], origin[3], origin[2])
     zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / sx),
                                         int(zed_GPU.size()[1] / sy)),
                                         stream=stream2)
@@ -481,6 +481,14 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     match, matches, matchesMask = match_descriptors_cuda(des_zed_GPU, des_jai_GPU, stream1)
     stream1.waitForCompletion()
     stream2.waitForCompletion()
+
+    M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
+
+    if debug is not None:
+        zed_cpu = zed_GPU.download()
+        jai_cpu = jai_GPU.download()
+        draw_matches(zed_cpu, kp_zed, jai_cpu, kp_jai, match, st, debug['output_path'], debug['f_id'])
+
     stream1 = None
     stream2 = None
     zed_GPU = None
@@ -488,17 +496,38 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     des_jai_GPU = None
     des_zed_GPU = None
 
-    M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
 
-    dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-    dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-    src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-    src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+    # in case no matches or less than 5 matches
+    if len(st) == 0 or np.sum(st) <= 5:
+        tx = -999
+        ty = -999
+        # roi in frame center
+        mid_x = (origin[0] + origin[2]) // 2
+        mid_y = (origin[1] + origin[3]) // 2
+        x1 = mid_x - (roi[0] // 2)
+        x2 = mid_y + (roi[0] // 2)
+        y1 = mid_y - (roi[1] // 2)
+        y2 = mid_y + (roi[1] // 2)
+    else:
+        #dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        #dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        #src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        #src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-    deltas = np.array(dst_pts) - np.array(src_pts)
+        #deltas = np.array(dst_pts) - np.array(src_pts)
 
-    tx = np.mean(deltas[:, 0, 0]) / rz * sx
-    ty = np.mean(deltas[:, 0, 1]) / rz * sy
+        tx = M[0, 2]
+        ty = M[1, 2]
+        tx = tx / rz * sx
+        ty = ty / rz * sy
+        #tx = np.mean(deltas[:, 0, 0]) / rz * sx
+        #ty = np.mean(deltas[:, 0, 1]) / rz * sy
+
+        x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
+
+    return (x1, y1, x2, y2), tx, ty
+
+def get_zed_roi(tx, ty, roi, origin, zed_size):
 
     if tx < 0:
         x1 = 0
@@ -513,14 +542,15 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, scale_fact
     if ty < 0:
         y1 = origin[1]
         y2 = origin[1] + roi[1]
-    elif ty + roi[1] > (origin[3] - origin[1]):
+    elif ty + roi[1] > zed_size[1]:
         y2 = origin[3]
         y1 = origin[3] - roi[1]
     else:
         y1 = origin[1] + ty
         y2 = origin[1] + ty + roi[1]
 
-    return (x1, y1, x2, y2), tx, ty
+    return x1, y1, x2, y2
+
 
 
 

@@ -316,6 +316,25 @@ def load_json(filepath, output_path):
         data = {}
     return data
 
+def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
+    size_h = int(h // resize_factor)
+    size_w = int(w // resize_factor)
+    size = max(size_h, size_w)
+    r = min(size / h, size / w)
+
+    with open(data_file, 'r') as f:
+        loaded_data = json.load(f)
+    data = {}
+    for k, v in loaded_data.items():
+        data[int(k)] = v
+    data = collections.OrderedDict(sorted(data.items()))
+
+    trees_data, border_data = parse_data_to_trees(data)
+    df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
+    df_out[["start", "end"]] = df_out[["start", "end"]]/r
+    df_out[["start", "end"]] = df_out[["start", "end"]].replace((-1)/r, -1)
+    df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
+    return df_out
 
 def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)

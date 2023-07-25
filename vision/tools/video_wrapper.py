@@ -6,22 +6,39 @@ import copy
 
 class video_wrapper():
 
-    def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5):
+    def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5, channels=3):
         if 'svo' in filepath.split('.')[-1]:
             self.mode = 'svo'
             self.cam, self.runtime = self.init_cam(filepath, depth_minimum, depth_maximum)
             self.mat = sl.Mat()
             self.res = None
 
-
         else:
             self.mode = 'other'
-            self.cam = cv2.VideoCapture(filepath)
+            self.cam = self.init_video_capture(filepath, channels)
             self.runtime = None
             self.mat = None
             self.res = None
+        self.channels = channels
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
+
+    @staticmethod
+    def init_video_capture(filepath, channels):
+        cuda_supported = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False  # indicate that opencv compiled localy
+        if cuda_supported:
+            if channels == 3:
+                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! nvv4l2decoder ! video/x-raw(memory:NVMM),format=NV12 ! nvvidconv ! video/x-raw,format=BGRx ! appsink"
+            else: # 1 channel - grayscale
+                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! omxh265dec ! videoconvert ! video/x-raw,format=BGRx ! appsink"
+            cam = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            if not cam.isOpened():
+                print('gstreamer pipline for camera not opened. using opencv')
+                cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+        else:
+            cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+
+        return cam
 
     @staticmethod
     def get_rotation(rotate):
@@ -76,6 +93,8 @@ class video_wrapper():
             if frame_number is not None:
                 self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
             ret, frame = self.cam.read()
+            if self.channels == 3:
+                frame = frame[:, :, :3].copy()
 
         if ret:
             frame = self.rotate(frame)

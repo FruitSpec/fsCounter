@@ -30,4 +30,4 @@ class GPSLocator:
             if polygon.contains(curr_loc):
                 #  and distance_to_edge > settings.inside_polygon_threshold
                 return plot_code
-        return GPS_conf["global polygon"]
+        return GPS_conf.global_polygon
