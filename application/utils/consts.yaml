@@ -1,0 +1,11 @@
+citrus: citrus
+apple: apple
+logs_path: "~/Desktop/counter_logs/"
+log_name: "log"
+global_polygon: "global"
+alignment: alignment
+jai_translation: jai_translation
+tracks: tracks
+jaized_timestamps: jaized_timestamps
+success: success
+failed: failed

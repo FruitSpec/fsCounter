@@ -8,6 +8,7 @@ today = datetime.now().strftime('%d-%m-%Y')
 conf = OmegaConf.load(os.path.abspath("application/utils/config.yaml"))
 crop = conf.crop
 
+consts = OmegaConf.load(os.path.abspath("application/utils/consts.yaml"))
 analysis_conf = OmegaConf.load(os.path.abspath("application/Analysis/analysis_config.yaml"))[crop]
 data_conf = OmegaConf.load(os.path.abspath("application/DataManager/data_config.yaml"))
 GPS_conf = OmegaConf.load(os.path.abspath("application/GPS/GPS_config.yaml"))

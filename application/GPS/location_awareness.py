@@ -8,7 +8,7 @@ from botocore.config import Config
 import boto3
 import fscloudutils.exceptions
 
-from application.utils.settings import GPS_conf, conf, data_conf
+from application.utils.settings import GPS_conf, conf, data_conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 from fscloudutils.utils import NavParser
@@ -27,7 +27,7 @@ class GPSSampler(Module):
     start_sample_event = threading.Event()
     nav_data_lock = threading.Lock()
     gps_data = []
-    previous_plot, current_plot = GPS_conf.global_polygon, GPS_conf.global_polygon
+    previous_plot, current_plot = consts.global_polygon, consts.global_polygon
     s3_client = None
     analysis_ongoing = False
 
@@ -87,7 +87,7 @@ class GPSSampler(Module):
                 if action == ModuleTransferAction.ACQUISITION_CRASH:
                     GPSSampler.start_sample_event.clear()
                     time.sleep(1)
-                    GPSSampler.previous_plot = GPS_conf.global_polygon
+                    GPSSampler.previous_plot = consts.global_polygon
                     LedSettings.turn_on(LedColor.RED)
             elif sender_module == ModulesEnum.DataManager:
                 if action == ModuleTransferAction.ASK_FOR_NAV:
@@ -146,7 +146,7 @@ class GPSSampler(Module):
                 GPSSampler.previous_plot = GPSSampler.current_plot
                 GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
-                if GPSSampler.current_plot == GPS_conf.global_polygon:
+                if GPSSampler.current_plot == consts.global_polygon:
                     if GPSSampler.analysis_ongoing:
                         LedSettings.start_blinking(LedColor.ORANGE, LedColor.GREEN)
                     else:
@@ -171,12 +171,12 @@ class GPSSampler(Module):
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
-                    if GPSSampler.previous_plot == GPS_conf.global_polygon:
+                    if GPSSampler.previous_plot == consts.global_polygon:
                         GPSSampler.step_in()
                         time.sleep(3)
 
                     # stepped out from block
-                    elif GPSSampler.current_plot == GPS_conf.global_polygon:
+                    elif GPSSampler.current_plot == consts.global_polygon:
                         GPSSampler.step_out()
                         time.sleep(3)
 
@@ -205,8 +205,8 @@ class GPSSampler(Module):
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
                     logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
                 # release the last detected block into Global if it is over 300 sec without GPS
-                if err_count > 300 and GPSSampler.current_plot != GPS_conf.global_polygon:
-                    GPSSampler.current_plot = GPS_conf.global_polygon
+                if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
+                    GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
             except Exception:

@@ -14,14 +14,14 @@ from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import EndpointConnectionError
 from pandas.core.dtypes.missing import na_value_for_dtype
 from requests.exceptions import RequestException
-from application.utils.settings import data_conf, conf
+from application.utils.settings import data_conf, conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
 import speedtest
 
 
 class DataManager(Module):
-    previous_plot, current_plot = data_conf.global_polygon, data_conf.global_polygon
+    previous_plot, current_plot = consts.global_polygon, consts.global_polygon
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
@@ -69,7 +69,7 @@ class DataManager(Module):
                 data["row"] = [DataManager.current_row] * input_length
                 data["folder_index"] = [DataManager.current_index] * input_length
 
-                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{data_conf.jaized_timestamps}.csv")
+                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
                 jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
@@ -82,7 +82,7 @@ class DataManager(Module):
                 traceback.print_exc()
 
         def stop_acquisition():
-            filename_csv = f"{data_conf.jaized_timestamps}.csv"
+            filename_csv = f"{consts.jaized_timestamps}.csv"
             jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
             jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by="JAI_frame_number")
 
@@ -135,7 +135,7 @@ class DataManager(Module):
             jaized_timestamp_log_df["plot"] = merged_df["plot"]
 
             if data_conf.use_feather:
-                filename_feather = f"{data_conf.jaized_timestamps}.feather"
+                filename_feather = f"{consts.jaized_timestamps}.feather"
                 jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
                 jaized_timestamp_log_df.to_feather(jaized_timestamps_feather_path)
             else:
@@ -219,12 +219,12 @@ class DataManager(Module):
                             str(scan_date), f"row_{row}"
                         )
 
-                        write_locally(data_conf.tracks)
-                        write_locally(data_conf.alignment)
-                        if conf.crop == "citrus":
-                            write_locally(data_conf.jai_translation)
+                        write_locally(consts.tracks)
+                        write_locally(consts.alignment)
+                        if conf.crop == consts.citrus:
+                            write_locally(consts.jai_translation)
 
-                    status = data_conf.success if is_success else data_conf.failed
+                    status = consts.success if is_success else consts.failed
                     analyzed_data = {
                         "customer_code": [customer_code],
                         "plot_code": [plot_code],
@@ -363,14 +363,14 @@ class DataManager(Module):
                 folder_path = os.path.join(data_conf.output_path, folder_name)
                 ext = "csv"
                 # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
-                tracks_path = os.path.join(folder_path, f"{data_conf.tracks}.{ext}")
-                tracks_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.tracks}.{ext}")
+                tracks_path = os.path.join(folder_path, f"{consts.tracks}.{ext}")
+                tracks_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.tracks}.{ext}")
 
-                alignment_path = os.path.join(folder_path, f"{data_conf.alignment}.{ext}")
-                alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.alignment}.{ext}")
+                alignment_path = os.path.join(folder_path, f"{consts.alignment}.{ext}")
+                alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.alignment}.{ext}")
 
-                timestamps_path = os.path.join(folder_path, f"{data_conf.jaized_timestamps}.{ext}")
-                timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{data_conf.jaized_timestamps}.{ext}")
+                timestamps_path = os.path.join(folder_path, f"{consts.jaized_timestamps}.{ext}")
+                timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.jaized_timestamps}.{ext}")
 
                 try:
                     data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
@@ -451,7 +451,7 @@ class DataManager(Module):
                         "customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [],
                         "status": []
                     }
-                    add_row_to_dict(_uploaded_dict, _uploaded_indices, data_conf.success)
+                    add_row_to_dict(_uploaded_dict, _uploaded_indices, consts.success)
                     is_first = not os.path.exists(data_conf.uploaded_path)
                     pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False,
                                                         header=is_first)
@@ -461,7 +461,7 @@ class DataManager(Module):
             _failed_dict = {
                 "customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [], "status": []
             }
-            add_row_to_dict(_failed_dict, _failed_indices, data_conf.failed)
+            add_row_to_dict(_failed_dict, _failed_indices, consts.failed)
             is_first = not os.path.exists(data_conf.uploaded_path)
             pd.DataFrame(_failed_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
 
@@ -486,7 +486,7 @@ class DataManager(Module):
         if analyzed_csv_df is None:
             return
 
-        analyzed_csv_df = analyzed_csv_df[analyzed_csv_df["status"] == data_conf.success]
+        analyzed_csv_df = analyzed_csv_df[analyzed_csv_df["status"] == consts.success]
 
         uploaded_csv_df = None
         try:

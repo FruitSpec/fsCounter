@@ -6,7 +6,7 @@ import time
 import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
-from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf
+from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf, consts
 from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
@@ -50,7 +50,7 @@ class AlternativeFlow(Module):
                     print(f"DONE ANALYZING ROW: {list(row)}")
                     is_success = True  # analysis ended without exceptions
 
-                    if conf.crop == "citrus":
+                    if conf.crop == consts.citrus:
                         data = AlternativeFlow.prepare_data(
                             tracks=rc.tracks,
                             tracks_header=rc.tracks_header,
@@ -129,7 +129,7 @@ class AlternativeFlow(Module):
         row_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
         row_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
         row_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
-        row_args.sync_data_log_path = os.path.join(row_folder, f"{data_conf.jaized_timestamps}.{ext}")
+        row_args.sync_data_log_path = os.path.join(row_folder, f"{consts.jaized_timestamps}.{ext}")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
 

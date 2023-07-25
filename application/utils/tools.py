@@ -10,7 +10,7 @@ import speedtest
 from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import EndpointConnectionError
-from application.utils.settings import conf, data_conf
+from application.utils.settings import conf, data_conf, consts
 
 
 def s3_path_join(*args):
@@ -41,7 +41,7 @@ def is_svo(filename):
 
 def get_nav_path(get_s3_path=False):
     today = datetime.now().strftime(data_conf.date_format)
-    nav_filename = f'{today}.{data_conf.nav_extension}'
+    nav_filename = f'{today}.{consts.nav_extension}'
     if not get_s3_path:
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
         if not os.path.exists(nav_dir):
@@ -54,9 +54,9 @@ def get_nav_path(get_s3_path=False):
 def get_previous_nav_path(get_s3_path=False):
     try:
         today = datetime.now().strftime(data_conf.date_format)
-        today_nav_filename = f'{today}.{data_conf.nav_extension}'
+        today_nav_filename = f'{today}.{consts.nav_extension}'
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{data_conf.nav_extension}"))
+        nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{consts.nav_extension}"))
         nav_file_names = [os.path.basename(f) for f in nav_file_names]
         try:
             nav_file_names.remove(today_nav_filename)
@@ -75,7 +75,7 @@ def get_previous_nav_path(get_s3_path=False):
     except ValueError:
         return None
     except:
-        logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{data_conf.nav_extension}')}")
+        logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{consts.nav_extension}')}")
         return None
 
 
@@ -90,7 +90,7 @@ def get_imu_path():
 
 def get_jaized_timestamps_path():
     today = datetime.now().strftime(data_conf.date_format)
-    return os.path.join(data_conf.output_path, conf.customer_code, f'{data_conf.jaized_timestamps}_{today}.log')
+    return os.path.join(data_conf.output_path, conf.customer_code, f'{consts.jaized_timestamps}_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
     try:
