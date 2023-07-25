@@ -5,4 +5,3 @@ customer_code: "MOTCHA"
 crop: citrus
 use_strace: false
 collect_data: true
-nav_extension: "nav"

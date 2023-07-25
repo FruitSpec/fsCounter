@@ -1,7 +1,7 @@
 import geojson
 from shapely.geometry import Polygon, Point
 from kml2geojson import convert
-from application.utils.settings import GPS_conf
+from application.utils.settings import consts
 
 
 class GPSLocator:
@@ -30,4 +30,4 @@ class GPSLocator:
             if polygon.contains(curr_loc):
                 #  and distance_to_edge > settings.inside_polygon_threshold
                 return plot_code
-        return GPS_conf.global_polygon
+        return consts.global_polygon
