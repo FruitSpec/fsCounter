@@ -7,7 +7,7 @@ output_path: "/home/mic-730ai/Desktop"
 file_prefix: 0
 use_feather: false
 request_timeout: 10
-service_endpoint: "https://counter-api.intgr.fruitspec.com/api/post_block"
+service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-temp-counter
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
 date_format: "%d%m%y"

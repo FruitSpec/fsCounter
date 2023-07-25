@@ -1,4 +1,4 @@
-kml_bucket_name: "fruitspec-intgr-caliper"
+kml_bucket_name: "fruitspec-prod-caliper"
 s3_kml_file_name: "Blocks.kml"
 kml_path: "/home/mic-730ai/Desktop/Blocks.kml"
 led_exe_path: "/home/mic-730ai/fruitspec/fsCounter/application/utils/diotest"
