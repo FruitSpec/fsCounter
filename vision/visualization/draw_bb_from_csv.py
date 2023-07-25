@@ -1,5 +1,7 @@
 import os
-import panads as pd
+import cv2
+import pandas as pd
+import numpy as np
 from tqdm import tqdm
 from omegaconf import OmegaConf
 
@@ -9,10 +11,15 @@ from vision.data.results_collector import ResultsCollector
 
 
 
-def validate_from_files(alignment, tracks, cfg, args, jai_only=False, data_index=7):
+def validate_from_files(tracks, cfg, args, alignment=None, jai_only=False, data_index=7):
+    print('arranging data')
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
-    a_hash = get_alignment_hash(alignment)
+    if alignment is not None:
+        a_hash = get_alignment_hash(alignment)
+    elif not jai_only:
+        print('Not enough alignment data to draw alignment results')
+        return
 
     frame_loader = FramesLoader(cfg, args)
     frame_loader.batch_size = 1
@@ -20,7 +27,7 @@ def validate_from_files(alignment, tracks, cfg, args, jai_only=False, data_index
     for id_ in tqdm(jai_frames):
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
         if jai_only:
-            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], data_index=7, text=False)
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=data_index, text=False)
             fp = os.path.join(args.output_folder, 'Dets')
             validate_output_path(fp)
 
@@ -91,13 +98,20 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/media/matans/My Book/FruitSpec/jun6/HC2000XX/060623/row_4/1"
-
-    tracks_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/tracks.csv"
-    alignment_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/alignment.csv"
+    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_4/1"
+    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
+    args.jai.movie_path = os.path.join(folder, 'Result_FSI.mkv')
+    args.zed.movie_path = os.path.join(folder, 'ZED.mkv')
+    args.depth.movie_path = os.path.join(folder, 'DEPTH.mkv')
+    args.rgb_jai.movie_path = os.path.join(folder, 'Result_RGB.mkv')
+    tracks_p = os.path.join(folder, "tracks.csv")
+    alignment_p = os.path.join(folder, "alignment.csv")
 
     tracks = pd.read_csv(tracks_p)
     alignment = pd.read_csv(alignment_p)
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'HC1_row4')
+    data_index = 7 # which column to use to detrmine bbox color
+    args.output_folder = os.path.join("/home/matans/Documents/test", 'fowler_test')
     validate_output_path(args.output_folder)
-    validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True)
+    validate_from_files(tracks=tracks, cfg=cfg, args=args, alignment=alignment, jai_only=True, data_index=data_index)
+
+    print('Done')
