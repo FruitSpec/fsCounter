@@ -69,7 +69,7 @@ def restart_application(killer=None):
     time.sleep(5)
     logging.info("REBOOT")
     print("REBOOT")
-    # os.system("reboot")
+    os.system("reboot")
 
 
 def process_monitor():
