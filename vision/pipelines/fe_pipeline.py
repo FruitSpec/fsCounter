@@ -12,7 +12,7 @@ from itertools import chain
 from vision.tools.manual_slicer import slice_to_trees_df
 from vision.pipelines.ops.frame_loader import FramesLoader
 from tqdm import tqdm
-
+import time
 
 def get_row_name(row_scan_path):
     """
@@ -143,10 +143,17 @@ def run_on_row(row_scan_path, suffix="", print_fids=False):
     adts_loader = None
     sucess = True
     for tree_id in trees:
+        if tree_id < 0:
+            continue
         #try:
         tree_frames = slices["frame_id"][slices["tree_id"] == tree_id].apply(str).values
+        s = time.time()
         fe, adts_loader, batch_size = init_fe_obj(row_scan_path, tree_id, adts_loader)
-        run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids)
+        e = time.time()
+        print(f'init_time: {e-s}')
+        tree_time = run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids)
+        tree_time = pd.DataFrame(tree_time)
+        tree_time.to_csv(os.path.join("/home/matans/Documents/fruitspec/sandbox/FE/time_test", 'tree_time.csv'))
         tree_features = create_tree_features(fe, row_scan_path)
         row_tree_features.append(tree_features)
         # except:
@@ -216,12 +223,13 @@ def update_processed_data(process_data, row_scan_path):
         process_data.append([df.iloc[i, :].to_dict()])
 
 
-def validate_slice_data(row_scan_path):
+def validate_slice_data(row_scan_path, min_slice_len=5):
     """
     Validate the existence and format of slice data for a row scan.
 
     Args:
         row_scan_path (str): Path to the row scan.
+        min_slice_len (int): a valid slice must have more than 'min_slice_len' trees
 
     Returns:
         bool: True if slice data is valid, False otherwise.
@@ -231,6 +239,9 @@ def validate_slice_data(row_scan_path):
     slice_data_jai = os.path.join(row_scan_path, "Result_FSI_slice_data.json")
     slice_data_rgb = os.path.join(row_scan_path, "Result_RGB_slice_data.json")
     if os.path.exists(slices_path):
+        slice_df = pd.read_csv(slices_path)
+        if slice_df["tree_id"].max() < min_slice_len:
+            return False
         return True
     if os.path.exists(all_slices_path):
         slice_df = pd.read_csv(all_slices_path)
@@ -242,6 +253,8 @@ def validate_slice_data(row_scan_path):
         return False
     slice_df = post_process_slice_df(slice_df)
     slice_df.to_csv(slices_path)
+    if slice_df["tree_id"].max() < min_slice_len:
+        return False
     return True
 
 
@@ -273,7 +286,7 @@ def validate_jai_zed_json(row_scan_path):
     return True
 
 
-def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True):
+def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True, min_slice_len=5):
     """
     Get valid row scan paths for analysis from a master folder.
 
@@ -292,7 +305,7 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True)
             metadata, _ = get_metadata(row_scan_path)
             align_detect_track, tree_features = get_assignments(metadata)
             try:
-                slices_validation = validate_slice_data(row_scan_path)
+                slices_validation = validate_slice_data(row_scan_path, min_slice_len)
             except:
                 print("bug: ", row_scan_path)
                 continue
@@ -312,7 +325,8 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True)
     return paths_list, process_data
 
 
-def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fids=False, run_only_done_adt=False):
+def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fids=False, run_only_done_adt=False,
+                  min_slice_len=5):
     """
     Process all row scans in a master folder.
 
@@ -326,7 +340,7 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     Returns:
         list: List of tree features dictionaries for all row scans.
     """
-    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt)
+    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt, min_slice_len)
     n = len(paths_list)
     if njobs > 1:
         with ProcessPoolExecutor(max_workers=njobs) as executor:
@@ -335,17 +349,101 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
         res = list(map(run_on_row, paths_list, [suffix] * n, [print_fids] * n))
     return list(chain.from_iterable(res + process_data))
 
+def get_tree_features(fe):
+    return {k: v for features in fe.get_tree_results() for k, v in features.items()}
+
+def run(cfg, fe_args, adt_args, slices, row):
+    """
+    Process a row scan.
+
+    Args:
+        row_scan_path (str): Path to the row scan.
+        suffix (str, optional): Suffix for the output files. Defaults to "".
+        print_fids (bool, optional): Whether to print frame IDs. Defaults to False.
+
+    Returns:
+        list: List of tree features dictionaries for the row scan.
+    """
+
+    block_name = row['plot_code']
+    row_id = row['row']
+
+    #fe = FeatureExtractor(fe_args, 0, row_id, block_name)
+    adts_loader = ADTSBatchLoader(cfg, fe_args, block_name, adt_args.output_folder, tree_id=0)
+
+    trees = slices["tree_id"].unique()
+    row_tree_features = []
+    for tree_id in trees:
+        #fe.reset(fe_args, tree_id, row_id, block_name)
+        s = time.time()
+        fe = FeatureExtractor(fe_args, tree_id, row_id, block_name)
+        fe, adts_loader, tree_frames = update_tree_data(fe, adts_loader, slices, tree_id)
+        e = time.time()
+        print('init tree FE and tree data')
+        tree_time = run_on_tree(tree_frames, fe, adts_loader, cfg.batch_size)
+        row_tree_features.append(get_tree_features(fe))
+
+
+
+    if len(row_tree_features):
+        row_tree_features = pd.DataFrame(row_tree_features)
+
+    return row_tree_features
+
+def update_tree_data(fe, adts_loader, slices, tree_id):
+    fe.tree_id = tree_id
+    adts_loader.tree_id = tree_id
+    adts_loader.slicer_results = slices[slices["tree_id"] == tree_id]
+    tree_frames = slices["frame_id"][slices["tree_id"] == tree_id].apply(str).values
+
+    return fe, adts_loader, tree_frames
+
+def update_run_args(fe_args, adt_args, row_folder):
+    adt_args.zed.movie_path = os.path.join(row_folder, f"ZED.mkv")
+    adt_args.depth.movie_path = os.path.join(row_folder, f"DEPTH.mkv")
+    adt_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
+    adt_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
+    adt_args.output_folder = row_folder
+
+    fe_args.zed.movie_path = os.path.join(row_folder, f"ZED.svo")
+    fe_args.jai.movie_path = os.path.join(row_folder, f"Result_FSI.mkv")
+    fe_args.rgb_jai.movie_path = os.path.join(row_folder, f"Result_RGB.mkv")
+    fe_args.tracker_results = os.path.join(row_folder, f"tracks.csv")
+    fe_args.alignment = os.path.join(row_folder,"alignment.csv")
+    fe_args.jai_translations = os.path.join(row_folder, "jai_translations.csv")
+    fe_args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
+
+    slices = pd.read_csv(os.path.join(row_folder, "slices.csv"))
+
+
+    return fe_args, adt_args, slices
+
+
 
 if __name__ == '__main__':
-    folder_path = "/media/matans/My Book/FruitSpec/Feature_Extraction/test_data/row_3/1"
-    # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2"
-    final_df_output = "/media/matans/My Book/FruitSpec/Feature_Extraction/MOTCHA_features_new_slice.csv"
+    repo_dir = get_repo_dir()
+    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
+    fe_config = "/vision/feature_extractor/feature_extractor_config.yaml"
+    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    adt_args = OmegaConf.load(repo_dir + runtime_config)
+    fe_args = OmegaConf.load(repo_dir + fe_config)
+    folder_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_10/1"
+    output_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_10/1/features.csv"
+    row = {'plot_code': 'test_data',
+           'row': 10}
     over_write = True
     njobs = 1
     suffix = ""
     print_fids = False
     run_only_done_adt = True
+    min_slice_len = 5
 
+    #fe_args, adt_args, slices = update_run_args(fe_args, adt_args, folder_path)
+    #features_df = run(cfg, fe_args, adt_args, slices, row)
+    #
+    #features_df.to_csv(output_path)
+    final_df_output = "/home/mic-730ai/fruitspec/test_data/MOTCHA_features_orig.csv"
     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt)
-    pd.DataFrame(results).to_csv(final_df_output)
+    pd.DataFrame(results).to_csv(output_path)
     pd.DataFrame(results)

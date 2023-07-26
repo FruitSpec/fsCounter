@@ -3,8 +3,13 @@ import pandas as pd
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import load_json
 import numpy as np
-from vision.pipelines.adt_pipeline import get_depth_to_bboxes_batch
 from vision.pipelines.ops.frame_loader import FramesLoader
+from vision.feature_extractor.boxing_tools import cut_zed_in_jai
+from vision.feature_extractor.boxing_tools import xyz_center_of_box
+from vision.feature_extractor.tree_size_tools import stable_euclid_dist
+
+
+import time
 
 class ADTSBatchLoader:
     """
@@ -34,7 +39,7 @@ class ADTSBatchLoader:
         load_batch(frame_ids): Loads a batch of data.
 
     """
-    def __init__(self, cfg, args, block_name, row_path, tree_id=1, jaized_timestamps=False):
+    def __init__(self, cfg, args, block_name, row_path, tree_id=1):
         """
         Initialize the ADTSBatchLoader object.
 
@@ -52,8 +57,8 @@ class ADTSBatchLoader:
         self.slicer_results, self.alignment, self.tracker_results = [], [], {}
         self.jai_translation = pd.DataFrame({})
         self.load_dfs()
+        #self.get_row_data(args)
         self.frame_loader = FramesLoader(cfg, args)
-        self.jaized_timestamps = jaized_timestamps
 
     @staticmethod
     def get_movie_paths(row_path, side):
@@ -118,11 +123,25 @@ class ADTSBatchLoader:
         self.alignment = pd.read_csv(os.path.join(self.row_path, "alignment.csv"))
         if os.path.exists(os.path.join(self.row_path, "jai_translations.csv")):
             self.jai_translation = pd.read_csv(os.path.join(self.row_path, "jai_translations.csv"))
+        elif os.path.exists(os.path.join(self.row_path, "jai_translation.csv")):
+            self.jai_translation = pd.read_csv(os.path.join(self.row_path, "jai_translation.csv"))
         for df in [self.slicer_results, self.tracker_results, self.alignment, self.jai_translation]:
             if "Unnamed: 0" in df.columns:
                 df.drop("Unnamed: 0", axis=1, inplace=True)
         if "frame_id" in self.tracker_results.columns:
             self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+
+    def get_row_data(self, args):
+
+        self.tracker_results = pd.read_csv(args.tracker_results)
+        self.alignment = pd.read_csv(args.alignment)
+        self.jai_translation = pd.read_csv(args.jai_translations)
+        for df in [self.tracker_results, self.alignment, self.jai_translation]:
+            if "Unnamed: 0" in df.columns:
+                df.drop("Unnamed: 0", axis=1, inplace=True)
+        if "frame_id" in self.tracker_results.columns:
+            self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+
 
     @staticmethod
     def validate_align(b_align, frame_ids):
@@ -182,7 +201,7 @@ class ADTSBatchLoader:
         if np.all([col in tracker_res_cols for col in xyz_dims_cols]):
             return batch_tracker
         cut_coords = tuple(res[:4] for res in b_align)
-        batch_tracker = get_depth_to_bboxes_batch([zed[:, :, (1, 0, 2)] for zed in batch_zed], batch_fsi, cut_coords,
+        batch_tracker = get_xyz_to_bboxes_batch([zed[:, :, (1, 0, 2)] for zed in batch_zed], batch_fsi, cut_coords,
                                                   batch_tracker, True, True)
         return batch_tracker
 
@@ -199,10 +218,10 @@ class ADTSBatchLoader:
 
         """
         try:
+
             batch_slicer, batch_tracker, b_align, b_jai_translation = self.load_adts(frame_ids)
             batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed = [], [], [], []
-            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0])+
-                                                                                              int(self.jaized_timestamps), 0)
+            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0]), 0)
             batch_zed = [zed[:, :, (1, 0, 2)] for zed in batch_zed]
             batch_fsi = [fsi[:, :, ::-1] for fsi in batch_fsi]
             batch_tracker = self.tracker_postprocess(batch_tracker, b_align, batch_zed, batch_fsi)
@@ -212,3 +231,65 @@ class ADTSBatchLoader:
         return (batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed, batch_tracker, batch_slicer, frame_ids,
                 b_align, b_jai_translation)
 
+
+
+
+def get_xyz_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=False, aligned=False,
+                        resize_factors=(1, 1)):
+    """
+    Retrieves the depth to each bbox
+    Args:
+        xyz_frame (np.array): a Point cloud image
+        jai_frame (np.array): FSI image
+        cut_coords (tuple): jai in zed coords
+        dets (list): list of detections
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
+        aligned (bool): flag indicating if the frames are already aligned
+        resize_factors (Iterable): resize factors for an aligned imaged (r_h, r_w)
+
+    Returns:
+        z_s (list): list with depth to each detection
+    """
+    if not aligned:
+        cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
+        xyz_frame_aligned = cut_zed_in_jai({"zed": xyz_frame}, cut_coords, rgb=False)["zed"]
+        r_h, r_w = xyz_frame_aligned.shape[0] / jai_frame.shape[0], xyz_frame_aligned.shape[1] / jai_frame.shape[1]
+    else:
+        xyz_frame_aligned, r_h, r_w = xyz_frame, resize_factors[0], resize_factors[1]
+    for det in dets:
+        box = ((int(det[0] * r_w), int(det[1] * r_h)), (int(det[2] * r_w), int(det[3] * r_h)))
+        det_output = []
+        if pc:
+            det += list(xyz_center_of_box(xyz_frame_aligned, box))
+        else:
+            det.append(xyz_center_of_box(xyz_frame_aligned, box)[2])
+        if dims:
+            det += list(stable_euclid_dist(xyz_frame_aligned, box))
+    return dets
+
+
+def get_xyz_to_bboxes_batch(xyz_batch, jai_batch, cut_coords, dets, pc=False, dims=False):
+    """
+    Retrieves the depth to each bbox in the batch
+    Args:
+        xyz_batch (np.array): batch a Point cloud image
+        jai_batch (np.array): batch of FAI images
+        cut_coords (tuple): batch of jai in zed coords
+        dets (list): batch of list of detections per image
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
+
+    Returns:
+        z_s (list): list of lists with depth to each detection
+    """
+    n = len(xyz_batch)
+    return list(map(get_xyz_to_bboxes, xyz_batch, jai_batch, cut_coords, dets, [pc] * n, [dims] * n))
+
+
+def append_to_trk(trk_batch_res, results):
+    for frame_res, frame_depth in zip(trk_batch_res, results):
+        for i, depth in enumerate(frame_depth):
+            frame_res[i] += [np.round(depth, 3)]
+
+    return trk_batch_res

@@ -1,5 +1,6 @@
 import os
 from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
 from vision.misc.help_func import load_json, get_repo_dir, validate_output_path
 import numpy as np
 #import cupy as cp
@@ -396,6 +397,9 @@ class FeatureExtractor:
             cnt = np.unique(centers[labels == label], axis=0)
             if len(cnt) < 4:
                 continue
+            std_cnt = np.std(cnt.round(1), axis=0) < 1e-10
+            if sum(std_cnt) >= 1:
+                cnt[:, std_cnt] += np.random.randn(cnt.shape[0]).reshape(-1, 1)/100 # add random noise if a fixed axis exsits
             cnvx_hull = ConvexHull(cnt)
             convex_hull_area += cnvx_hull.volume
             a = cnt ** 2
@@ -519,33 +523,86 @@ class FeatureExtractor:
         #TODO can become > 10X faster with cupy
         return [cv2.resize(image, (self.max_x_pix, self.max_y_pix)) for image in images]
 
+    def resize_images_cuda(self, zed, zed_rgb, fsi, jai_rgb):
+
+        # max_xs = [self.max_x_pix for _ in range(4)]
+        # max_ys = [self.max_y_pix for _ in range(4)]
+        # images = [zed, zed_rgb, fsi, jai_rgb]
+        # with ThreadPoolExecutor(max_workers=4) as executor:
+        #     res = list(executor.map(self.resize_cuda, images, max_xs, max_ys))
+
+        # zed = res[0]
+        # zed_rgb = res[1]
+        # fsi = res[2]
+        # jai_rgb = res[3]
+
+        zed = self.resize_cuda(zed, self.max_x_pix, self.max_y_pix)
+        zed_rgb = self.resize_cuda(zed_rgb, self.max_x_pix, self.max_y_pix)
+        fsi = self.resize_cuda(fsi, self.max_x_pix, self.max_y_pix)
+        jai_rgb = self.resize_cuda(jai_rgb, self.max_x_pix, self.max_y_pix)
+
+
+        return zed, zed_rgb, fsi, jai_rgb
+
+    @staticmethod
+    def resize_cuda(image, x_size, y_size):
+        stream = cv2.cuda_Stream()
+        input_GPU = cv2.cuda_GpuMat()
+        input_GPU.upload(image, stream)
+
+        output_GPU = cv2.cuda_GpuMat(y_size, x_size, input_GPU.type())
+        #output_GPU = cv2.cuda_GpuMat()
+
+        # adjust zed scale to be the same as jai using calibrated scale x and y
+        cv2.cuda.resize(input_GPU, (x_size, y_size), output_GPU, interpolation=cv2.INTER_CUBIC, stream=stream)
+        stream.waitForCompletion()
+        output = output_GPU.download()
+        #image_GPU = cv2.cuda.resize(image_GPU,
+        #                          (x_size, y_size),
+        #                          stream=stream)
+
+        return output
     def cut_jai_in_zed_batch(self, images):
         return list(map(self.cut_single_image, images, self.b_align))
 
     def align_and_scale(self, fsi, zed, jai_rgb, zed_rgb, tracker_results, slices, align_res, jai_translation):
+
         zed, zed_rgb = self.cut_single_image([zed, zed_rgb], align_res)
+
        # scale:
         jai_h, jai_w = fsi.shape[:2]
         r_h, r_w = self.max_y_pix / jai_h, self.max_x_pix / jai_w
         zed, zed_rgb, fsi, jai_rgb = self.resize_images([zed, zed_rgb, fsi, jai_rgb]) # most consuming
+
         if self.remove_high_blues:
             zed = remove_high_blues(zed, zed_rgb[:, :, 2])
+
         if self.red_green_filter:
             zed[zed_rgb[:, :, 0] > zed_rgb[:, :, 1] + 10] = np.nan
+
         if self.max_z > 0:
             zed, (zed_rgb, fsi, jai_rgb) = self.apply_depth_filter(zed, [zed_rgb, fsi, jai_rgb], self.max_z) # second_most
+
         slices = (int(slices[0] * r_w), int(slices[1] * r_w))
         if jai_translation:
             jai_translation = [jai_translation[0]*r_w, jai_translation[1]*r_h, jai_translation[2]]
         tracker_results = {t_id: resize_bbox(bbox, r_w, r_h) for t_id, bbox in tracker_results.items()}
+
         return fsi, zed, jai_rgb, zed_rgb, tracker_results, slices, jai_translation
 
     def scale_align_batch(self):
-        res = np.array(list(map(self.align_and_scale, self.b_fsi, self.b_zed, self.b_jai_rgb,
-                                self.b_rgb_zed, self.b_tracker_results,
-                                self.b_slicer, self.b_align, self.b_jai_translation)), dtype=object)
-        self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_tracker_results, self.b_slicer, \
-            self.b_jai_translation = res[:, 0], res[:, 1], res[:, 2], res[:, 3], res[:, 4], res[:, 5], res[:, 6]
+        try:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                res = np.array(list(executor.map(self.align_and_scale, self.b_fsi, self.b_zed, self.b_jai_rgb,
+                                    self.b_rgb_zed, self.b_tracker_results,
+                                    self.b_slicer, self.b_align, self.b_jai_translation)), dtype=object)
+            #res = np.array(list(map(self.align_and_scale, self.b_fsi, self.b_zed, self.b_jai_rgb,
+                                    #self.b_rgb_zed, self.b_tracker_results,
+                                    #self.b_slicer, self.b_align, self.b_jai_translation)), dtype=object)
+            self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_tracker_results, self.b_slicer, \
+                self.b_jai_translation = res[:, 0], res[:, 1], res[:, 2], res[:, 3], res[:, 4], res[:, 5], res[:, 6]
+        except:
+            print("bug")
 
     def accumulate_tracker_res(self):
         b_tracker_results = dict(zip(self.b_frame_numbers, self.b_tracker_results))
@@ -741,38 +798,42 @@ class FeatureExtractor:
             found_start = self.remove_starter_pics(*adts_res)
             if found_start:
                 self.tree_start = True
+        time_data = {}
         s_t = time.time()
         self.load_batch(*adts_res)
         self.validate_slice_ending()
         if not len(self.b_fsi):
             return
-        self.verbosity_print(("batch_loading", time.time() - s_t))
+        time_data["batch_loading"] = time.time() - s_t
         s_t = time.time()
         self.scale_align_batch() # time consumption (0.16)
-        self.verbosity_print(("scale_align_batch", time.time() - s_t))
+        time_data["scale_align_batch"] = time.time() - s_t
         s_t = time.time()
         self.accumulate_tracker_res() # time consumption (0.01)
-        self.verbosity_print(("accumulate_tracker_res", time.time() - s_t))
+        time_data["accumulate_tracker_res"] = time.time() - s_t
         if not self.tree_start:
             return
         s_t = time.time()
         self.calc_batch_fruit_features()
-        self.verbosity_print(("calc_batch_fruit_features", time.time() - s_t))
+        time_data["calc_batch_fruit_features"] = time.time() - s_t
         s_t = time.time()
         # TODO add frame skipping, start/end frame by slicing location
         self.preprocess_batch_images() # time consumption (1.8)
-        self.verbosity_print(("preprocess_batch_images", time.time() - s_t))
+        time_data["preprocess_batch_images"] = time.time() - s_t
+        print(time_data["preprocess_batch_images"])
         # self.save_imgs()
         s_t = time.time()
         self.calc_physical_features_batch() # time consumption (0.5)
-        self.verbosity_print(("calc_physical_features_batch", time.time() - s_t))
+        time_data["calc_physical_features_batch"] = time.time() - s_t
         s_t = time.time()
         self.calc_vi_features_batch() # time consumption (0.5)
-        self.verbosity_print(("calc_vi_features_batch", time.time() - s_t))
+        time_data["calc_vi_features_batch"] = time.time() - s_t
         if self.debugger.debug_dict["alignment"]["apply"]:
             list(map(self.debugger.draw_alignment, [self.tracker_results]*len(self.b_zed), self.b_frame_numbers,
                      self.b_fsi, self.b_rgb_zed, [f"{self.block}_{self.tree_name}"]*len(self.b_zed), self.b_slicer))
-        self.verbosity_print(("processed batch: ", time.time() - s_t_b))
+        time_data["processed batch: "] = time.time() - s_t_b
+
+        return time_data
 
     def save_imgs(self):
         for ndvi_binary,binary_box, false_mask, fsi, zed, rgb_zed, frame_number in zip(self.ndvis_binary,
@@ -816,19 +877,28 @@ class FeatureExtractor:
         nir_swir_res = np.array(list(map(get_nir_swir, self.b_fsi)))
         self.b_nir, self.b_swir_975 = nir_swir_res[:, 0], nir_swir_res[:, 1]
         self.b_jai_rgb = [img.astype(float) for img in self.b_jai_rgb]
-        mask_map_res = list(map(self.get_false_mask, self.b_fsi, self.b_frame_numbers, self.b_tracker_results,
-                                self.b_jai_translation)) # 60%
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            mask_map_res = list(executor.map(self.get_false_mask,
+                                             self.b_fsi,
+                                             self.b_frame_numbers,
+                                             self.b_tracker_results,
+                                             self.b_jai_translation))
+
+        #mask_map_res = list(map(self.get_false_mask, self.b_fsi, self.b_frame_numbers, self.b_tracker_results,
+        #                        self.b_jai_translation)) # 60%
+
         self.false_masks, valids = [x[0] for x in mask_map_res], [x[1] for x in mask_map_res]
         self.remove_bad_masks_batch(valids) # TODO stich the  valids with relevant masks
-
         self.get_ndvis_batch() # 40%
+
         self.update_min_max_y()
 
     def update_min_max_y(self):
         if self.min_y or self.max_y:
             return
         for i, slice in enumerate(self.b_slicer):
-            if (slice[0] == 0 and slice[1] == self.max_x_pix) or (slice[0] > 0 and slice[1] < self.max_x_pix):
+            if (slice[0] == 0 and slice[1] >= self.max_x_pix-1) or (slice[0] > 0 and slice[1] < self.max_x_pix):
                 tmp_img = self.b_zed[i][:, :, 1].copy()
                 tmp_img[1-np.nan_to_num(self.ndvis_binary_um[i], 1).astype(bool)] = np.nan
                 self.min_y, self.max_y = np.nanquantile(tmp_img, (0.1, 0.9))
@@ -880,8 +950,16 @@ class FeatureExtractor:
         return ndvi_binary, binary_box_img, ndvi_binary_un_msaked
 
     def get_ndvis_batch(self):
-        ndvis = np.array(list(map(self.get_ndvi_single, self.b_fsi, self.b_jai_rgb, self.b_nir, self.b_tracker_results,
-                                  self.false_masks, self.b_frame_numbers)))
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            ndvis = np.array(list(executor.map(self.get_ndvi_single,
+                                               self.b_fsi,
+                                               self.b_jai_rgb,
+                                               self.b_nir,
+                                               self.b_tracker_results,self.false_masks,
+                                               self.b_frame_numbers)))
+
+        #ndvis = np.array(list(map(self.get_ndvi_single, self.b_fsi, self.b_jai_rgb, self.b_nir, self.b_tracker_results,
+        #                          self.false_masks, self.b_frame_numbers)))
         self.ndvis_binary, self.binary_box_imgs, self.ndvis_binary_um = ndvis[:, 0], ndvis[:, 1], ndvis[:, 2]
 
     def replace_bad_masks(self):
@@ -1095,22 +1173,49 @@ class FeatureExtractor:
             tree_physical_params.pop(key)
         return tree_physical_params
 
+    def reset(self, args, tree_id, row_id, block_name):
+
+        self.__init__(args, tree_id, row_id, block_name)
+        # self.cv_res = {}
+        # self.tree_physical_features = self.init_physical_parmas(np.nan)
+        # self.tree_fruit_params = self.init_fruit_params()
+        # self.fruit_3d_space = {}
+        # self.tree_physical_params = self.init_physical_parmas([])
+        # self.tree_vi = {**self.get_additional_vegetation_indexes(0, 0, 0, fill=[],
+        #                                                          vegetation_indexes_keys=self.vegetation_indexes_keys)}
+        # self.tree_start, self.tree_end = False, False
+
 
 def run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids=False):
     n_batchs = len(tree_frames) // batch_size
+    time_data = []
     for i in tqdm(range(n_batchs)):
         frame_ids = tree_frames[i * batch_size: (i + 1) * batch_size]
         if print_fids:
             print(frame_ids)
+        s = time.time()
         batch_res = adts_loader.load_batch(frame_ids)
-        fe.process_batch(*batch_res)
+        e = time.time()
+        batch_time = fe.process_batch(*batch_res)
+
+        if batch_time is not None:
+            batch_time['load_batch'] = e - s
+            time_data.append(batch_time)
+
 
     if n_batchs * batch_size < len(tree_frames):
         frame_ids = tree_frames[n_batchs * batch_size:]
         if print_fids:
             print(frame_ids)
+        s = time.time()
         batch_res = adts_loader.load_batch(frame_ids)
-        fe.process_batch(*batch_res)
+        e = time.time()
+        batch_time = fe.process_batch(*batch_res)
+        if batch_time is not None:
+            batch_time['load_batch'] = e - s
+            time_data.append(batch_time)
+
+    return time_data
 
 
 if __name__ == '__main__':
