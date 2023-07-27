@@ -6,6 +6,7 @@ from tqdm import tqdm
 import numpy as np
 import time
 import pandas as pd
+import glob
 from concurrent.futures import ThreadPoolExecutor
 import pickle
 
@@ -33,29 +34,30 @@ def run(cfg, args, metadata=None):
 
     results_collector = ResultsCollector(rotate=args.rotate)
 
-    print(f'Inferencing on {args.jai.movie_path}\n')
+    #print(f'Inferencing on {args.jai.movie_path}\n')
 
-    frame_drop_jai = get_frame_drop(args)
     relevant_frames_idx = adt.frames_loader.sync_jai_ids
     n_relevant_frames = len(relevant_frames_idx)
 
     index = 0
-    f_idx = relevant_frames_idx[index]
 
     pbar = tqdm(total=n_relevant_frames)
     while index < n_relevant_frames:
         pbar.update(adt.batch_size)
+
+        f_idx = relevant_frames_idx[index]
+
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(index)
 
-        rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_idx)
-        zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_idx)
-        if rgb_stauts or zed_stauts:
-             for i in range(adt.batch_size):
-                if f_idx + i in frame_drop_jai:
-                     adt.sensor_aligner.zed_shift += 1
-             index += adt.batch_size
-             adt.logger.iterations += 1
-             continue
+        # rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_idx)
+        # zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_idx)
+        # if rgb_stauts or zed_stauts:
+        #      for i in range(adt.batch_size):
+        #         if f_idx + i in frame_drop_jai:
+        #              adt.sensor_aligner.zed_shift += 1
+        #      index += adt.batch_size
+        #      adt.logger.iterations += 1
+        #      continue
 
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
@@ -66,14 +68,17 @@ def run(cfg, args, metadata=None):
         depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
         det_outputs = append_to_trk(det_outputs, depth_results)
 
+        # screen detections by depth (screen above 2 meters):
+        det_outputs = [[det for det in det_outputs[0] if det[-1] < args.screen_detections_above_depth]]
+
         #collect results:
         results_collector.collect_detections(det_outputs, index, relevant_frames_idx)
-        results_collector.collect_alignment(alignment_results, f_idx) #todo - i need this?
+        results_collector.collect_alignment(alignment_results, f_idx)
+        results_collector.draw_and_save(jai_batch[0], det_outputs[0], f_idx, args.output_folder, args.row)
 
-
-        #results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
 
         index += adt.batch_size
+        # f_idx = relevant_frames_idx[index]
         adt.logger.iterations += 1
 
     pbar.close()
@@ -84,10 +89,12 @@ def run(cfg, args, metadata=None):
     adt.dump_log_stats(args)
 
     update_metadata(metadata, args)
-    results_collector.dump_to_csv(os.path.join(args.output_folder, 'detections.csv'), 'detections')
-    save_detection_results(detection_csv_path=os.path.join(args.output_folder, 'detections.csv'), gps_jai_zed_csv_path = os.path.join(args.output_folder, 'gps_jai_zed.csv'), output_dir = args.output_folder, DEPTH_THRESHOLD = 2)
+    path_detections = os.path.join(args.output_folder, 'detections.csv')
+    path_gps_jai_zed = os.path.join(args.output_folder, 'gps_jai_zed.csv')
+    results_collector.dump_to_csv(path_detections, 'detections')
+    df_detections_count = save_detection_results(detection_csv_path=path_detections, gps_jai_zed_csv_path = path_gps_jai_zed, output_dir = args.output_folder, DEPTH_THRESHOLD = args.depth_to_grapes_in_meters, row = args.row, block = args.block, customer_code = args.customer_code, scan_date = args.scan_date )
 
-    return results_collector
+    return df_detections_count, results_collector
 
 
 class Pipeline():
@@ -343,68 +350,136 @@ def append_to_trk(trk_batch_res, results):
     return trk_batch_res
 
 
-def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir, DEPTH_THRESHOLD):
+def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir, DEPTH_THRESHOLD, row, block, customer_code, scan_date):
     '''
     This function gets detection csv file, gps_jai_zed csv file, and DEPTH_THRESHOLD,
     and saves a csv file with the frame_id, number of detections in depth per frame, and
     longitude , latitude of the frame.
     '''
 
+    # todo - the depth screen is preformed earlier, can remove this its redundant
     # read csv files:
     df_gps_jai_zed = pd.read_csv(gps_jai_zed_csv_path)
+    df_gps_jai_zed['location'] = list(zip(df_gps_jai_zed['latitude'], df_gps_jai_zed['longitude']))
+    df_gps_jai_zed.drop(columns=['latitude', 'longitude'], inplace=True)
 
     df_detection = pd.read_csv(detection_csv_path)
     df_detection['in_depth'] = df_detection['depth'] <= DEPTH_THRESHOLD
     df_detection = df_detection[df_detection['in_depth'] == True]
 
     # count detections per frame:
-    df_detections_count = df_detection.groupby(['frame_id']).size().reset_index(name='counts').set_index('frame_id')
+    df_detections_count = df_detection.groupby(['frame_id']).size().reset_index(name='count').set_index('frame_id')
+    df_detections_count.insert(0, 'frame_id', df_detections_count.index)
+    df_detections_count.insert(0,'row_num', int(row.split('_')[-1]))
+
 
     # get df_gps_jai_zed df where JAI_frame_number is in df_detections_count['frame_id']:
     df_gps_jai_zed = df_gps_jai_zed[df_gps_jai_zed['JAI_frame_number'].isin(df_detections_count.index.values)]
 
-    df_detections_count['longitude'] = df_gps_jai_zed['longitude']
-    df_detections_count['latitude'] = df_gps_jai_zed['latitude']
+    df_detections_count['location'] = df_gps_jai_zed['location']
+    df_detections_count['location'] = df_detections_count['location'].apply(lambda x: str(x).replace('(', '').replace(')', ''))
+
     # save df_detections_count to csv:
-    output_path = os.path.join (output_dir, 'detection_results.csv')
-    df_detections_count.to_csv(output_path)
-    print (f'Saved {output_path}')
+    output_path = os.path.join (output_dir, 'rows',f'{customer_code}_{block}_{scan_date}_row_{row}.csv')
+    validate_output_path(os.path.dirname(output_path))
+    #df_detections_count.to_csv(output_path, index = False)
+    #print (f'Saved {output_path}')
     return df_detections_count
+
+def run_rows (cfg, args):
+
+    rows = os.listdir(args.input_block_folder)
+    rows = ['row_18'] #todo - delete
+    df_detections_all_rows = pd.DataFrame()
+
+    for row in rows:
+        print(f'************************ Row {row} *******************************')
+        row_folder = os.path.join(args.input_block_folder, row, '1')
+        if not os.path.exists(os.path.join(row_folder, "jaized_timestamps.csv")):
+            continue
+        args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
+        args.zed.movie_path = os.path.join(row_folder, "ZED.mkv")
+        args.depth.movie_path = os.path.join(row_folder, "DEPTH.mkv")
+        args.jai.movie_path = os.path.join(row_folder, "Result_FSI.mkv")
+        args.rgb_jai.movie_path = os.path.join(row_folder, "Result_RGB.mkv")
+        args.screen_detections_above_depth = args.depth_to_grapes_in_meters + 1
+        # args.output_folder = row_folder
+        args.row = row
+        validate_output_path(args.output_folder)
+
+        df_detections_count, rc = run(cfg, args)
+        df_detections_all_rows = pd.concat([df_detections_all_rows,df_detections_count], axis=0, ignore_index=True)
+        output_file_path = os.path.join(args.output_folder, f'{args.customer_code}_{args.block}_{args.scan_date}.csv')
+        df_detections_all_rows.to_csv(output_file_path, index=False)
+        print (f'Saved {output_file_path}')
+
+    return df_detections_all_rows
+def run_blocks(all_blocks_dir, path_to_distance_from_len, path_pipeline_config, path_runtime_config):
+    distance_from_len = pd.read_excel(path_to_distance_from_len)
+    distance_from_len = distance_from_len.set_index('Block code')
+
+    cfg = OmegaConf.load(repo_dir + path_pipeline_config)
+    args = OmegaConf.load(repo_dir + path_runtime_config)
+
+    os.chdir(all_blocks_dir)
+    blocks_paths = glob.glob('[0-9]*')  # get a list of files that start with a number
+    blocks_paths = [os.path.join(all_blocks_dir, name) for name in blocks_paths if
+                    os.path.isdir(name)]  # screen for subdirs
+
+    for block_path in blocks_paths:
+        date = [name for name in os.listdir(block_path) if os.path.isdir(os.path.join(block_path, name))][0]  # get the date from subdir (each block has one date)
+        args.nav_path = os.path.join(all_blocks_dir, f'{date}.nav')
+        args.block = os.path.basename(block_path)
+
+
+
+        args.depth_to_grapes_in_meters = distance_from_len.loc[args.block]
+        rows_dir = os.path.join(block_path, date)
+        print(f'********* Starting block {rows_dir} ')
+        run_rows(rows_dir, cfg, args)
+
+def update_args(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN):
+
+    path_pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    path_runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
+
+    cfg = OmegaConf.load(repo_dir + path_pipeline_config)
+    args = OmegaConf.load(repo_dir + path_runtime_config)
+
+    df_distance_from_len = pd.read_excel(DISTANCE_FROM_LEN)
+    df_distance_from_len = df_distance_from_len.set_index('Block code')
+    args.depth_to_grapes_in_meters = (int(df_distance_from_len.loc[BLOCK_CODE][0])) / 100  # Convert cm to meter
+    args.nav_path = os.path.join(INPUT_FOLDER, CUSTOMER_CODE, f'{SCAN_DATE}.nav')
+    args.output_folder = os.path.join(OUTPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE)
+    args.scan_date = SCAN_DATE
+    args.block = BLOCK_CODE
+    args.customer_code = CUSTOMER_CODE
+    args.input_block_folder = os.path.join(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE)
+    return args, cfg
 
 
 if __name__ == "__main__":
-    repo_dir = get_repo_dir()
-    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
-    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
-    cfg = OmegaConf.load(repo_dir + pipeline_config)
-    args = OmegaConf.load(repo_dir + runtime_config)
 
-    zed_name = "ZED.mkv"
-    depth_name = "DEPTH.mkv"
-    fsi_name = "Result_FSI.mkv"
-    rgb_name = "Result_RGB.mkv"
-    time_stamp = "jaized_timestamps.csv"
+    INPUT_FOLDER = r'/media/fruitspec-lab-3/easystore'
+    CUSTOMER_CODE = 'JACFAM'
+    BLOCK_CODE = '204402XX'
+    SCAN_DATE = '180723'
+    OUTPUT_FOLDER = r'/media/fruitspec-lab-3/easystore/grapes_detector_output'
+    DISTANCE_FROM_LEN = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/dist_from_len_by_blocks.xlsx'
 
-    output_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/204401XX/180723"
-    validate_output_path(output_path)
-    args.nav_path = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/204401XX/180723.nav'
-    args.depth_in_meters = 1
+    args, cfg = update_args(INPUT_FOLDER,CUSTOMER_CODE,BLOCK_CODE,SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN)
+    df_detections_all_rows = run_rows(cfg, args)
 
-    rows_dir = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/204401XX/180723"
-    #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
-    rows = os.listdir(rows_dir)
-    rows = ["row_5"]
-    for row in rows:
-        row_folder = os.path.join(rows_dir, row, '1')
 
-        args.output_folder = os.path.join(output_path, row)
-        args.sync_data_log_path = os.path.join(row_folder, time_stamp)
-        args.zed.movie_path = os.path.join(row_folder, zed_name)
-        args.depth.movie_path = os.path.join(row_folder, depth_name)
-        args.jai.movie_path = os.path.join(row_folder, fsi_name)
-        args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-        validate_output_path(args.output_folder)
 
-        rc = run(cfg, args)
+
+
+
+
+
+
+
+
+
 

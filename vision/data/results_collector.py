@@ -233,13 +233,15 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
-    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
+    def draw_and_save(self, frame, dets, f_id, output_path, row, t_index=6):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame = self.draw_dets(frame, dets, t_index=t_index)
-        output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
+        output_file_name = os.path.join(output_path,'frames', row, f'frame_{f_id}_res.jpg')
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        validate_output_path(os.path.dirname(output_file_name))
         cv2.imwrite(output_file_name, frame)
+
 
     def draw_and_save_batch(self, batch_frame, batch_dets, f_id, output_path, t_index=6):
 

@@ -187,7 +187,8 @@ def remove_adjacent(splits):
 def slice_frames(PATH_JZ, PATH_GPS, PATH_OUTPUT, split_range):
     df_gps = read_nav_file(PATH_GPS)
     df_jz = pd.read_csv(PATH_JZ)
-
+    if df_gps is None:
+        raise ValueError("Cannot open GPS nav file, check if corrupted")
 
     distances, df = get_gps_distances(df_jz, df_gps)
     distances = interploate_distance(distances)
@@ -195,7 +196,7 @@ def slice_frames(PATH_JZ, PATH_GPS, PATH_OUTPUT, split_range):
     df = get_frame_numbers(df, slice_distance=split_range)
 
     df.to_csv(PATH_OUTPUT)
-    print(f'Saved {PATH_OUTPUT}')
+    # print(f'Saved {PATH_OUTPUT}')
     return df
 
 
@@ -263,12 +264,12 @@ def calculate_Field_Of_View(depth, sensor_width=7.07, sensor_height=5.30, focal_
 
 def get_frames_df(path_JZ, PATH_GPS, output_path, depth_meters):
     hFOV_meters, vFOV_meters = calculate_Field_Of_View(depth_meters)
-    df = slice_frames(path_JZ, PATH_GPS, PATH_OUTPUT=output_path, split_range=vFOV_meters * 0.9)
+    df = slice_frames(path_JZ, PATH_GPS, PATH_OUTPUT=output_path, split_range=vFOV_meters)
     return df
 
 if __name__ == "__main__":
     row_path = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/204401XX/180723/row_5/1'
-    PATH_GPS = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/204401XX/180723.nav'
+    PATH_GPS = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/JACFAM/180723.nav'
     DEPTH_METERS = 1
     FOV_CORRECTION = 0.9
 
