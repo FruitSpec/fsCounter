@@ -46,16 +46,24 @@ def extract_gnss_data(df_jz, df_gps):
     df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
     df_gps.drop('timestamp', axis='columns', inplace=True)
 
+
     df_jz["ZED_timestamp"] = pd.to_datetime(df_jz["ZED_timestamp"], unit="ns").dt.time
 
     # Extract the timestamp values from both DataFrames
     zed_timestamps = df_jz['ZED_timestamp'].values
     gps_timestamps = df_gps['timestamp_gnss'].values
 
-    # Find the indices of the last matching timestamps in df_gps
-    last_indices = gps_timestamps.searchsorted(zed_timestamps, side='right')
+    # Find the indices of the last matching timestamps in df_gps. If any error occurs, check if there ate NaT values.
+    try:
+        last_indices = gps_timestamps.searchsorted(zed_timestamps, side='right')
+    except Exception as e:
+        if df_gps['timestamp_gnss'].isna().any():
+            nat_indices = df_gps[df_gps['timestamp_gnss'].isna()].index.tolist()
+            raise ValueError(f"The column 'timestamp_gnss' in the nav file contains NaT values at indices: {nat_indices}")
+        else:
+            raise e
     if np.all(last_indices == -1):
-        print("No matching GPS data.")
+        print("No matching GPS data found.")
         return None
 
     # Filter df_gps using the last indices

@@ -389,7 +389,7 @@ def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir,
 def run_rows (cfg, args):
 
     rows = os.listdir(args.input_block_folder)
-    rows = ['row_18'] #todo - delete
+    rows = ['row_8'] #todo - delete
     df_detections_all_rows = pd.DataFrame()
 
     for row in rows:
