@@ -391,29 +391,35 @@ def run_rows (cfg, args):
         rows = [f'row_{args.row}']
     else:
         rows = os.listdir(args.input_block_folder)
-    #rows = ['row_8']
+
     df_detections_all_rows = pd.DataFrame()
 
     for row in rows:
         print(f'************************ Row {row} *******************************')
-        row_folder = os.path.join(args.input_block_folder, row, '1')
-        if not os.path.exists(os.path.join(row_folder, "jaized_timestamps.csv")):
-            continue
-        args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
-        args.zed.movie_path = os.path.join(row_folder, "ZED.mkv")
-        args.depth.movie_path = os.path.join(row_folder, "DEPTH.mkv")
-        args.jai.movie_path = os.path.join(row_folder, "Result_FSI.mkv")
-        args.rgb_jai.movie_path = os.path.join(row_folder, "Result_RGB.mkv")
-        args.screen_detections_above_depth = args.depth_to_grapes_in_meters + 1
-        # args.output_folder = row_folder
-        args.row = row
-        validate_output_path(args.output_folder)
 
-        df_detections_count, rc = run(cfg, args)
-        df_detections_all_rows = pd.concat([df_detections_all_rows,df_detections_count], axis=0, ignore_index=True)
-        output_file_path = os.path.join(args.output_folder, f'{args.customer_code}_{args.block}_{args.scan_date}.csv')
-        df_detections_all_rows.to_csv(output_file_path, index=False)
-        print (f'Saved {output_file_path}')
+        try:
+            row_folder = os.path.join(args.input_block_folder, row, '1')
+            if not os.path.exists(os.path.join(row_folder, "jaized_timestamps.csv")):
+                print (f'jaized_timestamps.csv file not found')
+                continue
+            args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
+            args.zed.movie_path = os.path.join(row_folder, "ZED.mkv")
+            args.depth.movie_path = os.path.join(row_folder, "DEPTH.mkv")
+            args.jai.movie_path = os.path.join(row_folder, "Result_FSI.mkv")
+            args.rgb_jai.movie_path = os.path.join(row_folder, "Result_RGB.mkv")
+            args.screen_detections_above_depth = args.depth_to_grapes_in_meters + 1
+            args.row = row
+            validate_output_path(args.output_folder)
+
+            df_detections_count, rc = run(cfg, args)
+            df_detections_all_rows = pd.concat([df_detections_all_rows,df_detections_count], axis=0, ignore_index=True)
+            output_file_path = os.path.join(args.output_folder, f'{args.customer_code}_{args.block}_{args.scan_date}.csv')
+            df_detections_all_rows.to_csv(output_file_path, index=False)
+            print (f'Saved {output_file_path}')
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            continue
 
     return df_detections_all_rows
 def run_blocks(all_blocks_dir, path_to_distance_from_len, path_pipeline_config, path_runtime_config):
