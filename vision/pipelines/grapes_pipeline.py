@@ -68,8 +68,12 @@ def run(cfg, args, metadata=None):
         depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
         det_outputs = append_to_trk(det_outputs, depth_results)
 
-        # screen detections by depth (screen above 2 meters):
-        det_outputs = [[det for det in det_outputs[0] if det[-1] < args.screen_detections_above_depth]]
+        # change class of grapes in depth (depth from jai):
+        for det in det_outputs[0]:
+            if det[-1] < args.screen_detections_above_depth:
+                det[6] = 1.0
+        # screen detections by depth:
+        #det_outputs = [[det for det in det_outputs[0] if det[-1] < args.screen_detections_above_depth]]
 
         #collect results:
         results_collector.collect_detections(det_outputs, index, relevant_frames_idx)
@@ -364,8 +368,10 @@ def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir,
     df_gps_jai_zed.drop(columns=['latitude', 'longitude'], inplace=True)
 
     df_detection = pd.read_csv(detection_csv_path)
-    df_detection['in_depth'] = df_detection['depth'] <= DEPTH_THRESHOLD
-    df_detection = df_detection[df_detection['in_depth'] == True]
+
+    #Screen detections by depth:
+    # df_detection['in_depth'] = df_detection['depth'] <= DEPTH_THRESHOLD
+    # df_detection = df_detection[df_detection['in_depth'] == True]
 
     # count detections per frame:
     df_detections_count = df_detection.groupby(['frame_id']).size().reset_index(name='count').set_index('frame_id')
@@ -395,12 +401,12 @@ def run_rows (cfg, args):
     df_detections_all_rows = pd.DataFrame()
 
     for row in rows:
-        print(f'************************ Row {row} *******************************')
+        print(f'************************ block {args.block} {row} *******************************')
 
         try:
             row_folder = os.path.join(args.input_block_folder, row, '1')
             if not os.path.exists(os.path.join(row_folder, "jaized_timestamps.csv")):
-                print (f'jaized_timestamps.csv file not found')
+                print (f'jaized_timestamps.csv file not found - block {args.block} {row}  ')
                 continue
             args.sync_data_log_path = os.path.join(row_folder, "jaized_timestamps.csv")
             args.zed.movie_path = os.path.join(row_folder, "ZED.mkv")

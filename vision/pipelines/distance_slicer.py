@@ -42,6 +42,9 @@ class DistanceGPS:
 def extract_gnss_data(df_jz, df_gps):
 
     df_jz = arrange_ids(df=df_jz)
+    if 'longitude' in df_jz.columns.values: # if the new version of jaized_timestams.csv
+        df_jz = df_jz.iloc[:,:-3]
+
 
     df_gps["timestamp_gnss"] = pd.to_datetime(df_gps["timestamp"], unit="ns").dt.time
     df_gps.drop('timestamp', axis='columns', inplace=True)
