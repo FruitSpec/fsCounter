@@ -256,7 +256,7 @@ class ResultsCollector():
             color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
-            frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
+            frame = draw_highlighted_test(frame, f'{str(round(det[4],2))}', (det[0], det[1]), frame.shape[1], color, text_color,
                                           True, 10, 3)
 
         return frame
