@@ -6,10 +6,12 @@ import argparse
 import os
 import time
 from loguru import logger
-
+import sys
 import cv2
 
 import torch
+
+sys.path.append(os.path.abspath(os.pardir))
 
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
@@ -201,9 +203,12 @@ def image_demo(predictor, vis_folder, path, current_time, save_result):
             save_file_name = os.path.join(save_folder, os.path.basename(image_name))
             logger.info("Saving detection result in {}".format(save_file_name))
             cv2.imwrite(save_file_name, result_image)
-        # ch = cv2.waitKey(0)
-        # if ch == 27 or ch == ord("q") or ch == ord("Q"):
-        #     break
+
+        resized_img = cv2.resize(result_image, (int(result_image.shape[1] *0.5),int(result_image.shape[0] *0.5)), interpolation=cv2.INTER_AREA)
+        cv2.imshow('image', resized_img)
+        ch = cv2.waitKey(0)
+        if ch == 27 or ch == ord("q") or ch == ord("Q"):
+            break
 
 
 def imageflow_demo(predictor, vis_folder, current_time, args):
