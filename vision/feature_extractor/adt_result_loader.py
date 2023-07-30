@@ -128,8 +128,12 @@ class ADTSBatchLoader:
         for df in [self.slicer_results, self.tracker_results, self.alignment, self.jai_translation]:
             if "Unnamed: 0" in df.columns:
                 df.drop("Unnamed: 0", axis=1, inplace=True)
-        if "frame_id" in self.tracker_results.columns:
+        tracker_res_cols = self.tracker_results.columns
+        if "frame_id" in tracker_res_cols:
             self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+        xyz_dims_cols = ["pc_x", "pc_y", "depth", "width", "height"]
+        if ("depth" in tracker_res_cols) and (not np.all([col in tracker_res_cols for col in xyz_dims_cols])):
+            self.tracker_results.drop("depth", axis=1, inplace=True)
 
     def get_row_data(self, args):
 
@@ -141,6 +145,7 @@ class ADTSBatchLoader:
                 df.drop("Unnamed: 0", axis=1, inplace=True)
         if "frame_id" in self.tracker_results.columns:
             self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
+
 
 
     @staticmethod

@@ -8,7 +8,6 @@ import collections
 
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-#from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper
@@ -551,7 +550,7 @@ class ResultsCollector():
         self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
         self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
-        self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
+        self.dump_to_csv(os.path.join(output_path, 'jai_translation.csv'), type="jai_translations")
 
     def converted_slice_data(self, sliced_data):
         converted_sliced_data = {}

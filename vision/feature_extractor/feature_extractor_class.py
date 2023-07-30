@@ -56,22 +56,32 @@ class DebuggerFE:
         :param tree_images: Dict of ints to Dicts of strings to numpy arrays representing the tree images and their
          corresponding data
         """
-        iter_on = range(1, len(minimal_frames))
+        iter_on = range(1, len(tree_images))
         if self.debug_dict["translation"]["one_frame"]:
-            iter_on = [len(minimal_frames) // 2]
+            iter_on = [len(tree_images) // 2]
+        save_to = os.path.join(self.debug_dict["translation"]["save_to"], f"{block_name}_{tree_name}")
+        validate_output_path(save_to)
+        validate_output_path(os.path.join(save_to, "clean"))
+        validate_output_path(os.path.join(save_to, "masked"))
+        save_only = self.debug_dict["translation"]["save_only"]
         for i in iter_on:
-            fsi_next = tree_images[minimal_frames[i]]["fsi"].copy()
+            frame_number = frame_numbers[i]
+            fsi_next = tree_images[i].copy()
             fsi_next[masks[i - 1].astype(bool)] = 0
-            save_to = self.debug_dict["translation"]["folder_path"]
-            save_only = self.debug_dict["translation"]["save_only"]
-            last_img = tree_images[minimal_frames[i - 1]]["fsi"]
-            cur_img = tree_images[minimal_frames[i]]["fsi"]
+            last_img = tree_images[i - 1]
+            cur_img = tree_images[i]
             plot_2_imgs(last_img, cur_img, title=frame_number,
-                        save_to=os.path.join(save_to, f"{tree_name}_{i}_clean.png"),
-                        save_only=save_only)
+                        save_to=os.path.join(save_to, "clean", f"{frame_number}.png"),
+                        save_only=save_only, quick_save=True)
             plot_2_imgs(last_img, fsi_next, title=frame_number,
-                        save_to=os.path.join(save_to, f"{tree_name}_{i}_masked.png"),
-                        save_only=save_only)
+                        save_to=os.path.join(save_to, "masked", f"{frame_number}.png"),
+                        save_only=save_only, quick_save=True)
+            plot_2_imgs(last_img, cur_img, title=frame_number,
+                        save_to=os.path.join(save_to, f"{frame_number}_clean.png"),
+                        save_only=save_only, quick_save=True)
+            plot_2_imgs(last_img, fsi_next, title=frame_number,
+                        save_to=os.path.join(save_to, f"{frame_number}_masked.png"),
+                        save_only=save_only, quick_save=True)
 
     def preprocess_debug(self, keys, tree_images, tracker_results, slicer_results, max_y, prefix=""):
         """
@@ -211,7 +221,7 @@ class FeatureExtractor:
         self.filter_nans = args["filter_nans"]
         self.cv_only = args["cv_only"]
         self.direction = args["direction"]
-        self.last_frame = None
+        self.last_frame, self.last_frame_tra, self.last_frame_number = None, None, 0
         self.ndvis_binary_um, self.ndvis_binary, self.binary_box_imgs = [], [], []
         self.b_nir, self.b_swir_975, self.false_masks, = [], [], []
         self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_frame_numbers = [], [], [], [], []
@@ -472,22 +482,26 @@ class FeatureExtractor:
 
     def reformat_tracker(self):
         new_format = []
+        max_y, max_x = self.b_fsi[0].shape[:2]
         if len(self.tracker_format) == 8:
             track_id, x1, y1, x2, y2, pc_x, pc_y, pc_z = self.tracker_format
             for track_res in self.b_tracker_results:
-                new_format.append({int(row[track_id]): ((int(row[x1]), int(row[y1])), (int(row[x2]), int(row[y2])),
+                new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
+                                                        (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
                                                         (row[pc_x], row[pc_y], row[pc_z]))
                                    for row in track_res})
         if len(self.tracker_format) == 10:
             track_id, x1, y1, x2, y2, pc_x, pc_y, pc_z, width, height = self.tracker_format
             for track_res in self.b_tracker_results:
-                new_format.append({int(row[track_id]): ((int(row[x1]), int(row[y1])), (int(row[x2]), int(row[y2])),
+                new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
+                                                        (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
                                                         (row[pc_x], row[pc_y], row[pc_z], row[width], row[height]))
                                    for row in track_res})
         else:
             track_id, x1, y1, x2, y2 = self.tracker_format
             for track_res in self.b_tracker_results:
-                new_format.append({int(row[track_id]): ((int(row[x1]), int(row[y1])), (int(row[x2]), int(row[y2])))
+                new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
+                                                        (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)))
                                    for row in track_res})
         self.b_tracker_results = new_format
 
@@ -518,6 +532,7 @@ class FeatureExtractor:
             self.b_jai_translation = [[]*len(b_fsi)]
         else:
             self.b_jai_translation = b_jai_translation
+        self.validate_slice_ending()
 
     def resize_images(self, images):
         #TODO can become > 10X faster with cupy
@@ -566,28 +581,21 @@ class FeatureExtractor:
         return list(map(self.cut_single_image, images, self.b_align))
 
     def align_and_scale(self, fsi, zed, jai_rgb, zed_rgb, tracker_results, slices, align_res, jai_translation):
-
         zed, zed_rgb = self.cut_single_image([zed, zed_rgb], align_res)
-
        # scale:
         jai_h, jai_w = fsi.shape[:2]
         r_h, r_w = self.max_y_pix / jai_h, self.max_x_pix / jai_w
         zed, zed_rgb, fsi, jai_rgb = self.resize_images([zed, zed_rgb, fsi, jai_rgb]) # most consuming
-
         if self.remove_high_blues:
             zed = remove_high_blues(zed, zed_rgb[:, :, 2])
-
         if self.red_green_filter:
             zed[zed_rgb[:, :, 0] > zed_rgb[:, :, 1] + 10] = np.nan
-
         if self.max_z > 0:
             zed, (zed_rgb, fsi, jai_rgb) = self.apply_depth_filter(zed, [zed_rgb, fsi, jai_rgb], self.max_z) # second_most
-
         slices = (int(slices[0] * r_w), int(slices[1] * r_w))
         if jai_translation:
             jai_translation = [jai_translation[0]*r_w, jai_translation[1]*r_h, jai_translation[2]]
         tracker_results = {t_id: resize_bbox(bbox, r_w, r_h) for t_id, bbox in tracker_results.items()}
-
         return fsi, zed, jai_rgb, zed_rgb, tracker_results, slices, jai_translation
 
     def scale_align_batch(self):
@@ -602,17 +610,18 @@ class FeatureExtractor:
             self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_tracker_results, self.b_slicer, \
                 self.b_jai_translation = res[:, 0], res[:, 1], res[:, 2], res[:, 3], res[:, 4], res[:, 5], res[:, 6]
         except:
-            print("bug")
+            print("bug scale_align_batch")
 
     def accumulate_tracker_res(self):
         b_tracker_results = dict(zip(self.b_frame_numbers, self.b_tracker_results))
         slicer_res = dict(zip(self.b_frame_numbers, self.b_slicer))
         b_tracker_results = filter_outside_tree_boxes(b_tracker_results, slicer_res, self.direction)
+        b_tracker_results = filter_small_fruits(b_tracker_results)
         if self.max_z > 0:
             tree_images = {}
-            if len(self.tracker_format) in [8, 10]:
-                for frame_number, zed_image in zip(self.b_frame_numbers, self.b_zed):
-                    tree_images[frame_number] = {"zed": zed_image, "nir": None, "swir_975": None}
+            if len(self.tracker_format) in [8, 10]: # has depth
+                for frame_number in self.b_frame_numbers:
+                    tree_images[frame_number] = {"zed": None, "nir": None, "swir_975": None}
                 b_tracker_results = filter_outside_zed_boxes(b_tracker_results, tree_images, self.max_z,
                                                              self.filter_nans, True)
             else:
@@ -693,8 +702,10 @@ class FeatureExtractor:
         n_tracks = {frame_id: len(tracks) for frame_id, tracks in self.tracker_results.items()}
         all_frames = list(n_tracks.keys())
         n_tracks_counts = np.array(list(n_tracks.values()))
+        if not len(n_tracks):
+            return {}, 0
         try:
-            min_dets = max(np.quantile(n_tracks_counts, self.min_dets_3d_init), 5)
+            min_dets = max(np.quantile(n_tracks_counts, self.min_dets_3d_init), 10)
             if not np.any(np.where(n_tracks_counts > min_dets)):
                 return {}, 0
         except:
@@ -787,6 +798,69 @@ class FeatureExtractor:
             else:
                 print(print_val)
 
+    def skip_frames(self, adts_res):
+        skip_interval = self.minimal_frames_params[2]
+        if skip_interval == 1:
+            return adts_res
+        adts_res_final = [[] for i in range(len(adts_res))]
+        for i in range(len(adts_res[6])): # slice results
+            if self.acc_tx > skip_interval*self.max_x_pix:
+                for j, sub_list in enumerate(adts_res):
+                    if j == 8: # jai_translation
+                        translation_res = adts_res[j][i].copy()
+                        translation_res[0] += self.acc_tx
+                        adts_res_final[j].append(translation_res)
+                        self.acc_tx = 0
+                    else:
+                        adts_res_final[j].append(adts_res[j][i])
+            else:
+                self.acc_tx += adts_res[8][i][0]
+        return tuple(adts_res_final)
+
+    def debug_process_batch(self):
+        if not len(self.b_fsi): #no new images
+            self.logger.stop_timer("process_batch")
+            return
+        if self.debugger.debug_dict["alignment"]["apply"]:
+            list(map(self.debugger.draw_alignment, [self.tracker_results]*len(self.b_zed), self.b_frame_numbers,
+                     self.b_fsi, self.b_rgb_zed, [f"{self.block}_{self.tree_name}"]*len(self.b_zed), self.b_slicer))
+        if self.debugger.debug_dict["translation"]["apply"]:
+            if not isinstance(self.last_frame_tra, type(None)):
+                self.debugger.translation_debugging([self.last_frame_tra, *self.b_fsi], self.false_masks,
+                                                    [self.last_frame_number, *self.b_frame_numbers],
+                                                    self.tree_name, self.block)
+            self.last_frame_tra = self.b_fsi[-1]
+            self.last_frame_number = self.b_frame_numbers[-1]
+        self.logger.stop_timer("process_batch")
+
+    def update_tree_start(self, adts_res):
+        if not self.tree_start:
+            found_start = self.remove_starter_pics(*adts_res)
+            if found_start:
+                self.tree_start = True
+
+    def process_tree_parmas(self):
+        (self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_tracker_results, self.b_slicer,
+        self.b_frame_numbers, self.b_align, self.b_jai_translation) = self.skip_frames((self.b_fsi, self.b_zed,
+                                                                                      self.b_jai_rgb, self.b_rgb_zed,
+                                                                                      self.b_tracker_results,
+                                                                                      self.b_slicer,
+                                                                                      self.b_frame_numbers,
+                                                                                      self.b_align,
+                                                                                      self.b_jai_translation))
+        if not len(self.b_fsi): #no new images
+            return
+        self.preprocess_batch_images()
+        self.calc_physical_features_batch()
+        self.calc_vi_features_batch()
+
+    def process_fruit_params(self):
+        self.accumulate_tracker_res()
+        if not self.tree_start:
+            return False
+        self.calc_batch_fruit_features()
+        return True
+
     def process_batch(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer,
                       b_frame_numbers, b_align, b_jai_translation):
         s_t_b = time.time()
@@ -794,46 +868,18 @@ class FeatureExtractor:
                     b_align, b_jai_translation)
         if not len(b_fsi):
             return
-        if not self.tree_start:
-            found_start = self.remove_starter_pics(*adts_res)
-            if found_start:
-                self.tree_start = True
-        time_data = {}
-        s_t = time.time()
+        self.update_tree_start(adts_res)
         self.load_batch(*adts_res)
-        self.validate_slice_ending()
         if not len(self.b_fsi):
             return
-        time_data["batch_loading"] = time.time() - s_t
-        s_t = time.time()
-        self.scale_align_batch() # time consumption (0.16)
-        time_data["scale_align_batch"] = time.time() - s_t
-        s_t = time.time()
-        self.accumulate_tracker_res() # time consumption (0.01)
-        time_data["accumulate_tracker_res"] = time.time() - s_t
-        if not self.tree_start:
-            return
-        s_t = time.time()
-        self.calc_batch_fruit_features()
-        time_data["calc_batch_fruit_features"] = time.time() - s_t
-        s_t = time.time()
-        # TODO add frame skipping, start/end frame by slicing location
-        self.preprocess_batch_images() # time consumption (1.8)
-        time_data["preprocess_batch_images"] = time.time() - s_t
-        print(time_data["preprocess_batch_images"])
-        # self.save_imgs()
-        s_t = time.time()
-        self.calc_physical_features_batch() # time consumption (0.5)
-        time_data["calc_physical_features_batch"] = time.time() - s_t
-        s_t = time.time()
-        self.calc_vi_features_batch() # time consumption (0.5)
-        time_data["calc_vi_features_batch"] = time.time() - s_t
-        if self.debugger.debug_dict["alignment"]["apply"]:
-            list(map(self.debugger.draw_alignment, [self.tracker_results]*len(self.b_zed), self.b_frame_numbers,
-                     self.b_fsi, self.b_rgb_zed, [f"{self.block}_{self.tree_name}"]*len(self.b_zed), self.b_slicer))
-        time_data["processed batch: "] = time.time() - s_t_b
+        self.scale_align_batch()
 
-        return time_data
+        stat_fruit_params = self.process_fruit_params()
+        if not stat_fruit_params:
+            return
+
+        self.process_tree_parmas()
+        #self.debug_process_batch()
 
     def save_imgs(self):
         for ndvi_binary,binary_box, false_mask, fsi, zed, rgb_zed, frame_number in zip(self.ndvis_binary,

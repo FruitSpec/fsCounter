@@ -25,6 +25,9 @@ from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 
+from vision.feature_extractor.boxing_tools import xyz_center_of_box, cut_zed_in_jai
+from vision.feature_extractor.tree_size_tools import stable_euclid_dist
+
 def run(cfg, args, metadata=None):
 
     adt = Pipeline(cfg, args)
@@ -77,7 +80,7 @@ def run(cfg, args, metadata=None):
 
 
         #results_collector.draw_and_save_batch(jai_batch, trk_outputs, f_id, args.output_folder)
-        #esults_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
+        results_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -326,7 +329,10 @@ def get_depth_to_bboxes_batch(xyz_batch, jai_batch, batch_aligment, dets):
     Args:
         xyz_batch (np.array): batch a Point cloud image
         jai_batch (np.array): batch of FAI images
+        cut_coords (tuple): batch of jai in zed coords
         dets (list): batch of list of detections per image
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
 
     Returns:
         z_s (list): list of lists with depth to each detection
@@ -363,13 +369,13 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/media/matans/My Book/FruitSpec/WASHDE/June_29/validation"
+    output_path = "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/"
     validate_output_path(output_path)
 
-    rows_dir = "/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27/130623"
+    rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/PAULBLOC/220723"
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
-    rows = ["row_5"]
+    rows = ["row_10"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
@@ -381,6 +387,8 @@ if __name__ == "__main__":
         args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
         validate_output_path(args.output_folder)
+
+        cfg.translation.dets_only = False
 
         rc = run(cfg, args)
         rc.dump_feature_extractor(args.output_folder)

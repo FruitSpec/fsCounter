@@ -57,14 +57,14 @@ def run(cfg, args, n_frames=200):
         for id_ in range(cfg.batch_size):
 
 
-            # save_aligned(zed_batch[id_],
-            #              jai_batch[id_],
-            #              args.output_folder,
-            #              f_id + id_,
-            #              #corr=alignment_results[id_][0], dets=det_outputs[id_])
-            #              corr=alignment_results[id_][0], dets=det_outputs)
-            # save_loaded_images(zed_batch[id_],
-            #                    jai_batch[id_], f_id + id_, loaded_path, crop)
+            save_aligned(zed_batch[id_],
+                         jai_batch[id_],
+                         args.output_folder,
+                         f_id + id_,
+                         #corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=alignment_results[id_][0], dets=det_outputs)
+            save_loaded_images(zed_batch[id_],
+                               jai_batch[id_], f_id + id_, loaded_path, crop)
 
             res.append(alignment_results[id_])
 
@@ -297,7 +297,7 @@ def update_args(args, row_dict):
 
     return new_args
 
-def validate_from_files(alignment, tracks, cfg, args, jai_only=False):
+def validate_from_files(alignment, tracks, cfg, args, jai_only=False, max_frame=None):
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
     a_hash = get_alignment_hash(alignment)
@@ -305,10 +305,15 @@ def validate_from_files(alignment, tracks, cfg, args, jai_only=False):
     frame_loader = FramesLoader(cfg, args)
     frame_loader.batch_size = 1
 
+    if max_frame is None:
+        max_frame = jai_frames[-1]
+
     for id_ in tqdm(jai_frames):
+        if id_ > max_frame:
+            break
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
         if jai_only:
-            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=7, text=False)
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=8, text=True)
             fp = os.path.join(args.output_folder, 'Dets')
             validate_output_path(fp)
 
@@ -325,9 +330,9 @@ def track_to_det(tracks_df):
     dets = {}
     for i, row in tracks_df.iterrows():
         if row['frame_id'] in list(dets.keys()):
-            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']])
         else:
-            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']]]
 
 
     return dets
@@ -352,24 +357,25 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     #folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
-    folder = "/media/matans/My Book/FruitSpec/jun6/HC2000XX/060623/row_4/1"
+    folder = "/media/matans/My Book/FruitSpec/grapes_jackson_farm/204403XX_1907_row12"
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'orig')
+    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/grapes_jackson_farm/204403XX_1907_row12", 'align')
     validate_output_path(args.output_folder)
 
-    #run(cfg, args, None)
+    run(cfg, args, None)
     #folder = "/media/matans/My Book/FruitSpec/jun6/HC1000XX/060623/row_4/1"
     #t_p = os.path.join(folder, "tracks.csv")
     # a_p = os.path.join(folder, "alignment.csv")
-    t_p = "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/tracks.csv"
-    a_p= "/media/matans/My Book/FruitSpec/WASHDE_data_results/plot/HC2000XX/060623/row_4/1/alignment.csv"
+    #t_p = "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/row_10/tracks.csv"
+    #a_p= "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/row_10/alignment.csv"
 
-    tracks = pd.read_csv(t_p)
-    alignment = pd.read_csv(a_p)
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'HC1_row4')
-    validate_output_path(args.output_folder)
-    validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True)
+    # tracks = pd.read_csv(t_p)
+    # alignment = pd.read_csv(a_p)
+    # #args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/Customers_data/Fowler/det_compare/old", 'FREDIANI_170723_row_14')
+    # args.output_folder = "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/"
+    # validate_output_path(args.output_folder)
+    # validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True, max_frame=300)

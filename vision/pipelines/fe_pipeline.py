@@ -143,7 +143,7 @@ def run_on_row(row_scan_path, suffix="", print_fids=False):
     adts_loader = None
     sucess = True
     for tree_id in trees:
-        if tree_id < 0:
+        if tree_id in [-1, 0]:
             continue
         #try:
         tree_frames = slices["frame_id"][slices["tree_id"] == tree_id].apply(str).values
@@ -428,8 +428,8 @@ if __name__ == '__main__':
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     adt_args = OmegaConf.load(repo_dir + runtime_config)
     fe_args = OmegaConf.load(repo_dir + fe_config)
-    folder_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_10/1"
-    output_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_10/1/features.csv"
+    folder_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_9/1"
+    output_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/OLIVER12/180723/row_9/1/features.csv"
     row = {'plot_code': 'test_data',
            'row': 10}
     over_write = True

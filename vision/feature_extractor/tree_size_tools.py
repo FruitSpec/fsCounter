@@ -54,7 +54,7 @@ def stable_euclid_dist(point_cloud, bbox, buffer=1):
     return safe_nanmean(valid_h_dist), safe_nanmean(valid_v_dist)
 
 
-def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=1, x_only=True):
+def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=0, x_only=True):
     row_ndvi = ndvi_binary[y, :]
     row_pc = xyz_point_cloud[y, :, 2]
     foliage_row = np.where(np.all([np.isfinite(row_pc), row_ndvi == 1], axis=0))
@@ -78,7 +78,7 @@ def calc_width_per_row(xyz_point_cloud, ndvi_binary, y, buffer=1, x_only=True):
     return np.median(h_dist_above_zero) if len(h_dist_above_zero) > 0 else np.nan
 
 
-def calc_height_per_col(xyz_point_cloud, ndvi_binary, x, buffer=3):
+def calc_height_per_col(xyz_point_cloud, ndvi_binary, x, buffer=0):
     col_ndvi = ndvi_binary[:, x]
     col_pc = xyz_point_cloud[:, x, 2]
     foliage_row = np.where(np.all([np.isfinite(col_pc), col_ndvi == 1], axis=0))
@@ -352,3 +352,49 @@ def get_pix_size_of_box(depth, box, fx=1065.98388671875, fy=1065.98388671875,
     gamma = np.arctan((y_mm_dist_from_center + 1) * pixel_mm / focal_len)
     size_pix_y = (np.tan(gamma) - np.tan(gamma - beta)) * depth * 2
     return size_pix_x, size_pix_y
+
+
+
+def get_pix_size(depth, box, fx=1149.666015625, fy=1149.666015625, cx=545, cy=959,
+                 pixel_mm=0.0002, org_size=np.array([1920, 1080]), normalize_factor=0.01, extreme_x_factor = 0.15):
+    """
+    Calculates the size of a pixel in millimeters given a distance from the camera and the intrinsic parameters of the camera.
+
+    Args:
+        depth (float): The depth from the camera to the object in meters.
+        box (list): ROI for pixel size int hte following format: x1,y1,x2,y2.
+        fx (float): The focal length of the camera in the x direction in pixels. Default is 1065.98388671875.
+        fy (float): The focal length of the camera in the y direction in pixels. Default is 1065.98388671875.
+        pixel_mm (float): The size of a pixel in millimeters. Default is 0.002.
+        org_size (ndarray): The size of the image in pixels. Default is np.array([1920, 1080]).
+
+    Returns:
+        size_pix_x (ndarray): The size of a pixel
+        size_pix_y (ndarray): The size of a pixel
+    """
+    # TODO create a map of pixel size for the entire image then send it thoiugrh the entire pipe including resize and everything
+    x1, y1, x2, y2 = box
+    y0, x0 = cy, cx
+    extreme_xs = (org_size[1]*extreme_x_factor, org_size[1]*(1-extreme_x_factor))
+    focal_len = (fx + fy) / 2 * pixel_mm
+    x_range = np.arange(x1, x2 + 1)
+    x_pix_dist_from_center = (np.abs(np.array([x_range for i in range(y2 - y1)]) - x0))
+
+    x_1 = x_pix_dist_from_center * pixel_mm
+    x_2 = (x_pix_dist_from_center + 1) * pixel_mm
+    gamma = np.arctan(x_2/focal_len)
+    beta = gamma - np.arctan(x_1/focal_len)
+    try:
+        dist_from_center_penalty = np.abs((x_range - x0)*normalize_factor*pixel_mm)*depth
+        very_far_unpenlty = (x_range < extreme_xs[0])*dist_from_center_penalty*0.75+\
+                            (x_range > extreme_xs[1])*dist_from_center_penalty*0.5
+        size_pix_x = (np.tan(gamma) - np.tan(gamma - beta)) * depth*10 - dist_from_center_penalty + very_far_unpenlty
+    except Exception as e:
+        print(e)
+    y_range = np.arange(y1, y2 + 1)
+    y_pix_dist_from_center = np.abs(np.array([y_range for i in range(x2 - x1)]) - y0).T
+    y_mm_dist_from_center = (y_pix_dist_from_center * (y_pix_dist_from_center + 1) * (pixel_mm ** 2))
+    beta = np.arctan(0.001 / (focal_len + (y_mm_dist_from_center / focal_len)))
+    gamma = np.arctan((y_mm_dist_from_center + 1) * pixel_mm / focal_len)
+    size_pix_y = (np.tan(gamma) - np.tan(gamma - beta)) * depth * 2
+    return size_pix_x, size_pix_y, size_pix_x*size_pix_y

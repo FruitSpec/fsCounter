@@ -350,6 +350,20 @@ def filter_outside_tree_boxes(tracker_results, slicer_results, direction = "righ
     return tracker_results
 
 
+def filter_small_fruits(tracker_results, min_diff=2):
+    for frame in tracker_results.keys():
+        if frame == "cv":
+            continue
+        x_0 = np.array([box[0][0] for box in tracker_results[frame].values()])
+        x_1 = np.array([box[1][0] for box in tracker_results[frame].values()])
+        y_0 = np.array([box[0][1] for box in tracker_results[frame].values()])
+        y_1 = np.array([box[1][1] for box in tracker_results[frame].values()])
+        for id in np.array(list(tracker_results[frame].keys()))[np.any([x_1 - x_0 < min_diff,
+                                                                        y_1 - y_0 < min_diff], axis=0)]:
+            tracker_results[frame].pop(id)
+    return tracker_results
+
+
 def filter_outside_zed_boxes(tracker_results, tree_images = {}, max_z=0, filter_nans=True, use_box=False):
     """
     removes detections that are too far

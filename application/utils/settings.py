@@ -12,6 +12,7 @@ GUI_conf = OmegaConf.load(os.path.abspath("application/GUI/GUI_config.yaml"))
 conf = OmegaConf.load(os.path.abspath("application/utils/config.yaml"))
 pipeline_conf = OmegaConf.load(os.path.abspath("application/Analysis/pipeline_config.yaml"))
 runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_config.yaml"))
+fe_runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/feature_extractor_config.yaml"))
 
 
 log_path = os.path.abspath(os.path.expanduser(conf["logs path"]))

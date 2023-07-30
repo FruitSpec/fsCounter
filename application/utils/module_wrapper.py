@@ -36,6 +36,7 @@ class ModuleTransferAction(enum.Enum):
     NAV = "NAV"
     IMU = "IMU"
     ANALYZED_DATA = "ANALYZED_DATA"
+    FEATURES_DATA = "FEATURES_DATA"
     FRUITS_DATA = "FRUITS_DATA"
     BLOCK_SWITCH = "BLOCK_SWITCH"
     START_ACQUISITION = "START_ACQUISITION"
@@ -43,6 +44,22 @@ class ModuleTransferAction(enum.Enum):
     VIEW_START = "VIEW_START"
     VIEW_STOP = "VIEW_STOP"
     GUI_SET_DEVICE_STATE = "GUI_SET_DEVICE_STATE"
+
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __str__(self):
+        return self.value
+
+
+class ModuleFlowStatus(enum.Enum):
+    ANALYSIS_SUCCEED = "ANALYSIS_SUCCEED"
+    ANALYSIS_FAILED = "ANALYSIS_FAILED"
+    FE_SUCCEED = "FE_SUCCEED"
+    FE_FAILED = "FE_FAILED"
 
     def __hash__(self):
         return hash(self.value)
