@@ -387,9 +387,11 @@ def save_detection_results(detection_csv_path, gps_jai_zed_csv_path, output_dir,
     return df_detections_count
 
 def run_rows (cfg, args):
-
-    rows = os.listdir(args.input_block_folder)
-    rows = ['row_8'] #todo - delete
+    if args.row is not None:
+        rows = [f'row_{args.row}']
+    else:
+        rows = os.listdir(args.input_block_folder)
+    #rows = ['row_8']
     df_detections_all_rows = pd.DataFrame()
 
     for row in rows:
@@ -438,7 +440,7 @@ def run_blocks(all_blocks_dir, path_to_distance_from_len, path_pipeline_config, 
         print(f'********* Starting block {rows_dir} ')
         run_rows(rows_dir, cfg, args)
 
-def update_args(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN):
+def update_args(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN, ROW=None):
 
     path_pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     path_runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
@@ -455,6 +457,8 @@ def update_args(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE, OUTPUT_FOLDE
     args.block = BLOCK_CODE
     args.customer_code = CUSTOMER_CODE
     args.input_block_folder = os.path.join(INPUT_FOLDER, CUSTOMER_CODE, BLOCK_CODE, SCAN_DATE)
+    args.row = ROW
+
     return args, cfg
 
 
@@ -466,8 +470,10 @@ if __name__ == "__main__":
     SCAN_DATE = '180723'
     OUTPUT_FOLDER = r'/media/fruitspec-lab-3/easystore/grapes_detector_output'
     DISTANCE_FROM_LEN = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/USXXXX/GRAPES/dist_from_len_by_blocks.xlsx'
+    ROW = None
 
-    args, cfg = update_args(INPUT_FOLDER,CUSTOMER_CODE,BLOCK_CODE,SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN)
+
+    args, cfg = update_args(INPUT_FOLDER,CUSTOMER_CODE,BLOCK_CODE,SCAN_DATE, OUTPUT_FOLDER, DISTANCE_FROM_LEN, ROW)
     df_detections_all_rows = run_rows(cfg, args)
 
 
