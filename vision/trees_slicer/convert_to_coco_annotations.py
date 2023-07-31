@@ -94,16 +94,16 @@ class CocoAnnotationsUpdater:
             print(f'Saved annotations to {COCO_ANNOTATIONS_PATH}')
 
 def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH,
-                                should_save_frames=True):
+                                should_save_frames=True, save_annotated_video = False):
     """
     This script display video with annotations,
     saves frames from a video and creates a coco annotations file for the frames.
     If the video already exists in the annotations file, it will not be added again.
     """
 
-    camera = 'zed' if 'zed' in INPUT_VIDEO_PATH else 'jai'
+    camera = 'zed' if 'zed' in INPUT_VIDEO_PATH.lower() else 'jai'
     frame_width = 1080 if camera =='zed' else 1536
-    frame_hight = 1920 if camera =='zed' else 2048
+    frame_height = 1920 if camera =='zed' else 2048
 
     # get bbox data:
     annotations_file_name = os.path.basename(ANNOTATIONS_FILE_PATH)
@@ -111,9 +111,9 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
         df = pd.read_csv(ANNOTATIONS_FILE_PATH, index_col = 0)
     else:
         df, _ = slice_to_trees(ANNOTATIONS_FILE_PATH, video_path=INPUT_VIDEO_PATH, resize_factor=3, output_path=None,
-                                 h=frame_hight, w=frame_width, on_fly=True)
+                                 h=frame_height, w=frame_width, on_fly=True)
 
-    df = add_bbox_to_slice_trees(df, frame_width = frame_width, frame_height = frame_hight)
+    df = add_bbox_to_slice_trees(df, frame_width = frame_width, frame_height = frame_height)
 
 
     # check if video exist:
@@ -125,6 +125,14 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
 
     # video
     cap = cv2.VideoCapture(INPUT_VIDEO_PATH)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    if save_annotated_video == True:
+        fourcc = cv2.VideoWriter_fourcc(*'X264')
+        output_video_path = INPUT_VIDEO_PATH.split('.')[0] + '_annotated.mkv'
+        out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+
+
     paused = False  # Flag to determine if video display is paused
 
     # if annotations file exists, load it
@@ -179,7 +187,15 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                             bbox_id += 1
 
                             # Draw bounding boxes on the frame
-                            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 15)  # Draw the bounding box
+                            if row['tree_id'] % 2 == 0:
+                                bbox_color = (0, 255, 0)
+                            else:
+                                bbox_color = (255, 0, 255)
+                            cv2.rectangle(frame, (x, y), (x + w, y + h), bbox_color, 15)  # Draw the bounding box
+                            # write row['tree_id'] on the bbox:
+                            cv2.putText(frame, f"Tree_id: {str(row['tree_id'])}", (x+30, y+30 ), cv2.FONT_HERSHEY_SIMPLEX, fontScale=1,
+                                        color=(255, 0, 255), thickness=2)
+
 
                         image_id += 1
 
@@ -189,8 +205,11 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                     resized_frame = cv2.resize(frame, None, fx=1 / 2, fy=1 / 2)
                     cv2.imshow('Frame', resized_frame)
 
+                    if save_annotated_video == True:
+                        out.write(frame)
+
                 # Pause/resume video display on space key press
-                key = cv2.waitKey(30)
+                key = cv2.waitKey(80)
                 if key == ord(' '):
                     paused = not paused
 
@@ -209,6 +228,9 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
                     paused = not paused
 
         # Release the video capture object and close the windows
+        if save_annotated_video:
+            out.release()
+            print(f'Annotated video saved to: {output_video_path}')
         cap.release()
         cv2.destroyAllWindows()
 
@@ -244,18 +266,27 @@ def save_frames_and_annotations_scraping_dirs(dir_path, output_frames_path, COCO
 
 if __name__ == '__main__':
 
-    # Itterate subfolders, save frames and coco annotations:
-    FOLDER_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
-    OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
-    COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_slices.csv"
+    INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/Result_RGB.mkv"
+    OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_images"
+    COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_annotations.json'
 
-    save_frames_and_annotations_scraping_dirs(FOLDER_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, file_name = 'trees_manual_annotations_')
+    save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, should_save_frames=False, save_annotated_video= True)
+    print ('done')
 
-    num_images, num_duplicates, duplicate_images = count_images_in_coco_file(COCO_ANNOTATIONS_PATH)
-
-    #split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
-
-    print ('Done')
+#############################################################################
+    # # Itterate subfolders, save frames and coco annotations:
+    # FOLDER_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD'
+    # OUTPUT_FRAMES_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/all_images"
+    # COCO_ANNOTATIONS_PATH = '/home/fruitspec-lab-3/FruitSpec/Data/customers/DEWAGD/training_yoloX/slicer_data_rgd/annotations/all_annotations.json'
+    #
+    # save_frames_and_annotations_scraping_dirs(FOLDER_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, file_name = 'trees_manual_annotations_')
+    #
+    # num_images, num_duplicates, duplicate_images = count_images_in_coco_file(COCO_ANNOTATIONS_PATH)
+    #
+    # split_train_val_images(OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, train_ratio=0.8)
+    #
+    # print ('Done')
     ###########################################################################################
 
     # ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE43/R10B/trees_manual_annotations_R10B.json"

@@ -152,7 +152,7 @@ def extract_gnss_data(df_imu, df_gps):
     gps_timestamps = df_gps['timestamp_gnss'].values
 
     # Find the indices of the last matching timestamps in df_gps
-    last_indices = gps_timestamps.searchsorted(merged_timestamps, side='right') - 1
+    last_indices = gps_timestamps.searchsorted(merged_timestamps, side='right')
     if np.all(last_indices == -1):
         print("No matching GPS data.")
         return None

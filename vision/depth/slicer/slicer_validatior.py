@@ -51,17 +51,28 @@ def mouse_callback(event, x, y, flags, params):
         frame = print_text(frame, params)
         cv2.imshow(params['headline'], frame)
 
+# def print_lines(params):
+#     frame = params['frame'].copy()
+#     y = int(params['height'] // 3)
+#
+#     lines = params['data'][params['index']]
+#     for line in lines:
+#         frame = cv2.line(img = frame, pt1 =(int(line), y), pt2 = (int(line), 2*y), color=(255, 0, 255), thickness=7)
+#
+#     return frame
+
 def print_lines(params):
     frame = params['frame'].copy()
-    y = int(params['height'] // 3)
+    y = int(params['height'] // params['resize_factor'])
 
-    lines = params['data'][params['index']]
-    for line in lines:
-        frame = cv2.line(frame, (line, y), (line, 2*y), (255, 0, 255), 7)
+    if params['data'][params['index']]['start'] is not None:
+        x = int(params['data'][params['index']]['start'])
+        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
+    if params['data'][params['index']]['end'] is not None:
+        x = int(params['data'][params['index']]['end'])
+        frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
-
-
 def print_text(frame, params, text=None):
     if text is None:
         text = f'Frame {params["index"]}'
@@ -84,13 +95,13 @@ def update_index(k, params):
     :return: updated run parameters
     """
     index = params['index']
-    if k == 122:
+    if k == ord('z'):
         index = max(index - 1, 0)
-    elif k == 115:
+    elif k == ord('s'):
         index = max(index + 100, 0)
-    elif k == 120:
+    elif k == ord('x'):
         index = max(index - 100, 0)
-    elif k == 32:
+    elif k == 32:   # space
         index = index
         params["data"][params['index']] = []
     else:
@@ -100,13 +111,13 @@ def update_index(k, params):
     return params
 
 
-def slicer_validator(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def slicer_validator(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3, save=True):
     """
-    this is where the magic happens, palys the video
+    this is where the magic happens, plays the video
+    data: path to json annotations file
     """
-    if data is None:
-        # TODO refactor load_json
-        data = load_json(filepath, output_path)
+    if not isinstance(data, dict):
+        data = load_json(data)
     params = {"filepath": filepath,
               "output_path": output_path,
               "data": data,
@@ -134,6 +145,11 @@ def slicer_validator(filepath, output_path, data=None, rotate=0, index=0, draw_s
     while True:
         # Capture frame-by-frame
         print(params["index"])
+        #################################
+        # Todo: remove this:
+        if params["index"] % 30 == 0:
+            params["index"] += 1
+        #################################
         if cam.mode == 'svo':
             cam.grab(params["index"])
         ret, frame = cam.get_frame(params["index"])
@@ -155,10 +171,13 @@ def slicer_validator(filepath, output_path, data=None, rotate=0, index=0, draw_s
         k = cv2.waitKey()
         # Press Q on keyboard to  exit
         if cv2.waitKey(k) & 0xFF == ord('q'):
-            write_json(params)
+            if save:
+                write_json(params)
             break
         params = update_index(k, params)
-        write_json(params)
+
+        if save:
+            write_json(params)
 
     # When everything done, release the video capture object
     cam.close()
@@ -216,14 +235,10 @@ def write_json(params):
         json.dump(params['data'], f)
 
 
-def load_json(filepath, output_path):
-    temp_str = filepath
-    temp_str = temp_str.split('.')[0]
-    clip_name = temp_str.split('/')[-1]
+def load_json(filepath):
 
-    input_file_name = os.path.join(output_path, f'{clip_name}_slice_data.json')
-    if os.path.exists(input_file_name):
-        with open(input_file_name, 'r') as f:
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
             loaded_data = json.load(f)
         data = {}
         for k, v in loaded_data.items():
@@ -232,6 +247,24 @@ def load_json(filepath, output_path):
     else:
         data = {}
     return data
+
+# def load_json(filepath, output_path):
+#     # temp_str = filepath
+#     # temp_str = temp_str.split('.')[0]
+#     # clip_name = temp_str.split('/')[-1]
+#     #
+#     # input_file_name = os.path.join(output_path, f'{clip_name}_slice_data.json')
+#     #if os.path.exists(input_file_name):
+#     if os.path.exists(filepath):
+#         with open(filepath, 'r') as f:
+#             loaded_data = json.load(f)
+#         data = {}
+#         for k, v in loaded_data.items():
+#             data[int(k)] = v
+#
+#     else:
+#         data = {}
+#     return data
 
 
 def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
@@ -520,10 +553,26 @@ def get_state(loc):
 
 
 if __name__ == "__main__":
-    fp = "/media/fruitspec-lab/cam172/DEWAGB/200123/DWDBCN51/R5/ZED_1.svo"
-    output_path = "/media/fruitspec-lab/cam172/DEWAGB/200123/DWDBCN51/R5"
-    json_path = "/media/fruitspec-lab/cam172/DEWAGB/200123/DWDBCN51/R5/ZED_1_slice_data_R5.json"
-    data = load_json(json_path, output_path)
+
+    fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/Result_RGB_1.mkv"
+    output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/"
     validate_output_path(output_path)
-    slicer_validator(fp, output_path, data=None, rotate=2, index=0, draw_start=None, draw_end=None, resize_factor=3)
-    # manual_slicer(fp, output_path, rotate=2)
+    json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/250123/DWDBM17A/R17A/Result_FSI_1_slice_data_R17A.json"
+
+    slicer_validator(fp, output_path,data = json_path, rotate=1, save=False)
+    print('Done')
+    ###########################################333
+    # fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A/ZED_1.svo"
+    # output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A"
+    # json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R29A/Result_FSI_1_slice_data.json"
+    #
+    # slicer_validator(fp, output_path, data=json_path, rotate=2, index=0, draw_start=None, draw_end=None, resize_factor=3, save = False)
+    ##############################################################
+
+    # fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
+    # output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A"
+    # json_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1_slice_data.json"
+    # data = load_json(json_path, output_path)
+    # validate_output_path(output_path)
+    # slicer_validator(fp, output_path, data=None, rotate=2, index=0, draw_start=None, draw_end=None, resize_factor=3)
+    # # manual_slicer(fp, output_path, rotate=2)

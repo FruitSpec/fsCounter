@@ -77,7 +77,11 @@ def slice_clip(filepath, output_path, rotate=0, window_thrs=0.4, neighbours_thrs
         # TODO: add validation for start / end row and saturation
         if index > end_frame:
             break
-
+        ##################
+        # TODO: remove this
+        if index % 30 == 0:
+            index += 1
+        ###################
         # Capture frame-by-frame
         frame, depth = cam.get_zed(index, exclude_point_cloud=True)
         if not cam.res:  # couldn't get frames
@@ -396,14 +400,14 @@ def slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_th
 
 if __name__ == "__main__":
     # for single file run
-    file_path = "/media/fruitspec-lab/cam172/DEWAGB/210123/DWDBNW25/R5/ZED_1.svo"
+    file_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
 
-    # for folder run
-    folder_path = "/media/fruitspec-lab/cam172/DEWAGB/210123/DWDBNW25"
-    file_name = "ZED_1.svo"
+    # # for folder run
+    # folder_path = "/media/fruitspec-lab/cam172/DEWAGB/210123/DWDBNW25"
+    # file_name = "ZED_1.svo"
 
     # output validation
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/Slicing/DWDBNW25"
+    output_path = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/"
     validate_output_path(output_path)
 
     neighbours_thrs = 350
@@ -415,19 +419,19 @@ if __name__ == "__main__":
 
     #slice_folder_mp(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame,
     #                debug)
-    slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame,
-                 debug)
+    # slice_folder(folder_path, file_name, output_path, window_thrs, neighbours_thrs, dist_thrs, signal_thrs, start_frame,
+    #              debug)
 
-    # data = slice_clip(file_path,
-    #                  output_path,
-    #                  rotate=2,
-    #                  window_thrs=window_thrs,
-    #                  neighbours_thrs=neighbours_thrs,
-    #                  dist_thrs=dist_thrs,
-    #                  signal_thrs=signal_thrs,
-    #                  start_frame=0,
-    #                  end_frame=400,
-    #                  debug=debug)
+    data = slice_clip(file_path,
+                     output_path,
+                     rotate=2,
+                     window_thrs=window_thrs,
+                     neighbours_thrs=neighbours_thrs,
+                     dist_thrs=dist_thrs,
+                     signal_thrs=signal_thrs,
+                     start_frame=0,
+                     end_frame=400,
+                     debug=debug)
 
 
     #slicer_validator(file_path, output_path, rotate=2)
