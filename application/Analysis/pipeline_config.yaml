@@ -1,19 +1,9 @@
 # config.yaml
 exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py  # counter
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py       # baseline
-#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_syn_jai.py # pepper
 
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_2_13_nov_2022/best_ckpt.pth # tomatoes
-#ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth # pre-trained coco
-#ckpt_file: /home/yotam/FruitSpec/weights/Run_2_7_oct/best_ckpt.pth # counter
-#ckpt_file: /home/yotam/FruitSpec/weights/pepper/Run_3_22_oct_2022/best_ckpt.pth # pepper 200 img train
-#ckpt_file: /home/yotam/FruitSpec/weights/pepper/Run_1_23_oct_2022_400img/best_ckpt.pth # pepper 400 img train
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Run_26_oct_2022_curated_data/best_ckpt.pth  # new RGB tomatoes
-#ckpt_file: /home/yotam/FruitSpec/weights/tomatoes/Run_28_oct_curated_2x/best_ckpt.pth # new RGB tomatoes 28/11
-#ckpt_file: /home/yotam/FruitSpec/Sandbox/Syngenta/weights/tomatoes/Run_30_oct_2022_1Class_aug_tasq/best_ckpt.pth # new RGB tomatoes 1 class 29/11
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/best_ckpt.pth # RGB tasq v2
-ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
+#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
+ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
+#ckpt_file: /home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
 
 
 
@@ -23,7 +13,7 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  confidence: 0.4
+  confidence: 0.381
   nms: 0.65
   num_of_classes: 1
   fp16: true
@@ -37,9 +27,9 @@ classes:
 tracker:
   minimal_max_distance: 10
   major: 1.5 #3
-  minor: 0.5 #2.5
+  minor: 1 #2.5
   max_losses: 5  # 10
-  score_weights: [0.25, 1.0, 0.25, 1.0]  # [0.25, 1.0, 0.25, 1]
+  score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
@@ -50,7 +40,7 @@ tracker:
 translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
-  dets_only: true # true: perfrom on detections only, false: on entire image
+  dets_only: false # true: perfrom on detections only, false: on entire image
 
 
 sensor_aligner:
