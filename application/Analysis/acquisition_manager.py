@@ -5,7 +5,7 @@ import time
 import signal
 from datetime import datetime
 from builtins import staticmethod
-from application.utils.settings import GPS_conf, conf, analysis_conf, data_conf
+from application.utils.settings import conf, analysis_conf, data_conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils import tools
 
@@ -206,7 +206,7 @@ class AcquisitionManager(Module):
         while True:
             data, sender_module = AcquisitionManager.in_qu.get()
             action, data = data["action"], data["data"]
-            global_polygon = GPS_conf.global_polygon
+            global_polygon = consts.global_polygon
             if sender_module == ModulesEnum.GPS:
                 if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
                     logging.info("START ACQUISITION FROM GPS")
