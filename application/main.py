@@ -82,10 +82,14 @@ def process_monitor():
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
+            monitor_events[k].clear()
+            send_data_to_module(ModuleTransferAction.MONITOR, None, k)
+
+        for k in manager:
+            if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
+                continue
             if manager[k].is_alive():
-                monitor_events[k].clear()
-                send_data_to_module(ModuleTransferAction.MONITOR, None, k)
-                monitor_events[k].wait(1)
+                monitor_events[k].wait(2)
                 alive = monitor_events[k].is_set()
             else:
                 alive = False
