@@ -29,37 +29,6 @@ from GUI.gui_interface import GUIInterface
 global manager, communication_queue, monitor_events
 
 
-def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, analysis_pid):
-
-    def write_pid_to_file(pid, file_path, cmd):
-        with open(file_path, mode="a+") as f:
-            f.write(f"\nSTARTED WITH PID {pid}\n\n")
-            subprocess.Popen(cmd, stdout=f, stderr=f)
-
-    strace_output_path = "/home/mic-730ai/Desktop/strace/"
-    main_output = strace_output_path + "main_strace.txt"
-    gps_output = strace_output_path + "gps_strace.txt"
-    gui_output = strace_output_path + "gui_strace.txt"
-    data_manager_output = strace_output_path + "data_manager_strace.txt"
-    acquisition_output = strace_output_path + "acquisition_strace.txt"
-    analysis_output = strace_output_path + "analysis_strace.txt"
-
-    command = ['strace', '-t', '-e', 'trace=signal', '-p']
-    main_cmd = command + [str(main_pid)]
-    gps_cmd = command + [str(gps_pid)]
-    gui_cmd = command + [str(gui_pid)]
-    data_manager_cmd = command + [str(data_manager_pid)]
-    acquisition_cmd = command + [str(acquisition_pid)]
-    analysis_cmd = command + [str(analysis_pid)]
-
-    write_pid_to_file(main_pid, main_output, main_cmd)
-    write_pid_to_file(gps_pid, gps_output, gps_cmd)
-    write_pid_to_file(gui_pid, gui_output, gui_cmd)
-    write_pid_to_file(data_manager_pid, data_manager_output, data_manager_cmd)
-    write_pid_to_file(acquisition_pid, acquisition_output, acquisition_cmd)
-    write_pid_to_file(analysis_pid, analysis_output, analysis_cmd)
-
-
 def restart_application(killer=None):
     time.sleep(2)
     global manager
@@ -224,11 +193,6 @@ def main():
 
     monitor_t = threading.Thread(target=process_monitor, daemon=True)
     monitor_t.start()
-
-    if conf.use_strace:
-        strace_t = threading.Thread(target=start_strace, daemon=True,
-                                    args=(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, analysis_pid))
-        strace_t.start()
 
     manager[ModulesEnum.GPS].join()
     manager[ModulesEnum.GUI].join()
