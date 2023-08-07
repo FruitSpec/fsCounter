@@ -20,7 +20,7 @@ class FramesLoader():
         if self.mode in ['sync_svo', 'sync_mkv']:
             self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
 
-    def get_frames(self, f_id, zed_shift):
+    def get_frames(self, f_id, zed_shift=0):
         if self.mode == 'async':
             output = self.get_frames_batch_async(f_id, zed_shift)
         if self.mode == 'sync_svo':
