@@ -13,7 +13,7 @@ from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransfer
 import application.utils.tools as tools
 from fscloudutils.utils import NavParser
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import serial
 from application.GPS.GPS_locator import GPSLocator
@@ -29,12 +29,15 @@ class GPSSampler(Module):
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
     s3_client = None
     analysis_ongoing = False
+    last_step_in, last_step_out = None, None
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
-        super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name,
-                                                  communication_queue, notify_on_death, death_action)
+        super(GPSSampler, GPSSampler).init_module(in_qu, out_qu, main_pid, module_name, communication_queue,
+                                                  notify_on_death, death_action)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown)
+
+        GPSSampler.last_step_in, GPSSampler.last_step_out = datetime.now(), datetime.now()
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
@@ -157,23 +160,15 @@ class GPSSampler(Module):
                     GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
-                    # stepped into new block
                     if GPSSampler.previous_plot == consts.global_polygon:
-                        GPSSampler.step_in()
-                        time.sleep(3)
-
-                    # stepped out from block
-                    elif GPSSampler.current_plot == consts.global_polygon:
-                        GPSSampler.step_out()
-                        time.sleep(3)
-
-                    # moved from one block to another
+                        state_changed = GPSSampler.step_in()
                     else:
-                        GPSSampler.step_out()
-                        time.sleep(3)
-                        GPSSampler.step_in()
-                        time.sleep(3)
+                        state_changed = GPSSampler.step_out()
+                    if not state_changed:
+                        GPSSampler.current_plot = GPSSampler.previous_plot
+
                 err_count = 0
+
             except fscloudutils.exceptions.InputError:
                 print(data)
             except ValueError as e:
@@ -211,16 +206,27 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_in():
-        print(f"STEP IN {GPSSampler.current_plot}")
-        logging.info(f"STEP IN {GPSSampler.current_plot}")
-        GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
+        if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
+            print(f"STEP IN {GPSSampler.current_plot}")
+            logging.info(f"STEP IN {GPSSampler.current_plot}")
+            GPSSampler.last_step_in = datetime.now()
+            GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
+            return True
+        else:
+            return False
 
     @staticmethod
     def step_out():
-        print(f"STEP OUT {GPSSampler.previous_plot}")
-        logging.info(f"STEP OUT {GPSSampler.previous_plot}")
+        if GPSSampler.last_step_in + timedelta(seconds=3) < datetime.now():
+            print(f"STEP OUT {GPSSampler.previous_plot}")
+            logging.info(f"STEP OUT {GPSSampler.previous_plot}")
 
-        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-        GPSSampler.gps_data = []
+            GPSSampler.last_step_out = datetime.now()
 
-        GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+            GPSSampler.gps_data = []
+
+            GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+            return True
+        else:
+            return False
