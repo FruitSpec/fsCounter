@@ -76,7 +76,7 @@ def restart_application(killer=None):
 
 def process_monitor():
     global manager
-    time.sleep(10)
+    time.sleep(60)
     while True:
         logging.info("MONITORING MODULES")
         for k in manager:
