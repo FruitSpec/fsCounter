@@ -10,3 +10,5 @@ jaized_timestamps: jaized_timestamps
 success: success
 failed: failed
 nav_extension: "nav"
+routine: Routine
+urgent: Urgent

@@ -23,6 +23,7 @@ class ModulesEnum(enum.Enum):
     DataManager = "DATA MANAGER"
     Acquisition = "ACQUISITION"
     Analysis = "ANALYSIS"
+    Main = "MAIN"
 
     def __hash__(self):
         return hash(self.value)
@@ -36,6 +37,8 @@ class ModulesEnum(enum.Enum):
 
 
 class ModuleTransferAction(enum.Enum):
+    MONITOR = "MONITOR"
+    RESTART_APP = "RESTART_APP"
     START_GPS = "START_GPS"
     NAV = "NAV"
     IMU = "IMU"

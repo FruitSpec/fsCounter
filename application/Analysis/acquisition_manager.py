@@ -231,6 +231,9 @@ class AcquisitionManager(Module):
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     AcquisitionManager.stop_acquisition()
                     logging.info("STOP ACQUISITION FROM GUI")
+            if sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    AcquisitionManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     def shutdown(sig, frame):

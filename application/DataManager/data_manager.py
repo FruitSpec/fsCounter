@@ -12,8 +12,6 @@ import pandas as pd
 import requests
 from boto3.exceptions import S3UploadFailedError
 from botocore.exceptions import EndpointConnectionError
-from pandas.core.dtypes.missing import na_value_for_dtype
-from requests.exceptions import RequestException
 from application.utils.settings import data_conf, conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
@@ -25,7 +23,6 @@ class DataManager(Module):
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
-    fruits_data_lock, analyzed_lock, nav_lock = threading.Lock(), threading.Lock(), threading.Lock()
     s3_client = None
     internet_scan_thread, receive_data_thread = None, None
     nav_df = pd.DataFrame(data={"timestamp": [], "latitude": [], "longitude": [], "plot": []})
@@ -104,6 +101,9 @@ class DataManager(Module):
                 nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
             except (IndexError, KeyError):
                 nav_latest = jz_latest - timedelta(seconds=5)
+            except:
+                logging.exception("UNKNOWN STITCHING ERROR")
+                nav_latest = jz_latest - timedelta(seconds=5)
 
             if nav_latest < jz_latest - timedelta(seconds=3):
                 logging.warning(f"STITCHING PROBLEM AT {DataManager.current_plot}/{DataManager.current_row}")
@@ -168,16 +168,14 @@ class DataManager(Module):
                     nav_path = tools.get_nav_path()
                     is_first = not os.path.exists(nav_path)
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
-
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.FRUITS_DATA:
                     logging.info(f"FRUIT DATA RECEIVED")
-                    with DataManager.fruits_data_lock:
-                        for k, v in data.items():
-                            try:
-                                DataManager.fruits_data[k] += v
-                            except KeyError:
-                                DataManager.fruits_data[k] = v
+                    for k, v in data.items():
+                        try:
+                            DataManager.fruits_data[k] += v
+                        except KeyError:
+                            DataManager.fruits_data[k] = v
                 elif action == ModuleTransferAction.IMU:
                     # write IMU data to .imu file
                     logging.info(f"WRITING NAV DATA TO FILE")
@@ -237,8 +235,7 @@ class DataManager(Module):
 
                     analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
                     is_first = not os.path.exists(data_conf.analyzed_path)
-                    with DataManager.analyzed_lock:
-                        analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
+                    analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
             elif sender_module == ModulesEnum.Acquisition:
                 if action == ModuleTransferAction.START_ACQUISITION:
                     DataManager.previous_plot = DataManager.current_plot
@@ -259,6 +256,9 @@ class DataManager(Module):
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
                     jaized_timestamps()
                     stop_acquisition()
+            elif sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    DataManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     def update_output():

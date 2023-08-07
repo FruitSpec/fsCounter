@@ -1,13 +1,15 @@
+import glob
 import os
-import queue
-import signal
+import pandas as pd
 import logging
 import subprocess
 import threading
 import traceback
-from threading import Lock
 from multiprocessing import Queue
-from application.utils.settings import conf
+from application.utils.settings import conf, data_conf, consts
+from datetime import datetime, timedelta
+import psutil
+import shutil
 import time
 import sys
 
@@ -24,7 +26,7 @@ from Analysis.alternative_flow import AlternativeFlow
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum, ModuleTransferAction
 from GUI.gui_interface import GUIInterface
 
-global manager, communication_queue
+global manager, communication_queue, monitor_events
 
 
 def start_strace(main_pid, gps_pid, gui_pid, data_manager_pid, acquisition_pid, analysis_pid):
@@ -74,21 +76,24 @@ def restart_application(killer=None):
 
 def process_monitor():
     global manager
-
+    time.sleep(10)
     while True:
         logging.info("MONITORING MODULES")
         for k in manager:
-            if not conf.GUI and k == ModulesEnum.GUI:
+            if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
-            elif not manager[k].is_alive():
+            if manager[k].is_alive():
+                monitor_events[k].clear()
+                send_data_to_module(ModuleTransferAction.MONITOR, None, k)
+                monitor_events[k].wait(1)
+                alive = monitor_events[k].is_set()
+            else:
+                alive = False
+            if not alive:
                 logging.warning(f"PROCESS {k} IS DEAD - RESPAWNING...")
                 try:
                     for recv_module in manager[k].notify_on_death:
-                        data = {
-                            "action": manager[k].death_action,
-                            "data": None
-                        }
-                        manager[recv_module].receive_transferred_data(data, k)
+                        send_data_to_module(manager[k].death_action, None, recv_module)
                 except TypeError:
                     pass
                 # manager[k].respawn()
@@ -96,9 +101,16 @@ def process_monitor():
                 return
         time.sleep(5)
 
+def send_data_to_module(action, data, recv_module):
+    data = {
+        "action": action,
+        "data": data
+    }
+    manager[recv_module].receive_transferred_data(data, ModulesEnum.Main)
+
 
 def transfer_data():
-    global manager, communication_queue
+    global manager, communication_queue, monitor_events
 
     while True:
         sender_module = communication_queue.get()
@@ -115,7 +127,13 @@ def transfer_data():
                 f"TO {recv_module}\n\t"
                 f"ACTION: {action}"
             )
-            manager[recv_module].receive_transferred_data(data, sender_module)
+            if recv_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    monitor_events[sender_module].set()
+                elif action == ModuleTransferAction.RESTART_APP:
+                    restart_application(sender_module)
+            else:
+                manager[recv_module].receive_transferred_data(data, sender_module)
             success = True
         except DataError:
             err_msg = "DATA ERROR"
@@ -149,18 +167,21 @@ def transfer_data():
 
 
 def main():
-    global manager, communication_queue
+    global manager, communication_queue, monitor_events
     manager = dict()
+    monitor_events = dict()
     communication_queue = Queue()
     main_pid = os.getpid()
+
     for _, module in enumerate(ModulesEnum):
-        manager[module] = ModuleManager(main_pid, communication_queue)
-    print(f"MAIN PID: {main_pid}")
+        if module != ModulesEnum.Main:
+            manager[module] = ModuleManager(main_pid, communication_queue)
+            monitor_events[module] = threading.Event()
 
     transfer_data_t = threading.Thread(target=transfer_data)
     transfer_data_t.start()
-    # signal.signal(signal.SIGUSR1, transfer_data)
 
+    print(f"MAIN PID: {main_pid}")
     logging.info(f"MAIN PID: {main_pid}")
 
     manager[ModulesEnum.GPS].set_process(

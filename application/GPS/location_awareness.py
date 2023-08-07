@@ -25,7 +25,6 @@ class GPSSampler(Module):
     locator = None
     sample_thread = None
     start_sample_event = threading.Event()
-    nav_data_lock = threading.Lock()
     gps_data = []
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
     s3_client = None
@@ -89,18 +88,9 @@ class GPSSampler(Module):
                     time.sleep(1)
                     GPSSampler.previous_plot = consts.global_polygon
                     LedSettings.turn_on(LedColor.RED)
-            elif sender_module == ModulesEnum.DataManager:
-                if action == ModuleTransferAction.ASK_FOR_NAV:
-                    logging.info(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
-                    print(f"{datetime.now().time()}: ASK FOR NAV - ARRIVED TO GPS")
-                    if GPSSampler.gps_data:
-                        with GPSSampler.nav_data_lock:
-                            GPSSampler.send_data(
-                                ModuleTransferAction.ASK_FOR_NAV,
-                                GPSSampler.gps_data,
-                                ModulesEnum.DataManager
-                            )
-                            GPSSampler.gps_data = []
+            if sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    GPSSampler.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     def sample_gps():
@@ -136,9 +126,8 @@ class GPSSampler(Module):
             timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
                 if sample_count % 20 == 0 and GPSSampler.gps_data:
-                    with GPSSampler.nav_data_lock:
-                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                        GPSSampler.gps_data = []
+                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                    GPSSampler.gps_data = []
 
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
@@ -154,20 +143,18 @@ class GPSSampler(Module):
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
                 sample_count += 1
-                with GPSSampler.nav_data_lock:
-                    GPSSampler.gps_data.append(
-                        {
-                            "timestamp": timestamp,
-                            "latitude": lat,
-                            "longitude": long,
-                            "plot": GPSSampler.current_plot
-                        }
-                    )
+                GPSSampler.gps_data.append(
+                    {
+                        "timestamp": timestamp,
+                        "latitude": lat,
+                        "longitude": long,
+                        "plot": GPSSampler.current_plot
+                    }
+                )
 
                 if sample_count % 20 == 0 and GPSSampler.gps_data:
-                    with GPSSampler.nav_data_lock:
-                        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                        GPSSampler.gps_data = []
+                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                    GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
@@ -191,15 +178,14 @@ class GPSSampler(Module):
                 print(data)
             except ValueError as e:
                 timestamp = datetime.now().strftime(data_conf.timestamp_format)
-                with GPSSampler.nav_data_lock:
-                    GPSSampler.gps_data.append(
-                        {
-                            "timestamp": timestamp,
-                            "latitude": None,
-                            "longitude": None,
-                            "plot": GPSSampler.current_plot
-                        }
-                    )
+                GPSSampler.gps_data.append(
+                    {
+                        "timestamp": timestamp,
+                        "latitude": None,
+                        "longitude": None,
+                        "plot": GPSSampler.current_plot
+                    }
+                )
                 sample_count += 1
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
@@ -234,8 +220,7 @@ class GPSSampler(Module):
         print(f"STEP OUT {GPSSampler.previous_plot}")
         logging.info(f"STEP OUT {GPSSampler.previous_plot}")
 
-        with GPSSampler.nav_data_lock:
-            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-            GPSSampler.gps_data = []
+        GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+        GPSSampler.gps_data = []
 
         GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
