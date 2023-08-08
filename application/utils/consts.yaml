@@ -2,6 +2,7 @@ citrus: citrus
 apple: apple
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
+log_extension: "log"
 global_polygon: "global"
 alignment: alignment
 jai_translation: jai_translation

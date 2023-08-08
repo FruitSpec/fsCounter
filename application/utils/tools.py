@@ -1,5 +1,6 @@
 import os
 import glob
+import re
 import logging
 import time
 import traceback
@@ -48,39 +49,44 @@ def get_nav_path(get_s3_path=False):
             os.makedirs(nav_dir)
         return os.path.join(nav_dir, nav_filename)
     else:
-        return create_s3_upload_path(conf.customer_code, nav_filename)
+        return s3_path_join(conf.customer_code, nav_filename)
 
 
-def get_previous_nav_path(get_s3_path=False):
+def get_previous_nav_paths():
     try:
         today = datetime.now().strftime(data_conf.date_format)
         today_nav_filename = f'{today}.{consts.nav_extension}'
         nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{consts.nav_extension}"))
-        nav_file_names = [os.path.basename(f) for f in nav_file_names]
-        try:
-            nav_file_names.remove(today_nav_filename)
-        except:
-            pass
-        previous_nav_filename = max(
-            nav_file_names,
-            key=lambda f: datetime.strptime(f.split(".")[0], data_conf.date_format)
-        )
-        if not get_s3_path:
-            if not os.path.exists(nav_dir):
-                os.makedirs(nav_dir)
-            return os.path.join(nav_dir, previous_nav_filename)
-        else:
-            return create_s3_upload_path(conf.customer_code, previous_nav_filename)
-    except ValueError:
-        return None
+        previous_nav_paths = glob.glob(os.path.join(nav_dir, f"*.{consts.nav_extension}"))
+        previous_nav_paths = [
+            f for f in previous_nav_paths
+            if re.fullmatch(f"[0-9]{6}.{consts.nav_extension}", os.path.basename(f))
+            and today_nav_filename not in f
+        ]
+        s3_nav_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in previous_nav_paths]
+        return zip(previous_nav_paths, s3_nav_paths)
     except:
-        logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{consts.nav_extension}')}")
         return None
 
 
-def create_s3_upload_path(*args):
-    return s3_path_join(*args)
+def get_previous_log_paths():
+    try:
+        today = datetime.now().strftime(data_conf.date_format)
+        today_log_filename = f'{today}.{consts.nav_extension}'
+        log_dir = os.path.join(data_conf.output_path, conf.customer_code)
+        previous_log_paths = glob.glob(os.path.join(log_dir, f"*.{consts.log_extension}"))
+        previous_log_paths = [
+            f for f in previous_log_paths
+            if re.fullmatch(
+                f"{conf.counter_number}_{consts.log_name}_[0-9]{6}.{consts.log_extension}",
+                os.path.basename(f)
+            )
+            and previous_log_paths not in f
+        ]
+        s3_log_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in previous_log_paths]
+        return zip(previous_log_paths, s3_log_paths)
+    except:
+        return None
 
 
 def get_imu_path():

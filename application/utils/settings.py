@@ -17,7 +17,7 @@ pipeline_conf = OmegaConf.load(os.path.abspath("application/Analysis/pipeline_co
 runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_config.yaml"))
 
 log_path = os.path.abspath(os.path.expanduser(consts.logs_path))
-conf.log_name = os.path.join(log_path, f"{conf.counter_number}_{consts.log_name}_{today}.log")
+conf.log_name = os.path.join(log_path, f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}")
 if not os.path.exists(log_path):
     os.makedirs(log_path)
 

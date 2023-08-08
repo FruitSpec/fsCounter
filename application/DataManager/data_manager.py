@@ -295,15 +295,16 @@ class DataManager(Module):
 
     @staticmethod
     def upload_nav(upload_speed_in_kbps, timeout=10):
-        def _upload(_path, _s3_path):
+        def _upload(_path, _s3_path, extension):
             _filename = os.path.basename(_path)
             try:
                 _size_in_kb = os.path.getsize(_path) / 1024
                 if _size_in_kb >= upload_speed_in_kbps * timeout:
                     logging.info(f"UPLOAD {_filename} - NOT ENOUGH TIME LEFT")
                     return
-                # _s3_path = tools.get_nav_path(get_s3_path=True)
                 DataManager.s3_client.upload_file(_path, data_conf.upload_bucket_name, _s3_path)
+                _path_uploaded = _path.replace(f".{extension}", f"_uploaded.{extension}")
+                os.rename(_path, _path_uploaded)
                 logging.info(f"UPLOAD {_filename} TO S3 - SUCCESS")
             except FileNotFoundError:
                 logging.info(f"UPLOAD {_filename} - FILE NOT EXIST")
@@ -316,15 +317,14 @@ class DataManager(Module):
                 traceback.print_exc()
 
         t0 = time.time()
-        today_nav_path = tools.get_nav_path()
-        today_nav_s3_path = tools.get_nav_path(get_s3_path=True)
 
-        previous_nav_path = tools.get_previous_nav_path()
-        previous_nav_s3_path = tools.get_previous_nav_path(get_s3_path=True)
+        previous_nav_paths = tools.get_previous_nav_paths()
+        for local_path, s3_path in previous_nav_paths:
+            _upload(local_path, s3_path, consts.nav_extension)
 
-        _upload(today_nav_path, today_nav_s3_path)
-        if previous_nav_path:
-            _upload(previous_nav_path, previous_nav_s3_path)
+        previous_log_paths = tools.get_previous_log_paths()
+        for local_path, s3_path in previous_nav_paths:
+            _upload(local_path, s3_path, consts.nav_extension)
 
         t1 = time.time()
         return max(timeout - (t1 - t0), 10)
@@ -364,13 +364,13 @@ class DataManager(Module):
                 ext = "csv"
                 # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
                 tracks_path = os.path.join(folder_path, f"{consts.tracks}.{ext}")
-                tracks_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.tracks}.{ext}")
+                tracks_s3_path = tools.s3_path_join(folder_name, f"{consts.tracks}.{ext}")
 
                 alignment_path = os.path.join(folder_path, f"{consts.alignment}.{ext}")
-                alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.alignment}.{ext}")
+                alignment_s3_path = tools.s3_path_join(folder_name, f"{consts.alignment}.{ext}")
 
                 timestamps_path = os.path.join(folder_path, f"{consts.jaized_timestamps}.{ext}")
-                timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.jaized_timestamps}.{ext}")
+                timestamps_s3_path = tools.s3_path_join(folder_name, f"{consts.jaized_timestamps}.{ext}")
 
                 try:
                     data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
