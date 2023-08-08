@@ -337,15 +337,11 @@ class DataManager(Module):
         t_scan_start = time.time()
 
         def upload_analyzed(timeout_before, analyzed_group):
-            def get_data_size(tracks, alignment, jaized_timestamps, jai_translation=None):
+            def get_data_size(tracks, alignment, jaized_timestamps):
                 tracks_size = os.path.getsize(tracks)
                 alignment_size = os.path.getsize(alignment)
                 timestamps_size = os.path.getsize(jaized_timestamps)
-                if jai_translation:
-                    jai_translation_size = os.path.getsize(jai_translation)
-                else:
-                    jai_translation_size = 0
-                return (tracks_size + alignment_size + timestamps_size + jai_translation_size) / 1024
+                return (tracks_size + alignment_size + timestamps_size) / 1024
 
             def add_to_dict(d, k, v):
                 try:
@@ -376,16 +372,8 @@ class DataManager(Module):
                 timestamps_path = os.path.join(folder_path, f"{consts.jaized_timestamps}.{ext}")
                 timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.jaized_timestamps}.{ext}")
 
-                if conf.crop == consts.citrus:
-                    jai_translation_path = os.path.join(folder_path, f"{consts.jai_translation}.{ext}")
-                    jai_translation_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.jai_translation}.{ext}")
-
                 try:
-                    if conf.crop == consts.citrus:
-                        data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path, jai_translation_path)
-                    else:
-                        data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
-
+                    data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
                     logging.info(f"TRYING TO UPLOAD {folder_name}")
                     if data_size_in_kb >= upload_speed_in_kbps * timeout:
                         logging.info(f"UPLOAD {folder_name} - NOT ENOUGH TIME LEFT")
@@ -393,9 +381,6 @@ class DataManager(Module):
                     DataManager.s3_client.upload_file(tracks_path, data_conf.upload_bucket_name, tracks_s3_path)
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
                     DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
-                    if conf.crop == consts.citrus:
-                        DataManager.s3_client.upload_file(jai_translation_path, data_conf.upload_bucket_name, jai_translation_s3_path)
-
                     add_to_dict(_uploaded_indices, row, folder_index)
                     add_to_dict(_uploaded_extensions, row, ext)
                     logging.info(f"UPLOAD {folder_name} - SUCCESS")
