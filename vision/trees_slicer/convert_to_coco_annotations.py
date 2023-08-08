@@ -107,12 +107,14 @@ def save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_
 
     # get bbox data:
     annotations_file_name = os.path.basename(ANNOTATIONS_FILE_PATH)
-    if annotations_file_name == 'all_slices.csv':
-        df = pd.read_csv(ANNOTATIONS_FILE_PATH, index_col = 0)
-    else:
-        df, _ = slice_to_trees(ANNOTATIONS_FILE_PATH, video_path=INPUT_VIDEO_PATH, resize_factor=3, output_path=None,
-                                 h=frame_height, w=frame_width, on_fly=True)
+    # if annotations_file_name == 'all_slices.csv':
+    #     df = pd.read_csv(ANNOTATIONS_FILE_PATH, index_col = 0)
+    # else:
+    #     df, _ = slice_to_trees(ANNOTATIONS_FILE_PATH, video_path=INPUT_VIDEO_PATH, resize_factor=3, output_path=None,
+    #                              h=frame_height, w=frame_width, on_fly=True)
 
+    df = pd.read_csv(ANNOTATIONS_FILE_PATH, index_col=0)
+    ######################
     df = add_bbox_to_slice_trees(df, frame_width = frame_width, frame_height = frame_height)
 
 
