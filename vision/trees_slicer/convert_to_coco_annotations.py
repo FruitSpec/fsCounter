@@ -266,10 +266,10 @@ def save_frames_and_annotations_scraping_dirs(dir_path, output_frames_path, COCO
 
 if __name__ == '__main__':
 
-    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_slices.csv"
-    INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/Result_RGB.mkv"
-    OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_images"
-    COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance_using_tx_translations/data/roi_row_debug/all_annotations.json'
+    ANNOTATIONS_FILE_PATH = "/home/lihi/FruitSpec/Data/distance_slicer_problematic/row_17/1/slices.csv"
+    INPUT_VIDEO_PATH = "/home/lihi/FruitSpec/Data/distance_slicer_problematic/row_17/1/Result_RGB.mkv"
+    OUTPUT_FRAMES_PATH = "/home/lihi/FruitSpec/Data/distance_slicer_problematic/row_17/1/all_images"
+    COCO_ANNOTATIONS_PATH = '/home/lihi/FruitSpec/Data/distance_slicer_problematic/row_17/1/all_annotations.json'
 
     save_frames_and_annotations(ANNOTATIONS_FILE_PATH, INPUT_VIDEO_PATH, OUTPUT_FRAMES_PATH, COCO_ANNOTATIONS_PATH, should_save_frames=False, save_annotated_video= True)
     print ('done')
