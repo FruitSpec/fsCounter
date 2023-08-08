@@ -7,8 +7,8 @@ Step1. Install YOLOX.
 ```shell
 git clone git@github.com:Megvii-BaseDetection/yoloX.git
 cd yoloX
-pip3 install -U pip && pip3 install -r requirements.txt
-pip3 install -v -e .  # or  python3 setup.py develop
+pip3 install -U pip && pip3 install -r requirements_lg.txt
+pip3 install -v -e .  # or  python3 setup_orig.py develop
 ```
 Step2. Install [pycocotools](https://github.com/cocodataset/cocoapi).
 

@@ -11,7 +11,7 @@ from pathlib import Path
 _EXP_PATH = Path(__file__).resolve().parent.parent.parent.parent / "exps" / "default"
 
 if _EXP_PATH.is_dir():
-    # This is true only for in-place installation (pip install -e, setup.py develop),
+    # This is true only for in-place installation (pip install -e, setup_orig.py develop),
     # where setup(package_dir=) does not work: https://github.com/pypa/setuptools/issues/230
 
     class _ExpFinder(importlib.abc.MetaPathFinder):

@@ -11,7 +11,7 @@ from pathlib import Path
 _TOOLS_PATH = Path(__file__).resolve().parent.parent.parent / "tools"
 
 if _TOOLS_PATH.is_dir():
-    # This is true only for in-place installation (pip install -e, setup.py develop),
+    # This is true only for in-place installation (pip install -e, setup_orig.py develop),
     # where setup(package_dir=) does not work: https://github.com/pypa/setuptools/issues/230
 
     class _PathFinder(importlib.abc.MetaPathFinder):
