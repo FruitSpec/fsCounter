@@ -7,7 +7,7 @@ import time
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from vision.kp_match.infer import lightglue_infer
+from vision.kp_matching.infer import lightglue_infer
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.misc.help_func import validate_output_path, get_repo_dir
 
@@ -42,6 +42,10 @@ def run(cfg, args, n_frames=200, type="superpoint"):
         points0 = points0.cpu().numpy()
         points1 = points1.cpu().numpy()
         matches = matches.cpu().numpy()
+
+        M, st = matcher.calcaffine(points0, points1)
+        res = matcher.get_tx_ty(M, st, r0)
+
         out_img = draw_matches(input0, input1, points0, points1)
         cv2.imwrite(os.path.join(keypoints_path, f"lightglue_f{f_id}.jpg"), out_img)
 

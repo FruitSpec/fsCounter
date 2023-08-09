@@ -1,8 +1,11 @@
 import cv2
 import time
+import threading
+import queue
+import numpy as np
 
-from vision.kp_match.lightglue import LightGlue, SuperPoint, DISK
-from vision.kp_match.lightglue.utils import load_image, rbd, numpy_image_to_torch
+from vision.kp_matching.sp_lg import LightGlue, SuperPoint, DISK
+from vision.kp_matching.sp_lg.utils import load_image, rbd, numpy_image_to_torch
 from vision.tools.image_stitching import resize_img
 
 
@@ -25,6 +28,7 @@ class lightglue_infer():
         self.sy = cfg.sensor_aligner.sy
         self.roix = cfg.sensor_aligner.roix
         self.roiy = cfg.sensor_aligner.roiy
+        self.zed_size = [1920, 1080]
 
     def to_tensor(self, image):
 
@@ -35,9 +39,7 @@ class lightglue_infer():
         s = time.time()
         feats0 = self.extractor.extract(input0)
         feats1 = self.extractor.extract(input1)
-        e = time.time()
-        print(f"fe: {e-s}")
-        s = e
+
         # match the features
         matches01 = self.matcher({'image0': feats0, 'image1': feats1})
         feats0, feats1, matches01 = [rbd(x) for x in [feats0, feats1, matches01]]  # remove batch dimension
@@ -45,16 +47,7 @@ class lightglue_infer():
         points0 = feats0['keypoints'][matches[..., 0]]  # coordinates in image #0, shape (K,2)
         points1 = feats1['keypoints'][matches[..., 1]]
 
-        e = time.time()
-        print(f"matching: {e - s}")
         return points0, points1, matches
-
-    def align_sensors(self, image0, image1):
-        input0, input1 = self.preprocess_images(image0, image1)
-        points0, points1, matches = self.match(input0, input1)
-
-        M, status = self.calcaffine(points0, points1)
-
 
     def preprocess_images(self, zed, jai_rgb, downscale=4):
 
@@ -79,3 +72,77 @@ class lightglue_infer():
             status = []
 
         return M, status
+
+    def get_tx_ty(self, M, st, rz):
+        # in case no matches or less than 5 matches
+        if len(st) == 0 or np.sum(st) <= 5:
+            print('failed to align, using center default')
+            tx = -999
+            ty = -999
+            # roi in frame center
+            mid_x = (self.x_s + self.x_e) // 2
+            mid_y = (self.y_s + self.y_e) // 2
+            x1 = mid_x - (self.roix // 2)
+            x2 = mid_y + (self.roix // 2)
+            y1 = mid_y - (self.roiy // 2)
+            y2 = mid_y + (self.roiy // 2)
+        else:
+
+
+            tx = M[0, 2]
+            ty = M[1, 2]
+            tx = tx / rz * self.sx
+            ty = ty / rz * self.sy
+            # tx = np.mean(deltas[:, 0, 0]) / rz * sx
+            # ty = np.mean(deltas[:, 0, 1]) / rz * sy
+
+            x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
+
+        return (x1, y1, x2, y2), tx, ty
+
+    def get_zed_roi(self, tx, ty):
+
+        if tx < 0:
+            x1 = 0
+            x2 = self.roix
+        elif tx + self.roix > self.zed_size[1]:
+            x2 = self.zed_size[1]
+            x1 = self.zed_size[1] - self.roix
+        else:
+            x1 = tx
+            x2 = tx + self.roix
+
+        if ty < 0:
+            y1 = self.y_s + ty
+            if y1 < 0:
+                y1 = self.y_s
+            y2 = y1 + self.roiy
+        elif ty + self.roiy > self.zed_size[0]:
+            y2 = self.y_e
+            y1 = self.y_e - self.roiy
+        else:
+            y1 = self.y_s + ty
+            y2 = self.y_s + ty + self.roiy
+
+        return x1, y1, x2, y2
+
+
+    def align_sensors(self, zed, jai_rgb):
+
+        zed_input, rz, jai_input, rj = self.preprocess_images(zed, jai_rgb)
+
+        points0, points1, matches = self.match(zed_input, jai_input)
+
+        points0 = points0.cpu().numpy()
+        points1 = points1.cpu().numpy()
+
+        M, st = self.calcaffine(points0, points1)
+
+        return self.get_tx_ty(M, st, rz)
+
+
+def inference(extractor, image, batch_queue):
+    kp = extractor.extract(image)
+    batch_queue.put(kp)
+    return batch_queue
+
