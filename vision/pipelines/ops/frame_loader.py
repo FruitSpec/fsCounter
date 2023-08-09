@@ -20,7 +20,7 @@ class FramesLoader():
         if self.mode in ['sync_svo', 'sync_mkv']:
             self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
 
-    def get_frames(self, f_id, zed_shift):
+    def get_frames(self, f_id, zed_shift=0):
         if self.mode == 'async':
             output = self.get_frames_batch_async(f_id, zed_shift)
         if self.mode == 'sync_svo':
@@ -80,7 +80,7 @@ class FramesLoader():
 
     def get_camera_frame_async(self, cam, f_id):
         batch = []
-        depth_batch = []
+        pc_batch = []
         max_frame_number = cam.get_number_of_frames()
         for id_ in range(self.batch_size):
             if f_id + id_ >= max_frame_number:
@@ -91,17 +91,14 @@ class FramesLoader():
                 else:
                     cam.grab()
                 self.zed_last_id = f_id
-                ret, frame = cam.get_frame()
-                if ret:
-                    depth = cam.get_depth()
-                    batch.append(frame)
-                    depth_batch.append(depth)
+                frame, point_cloud = cam.get_zed(exclude_depth=True)
+                batch.append(frame)
+                pc_batch.append(point_cloud)
             else:
-                ret, frame = cam.get_frame()
-                if ret:
-                    batch.append(frame)
+                _, frame = cam.get_frame()
+                batch.append(frame)
 
-        return batch, depth_batch
+        return batch, pc_batch
 
     @staticmethod
     def get_camera_frame_sync(cam, f_ids, last_fid):
@@ -252,7 +249,7 @@ class FramesLoader():
 
         return zed_ids, jai_ids
 
-def arrange_ids(jai_frame_ids, zed_frame_ids):
+def arrange_ids(jai_frame_ids, zed_frame_ids, return_index=False):
 
     z = np.array(zed_frame_ids)
     j = np.array(jai_frame_ids)
@@ -268,9 +265,12 @@ def arrange_ids(jai_frame_ids, zed_frame_ids):
 
     output_z = z[start_index + 1:].tolist()
     output_j = j[start_index: -1].tolist()
+    output_j = list(range(len(output_j)))
 
     output_z.sort()
-    output_j.sort()
-    #return z[start_index:].tolist(), j[start_index:].tolist()
+
+    if return_index:
+        return output_z, output_j, start_index
+
     return output_z, output_j
 
