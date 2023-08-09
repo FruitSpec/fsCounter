@@ -91,6 +91,11 @@ class GPSSampler(Module):
                     time.sleep(1)
                     GPSSampler.previous_plot = consts.global_polygon
                     LedSettings.turn_on(LedColor.RED)
+            if sender_module == ModulesEnum.Analysis:
+                if action == ModuleTransferAction.ANALYSIS_ONGOING:
+                    GPSSampler.analysis_ongoing = True
+                if action == ModuleTransferAction.ANALYSIS_DONE:
+                    GPSSampler.analysis_ongoing = False
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GPSSampler.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
@@ -140,7 +145,7 @@ class GPSSampler(Module):
 
                 if GPSSampler.current_plot == consts.global_polygon:
                     if GPSSampler.analysis_ongoing:
-                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.GREEN)
+                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
                     else:
                         LedSettings.turn_on(LedColor.ORANGE)
                 else:
