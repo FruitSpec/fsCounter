@@ -67,13 +67,13 @@ class DataManager(Module):
                 data["folder_index"] = [DataManager.current_index] * input_length
 
                 jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
-                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
+                global_jaized_timestamps_log_path, _ = tools.get_file_path(tools.FileTypes.jaized_timestamps)
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
-                _is_first = not os.path.exists(jaized_timestamp_total_log_path)
-                jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
+                _is_first = not os.path.exists(global_jaized_timestamps_log_path)
+                jaized_timestamp_log_df.to_csv(global_jaized_timestamps_log_path, mode='a+', header=_is_first, index=False)
             except:
                 logging.exception("JAIZED TIMESTAMP ERROR")
                 traceback.print_exc()
@@ -165,7 +165,7 @@ class DataManager(Module):
                     logging.info(f"WRITING NAV DATA TO FILE")
                     new_nav_df = pd.DataFrame(data)
                     DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
-                    nav_path = tools.get_nav_path()
+                    nav_path, _ = tools.FileTypes(tools.FileTypes.nav)
                     is_first = not os.path.exists(nav_path)
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
             elif sender_module == ModulesEnum.Analysis:
@@ -268,6 +268,7 @@ class DataManager(Module):
     @staticmethod
     def internet_scan():
         while True:
+            last_nav_upload = time.time()
             upload_speed_in_kbps = 0
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
@@ -282,7 +283,16 @@ class DataManager(Module):
             t0 = time.time()
             if upload_speed_in_kbps > 10:
                 timeout = data_conf.upload_interval - 30
-                timeout = DataManager.upload_nav(upload_speed_in_kbps, timeout=timeout)
+
+                # upload nav file once every {nav_upload_interval} seconds
+                # if not uploaded successfully, keep trying every 5 minutes
+                now = time.time()
+                if (now - last_nav_upload) > data_conf.nav_upload_interval:
+                    is_successful, timeout = DataManager.upload_today_files(upload_speed_in_kbps, timeout=timeout)
+                    if is_successful:
+                        last_nav_upload = time.time()
+
+                timeout = DataManager.upload_old_files(upload_speed_in_kbps, timeout=timeout)
                 DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
                 logging.info(f"INTERNET SCAN - END")
                 print(f"INTERNET SCAN - END")
@@ -294,40 +304,71 @@ class DataManager(Module):
         logging.info("INTERNET SCAN - FINISHED")
 
     @staticmethod
-    def upload_nav(upload_speed_in_kbps, timeout=10):
-        def _upload(_path, _s3_path, extension):
-            _filename = os.path.basename(_path)
-            try:
-                _size_in_kb = os.path.getsize(_path) / 1024
-                if _size_in_kb >= upload_speed_in_kbps * timeout:
-                    logging.info(f"UPLOAD {_filename} - NOT ENOUGH TIME LEFT")
-                    return
-                DataManager.s3_client.upload_file(_path, data_conf.upload_bucket_name, _s3_path)
-                _path_uploaded = _path.replace(f".{extension}", f"_uploaded.{extension}")
-                os.rename(_path, _path_uploaded)
-                logging.info(f"UPLOAD {_filename} TO S3 - SUCCESS")
-            except FileNotFoundError:
-                logging.info(f"UPLOAD {_filename} - FILE NOT EXIST")
-            except EndpointConnectionError:
-                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO INTERNET CONNECTION")
-            except S3UploadFailedError:
-                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
-            except Exception:
-                logging.exception(f"UPLOAD {_filename} TO S3 - FAILED DUE TO AN ERROR - {_path}")
-                traceback.print_exc()
+    def upload_to_s3(path, s3_path, upload_speed_in_kbps, timeout, extension=None):
+        filename = os.path.basename(path)
+        try:
+            _size_in_kb = os.path.getsize(path) / 1024
+            if _size_in_kb >= upload_speed_in_kbps * timeout:
+                logging.info(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
+                return
+            DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name, s3_path)
+            if extension:
+                path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
+                os.rename(path, path_uploaded)
+            logging.info(f"UPLOAD {filename} TO S3 - SUCCESS")
+            return True
+        except FileNotFoundError:
+            logging.info(f"UPLOAD {filename} - FILE NOT EXIST")
+            return False
+        except EndpointConnectionError:
+            logging.warning(f"UPLOAD {filename} TO S3 - FAILED DUE TO INTERNET CONNECTION")
+            return False
+        except S3UploadFailedError:
+            logging.warning(f"UPLOAD {filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
+            return False
+        except Exception:
+            logging.exception(f"UPLOAD {filename} TO S3 - FAILED DUE TO AN ERROR - {path}")
+            traceback.print_exc()
+            return False
 
+    @staticmethod
+    def upload_today_files(upload_speed_in_kbps, timeout=10):
+        nav_path, nav_s3_path = tools.get_file_path(tools.FileTypes.nav)
+        log_path, log_s3_path = tools.get_file_path(tools.FileTypes.log)
+        jzts_path, jzts_s3_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
         t0 = time.time()
 
-        previous_nav_paths = tools.get_previous_nav_paths()
-        for local_path, s3_path in previous_nav_paths:
-            _upload(local_path, s3_path, consts.nav_extension)
+        nav_is_successful = DataManager.upload_to_s3(nav_path, nav_s3_path, upload_speed_in_kbps, timeout)
+        log_is_successful = DataManager.upload_to_s3(log_path, log_s3_path, upload_speed_in_kbps, timeout)
+        jzts_is_successful = DataManager.upload_to_s3(jzts_path, jzts_s3_path, upload_speed_in_kbps, timeout)
 
-        previous_log_paths = tools.get_previous_log_paths()
-        for local_path, s3_path in previous_nav_paths:
-            _upload(local_path, s3_path, consts.nav_extension)
+        is_successful = nav_is_successful and log_is_successful and jzts_is_successful
 
         t1 = time.time()
-        return max(timeout - (t1 - t0), 10)
+        timeout = max(timeout - (t1 - t0), 10)
+
+        return is_successful, timeout
+
+    @staticmethod
+    def upload_old_files(upload_speed_in_kbps, timeout=10):
+
+        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
+        old_log_paths = tools.get_old_file_paths(tools.FileTypes.log)
+        old_jaized_timestamps_paths = tools.get_old_file_paths(tools.FileTypes.jaized_timestamps)
+
+        old_all = [(old_nav_paths, consts.nav_extension)] + \
+                  [(old_log_paths, consts.log_extension)] + \
+                  [(old_jaized_timestamps_paths, consts.log_extension)]
+
+        for old_list in old_all:
+            old_paths, extension = old_list
+            for local_path, s3_path in old_paths:
+                t0 = time.time()
+                DataManager.upload_to_s3(local_path, s3_path, extension, upload_speed_in_kbps, timeout)
+                t1 = time.time()
+                timeout = max(timeout - (t1 - t0), 3)
+
+        return max(timeout, 10)
 
     @staticmethod
     def scan_analyzed(upload_speed_in_kbps, scan_timeout):
@@ -362,6 +403,7 @@ class DataManager(Module):
                 folder_name = os.path.join(_customer_code, _plot_code, _scan_date, row, folder_index)
                 folder_path = os.path.join(data_conf.output_path, folder_name)
                 ext = "csv"
+
                 # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
                 tracks_path = os.path.join(folder_path, f"{consts.tracks}.{ext}")
                 tracks_s3_path = tools.s3_path_join(folder_name, f"{consts.tracks}.{ext}")

@@ -3,8 +3,6 @@ import os
 import logging
 from datetime import datetime
 
-today = datetime.now().strftime('%d-%m-%Y')
-
 conf = OmegaConf.load(os.path.abspath("application/utils/config.yaml"))
 crop = conf.crop
 
@@ -16,15 +14,16 @@ GUI_conf = OmegaConf.load(os.path.abspath("application/GUI/GUI_config.yaml"))
 pipeline_conf = OmegaConf.load(os.path.abspath("application/Analysis/pipeline_config.yaml"))
 runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_config.yaml"))
 
-log_path = os.path.abspath(os.path.expanduser(consts.logs_path))
-conf.log_name = os.path.join(log_path, f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}")
-if not os.path.exists(log_path):
-    os.makedirs(log_path)
-
 
 def set_logger():
+    today = datetime.now().strftime('%d-%m-%Y')
+    log_basename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
+    log_path = os.path.join(consts.log_dir, log_basename)
+    if not os.path.exists(consts.log_dir):
+        os.makedirs(consts.log_dir)
+
     log_formatter = logging.Formatter("%(asctime)s | %(levelname)s/%(processName)s | %(message)s", "%H:%M:%S")
-    file_handler = logging.FileHandler(conf.log_name)
+    file_handler = logging.FileHandler(log_path)
     file_handler.setFormatter(log_formatter)
     root_logger = logging.getLogger()
     root_logger.addHandler(file_handler)

@@ -45,8 +45,15 @@ def restart_application(killer=None):
 
 def process_monitor():
     global manager
+
+    start_date = datetime.now().strftime('%d-%m-%Y')
     time.sleep(60)
+
     while True:
+        today = datetime.now().strftime('%d-%m-%Y')
+        if today != start_date:
+            set_logger()
+
         logging.info("MONITORING MODULES")
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
@@ -73,6 +80,7 @@ def process_monitor():
                 restart_application(killer=k)
                 return
         time.sleep(5)
+
 
 def send_data_to_module(action, data, recv_module):
     data = {
@@ -141,6 +149,7 @@ def transfer_data():
 
 def main():
     global manager, communication_queue, monitor_events
+
     manager = dict()
     monitor_events = dict()
     communication_queue = Queue()

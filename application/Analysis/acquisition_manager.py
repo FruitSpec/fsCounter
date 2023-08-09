@@ -211,9 +211,13 @@ class AcquisitionManager(Module):
             global_polygon = consts.global_polygon
             if sender_module == ModulesEnum.GPS:
                 if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
-                    logging.info("START ACQUISITION FROM GPS")
                     AcquisitionManager.plot = data
                     AcquisitionManager.start_acquisition(AcquisitionManager.plot, from_gps=True)
+                    row_name = "/".join([
+                        conf.customer_code, AcquisitionManager.plot,
+                        AcquisitionManager.row, str(AcquisitionManager.folder_index)
+                    ])
+                    logging.info(f"START ACQUISITION FROM GPS - {row_name}/")
                     data = {
                         "plot": AcquisitionManager.plot,
                         "row": AcquisitionManager.get_row_number(AcquisitionManager.row),

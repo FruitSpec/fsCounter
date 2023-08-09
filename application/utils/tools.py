@@ -12,6 +12,13 @@ from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import EndpointConnectionError
 from application.utils.settings import conf, data_conf, consts
+import enum
+
+
+class FileTypes(enum.Enum):
+    nav = "NAV"
+    log = "log"
+    jaized_timestamps = "NAV"
 
 
 def s3_path_join(*args):
@@ -40,51 +47,57 @@ def is_svo(filename):
     return filename[-3:] == "svo"
 
 
-def get_nav_path(get_s3_path=False):
+def get_file_path(f_type: FileTypes):
     today = datetime.now().strftime(data_conf.date_format)
-    nav_filename = f'{today}.{consts.nav_extension}'
-    if not get_s3_path:
-        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        if not os.path.exists(nav_dir):
-            os.makedirs(nav_dir)
-        return os.path.join(nav_dir, nav_filename)
+    if f_type == FileTypes.nav:
+        filename = f"{today}.{consts.nav_extension}"
+        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+    elif f_type == FileTypes.log:
+        filename = f"{today}.{consts.log_extension}"
+        f_dir = consts.log_dir
+    elif f_type == FileTypes.jaized_timestamps:
+        filename = f"{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
     else:
-        return s3_path_join(conf.customer_code, nav_filename)
+        raise ValueError("Wrong file type")
+
+    if not os.path.exists(f_dir):
+        os.makedirs(f_dir)
+
+    path = os.path.join(f_dir, filename)
+    s3_path = s3_path_join(conf.customer_code, filename)
+    return path, s3_path
 
 
-def get_previous_nav_paths():
+def get_old_file_paths(f_type: FileTypes):
+    today = datetime.now().strftime(data_conf.date_format)
     try:
-        today = datetime.now().strftime(data_conf.date_format)
-        today_nav_filename = f'{today}.{consts.nav_extension}'
-        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        previous_nav_paths = glob.glob(os.path.join(nav_dir, f"*.{consts.nav_extension}"))
-        previous_nav_paths = [
-            f for f in previous_nav_paths
-            if re.fullmatch(f"[0-9]{6}.{consts.nav_extension}", os.path.basename(f))
-            and today_nav_filename not in f
-        ]
-        s3_nav_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in previous_nav_paths]
-        return zip(previous_nav_paths, s3_nav_paths)
-    except:
-        return None
+        if f_type == FileTypes.nav:
+            today_filename = f"{today}.{consts.nav_extension}"
+            f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+            glob_pattern = f"*.{consts.nav_extension}"
+            regex_pattern = f"[0-9]{6}.{consts.nav_extension}"
+        elif f_type == FileTypes.log:
+            today_filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
+            f_dir = consts.log_dir
+            glob_pattern = f"*.{consts.log_extension}"
+            regex_pattern = f"{conf.counter_number}_{consts.log_name}_[0-9]{6}.{consts.log_extension}"
+        if f_type == FileTypes.jaized_timestamps:
+            today_filename = f"{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+            f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+            glob_pattern = f"{consts.jaized_timestamps}_*.{consts.log_extension}"
+            regex_pattern = f"{conf.jaized_timestamps}_[0-9]{6}.{consts.log_extension}"
+        else:
+            raise ValueError("Wrong file type")
 
-
-def get_previous_log_paths():
-    try:
-        today = datetime.now().strftime(data_conf.date_format)
-        today_log_filename = f'{today}.{consts.nav_extension}'
-        log_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        previous_log_paths = glob.glob(os.path.join(log_dir, f"*.{consts.log_extension}"))
-        previous_log_paths = [
-            f for f in previous_log_paths
-            if re.fullmatch(
-                f"{conf.counter_number}_{consts.log_name}_[0-9]{6}.{consts.log_extension}",
-                os.path.basename(f)
-            )
-            and previous_log_paths not in f
+        old_paths = glob.glob(os.path.join(f_dir, glob_pattern))
+        old_paths = [
+            f for f in old_paths
+            if re.fullmatch(regex_pattern, os.path.basename(f))
+               and today_filename not in f
         ]
-        s3_log_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in previous_log_paths]
-        return zip(previous_log_paths, s3_log_paths)
+        s3_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in old_paths]
+        return zip(old_paths, s3_paths)
     except:
         return None
 
@@ -93,10 +106,6 @@ def get_imu_path():
     today = datetime.now().strftime(data_conf.date_format)
     return os.path.join(data_conf.output_path, conf.customer_code, f'{today}.imu')
 
-
-def get_jaized_timestamps_path():
-    today = datetime.now().strftime(data_conf.date_format)
-    return os.path.join(data_conf.output_path, conf.customer_code, f'{consts.jaized_timestamps}_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
     try:

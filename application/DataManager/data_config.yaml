@@ -1,5 +1,6 @@
 update_interval: 10
 upload_interval: 300
+nav_upload_interval: 3600
 collected_path: "/home/mic-730ai/Desktop/collected.log"
 analyzed_path: "/home/mic-730ai/Desktop/analyzed.log"
 uploaded_path: "/home/mic-730ai/Desktop/uploaded.log"

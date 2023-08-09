@@ -1,6 +1,6 @@
 citrus: citrus
 apple: apple
-logs_path: "~/Desktop/counter_logs/"
+log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"
 log_extension: "log"
 global_polygon: "global"
