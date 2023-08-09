@@ -1,10 +1,21 @@
-global polygon: "global"
-update interval: 10
-upload interval: 300
-scanner path: /home/mic-730ai/Desktop/scan.csv
-collected path: /home/mic-730ai/Desktop/collected.log
-analyzed path: /home/mic-730ai/Desktop/analyzed.log
-file prefix: 0
-use feather: true
-request timeout: 10
-output path: /home/mic-730ai/Desktop
+global_polygon: "global"
+update_interval: 10
+upload_interval: 300
+collected_path: /home/mic-730ai/Desktop/collected.log
+analyzed_path: /home/mic-730ai/Desktop/analyzed.log
+uploaded_path: /home/mic-730ai/Desktop/uploaded.log
+output_path: /home/mic-730ai/Desktop
+file_prefix: 0
+alignment: alignment
+jai_translation: jai_translation
+tracks: tracks
+jaized_timestamps: jaized_timestamps
+success: success
+failed: failed
+use_feather: false
+request_timeout: 10
+service_endpoint: "https://counter-api.intgr.fruitspec.com/api/post_block"
+upload_bucket_name: fruitspec-temp-counter
+timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+date_format: "%d%m%y"
+nav_extension: "nav"

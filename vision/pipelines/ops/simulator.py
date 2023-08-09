@@ -15,10 +15,10 @@ def init_cams(args, mode):
         zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate, args.zed.depth_minimum, args.zed.depth_maximum)
         depth_cam = None
     elif mode in ['sync_mkv']:
-        zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate)
-        depth_cam = zed_cam = video_wrapper(args.depth.movie_path, args.depth.rotate)
-    rgb_jai_cam = video_wrapper(args.rgb_jai.movie_path, args.rgb_jai.rotate)
-    jai_cam = video_wrapper(args.jai.movie_path, args.jai.rotate)
+        zed_cam = video_wrapper(args.zed.movie_path, rotate=args.zed.rotate, channels=args.zed.channels)
+        depth_cam = video_wrapper(args.depth.movie_path, rotate=args.depth.rotate, channels=args.depth.channels)
+    rgb_jai_cam = video_wrapper(args.rgb_jai.movie_path, rotate=args.rgb_jai.rotate, channels=args.rgb_jai.channels)
+    jai_cam = video_wrapper(args.jai.movie_path, rotate=args.jai.rotate, channels=args.jai.channels)
     return zed_cam, rgb_jai_cam, jai_cam, depth_cam
 
 def load_logs(args):

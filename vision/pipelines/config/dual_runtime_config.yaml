@@ -1,4 +1,5 @@
 output_folder: /home/mic-730ai/fruitspec/test_data/t16_numba_cached
+sync_data_log_path: /home/mic-730ai/fruitspec/test_data/validate_refactor/sync_data/frame_loader_sync_mode/jaized_timestamps_2.log
 slice_data_path: /home/mic-730ai/fruitspec/test_data/ZED_1_slice_data.json #/media/matan/cam172/customers/DEWAGD/240123/DWDBNB05/R5A/ZED_1_slice_data.json
 frame_drop_path: /home/mic-730ai/fruitspec/test_data/frame_drop_1.log
 debug_folder: $(output_folder)/debug
@@ -16,20 +17,25 @@ zed:
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
   depth_minimum: 0.5 # 1 counter
   depth_maximum: 20 # 8 counter
+  channels: 3
 
 depth:
   movie_path: /home/mic-730ai/fruitspec/test_data/ZED_1.svo
   frame_size: [1920, 1080]
+  rotate: 2
+  channels: 1
 
 jai:
   movie_path: /home/mic-730ai/fruitspec/test_data/Result_FSI_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
 
 rgb_jai:
   movie_path: /home/mic-730ai/fruitspec/test_data/Result_RGB_1.mkv
   frame_size: [2048, 1536]
   rotate: 1 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
+  channels: 3
 
 frame_size: [2048, 1536]
 
@@ -48,3 +54,22 @@ debug:
 
 
 
+adt_debugger:
+  scan_type: "multi_scans"
+  row_path: /home/matans/Documents/fruitspec/sandbox/VALENCIA/debugger_test/row_1/1 # path to row for analyzing, this should be a path to the fodler contatning all the files if we have multi scans
+  block_path: "" # path to block for analyzing, if "" will run only on row
+  include_rows: ["all"] # which rows to analyze if it includes "all" will run on all
+  include_scans: ["all"] # which scans indexes to analyze if it includes "all" will run on all
+  rotate: true # flag for rotating video
+  frames_limit: [0, 300] # frames to analyze in video
+  fps: 10 # fps for writing the movie if 0 will use original fps
+  new_vid_name: "" # name for new video: "" is for default value (Result_FSI_{side}_with_dets.mkv)
+  outputs_dir: /home/matans/Documents/fruitspec/sandbox/VALENCIA/debugger_test/debugging/ # where to dump the images
+  block_suffix: 1 # suffix for output dir naming
+  t_index: 6 # index of tracker
+  methods: [jai_frame_w_dets, alignment] # which methods to use: ("vid_with_dets", "jai_frame_w_dets", "alignment", "trees")
+  alignment_methods: ["", "depth", "min_samp", "min_samp_depth"] # which alignment filtering styles to use ("", "depth", "min_samp", "min_samp_depth")
+  max_depth: 5 # maxium depth allowed for a detection
+  im_output_shape: [600,900] # what output shape to use
+  min_samples: 3 # min number of samples for a track to count as valid (>=)
+  filter_depth: true # flag for using depth filtering
