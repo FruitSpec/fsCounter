@@ -1,3 +1,4 @@
+import os
 import cv2
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -7,11 +8,11 @@ from vision.tools.image_stitching import find_keypoints, find_translation, keep_
 
 class translation():
 
-    def __init__(self, translation_size=480, dets_only=True, mode='match', debug_path=None):
+    def __init__(self, batch_size, translation_size=480, dets_only=True, mode='match', debug_path=None):
         self.translation_size = translation_size
         self.dets_only = dets_only
         self.mode_init(mode)
-
+        self.batch_size = batch_size
         self.last_frame = None
         self.last_kp = None
         self.last_des = None
@@ -39,9 +40,9 @@ class translation():
 
         return tx, ty
 
-    def batch_translation(self, batch, detections):
+    def batch_translation(self, batch, detections, debug=None):
         if self.mode == 'match':
-            output = self.batch_match(batch, detections)
+            output = self.batch_match(batch, detections, debug=debug)
         elif self.mode == 'keypoints':
             output = self.batch_keypoints(batch)
         else:
@@ -50,15 +51,17 @@ class translation():
         return output
 
 
-    def batch_match(self, batch, detections, workers=4):
+    def batch_match(self, batch, detections, workers=4, debug=None):
         batch_preproc_, r_ = self.preprocess_batch(batch, detections, workers=workers)
 
         batch_last_frames = [self.last_frame]
         for i in range(len(batch) - 1):
             batch_last_frames.append(batch_preproc_[i])
+        if debug is None:
+            debug = [None] * self.batch_size
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            results = list(executor.map(self.find_match_translation, batch_last_frames, batch_preproc_, r_))
+            results = list(executor.map(self.find_match_translation, batch_last_frames, batch_preproc_, r_, debug))
 
         self.last_frame = batch_preproc_[-1].copy()
 
@@ -116,12 +119,15 @@ class translation():
         return tx, ty, kp, des
 
     @staticmethod
-    def find_match_translation(last_frame, frame, r):
+    def find_match_translation(last_frame, frame, r, debug=None):
 
         if last_frame is not None:
             try:
                 # Apply template Matching
-                res = cv2.matchTemplate(last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
+                res = cv2.matchTemplate(last_frame, frame[50:-50, 50:-50], cv2.TM_CCOEFF_NORMED)
+                if debug is not None:
+                    file_name = os.path.join(debug['output_path'], f"matching_result_f{debug['f_id']}.jpg")
+                    cv2.imwrite(file_name, res * 255)
                 x_vec = np.mean(res, axis=0)
                 y_vec = np.mean(res, axis=1)
                 tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
@@ -159,5 +165,5 @@ class translation():
 
 
 
-        return tx, ty
+
 
