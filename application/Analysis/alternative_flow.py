@@ -28,7 +28,12 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def receive_data():
-        pass
+        while True:
+            data, sender_module = AlternativeFlow.in_qu.get()
+            action, data = data["action"], data["data"]
+            if sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    AlternativeFlow.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     def analyze():

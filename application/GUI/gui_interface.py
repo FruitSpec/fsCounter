@@ -70,6 +70,9 @@ class GUIInterface(Module):
                     GUIInterface.sio.emit('set_camera_state', states)
                     logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
                                               f" ZED -> {GUIInterface.zed_state}")
+            if sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    GUIInterface.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     @sio.event

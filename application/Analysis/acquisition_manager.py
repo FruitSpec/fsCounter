@@ -40,12 +40,14 @@ class AcquisitionManager(Module):
 
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
-        AcquisitionManager.connect_cameras()
-        # AcquisitionManager.cameras_health_check()
+
         AcquisitionManager.receive_data_thread = threading.Thread(target=AcquisitionManager.receive_data, daemon=True)
         AcquisitionManager.receive_data_thread.start()
 
+        AcquisitionManager.connect_cameras()
+        # AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
+
         AcquisitionManager.receive_data_thread.join()
 
     @staticmethod
@@ -231,6 +233,9 @@ class AcquisitionManager(Module):
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     AcquisitionManager.stop_acquisition()
                     logging.info("STOP ACQUISITION FROM GUI")
+            if sender_module == ModulesEnum.Main:
+                if action == ModuleTransferAction.MONITOR:
+                    AcquisitionManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
 
     @staticmethod
     def shutdown(sig, frame):
