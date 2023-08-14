@@ -1,0 +1,50 @@
+{
+  "fruits_available": [
+    "Orange",
+    "Mandarin"
+  ],
+  "dependencies_path": "dep",
+  "DB": {
+    "url": "https://api-ext.fruitspec.com/api/dbquery",
+    "body": {
+      "user": "growthTool",
+      "password": "growthToolIsTheBest!@#",
+      "queryString": ""
+    }
+  },
+  "AWS": {
+    "access key": "AKIAYXNYQPTINYHUNJHE",
+    "secret key": "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",
+    "bucket": "fruitspec-prod-images",
+    "region name": "eu-west-1"
+  },
+  "BIN_FS_INTERVAL": {
+    "start": 20,
+    "skip": 4
+  },
+  "bounds": {
+    "low": -5,
+    "up": 5,
+    "days": 14
+  },
+  "interpolate_params": {
+    "smooth_f": 3,
+    "degree": 3
+  },
+  "periodTime": {
+    "Early": 5,
+    "Mid": 15,
+    "Late": 25
+  },
+  "function": {
+    "Norm_values": {
+      "slope": 3,
+      "days": 400
+    },
+    "alpha": {
+      "1": 0.5,
+      "2": 0.55,
+      "3": 0.6
+    }
+  }
+}

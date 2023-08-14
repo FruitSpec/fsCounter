@@ -1,7 +1,7 @@
 import os.path
 import cv2
 import numpy as np
-from cython_bbox import bbox_overlaps
+# from cython_bbox import bbox_overlaps
 from numba import jit
 import pickle
 
@@ -269,12 +269,12 @@ class FsTracker():
 
         atlbrs = [box for box in bboxes1]
         btlbrs = [box[:4] for box in bboxes2]
-        #bboxes2 = np.array(bboxes2).astype(np.float32)[:, :4]
-        ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
+        #bboxes2 = np.array(bboxes2).astype(float32)[:, :4]
+        ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=float)
         if ious.size > 0:
             ious = bbox_overlaps(
-                np.ascontiguousarray(atlbrs, dtype=np.float),
-                np.ascontiguousarray(btlbrs, dtype=np.float)
+                np.ascontiguousarray(atlbrs, dtype=float),
+                np.ascontiguousarray(btlbrs, dtype=float)
             )
             intersections = ious > 0
 
@@ -528,7 +528,7 @@ def assign_det_by_score(weigthed_score):
 
 
 @jit(nopython=True, cache=True, nogil=True)
-def tracklets_to_windows(tracklets_bboxes, tx:np.float32, tx_m:np.float32, ty:np.float32, ty_m:np.float32, margin, frame_size):
+def tracklets_to_windows(tracklets_bboxes, tx:float, tx_m:float, ty:float, ty_m:float, margin, frame_size):
    # tracklets_bboxes = np.vstack(tracklets_bboxes)
 
     if tx > 0:  # moving right - fruits moving left
@@ -633,6 +633,45 @@ def test_func(f_list):
         dets = d["det"]
 
         tracker.update(dets, frame)
+
+def bbox_overlaps(boxes, query_boxes):
+    """
+    Parameters
+    ----------
+    boxes: (N, 4) ndarray of float
+    query_boxes: (K, 4) ndarray of float
+    Returns
+    -------
+    overlaps: (N, K) ndarray of overlap between boxes and query_boxes
+    """
+    N = boxes.shape[0]
+    K = query_boxes.shape[0]
+    overlaps = np.zeros((N, K), dtype=boxes.dtype)
+
+    for k in range(K):
+        box_area = (
+                (query_boxes[k, 2] - query_boxes[k, 0] + 1) *
+                (query_boxes[k, 3] - query_boxes[k, 1] + 1)
+        )
+        for n in range(N):
+            iw = (
+                    min(boxes[n, 2], query_boxes[k, 2]) -
+                    max(boxes[n, 0], query_boxes[k, 0]) + 1
+            )
+            if iw > 0:
+                ih = (
+                        min(boxes[n, 3], query_boxes[k, 3]) -
+                        max(boxes[n, 1], query_boxes[k, 1]) + 1
+                )
+                if ih > 0:
+                    ua = (
+                            (boxes[n, 2] - boxes[n, 0] + 1) *
+                            (boxes[n, 3] - boxes[n, 1] + 1) +
+                            box_area - iw * ih
+                    )
+                    overlaps[n, k] = iw * ih / ua
+    return overlaps
+
 
 if __name__ == "__main__":
     f_list = ["/home/fruitspec-lab/FruitSpec/Sandbox/Sliced_data/RA_3_A_2/RA_3_A_2/res/f1.pkl",

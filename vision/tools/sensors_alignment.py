@@ -440,7 +440,7 @@ def plot_homography(zed_rgb, M_homography):
     plt.show()
     print(M_homography)
 
-def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4 ):
+def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, size_img=480 ):
     """
     aligns both sensors and updates the zed shift
     :param zed_rgb: rgb image
@@ -468,12 +468,15 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
     zed_GPU.upload(zed_cpu, stream2)
 
     # adjust zed scale to be the same as jai using calibrated scale x and y
-    zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / sx),
-                                        int(zed_GPU.size()[1] / sy)),
-                                        stream=stream2)
+    # zed_GPU = cv2.cuda.resize(zed_GPU, (int(zed_GPU.size()[0] / sx),
+    #                                     int(zed_GPU.size()[1] / sy)),
+    #                                     stream=stream2)
 
-    zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // scale_factor, stream2)
-    jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)
+    zed_GPU, rz = resize_img_cuda(zed_GPU, size_img, stream2)
+    jai_GPU, rz = resize_img_cuda(jai_GPU, size_img, stream1)
+
+    # rz_x = zed_GPU.size()[0] / zed_rgb.shape[0]
+    # rz_y = zed_GPU.size()[1] / zed_rgb.shape[1]
 
     kp_zed, des_zed_GPU = find_keypoints_cuda(zed_GPU)  # consumes 33% of time
     kp_jai, des_jai_GPU = find_keypoints_cuda(jai_GPU)  # consumes 33% of time
@@ -509,19 +512,19 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
         y1 = mid_y - (roi[1] // 2)
         y2 = mid_y + (roi[1] // 2)
     else:
-        #dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        #dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        #src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        #src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-        #deltas = np.array(dst_pts) - np.array(src_pts)
+        deltas = np.array(dst_pts) - np.array(src_pts)
 
-        tx = M[0, 2]
-        ty = M[1, 2]
-        tx = tx / rz * sx
-        ty = ty / rz * sy
-        #tx = np.mean(deltas[:, 0, 0]) / rz * sx
-        #ty = np.mean(deltas[:, 0, 1]) / rz * sy
+        # tx = M[0, 2]
+        # ty = M[1, 2]
+        # tx = tx / rz_x * sx
+        # ty = ty / rz_y * sy
+        tx = np.median(deltas[:, 0, 0]) / rz * sx
+        ty = np.median(deltas[:, 0, 1]) / rz * sy
 
         x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
 
@@ -534,20 +537,23 @@ def get_zed_roi(tx, ty, roi, origin, zed_size):
         x2 = roi[0]
     elif tx + roi[0] > zed_size[0]:
         x2 = zed_size[0]
-        x1 = zed_size[0] - roi[0]
+        x1 = x2 - roi[0]
     else:
         x1 = tx
-        x2 = tx + roi[0]
+        x2 = x1 + roi[0]
 
     if ty < 0:
-        y1 = origin[1]
-        y2 = origin[1] + roi[1]
+        y1 = ty + origin[1]
+        y2 = y1 + roi[1]
+        if y1 < 0:
+            y1 = origin[1]
+            y2 = origin[3]
     elif ty + roi[1] > zed_size[1]:
         y2 = origin[3]
-        y1 = origin[3] - roi[1]
+        y1 = y2 - roi[1]
     else:
         y1 = origin[1] + ty
-        y2 = origin[1] + ty + roi[1]
+        y2 = y1 + roi[1]
 
     return x1, y1, x2, y2
 

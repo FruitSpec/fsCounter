@@ -25,7 +25,7 @@ def run(cfg, args, detector=None):
     if isinstance(detector, type(None)):
         detector = counter_detection(cfg, args)
     results_collector = ResultsCollector()
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode, maxlen=cfg.translation.maxlen)
 
     img_list = os.listdir(args.data_dir)
 

@@ -7,14 +7,14 @@ from skimage.exposure import adjust_gamma
 
 
 
-def is_saturated(img, percentile=0.4, threshold=245):
+def is_saturated(img, percentile=0.8, threshold=245):
     if isinstance(img, type(None)):
         return True
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     return np.quantile(gray.flatten(), percentile) > threshold
 
 
-def batch_is_saturated(imgs, percentile=0.4, threshold=245, workers=4):
+def batch_is_saturated(imgs, percentile=0.8, threshold=245, workers=4):
     percentiles = [percentile for i in range(len(imgs))]
     thresholds = [threshold for i in range(len(imgs))]
     with ThreadPoolExecutor(max_workers=workers) as executor:

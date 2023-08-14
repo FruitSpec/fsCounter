@@ -20,6 +20,7 @@ from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
 from vision.tools.image_stitching import draw_matches
 from vision.pipelines.ops.simulator import get_n_frames, init_cams
+from vision.pipelines.detection_flow import counter_detection
 
 
 
@@ -35,9 +36,11 @@ def run(cfg, args, n_frames=200):
     validate_output_path(keypoints_path)
     loaded_path = os.path.join(args.output_folder, 'loaded')
     validate_output_path(loaded_path)
+    loaded_path_uncropped = os.path.join(args.output_folder, 'loaded_uncropped')
+    validate_output_path(loaded_path_uncropped)
 
     f_id = 0
-    n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
+    n_frames = frame_loader.jai_cam.get_number_of_frames() if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
     pbar = tqdm(total=n_frames)
     while f_id < n_frames:
         pbar.update(cfg.batch_size)
@@ -56,6 +59,8 @@ def run(cfg, args, n_frames=200):
                          corr=alignment_results[id_][0], sub_folder='roi')
             save_loaded_images(zed_batch[id_],
                                jai_batch[id_], f_id + id_, loaded_path, crop)
+            save_loaded_images(zed_batch[id_],
+                               jai_batch[id_], f_id + id_, loaded_path_uncropped, crop, draw_rec=True)
 
             res.append(alignment_results[id_])
 
@@ -73,14 +78,19 @@ def run(cfg, args, n_frames=200):
     return
 
 
-def save_loaded_images(zed_frame, jai_frame, f_id, output_fp, crop=[]):
+def save_loaded_images(zed_frame, jai_frame, f_id, output_fp, crop=[], draw_rec=False):
     if len(crop) > 0:
         x1 = crop[0]
         y1 = crop[1]
         x2 = crop[2]
         y2 = crop[3]
-        cropped = zed_frame[int(y1):int(y2), int(x1):int(x2)]
-        cropped = cv2.resize(cropped, (480, 640))
+        if not draw_rec:
+            cropped = zed_frame[int(y1):int(y2), int(x1):int(x2)]
+            cropped = cv2.resize(cropped, (480, 640))
+        else:
+            cropped = zed_frame.copy()
+            cropped = cv2.rectangle(cropped, (x1,y1), (x2,y2), (255,0,0), 3)
+            cropped = cv2.resize(cropped, (480, 640))
     else:
         cropped = cv2.resize(zed_frame, (480, 640))
 
@@ -115,7 +125,8 @@ def init_run_objects(cfg, args):
     """
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode,
+                    maxlen=cfg.translation.maxlen)
     sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
     zed_cam, rgb_jai_cam, jai_cam = init_cams(args)
     return detector, results_collector, translation, sensor_aligner, zed_cam, rgb_jai_cam, jai_cam
@@ -277,6 +288,44 @@ def update_args(args, row_dict):
     return new_args
 
 
+def validate_from_files(alignment, tracks, cfg, args):
+    dets = track_to_det(tracks)
+    jai_frames = list(dets.keys())
+    a_hash = get_alignment_hash(alignment)
+
+    frame_loader = FramesLoader(cfg, args)
+    frame_loader.batch_size = 1
+    for id_ in tqdm(jai_frames):
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+
+        save_aligned(zed_batch[0],
+                     jai_batch[0],
+                     args.output_folder,
+                     id_,
+                     corr=a_hash[id_], dets=dets[id_])
+
+
+def track_to_det(tracks_df):
+    dets = {}
+    for i, row in tracks_df.iterrows():
+        if row['frame_id'] in list(dets.keys()):
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+        else:
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+
+
+    return dets
+
+def get_alignment_hash(alignment):
+    data = alignment.to_numpy()
+    frames = data[:, 6]
+    corr = data[:, :4]
+
+    hash = {}
+    for i in range(len(frames)):
+        hash[frames[i]] = list(corr[i, :])
+
+    return hash
 
 
 if __name__ == "__main__":
@@ -286,13 +335,40 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/home/matans/Documents/fruitspec/sandbox/scans_2023-05-22/220523/POMELO00/220523/row_2/1"
-    args.zed.movie_path = os.path.join(folder, "ZED.mkv")
-    args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
-    args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
-    args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
-    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.log")
-    args.output_folder = os.path.join(folder, 'SA_freeze')
-    validate_output_path(args.output_folder)
+    folders = [
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLAYNEY0/170723/row_12/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCK700/170723/row_2/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCK700/170723/row_4/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCKDX0/row_3/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCKDX0/row_9/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/FREDIANI/170723/row_15/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/MAZMANI2/170723/row_21/1",
+               "/media/fruitspec-lab/cam175/customers_new/FOWLER/OLIVER55/170723/row_7/1",
+               "/media/fruitspec-lab/cam175/FOWLER/OLIVER12/180723/row_11/1"]
 
-    run(cfg, args, None)
+    for folder in folders:
+        try:
+            args.zed.movie_path = os.path.join(folder, "ZED.svo")
+            args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
+            args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+            args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+            args.sync_data_log_path = os.path.join(folder, "jai_zed.json")
+            scan = os.path.basename(folder)
+            row = os.path.basename(os.path.dirname(folder))
+            block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
+            args.output_folder = os.path.join(os.path.join("/media/fruitspec-lab/easystore/transloation_test"),
+                                              f"{block}_{row}_S{scan}")
+            validate_output_path(args.output_folder)
+
+            run(cfg, args, None)
+        except:
+            print("not finisehd")
+
+    # folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_1/1"
+    # t_p = os.path.join(folder, "tracks.csv")
+    # a_p = os.path.join(folder, "alignment.csv")
+    # tracks = pd.read_csv(t_p)
+    # alignment = pd.read_csv(a_p)
+    # args.output_folder = os.path.join(folder, 'SA_validate')
+    # validate_output_path(args.output_folder)
+    # validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args)

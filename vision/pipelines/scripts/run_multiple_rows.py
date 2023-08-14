@@ -8,15 +8,18 @@ import shutil
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
-from vision.misc.help_func import get_repo_dir, validate_output_path
+from vision.misc.help_func import get_repo_dir, validate_output_path, post_process_slice_df
 from vision.data.results_collector import ResultsCollector
 from vision.pipelines.adt_pipeline import run as adt_run
+from vision.pipelines.fe_pipeline import run_on_row as fe_run
+from vision.pipelines.fe_pipeline import validate_slice_data
 #from vision.pipelines.fe_pipeline import run as fe_run
 from vision.pipelines.ops.simulator import update_arg_with_metadata, get_jai_drops, get_max_cut_frame, load_logs
-from vision.pipelines.ops.simulator import init_cams
+from vision.pipelines.ops.simulator import init_cams, get_assignments
 from vision.pipelines.ops.debug_methods import plot_alignmnt_graph, draw_on_tracked_imgaes
 from vision.depth.slicer.slicer_flow import post_process
-from vision.tools.manual_slicer import slice_to_trees
+from vision.tools.manual_slicer import slice_to_trees, slice_to_trees_df
+from MHS.F_model_training import infer_on_features
 
 np.random.seed(123)
 cv2.setRNGSeed(123)
@@ -32,7 +35,7 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
     for key, row_runtime_params in input_dict.items():
         if key in exclude:
             continue
-        print("starting ", row_runtime_params["jai_novie_path"])
+        print("starting ", row_runtime_params["jai_movie_path"])
         run_args = args.copy()
         run_args = update_args_with_row_runtime_params(run_args, row_runtime_params, block_name, key)
         validate_output_path(run_args.output_folder)
@@ -40,37 +43,68 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
         run_args, metadata = update_arg_with_metadata(run_args)
 
         slice_data_zed, slice_data_jai = load_logs(run_args)
-        all_slices_path = os.path.join(os.path.dirname(args.slice_data_path), "all_slices.csv")
-        metadata['max_cut_frame'] = str(get_max_cut_frame(run_args, slice_data_jai, slice_data_zed))
-
+        slices_path = os.path.join(os.path.dirname(run_args.slice_data_path), "slices.csv")
+        metadata['max_cut_frame'] = str(get_max_cut_frame(run_args, slice_data_jai, slice_data_zed, slices_path)+10)
+        if not args.last_slice:
+            metadata['max_cut_frame'] = np.inf
         align_detect_track, tree_features = get_assignments(metadata)
+        path_to_row = os.path.dirname(row_runtime_params["jai_movie_path"])
 
         # perform align -> detect -> track
         if align_detect_track or args.overwrite.adt:
-            rc = adt_run(cfg, run_args, metadata)
+            try:
+                rc = adt_run(cfg, run_args, metadata)
+            except:
+                print("adt problem, row failed: ", path_to_row)
             #adt_slice_postprocess(run_args, rc, slice_data_zed, slice_data_jai, all_slices_path)
             if run_args.debug.align_graph:
                 frame_drop_jai = get_jai_drops(run_args.frame_drop_path)
                 plot_alignmnt_graph(run_args, rc, frame_drop_jai)
 
         # perform features extraction
-        #if tree_features or run_args.overwrite.trees:
-        #    fe_run(run_args)
+        try:
+            if tree_features or run_args.overwrite.trees:
+                validate_slice_data(run_args["output_folder"], 0)
+                fe_run(path_to_row)
+        except:
+            print("FE problem, row failed: ", path_to_row)
+
+        path_to_features = os.path.join(path_to_row, "row_features.csv")
+        # try:
+        #     if os.path.exists(path_to_features):
+        #         infer_on_features(pd.read_csv(path_to_features), OmegaConf.load(run_args.model_config),
+        #                           save_path=path_to_row)
+        # except:
+        #     print("inference problem, row failed: ", path_to_row)
+
+
 
 def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_jai, all_slices_path):
+    """
+    Performs post-processing on slice data to generate trees and draw tracks on images if in debug mode.
 
+    Args:
+        args (dict): A dictionary of runtime parameters.
+        results_collector (ResultsCollector): An object for collecting results.
+        slice_data_zed (dict): A dictionary containing ZED slice data.
+        slice_data_jai (dict): A dictionary containing JAI slice data.
+        all_slices_path (str): The path to a CSV file containing slice data.
+
+    Returns:
+        None
+    """
     if slice_data_zed or slice_data_jai or os.path.exists(all_slices_path):
         if slice_data_jai:
             """this function depends on how we sliced (before or after slicing bug)"""
-            slice_df = slice_to_trees(args.jai_slice_data_path, "", args.output_folder, resize_factor=3, h=2048,
-                                      w=1536)
-            slice_df.to_csv(os.path.join(args.output_folder, "slices.csv"))
+            slice_df = slice_to_trees_df(args.jai_slice_data_path, args.output_folder, resize_factor=3, h=2048, w=1536)
         elif slice_data_zed:
             slice_data_zed = results_collector.converted_slice_data(
                 slice_data_zed)  # convert from zed coordinates to jai
             slice_df = post_process(slice_data_zed, args.output_folder, save_csv=True)
         else:
             slice_df = pd.read_csv(all_slices_path)
+        slice_df = post_process_slice_df(slice_df)
+        slice_df.to_csv(os.path.join(args.output_folder, "slices.csv"), index=False)
         results_collector.dump_to_trees(args.output_folder, slice_df)
         filtered_trees = results_collector.save_trees_sliced_track(args.output_folder, slice_df)
         if args.debug.trees:
@@ -80,51 +114,46 @@ def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_ja
 
 
 def update_args_with_row_runtime_params(args, row_runtime_params, block_name, key):
-    args.zed.movie_path = row_runtime_params["zed_novie_path"]
-    args.jai.movie_path = row_runtime_params["jai_novie_path"]
-    args.rgb_jai.movie_path = row_runtime_params["rgb_jai_novie_path"]
+    args.zed.movie_path = row_runtime_params["zed_movie_path"]
+    args.depth.movie_path = row_runtime_params["depth_movie_path"]
+    args.jai.movie_path = row_runtime_params["jai_movie_path"]
+    args.rgb_jai.movie_path = row_runtime_params["rgb_jai_movie_path"]
     args.output_folder = row_runtime_params["output_folder"]
     args.slice_data_path = row_runtime_params["slice_data_path"]
     args.jai_slice_data_path = row_runtime_params["jai_slice_data_path"]
     args.frame_drop_path = row_runtime_params["frame_drop_path"]
+    args.sync_data_log_path = row_runtime_params["sync_data_log_path"]
     args.block_name = block_name
     args.row_name = key
-
     return args
-def get_assignments(metadata):
-    align_detect_track = True
-    if "align_detect_track" in metadata.keys():
-        align_detect_track = metadata["align_detect_track"]
-    tree_features = True
-    if "tree_features" in metadata.keys():
-        tree_features = metadata["tree_features"]
-
-    return align_detect_track, tree_features
-
 
 def create_input(block_path, output_path, side=1, row_list=[]):
     if not row_list:
         row_list = os.listdir(block_path)
     input_dict = {}
     for row in row_list:
-        if side == 1 and "B" in row:
-            continue
-        elif side == 2 and "A" in row:
-            continue
         row_path = os.path.join(block_path, row)
         if os.path.isdir(row_path):
-            row_output_path = os.path.join(output_path, row)
-            validate_output_path(row_output_path)
-            row_dict = {"zed_novie_path": os.path.join(row_path, f"ZED_{side}.svo"),
-                         "jai_novie_path": os.path.join(row_path, f"Result_FSI_{side}.mkv"),
-                         "rgb_jai_novie_path": os.path.join(row_path, f"Result_RGB_{side}.mkv"),
-                         "output_folder": row_output_path,
-                         "slice_data_path": os.path.join(row_path, f"ZED_{side}_slice_data_{row}.json"),
-                         "jai_slice_data_path": os.path.join(row_path, f"Result_FSI_{side}_slice_data_{row}.json"),
-                        "frame_drop_path": os.path.join(row_path, f"frame_drop_{side}.log")}
-            input_dict[row] = row_dict
+            for scan_number in os.listdir(row_path):
+                scan_path = os.path.join(row_path, scan_number)
+                if not os.path.isdir(scan_path):
+                    continue
+                row_output_path = os.path.join(output_path, row, scan_number)
+                validate_output_path(row_output_path)
+                row_dict = {"zed_movie_path": os.path.join(scan_path, f"ZED.svo"),
+                             "jai_movie_path": os.path.join(scan_path, f"Result_FSI.mkv"),
+                             "rgb_jai_movie_path": os.path.join(scan_path, f"Result_RGB.mkv"),
+                             "output_folder": row_output_path,
+                             "slice_data_path": os.path.join(scan_path, f"ZED_slice_data.json"),
+                             "jai_slice_data_path": os.path.join(scan_path, f"Result_FSI_slice_data.json"),
+                            "frame_drop_path": os.path.join(scan_path, f"frame_drop.log"),
+                            "sync_data_log_path": os.path.join(scan_path, f"jaized_timestamps.csv"),
+                            "depth_movie_path": os.path.join(scan_path, f"DEPTH.mkv")}
+                if not os.path.exists(row_dict["sync_data_log_path"]):
+                    row_dict["sync_data_log_path"] = os.path.join(scan_path, f"jai_zed.json")
+                input_dict[f"{row}_{scan_number}"] = row_dict
 
-    return input_dict
+    return input_dict.copy()
 
 
 def collect_cvs(block_folder):
@@ -143,7 +172,7 @@ def collect_cvs(block_folder):
                 final.append({"tree_id": cv[tree_id_index], "cv": cv[cv_index], "row_id": row})
 
     final = pd.DataFrame(data=final, columns=['tree_id', "cv", "row_id"])
-    final.to_csv(os.path.join(block_folder, f'block_{block}_cv.csv'))
+    final.to_csv(os.path.join(block_folder, f'block_{block}_cv.csv'), index=False)
 
 
 def collect_unique_track(block_folder):
@@ -163,7 +192,7 @@ def collect_unique_track(block_folder):
             track_list.append(pd.read_csv(row_tracks_path)["track_id"].nunique())
             row_list.append(row)
     final_csv_path = os.path.join(block_folder, f'{block}_n_track_ids.csv')
-    pd.DataFrame({"row": row_list, "n_unique_track_ids": track_list}).to_csv(final_csv_path)
+    pd.DataFrame({"row": row_list, "n_unique_track_ids": track_list}).to_csv(final_csv_path, index=False)
 
 
 def collect_features(block_folder):
@@ -182,7 +211,7 @@ def collect_features(block_folder):
             dfs_list.append(pd.read_csv(row_features_path))
     if dfs_list:
         features_df = pd.concat(dfs_list)
-        features_df.to_csv(os.path.join(block_folder, f'{block}_features.csv'))
+        features_df.to_csv(os.path.join(block_folder, f'{block}_features.csv'), index=False)
 
 
 def get_rows_with_slicing(block_path):
@@ -195,7 +224,7 @@ def get_rows_with_slicing(block_path):
     for row in os.listdir(block_path):
         row_path = os.path.join(block_path, row)
         if os.path.isdir(row_path):
-            if np.any([f"slice_data_{row}" in file or "all_slices.csv" in file for file in os.listdir(row_path)]):
+            if np.any([f"slice_data.json" in file or "all_slices.csv" in file for file in os.listdir(row_path)]):
                 out_rows.append(row)
     return out_rows
 
@@ -286,7 +315,7 @@ def newly_dets(block_folder, interval=1):
             make_newly_dets_graph(frames, start, end, track_list_row, block, row, block_folder, interval)
             track_list = np.append(track_list, track_list_row)
     final_csv_path = os.path.join(block_folder, f'{block}_new_ids_per_{interval}_frames.csv')
-    pd.DataFrame({"row": row_list, "n_new_ids": track_list, "frame": frame_number}).to_csv(final_csv_path)
+    pd.DataFrame({"row": row_list, "n_new_ids": track_list, "frame": frame_number}).to_csv(final_csv_path, index=False)
 
 
 def alignment_graph(block_folder):
@@ -370,7 +399,7 @@ def get_b_with_slicing(block_path):
     return rows_with_slice
 
 
-def run_multi_customers(folder_path, use_sliced_rows_only=False, skip_blocks=[], sides=[1, 2]):
+def run_multi_customers(folder_path, use_sliced_rows_only=False, skip_blocks=[], sides=[1, 2], njobs=1, skip_cust=[]):
     """
     this function runs feature extraction pipeline on a folder of customers (a folder of customer -> scan -> blocks -> rows)
     :param customer_path: path to master folder
@@ -380,11 +409,14 @@ def run_multi_customers(folder_path, use_sliced_rows_only=False, skip_blocks=[],
     :return:
     """
     for customer in os.listdir(folder_path):
+        if customer in skip_cust:
+            continue
         customer_path = os.path.join(folder_path, customer)
-        run_multi_block(customer_path, use_sliced_rows_only, skip_blocks, sides)
+        if os.path.isdir(customer_path):
+            run_multi_block(customer_path, use_sliced_rows_only, skip_blocks, sides, njobs=njobs)
 
 
-def multi_block_multiprocess_wrapper(block ,block_path, use_sliced_rows_only, sides):
+def multi_block_multiprocess_wrapper(block, block_path, use_sliced_rows_only, sides):
     output_path = block_path
     row_list = get_rows_with_slicing(block_path) if use_sliced_rows_only else []
     input_dict = create_input(block_path, output_path, side=sides[0], row_list=row_list)
@@ -412,15 +444,15 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
     """
 
     blocks, block_paths, use_sliced_rows_only_list, sides_list = [], [], [], []
-    for scan_date in os.listdir(customer_path):
-        scan_path = os.path.join(customer_path, scan_date)
-        for block in os.listdir(scan_path):
-            if block in skip_blocks:
+    for block in os.listdir(customer_path):
+        block_path = os.path.join(customer_path, block)
+        if (block in skip_blocks) or not os.path.isdir(block_path):
+            continue
+        for scan_date in os.listdir(block_path):
+            scan_path = os.path.join(block_path, scan_date)
+            if not os.path.isdir(scan_path):
                 continue
-            block_path = os.path.join(scan_path, block)
-            if not os.path.isdir(block_path):
-                continue
-            block_paths.append(block_path)
+            block_paths.append(scan_path)
             blocks.append(block)
             use_sliced_rows_only_list.append(use_sliced_rows_only)
             sides_list.append(sides)
@@ -455,27 +487,32 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
 
 
 if __name__ == "__main__":
-    #customers_folder_path = "/media/fruitspec-lab/cam175/customers"
-    #customer_path = "/media/fruitspec-lab/cam175/customers/SHANIR"
-    #skip_blocks = []
-    #run_multi_block(customer_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[1])
-    # run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[1])
+    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new"
+    # customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
+    # customer_path = "/media/fruitspec-lab/TEMP SSD/USA_June/BERESG"
+    skip_blocks = ["LDC42200"]
+    skip_cust = ["LDCBRA"]
+
+    # run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=3)
+    run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
+                        skip_cust=skip_cust)
     #run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[2])
 
     # skip_blocks_2 = []
     # run_multi_block(customer_path, skip_blocks=skip_blocks_2, sides=[])
 
 
-    block_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor/data"
-    output_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor"
+    # block_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor/data"
+    # output_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor"
+    #
+    # validate_output_path(output_path)
+    # # TODO add logic for non json calibraion (all_slices.csv)
+    # input_dict_a = {}
+    # input_dict_a = create_input(block_path, output_path, row_list=get_rows_with_slicing(block_path))
+    # input_dict_b = {}
+    # input_dict_b = create_input(block_path, output_path, side=2, row_list=get_rows_with_slicing(block_path))
+    #
+    # exclude = ['R2B', 'R3A', 'R3B', 'R4A', 'R4B', 'R5A', 'RBA']
+    # run_on_rows({**input_dict_a, **input_dict_b}, exclude)
 
-    validate_output_path(output_path)
-    # TODO add logic for non json calibraion (all_slices.csv)
-    input_dict_a = {}
-    input_dict_a = create_input(block_path, output_path, row_list=get_rows_with_slicing(block_path))
-    input_dict_b = {}
-    input_dict_b = create_input(block_path, output_path, side=2, row_list=get_rows_with_slicing(block_path))
-
-    exclude = ['R2B', 'R3A', 'R3B', 'R4A', 'R4B', 'R5A', 'RBA']
-    run_on_rows({**input_dict_a, **input_dict_b}, exclude)
-
+    print("Done")

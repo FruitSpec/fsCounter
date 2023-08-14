@@ -4,8 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
+# from sklearn.linear_model import RANSACRegressor
+# import kornia as K
+# import kornia.feature as KF
+import torch
+np.random.seed(123)
+# cv2.setRNGSeed(123)
 
-def keep_dets_only(frame, detections, margin = 0.5):
+def keep_dets_only(frame, detections, margin=0.5):
     canvas = frame.copy()
     if len(detections) > 0:
         dets = np.array(detections)[:, :4]
@@ -97,12 +103,26 @@ def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1
 
     return M, score, warp_matrix
 
-def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
+
+def get_frames_overlap(frames_folder=None, file_list=None, resize_=640, method='hm', max_workers=8):
     """
     method can be: 1. 'at' for affine transform
                    2. 'hm' for homography
     """
-    file_list = get_fsi_files(frames_folder)
+    if isinstance(file_list, type(None)):
+        file_list = get_fsi_files(frames_folder)
+
+    if method == "match":
+        resize_list = [resize_ for _ in file_list]
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = list(executor.map(find_match_translation, file_list[:-1], file_list[1:], resize_list[:-1]))
+        results = np.array(results).astype(int)
+        txs, tys = results[:, 0], results[:, 1]
+        widths = [file.shape[1] for file in file_list]
+        heights = [file.shape[0] for file in file_list]
+        masks = list(map(get_masks_from_tx_ty, txs, tys, heights, widths))
+        return masks
 
     kp, des, heights, widths, rs = extract_keypoints(file_list, resize_, max_workers)
 
@@ -111,7 +131,8 @@ def get_frames_overlap(frames_folder, resize_=640, method='hm', max_workers=8):
     if method == 'at':
         masks = list(map(translation_based, M, heights, widths, rs))
     elif method == 'hm':
-        masks = list(map(find_overlapping, M, heights, widths))
+        image_list = [load_color_img(img) for img in file_list]
+        masks = list(map(find_overlapping, image_list[:-1], image_list[1:], M))
     return masks
 
 
@@ -312,14 +333,14 @@ def match_descriptors_cuda(des1, des2, stream, threshold=0.7, matcherGPU=None):
     return match, matches, matchesMask
 
 
-def calc_affine_transform(kp1, kp2, match, ransac):
+def calc_affine_transform(kp1, kp2, match, ransac=20):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
 
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
         M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=ransac)
     else:
-        M, status = None, []
+        M, status = None, [0]
 
 
     return M, status
@@ -405,8 +426,10 @@ def extract_frame_id(file_name):
 
 def load_img(file_path, resize_=640):
     r = None
-
-    img = cv2.imread(file_path)
+    if isinstance(file_path, str):
+        img = cv2.imread(file_path)
+    else:
+        img = file_path
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     h = height(img)
@@ -532,20 +555,36 @@ def translation_based(M, height, width, r):
     tx = int(np.round(M[0, 2] / r))
     ty = int(np.round(M[1, 2] / r))
 
+    return get_masks_from_tx_ty(tx, ty, height, width)
+
+
+def get_masks_from_tx_ty(tx, ty, height, width):
     mask = np.zeros((height, width))
+    if np.abs(tx) > width or np.abs(ty) > height:
+        print("tx or ty is too big")
+        return None
     if tx < 0:
-        if ty < 0:
+        if ty <= 0:
             mask[-ty:, -tx:] = 1
         else:
             mask[:-ty, -tx:] = 1
     else:
-        if ty < 0:
+        if ty <= 0:
             mask[-ty:, :-tx] = 1
         else:
             mask[:-ty, :-tx] = 1
-
     return mask
 
+def get_tx_mask(tx, width, height):
+    mask = np.zeros((height, width))
+    if np.abs(tx) > width:
+        print("tx is too big")
+        return None
+    if tx < 0:
+        mask[:, -tx:] = 1
+    else:
+        mask[:, :-tx] = 1
+    return mask
 
 def find_translation(kp1, des1, kp2, des2, r):
     M, status, good, matches, matchesMask = features_to_translation(kp1, kp2, des1, des2)

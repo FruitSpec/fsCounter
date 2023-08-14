@@ -15,6 +15,9 @@ from tqdm import tqdm
 from time import time
 from itertools import chain
 from vision.pipelines.ops.frame_loader import FramesLoader
+from vision.pipelines.adt_pipeline import get_depth_to_bboxes
+import warnings
+warnings.simplefilter("ignore", FutureWarning)
 
 
 class ADTDebugger:
@@ -85,25 +88,33 @@ class ADTDebugger:
         self.cap_fsi, self.zed_cam = self.get_cams()
         # read results
         self.tracks_df, self.slices_df, self.jai_cors_in_zed, self.jai_zed_frames_dict = self.read_adt_results()
-        # self.jai_cors_in_zed = self.jai_cors_in_zed_fixer(self.jai_cors_in_zed)
-        self.tracker_results, self.tracker_d_f, self.tracker_ms_f, self.tracker_ms_d_f = self.get_tracker_results()
+        self.tracker_results, self.tracker_d_f, self.tracker_ms_f, self.tracker_ms_d_f = {}, {}, {}, {}
         self.slicer_results = self.get_slicer_results()
 
     @staticmethod
     def jai_cors_in_zed_fixer(jai_cors_in_zed):
+        """
+        Fixes the "frame" column in the jai_cors_in_zed DataFrame.
+
+        Args:
+            jai_cors_in_zed (pandas.DataFrame): DataFrame containing the "frame" column.
+
+        Returns:
+            pandas.DataFrame: The updated jai_cors_in_zed DataFrame.
+        """
         jai_cors_in_zed["frame"] += np.array(list(chain(*[[0, 1, 2, 3]
                                                           for i in range(len(jai_cors_in_zed["frame"])//4)])))
         return jai_cors_in_zed
 
     @staticmethod
-    def draw_dets(frame, dets, t_index=6):
+    def draw_dets(frame, dets, t_index=6, with_depth=True):
         """Draw bounding boxes around detections on the given frame.
 
         Args:
             frame(np.ndarry): The frame on which to draw the bounding boxes.
             dets(list): A list of detections to draw.
             t_index(int): The index of the track ID in each detection.
-
+            with_depth (str): add depth to fruit title
         Returns:
             The frame with bounding boxes drawn around the detections.
 
@@ -111,12 +122,13 @@ class ADTDebugger:
         frame = frame.copy()
         for det in dets:
             track_id = det[t_index]
-            color_id = int(track_id) % 15  # 15 is the number of colors in list
+            color_id = int(track_id) % 20  # 15 is the number of colors in list
             color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
-            frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color,
-                                          text_color, True, 10, 3)
+            title = f'ID:{int(track_id)}:{det[-1]:.2f}' if with_depth else f'ID:{int(track_id)}'
+            frame = draw_highlighted_test(frame, title, (det[0], det[1]), frame.shape[1], color, text_color,
+                                          True, 10, 3)
         return frame
 
     @staticmethod
@@ -191,6 +203,8 @@ class ADTDebugger:
             jai_slice_data_path = os.path.join(self.row_path, f"Result_FSI_slice_data_{row}.json")
             if not os.path.exists(jai_slice_data_path):
                 jai_slice_data_path = os.path.join(self.row_path, f"Result_FSI_slice_data.json")
+                if not os.path.exists(jai_slice_data_path):
+                    jai_slice_data_path = os.path.join(self.row_path, f"Result_RGB_slice_data.json")
         else:
             jai_slice_data_path = os.path.join(self.row_path, f"Result_FSI_{side}_slice_data_{row}.json")
             if not os.path.exists(jai_slice_data_path):
@@ -207,6 +221,8 @@ class ADTDebugger:
         jai_slice_data_path = self.get_slice_data_path()
         if os.path.exists(jai_slice_data_path):
             slices_df = slice_to_trees_df(jai_slice_data_path, self.row_path)
+            if not len(slices_df):
+                slices_df = pd.DataFrame({}, columns=["tree_id", "frame_id", "start", "end"])
         else:
             slices_df = pd.DataFrame({}, columns=["tree_id", "frame_id", "start", "end"])
         return slices_df
@@ -221,25 +237,36 @@ class ADTDebugger:
         """
         print("reading results")
         tracks_path = os.path.join(self.row_path, f'tracks.csv')
+        tracks_fix_depth_path = os.path.join(self.row_path, f'tracks_fix_depth.csv')
         slices_path = os.path.join(self.row_path, f'slices.csv')
         jai_cors_in_zed_path = os.path.join(self.row_path, f'jai_cors_in_zed.csv')
-        jai_zed_path = os.path.join(self.row_path, f'jai_zed.json')
-        tracks_df, slices_df = safe_read_csv(tracks_path), safe_read_csv(slices_path)
+        # jai_zed_path = os.path.join(self.row_path, f'jai_zed.json')
+        if os.path.exists(tracks_fix_depth_path):
+            print("using new depth")
+            tracks_df, slices_df = safe_read_csv(tracks_fix_depth_path), safe_read_csv(slices_path)
+            tracks_df.drop("depth", axis=1, inplace=True)
+            tracks_df.rename({"new_depth": "depth"}, axis=1, inplace=True)
+        else:
+            tracks_df, slices_df = safe_read_csv(tracks_path), safe_read_csv(slices_path)
+            if not len(tracks_df):
+                return tracks_df, slices_df, None, None
         if "frame_id" in tracks_df.columns:
             tracks_df.rename({"frame_id": "frame"}, axis=1, inplace=True)
+        tracks_df["frame"] = tracks_df["frame"].astype(int)
         if not len(slices_df):
             slices_df = self.read_slice_df_from_json()
         slices_df = post_process_slice_df(slices_df)
         slices_df["start"] = slices_df["start"].replace(-1, 0)
         slices_df["end"] = slices_df["end"].replace(-1, int(self.get_width_height_cam()[0] - 1))
-        jai_cors_in_zed, jai_zed_frames_dict = safe_read_csv(jai_cors_in_zed_path), read_json(jai_zed_path)
+        jai_cors_in_zed = safe_read_csv(jai_cors_in_zed_path)
         if not os.path.exists(jai_cors_in_zed_path):
             alignment_path = os.path.join(self.row_path, f'alignment.csv')
             jai_cors_in_zed = safe_read_csv(alignment_path)
+        jai_zed_path = os.path.join(self.row_path, f'jaized_timestamps.log')
         if not os.path.exists(jai_zed_path):
-            jai_zed_path = os.path.join(self.row_path, f'jaized_timestamps.log')
-            zed_ids, _ = FramesLoader.get_cameras_sync_data(jai_zed_path)
-            jai_zed_frames_dict = dict(zip([str(item) for item in range(len(zed_ids))], zed_ids))
+            jai_zed_path = os.path.join(self.row_path, f'jaized_timestamps.csv')
+        zed_ids, _ = FramesLoader.get_cameras_sync_data(jai_zed_path)
+        jai_zed_frames_dict = dict(zip([str(item) for item in range(len(zed_ids))], zed_ids))
         print("finished reading results")
         return tracks_df, slices_df, jai_cors_in_zed, jai_zed_frames_dict
 
@@ -342,6 +369,34 @@ class ADTDebugger:
         if "vid_with_dets" in self.methods:
             fsi_vid.release()
 
+    def re_extract_depth(self):
+        """Extracts depth for each track_id from depth map
+
+        """
+        tracks_fix_depth_path = os.path.join(self.row_path, f'tracks_fix_depth.csv')
+        if os.path.exists(tracks_fix_depth_path):
+            print("new tracks already exsits aborting: ", self.row_path)
+            return
+        frame_number, n = 0, self.cap_fsi.get(cv2.CAP_PROP_FRAME_COUNT)
+        new_depths = []
+        while self.cap_fsi.isOpened() and frame_number < n:
+            print(f"\r{frame_number+1}/{n} ({(frame_number-self.s_frame) / (n - self.s_frame) * 100: .2f}%) frames", end="")
+            ret, frame_fsi = self.read_next_fsi()
+            if not ret:
+                break
+            dets = self.tracks_df[self.tracks_df["frame"] == frame_number].to_numpy()
+            if not len(dets):
+                frame_number += 1
+                continue
+            zed, xyz, frame_fsi, resize_factors = self.get_f_id_images(int(frame_number), frame_fsi)
+            new_depths.append(get_depth_to_bboxes(xyz, frame_fsi, [], dets, aligned=True,
+                                                  resize_factors=resize_factors))
+
+            frame_number+=1
+        self.tracks_df["new_depth"] = [fepth[0] for d_list in new_depths for fepth in d_list]
+        self.tracks_df.to_csv(os.path.join(self.row_path, "tracks_fix_depth.csv"), index=False)
+
+
     def get_width_height_cam(self):
         """Get the width and height of the JAI camera.
 
@@ -383,7 +438,7 @@ class ADTDebugger:
         """
         print("processing tracker results")
         if not len(self.tracks_df):
-            return {}
+            return {}, {}, {}, {}
         tracker_results, depth_filtered_results = {}, {}
         min_samp_filtered, min_samp_depth_filtered = {}, {}
         uniq, counts = np.unique(self.tracks_df["track_id"], return_counts=True)
@@ -445,7 +500,7 @@ class ADTDebugger:
             A tuple containing the ZED image, XYZ coordinates, JAI frame, and the resize factors.
 
         """
-        zed_frame_number = self.jai_zed_frames_dict[str(frame_number)]
+        zed_frame_number = self.jai_zed_frames_dict[str(frame_number)]-1
         if self.zed_style == "svo":
             zed, xyz = self.zed_cam.get_zed(zed_frame_number, exclude_depth=True)
         else:
@@ -494,7 +549,7 @@ class ADTDebugger:
         """
         if str(frame_number) not in self.jai_zed_frames_dict.keys():
             return
-        zed, xyz, frame_fsi, resize_factors = self.get_f_id_images(frame_number, frame_fsi)
+        zed, xyz, frame_fsi, resize_factors = self.get_f_id_images(int(frame_number), frame_fsi)
         if self.filter_depth:
             frame_fsi, zed, xyz = self.filter_depth_imgs(frame_fsi, zed, xyz)
         saving_folders, tracker_results, n_methods = self.get_translation_lists_mp()
@@ -571,11 +626,13 @@ class ADTDebugger:
         r_h, r_w = resize_factors
         if frame_number in tracker_results.keys():
             for track_id, track in tracker_results[frame_number].items():
+                color_id = int(track_id) % 20  # 15 is the number of colors in list
+                color = get_color(color_id)
                 track = ((int(track[0][0] * r_w), int(track[0][1] * r_h)),
                          (int(track[1][0] * r_w), int(track[1][1] * r_h)))
                 frame_fsi = cv2.rectangle(frame_fsi, (track[0][0], track[0][1]), (track[1][0], track[1][1]),
-                                          color=(0, 0, 255), thickness=2)
-                zed = cv2.rectangle(zed, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=(0, 0, 255),
+                                          color=color, thickness=2)
+                zed = cv2.rectangle(zed, (track[0][0], track[0][1]), (track[1][0], track[1][1]), color=color,
                                     thickness=2)
         slice_start, slice_end = self.get_slice_start_end(slices, frame_number, frame_fsi, r_w)
         max_y = self.im_output_shape[1]
@@ -628,7 +685,8 @@ class ADTDebugger:
             tree_tracks = tree_tracks[tree_tracks["depth"] < self.max_depth]
         unique_tracks, counts = np.unique(tree_tracks["track_id"], return_counts=True)
         new_ids = dict(zip(unique_tracks, range(len(unique_tracks))))
-        tree_tracks.loc[:, "track_id"] = tree_tracks["track_id"].map(new_ids)
+        mapped_ids = tree_tracks["track_id"].map(new_ids).values
+        tree_tracks.loc[:, "track_id"] = mapped_ids
         tracker_results = {}
         for frame in self.tracks_df["frame"].unique():
             tracker_results_frame = tree_tracks[tree_tracks["frame"] == frame]
@@ -675,7 +733,9 @@ class ADTDebugger:
         for i, tree_id in enumerate(uniq_trees):
             print(f"starting tree: {i+1}, out of {len(uniq_trees)}, ({(i+1)/len(uniq_trees)*100:.2f}%)")
             tree_tracks, tracker_results, tree_slices = self.get_tree_slice_track(tree_id, depth_filter, min_samp_filter)
-            uniq_frames = tree_tracks["frame"].unique()
+            if not len(tree_tracks):
+                continue
+            uniq_frames = np.arange(tree_tracks["frame"].min(), tree_tracks["frame"].max()+1)
             self.cap_fsi.set(cv2.CAP_PROP_POS_FRAMES, uniq_frames[0])
             tree_folder, alignment_save_folder, fsi_w_tracks_folder = self.get_tree_save_dir(min_samp_filter,
                                                                                              depth_filter, tree_id)
@@ -704,11 +764,11 @@ class ADTDebugger:
             df, msf, sdets = methods_dict[method]
             naming = ""
             if df:
-                naming += "depth_filter"
+                naming += f"depth({self.max_depth})_filter"
             if msf:
                 if len(naming) > 0:
                     naming += "_"
-                naming += "min_samp_filter"
+                naming += f"min_samp({self.min_samples})_filter"
             if sdets:
                 naming += "org_results"
             print("starting trees: ", naming)
@@ -720,8 +780,9 @@ class ADTDebugger:
         Returns:
 
         """
-        tracks = {"no_filter": self.tracker_results, "depth_filter": self.tracker_d_f,
-                  "min_samp_filter": self.tracker_ms_f, "min_samp_depth_filter": self.tracker_ms_d_f}
+        tracks = {"no_filter": self.tracker_results, f"depth({self.max_depth})_filter": self.tracker_d_f,
+                  f"min_samp({self.min_samples})_filter": self.tracker_ms_f,
+                  f"min_samp({self.min_samples})_depth({self.max_depth})_filter": self.tracker_ms_d_f}
         for filter_type, tracker_esults in tracks.items():
             track_ids = list(chain(*[list(tracker_esults[key].keys()) for key in tracker_esults.keys()]))
             n_tracks = len(np.unique(track_ids))
@@ -739,7 +800,9 @@ class ADTDebugger:
         Returns:
 
         """
-        methods_dict = dict(zip(["_no_filter", "_depth_filter", "_min_samp_filter", "_min_samp_depth_filter"],
+        methods_dict = dict(zip([f"_no_filter", f"_depth({self.max_depth})_filter",
+                                 f"_min_samp({self.min_samples})_filter",
+                                 f"_min_samp({self.min_samples})_depth({self.max_depth})_filter"],
                             [[False, False], [True, False], [False, True], [True, True]]))
         if not len(self.slices_df["tree_id"].unique()):
             return None
@@ -762,23 +825,50 @@ class ADTDebugger:
         """
         run the debugger
         """
-        self.extract_cv_by_row()
-        self.extract_cv_by_tree()
-        if any(method in self.methods for method in ["vid_with_dets", "alignment", "jai_frame_w_dets"]):
-            print("starting debug by video")
-            self.write_files()
-        if "trees" in self.methods:
-            print("starting debug by tree")
-            self.debug_trees()
-        self.cap_fsi.release()
-        if self.zed_style == "svo":
-            self.zed_cam.close()
-        else:
-            for cam in self.zed_cam:
-                cam.close()
-
+        max_depths = self.max_depth.copy()
+        min_samples = self.min_samples.copy()
+        for max_depth in max_depths:
+            for min_sample in min_samples:
+                self.max_depth = max_depth
+                self.min_samples = min_sample
+                self.tracker_results, self.tracker_d_f, self.tracker_ms_f, self.tracker_ms_d_f = self.get_tracker_results()
+                if not len(self.tracks_df):
+                    print(f"no tracks for : {self.row_path}, aborting analysis")
+                    return
+                if not len(self.jai_cors_in_zed):
+                    print(f"no alignment for : {self.row_path}, aborting analysis")
+                    return
+                self.extract_cv_by_row()
+                self.extract_cv_by_tree()
+                if any(method in self.methods for method in ["vid_with_dets", "alignment", "jai_frame_w_dets"]):
+                    print("starting debug by video")
+                    self.write_files()
+                if "trees" in self.methods:
+                    print("starting debug by tree")
+                    self.debug_trees()
+                self.cap_fsi.release()
+                if self.zed_style == "svo":
+                    self.zed_cam.close()
+                else:
+                    for cam in self.zed_cam:
+                        cam.close()
+        self.max_depth = max_depths
+        self.min_samples = min_samples
 
 def agg_res_iner_loop(dfs_rows, dfs_trees, row_path, filter_type):
+    """
+    Aggregates results for a given row path and filter type.
+
+    Args:
+        dfs_rows (list): List of DataFrames for row results.
+        dfs_trees (list): List of DataFrames for tree results.
+        row_path (str): Path to the row.
+        filter_type (str): Filter type.
+
+    Returns:
+        dfs_rows (list): Updated list of DataFrames for row results.
+        dfs_trees (list): Updated list of DataFrames for tree results.
+    """
     if not os.path.isdir(row_path):
         return dfs_rows, dfs_trees
     row_res_path = os.path.join(row_path, f"n_track_ids_{filter_type}.csv")
@@ -790,23 +880,37 @@ def agg_res_iner_loop(dfs_rows, dfs_trees, row_path, filter_type):
     return dfs_rows, dfs_trees
 
 
-def agg_results(block_save_path, multi_scans=False):
-    filters = ["no_filter", "depth_filter", "min_samp_filter", "min_samp_depth_filter"]
-    for filter_type in filters:
-        dfs_rows, dfs_trees, scans = [], [], []
-        for row in os.listdir(block_save_path):
-            row_path = os.path.join(block_save_path, row)
-            if multi_scans:
-                if not os.path.isdir(row_path):
-                    continue
-                for scan_id in os.listdir(row_path):
-                    path_2_scan = os.path.join(row_path, scan_id)
-                    dfs_rows, dfs_trees = agg_res_iner_loop(dfs_rows, dfs_trees, path_2_scan, filter_type)
-            else:
-                dfs_rows, dfs_trees = agg_res_iner_loop(dfs_rows, dfs_trees, row_path, filter_type)
-        pd.concat(dfs_rows).to_csv(os.path.join(block_save_path, f"n_track_ids_{filter_type}.csv"))
-        if len(dfs_trees):
-            pd.concat(dfs_trees).to_csv(os.path.join(block_save_path, f"n_track_ids_per_tree_{filter_type}.csv"))
+def agg_results(block_save_path, args, multi_scans=False):
+    """
+    Aggregates results based on the given block save path and arguments.
+
+    Args:
+        block_save_path (str): Path to the block save directory.
+        args (object): Arguments object containing max_depth and min_samples.
+        multi_scans (bool): Flag indicating whether to aggregate results for multiple scans (default: False).
+
+    Returns:
+        None
+    """
+    for max_depth in args.max_depth:
+        for min_samples in args.min_samples:
+            filters = ["no_filter", f"depth({max_depth})_filter", f"min_samp({min_samples})_filter",
+                       f"min_samp({min_samples})_depth({max_depth})_filter"]
+            for filter_type in filters:
+                dfs_rows, dfs_trees, scans = [], [], []
+                for row in os.listdir(block_save_path):
+                    row_path = os.path.join(block_save_path, row)
+                    if multi_scans:
+                        if not os.path.isdir(row_path):
+                            continue
+                        for scan_id in os.listdir(row_path):
+                            path_2_scan = os.path.join(row_path, scan_id)
+                            dfs_rows, dfs_trees = agg_res_iner_loop(dfs_rows, dfs_trees, path_2_scan, filter_type)
+                    else:
+                        dfs_rows, dfs_trees = agg_res_iner_loop(dfs_rows, dfs_trees, row_path, filter_type)
+                pd.concat(dfs_rows).to_csv(os.path.join(block_save_path, f"n_track_ids_{filter_type}.csv"))
+                if len(dfs_trees):
+                    pd.concat(dfs_trees).to_csv(os.path.join(block_save_path, f"n_track_ids_per_tree_{filter_type}.csv"))
 
 
 def debugger_runner_il(row_path, args):
@@ -821,14 +925,29 @@ def debugger_runner_il(row_path, args):
     """
     args.row_path = row_path
     debugger = ADTDebugger(args)
-    debugger.run()
+    if mode == "fix_depth":
+        debugger.re_extract_depth()
+    if mode == "analysis":
+        debugger.run()
 
 
 def get_rows_paths(block_path, args, multi_scans=False):
+    """
+    Retrieves the paths to rows or scans based on the given block path and arguments.
+
+    Args:
+        block_path (str): Path to the block.
+        args (object): Arguments object containing include_rows and include_scans.
+        multi_scans (bool): Flag indicating whether to retrieve multiple scans (default: False).
+
+    Returns:
+        list: List of paths to rows or scans.
+    """
     if multi_scans:
         if block_path != "":
             row_paths = [os.path.join(block_path, row) for row in os.listdir(block_path)
                          if row in args.include_rows or "all" in args.include_rows]
+            row_paths = [row_path for row_path in row_paths if os.path.isdir(row_path)]
             scans_path = []
             for row_path in row_paths:
                 scans_path += [os.path.join(row_path, scan_id) for scan_id in os.listdir(row_path)
@@ -872,7 +991,9 @@ def debugger_runner(args, multi_process=False, use_thread_pool=False, multi_scan
     if block_path != "":
         block_name = os.path.basename(args.block_path)
         outputs_dir = os.path.join(args.outputs_dir, f"{block_name}{args.block_suffix}")
-        agg_results(outputs_dir, multi_scans)
+        agg_results(outputs_dir, args, multi_scans)
+
+
 
 def cut_zed_in_jai(pictures_dict, cur_coords, rgb=True, image_input=False):
     """
@@ -900,14 +1021,161 @@ def cut_zed_in_jai(pictures_dict, cur_coords, rgb=True, image_input=False):
     return pictures_dict
 
 
+def get_min_samp_depth(file):
+    """
+    Extracts the min samples and depth used for filtering in a csv file.
+
+    Args:
+        file (str): Path to the file.
+
+    Returns:
+        min_samp (int): Number of min samples used for analysis.
+        depth (int): Maximum depth used for analysis.
+    """
+    first_open_parentheses = file.find("(")
+    first_close_parentheses = file.find(")")
+    min_samp = int(file[first_open_parentheses + 1:first_close_parentheses])
+    if "depth" in file:
+        second_open_parentheses = file.rfind("(")
+        second_close_parentheses = file.rfind(")")
+        depth = float(file[second_open_parentheses + 1:second_close_parentheses])
+    else:
+        depth = 0
+    return min_samp, depth
+
+
+def append_df(file_path, file, min_samp, out_trees_dfs, out_rows_dfs):
+    """
+    Appends a DataFrame based on the given file, min samples, and output DataFrames.
+
+    Args:
+        file_path (str): Path to the file.
+        file (str): File name.
+        min_samp (int): Number of min samples used for analysis.
+        out_trees_dfs (pandas.DataFrame): DataFrame for aggregated trees.
+        out_rows_dfs (pandas.DataFrame): DataFrame for aggregated rows.
+
+    Returns:
+        out_trees_dfs (pandas.DataFrame): Updated DataFrame for aggregated trees.
+        out_rows_dfs (pandas.DataFrame): Updated DataFrame for aggregated rows.
+    """
+    df = pd.read_csv(file_path)
+    df.drop([col for col in df.columns if col.startswith("Unnamed")], axis=1, inplace=True)
+    df.rename({"n_unique_track_ids": min_samp}, axis=1, inplace=True)
+    if "tree" in file:
+        if not len(out_trees_dfs):
+            out_trees_dfs = df.copy()
+        else:
+            out_trees_dfs = out_trees_dfs.join(df.set_index("tree"), "tree", "outer")
+    else:
+        df['row_scan'] = df.apply(lambda row: f"{row['row']}_S{row['scan_id']}", axis=1)
+        if not len(out_rows_dfs):
+            out_rows_dfs = df[["row", "scan_id", "row_scan", min_samp]].copy()
+        else:
+            df.drop(["row", "scan_id"], axis=1, inplace=True)
+            out_rows_dfs = out_rows_dfs.join(df.set_index("row_scan"), "row_scan")
+    return out_trees_dfs, out_rows_dfs
+
+
+def collect_min_samp_depth_filter(outputs_dir, args):
+    """
+    Collects and filters data based on min samples and depth.
+
+    Args:
+        outputs_dir (str): Directory path for the output files.
+        args (object): Arguments object containing max_depth.
+
+    Returns:
+        None
+    """
+    for max_depth in args.max_depth:
+        out_trees_dfs = pd.DataFrame({})
+        out_rows_dfs = pd.DataFrame({})
+        out_trees_dfs_no_depth = pd.DataFrame({})
+        out_rows_dfs_no_depth = pd.DataFrame({})
+        for file in os.listdir(outputs_dir):
+            file_path = os.path.join(outputs_dir, file)
+            if (not "min_samp" in file_path) or ("agg" in file_path):
+                continue
+            min_samp, depth = get_min_samp_depth(file)
+            if not depth:
+                out_trees_dfs_no_depth, out_rows_dfs_no_depth = append_df(file_path, file, min_samp, out_trees_dfs_no_depth,
+                                                                          out_rows_dfs_no_depth)
+            if depth != max_depth:
+                continue
+            out_trees_dfs, out_rows_dfs = append_df(file_path, file, min_samp, out_trees_dfs, out_rows_dfs)
+        out_rows_dfs.to_csv(os.path.join(outputs_dir, f"agg_rows_min_samp_depth({max_depth}).csv"))
+        out_trees_dfs.to_csv(os.path.join(outputs_dir, f"agg_trees_min_samp_depth({max_depth}).csv"))
+
+        out_rows_dfs_no_depth.to_csv(os.path.join(outputs_dir, f"agg_rows_min_samp_depth({0}).csv"))
+        out_trees_dfs_no_depth.to_csv(os.path.join(outputs_dir, f"agg_trees_min_samp_depth({0}).csv"))
+
+
+# def depth_per_track_id(args):
+#     scan_type = args.scan_type
+#     row_path = args.row_path
+#     side = 1 if row_path.endswith("A") else 2
+#     if scan_type == "multi_scans":
+#         jai_fp = os.path.join(row_path, f'Result_FSI.mkv')
+#         zed_fp = os.path.join(row_path, f'ZED.svo')
+#     else:
+#         jai_fp = os.path.join(row_path, f'Result_FSI_{side}.mkv')
+#         zed_fp = os.path.join(row_path, f'ZED_{side}.svo')
+#     mkv_path = f"{zed_fp[:-3]}mkv"
+#     gray_cam = video_wrapper(mkv_path, args.zed.rotate)
+#     depth_cam = video_wrapper(os.path.join(row_path, f'DEPTH.mkv'), args.zed.rotate)
+#
+#     tracks_path = os.path.join(row_path, f'tracks.csv')
+#     tracks_df = safe_read_csv(tracks_path)
+#     if not len(tracks_df):
+#         return tracks_df
+#     if "frame_id" in tracks_df.columns:
+#         tracks_df.rename({"frame_id": "frame"}, axis=1, inplace=True)
+#     tracks_df["frame"] = tracks_df["frame"].astype(int)
+#
+#     jai_zed_path = os.path.join(row_path, f'jai_zed.json')
+#     jai_cors_in_zed, jai_zed_frames_dict = safe_read_csv(jai_cors_in_zed_path), read_json(jai_zed_path)
+#     jai_zed_path = os.path.join(self.row_path, f'jaized_timestamps.log')
+#     zed_ids, _ = FramesLoader.get_cameras_sync_data(jai_zed_path)
+#     jai_zed_frames_dict = dict(zip([str(item) for item in range(len(zed_ids))], zed_ids))
+#
+#
+#     for i in range(depth_cam.get_number_of_frames()):
+#
+#
+#         zed_frame_number = self.jai_zed_frames_dict[str(frame_number)]
+#         if self.zed_style == "svo":
+#             zed, xyz = self.zed_cam.get_zed(zed_frame_number, exclude_depth=True)
+#         else:
+#             _, zed = self.zed_cam[0].get_frame(zed_frame_number)
+#             xyz = self.zed_cam[1].get_frame(zed_frame_number)[1] / 255 * 8
+#             # xyz = np.where(xyz == 8, np.nan, xyz)
+#         cur_coords = self.jai_cors_in_zed[self.jai_cors_in_zed["frame"] == frame_number]
+#         if len(cur_coords):
+#             zed = cut_zed_in_jai(zed, cur_coords.astype(int).reset_index(drop=True), image_input=True)
+#             xyz = cut_zed_in_jai(xyz, cur_coords.astype(int).reset_index(drop=True), image_input=True)
+#         else:
+#             zed, xyz = np.zeros_like(frame_fsi), np.zeros_like(frame_fsi)
+#         zed, xyz, frame_fsi, resize_factors = self.resize_imgs_coords(zed, xyz, frame_fsi)
+#         return zed, xyz, frame_fsi, resize_factors
+#
+
+
 if __name__ == "__main__":
+    global mode
+    mode = "analysis" # "fix_depth"
     repo_dir = get_repo_dir()
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     args = OmegaConf.load(repo_dir + runtime_config)
     # s_t = time()
     # debugger_runner(args.adt_debugger)
     # print("mapping time: ", time() - s_t) #759 s
-    validate_output_path(args.adt_debugger.outputs_dir)
-    debugger_runner(args.adt_debugger, False, False, args.adt_debugger.scan_type == "multi_scans")  # 289
+
+    debugger_runner(args.adt_debugger, True, False, args.adt_debugger.scan_type == "multi_scans")  # 289
+
+    collect_min_samp_depth_filter(
+        os.path.join(args.adt_debugger.outputs_dir,
+                     f"{os.path.basename(args.adt_debugger.block_path)}{args.adt_debugger.block_suffix}"),
+        args.adt_debugger)
     # debugger_runner(args.adt_debugger, True, False) #289
 

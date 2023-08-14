@@ -15,8 +15,8 @@ import random
 import cv2
 import numpy as np
 
-import albumentations as A
-from yolox.utils import xyxy2cxcywh
+# import albumentations as A
+from vision.detector.yolo_x.yolox.utils import xyxy2cxcywh
 
 
 def augment_hsv(img, hgain=5, sgain=30, vgain=30):

@@ -1,10 +1,9 @@
-# config.yaml
-exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+#exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py
 
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
-ckpt_file: /home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
-
+#ckpt_file: /home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022/best_ckpt.pth
+ckpt_file: /home/fruitspec-lab/FruitSpec/weights/Apples_1_29_June_23/best_ckpt.pth
+#ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth
 
 
 device: cuda
@@ -27,13 +26,13 @@ classes:
 tracker:
   minimal_max_distance: 10
   major: 1.5 #3
-  minor: 1 #2.5
+  minor: 0.75 #2.5
   max_losses: 5  # 10
   score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
-  compile_data_path: /home/mic-730ai/fruitspec/code/matan/tracker_init.pkl
+  compile_data_path: /home/fruitspec-lab/FruitSpec/Sandbox/tracker_init.pkl
   debug: false
 
 
@@ -41,15 +40,16 @@ translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
   dets_only: false # true: perfrom on detections only, false: on entire image
+  maxlen: 5 # max memory length, if 0 will not change negetive tx based on memory
 
 
 sensor_aligner:
-  zed_roi_params: {y_s: 250, y_e: 1650, x_s: 0, x_e: 1080} # jai search region in zed
-  size: 640 #what size to resize image to
+  zed_roi_params: {y_s: 355, y_e: 1635, x_s: 0, x_e: 1080} # jai search region in zed
+  size: 480 #what size to resize image to
   affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
   ransac: 20
-  sx: 0.6284895833333334 #0.6315104 #0.60546875
-  sy: 0.6652678396871945 # 0.6133919843597263
+  sx: 0.60546875 #0.6315104 #0.60546875
+  sy: 0.6133919843597263 # 0.6133919843597263
   roix: 970 #970 #930 #937
   roiy: 1255
   debug:
@@ -59,7 +59,7 @@ sensor_aligner:
     homography: false
 
 frame_loader:
-  mode: sync_mkv # sync_mkv, async,  sync_svo
+  mode: sync_svo # sync_mkv, async,  sync_svo
 
 
 filters:

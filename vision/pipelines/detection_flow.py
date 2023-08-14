@@ -54,7 +54,7 @@ class counter_detection():
             model.head.decode_in_inference = False
             decoder_ = model.head.decode_outputs
 
-            from torch2trt import TRTModule
+            from torch2trt.torch2trt import TRTModule
             model_trt = TRTModule()
 
             # replace model weights with "model_trt.pth" in the same dir:

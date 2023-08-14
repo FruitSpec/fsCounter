@@ -171,7 +171,8 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3,
+                  flip_channels = False):
     """
     this is where the magic happens, palys the video
     """
@@ -212,6 +213,9 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         if ret != True:
             break  # couldn't load frame
 
+        if flip_channels:
+            frame = frame[:,:,::-1]
+
         # preprocess: resize and rotate if needed
         frame, params = preprocess_frame(frame, params)
 
@@ -221,6 +225,8 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         frame = print_lines(params)
         frame = print_text(frame, params)
         frame = print_rectangles(frame, params)
+
+
 
         cv2.imshow(headline, frame)
 
@@ -669,13 +675,84 @@ def get_state(loc):
     return state
 
 
-if __name__ == "__main__":
-    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
-    validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=2)
+def get_all_slicing_and_n_trees():
+    json_paths = []
+    folder_paths = ["/media/fruitspec-lab/cam175/customers/DEWAGD", "/media/fruitspec-lab/cam175/customers/LDCBRA",
+                    "/media/fruitspec-lab/cam175/customers/PROPAL"]
+    for folder_path in folder_paths:
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith('.json') and 'slice_data' in file:
+                    json_path = os.path.join(root, file)
+                    json_paths.append(json_path)
 
-    data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
+    res = []
+    for json_path in json_paths:
+        try:
+            j_df = slice_to_trees_df(json_path, "/media/fruitspec-lab/easystore/slice_data_test", resize_factor=3,
+                                     h=2048, w=1536)
+            res.append(j_df["tree_id"].max())
+        except:
+            res.append(0)
+    pd.DataFrame({"json_path": json_paths, "n_trees": res}).to_csv(
+        "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
+
+if __name__ == "__main__":
+    # undo_fix_slices("/media/fruitspec-lab/cam175/customers/PROPAL/270323/2004XXXX/R8A")
+    # fix_slices("/media/fruitspec-lab/cam175/customers/PROPAL/250323/M7XXXXXX")
+    # slicing_validator()
+
+    # fix_slices(customer_folder="/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/Slicing/Side_B/calibration_B_newversion")
+    # folder_p = "/media/fruitspec-lab/cam175/DEWAGB_test/190123/DWDBLE33"
+    # for sub_folder in os.listdir(folder_p):
+    #     if sub_folder == "R35B":
+    #         sub_folder_p = os.path.join(folder_p, sub_folder)
+    #         data_file = os.path.join(sub_folder_p, "Result_FSI_2_slice_data.json")
+    #         output_path = sub_folder_p
+    #         try:
+    #             slice_to_trees(data_file, "", output_path)
+    #         except:
+    #             print("problem with", sub_folder)
+    #     elif "47" in sub_folder or "53" in sub_folder or "57" in sub_folder:
+    #         sub_folder_p = os.path.join(folder_p, sub_folder)
+    #         if "A" in sub_folder:
+    #             data_file = os.path.join(sub_folder_p, "Result_FSI_1_slice_data.json")
+    #         else:
+    #             data_file = os.path.join(sub_folder_p, "Result_FSI_2_slice_data.json")
+    #         output_path = sub_folder_p
+    #         try:
+    #             slice_to_trees(data_file, "", output_path)
+    #         except:
+    #             print("problem with", sub_folder)
+    # this part is for fixing bad slicing
+    # filepath = "/media/fruitspec-lab/cam175/DEWAGB_test/190123/DWDBLE33/R59B/Result_FSI_1.mkv"
+    filepath = "/media/fruitspec-lab/cam175/customers/Counter_Fruitcount_MOTCHA/Shamuty_Vais/row_4/1/Result_FSI.mkv"
+    output_path = os.path.dirname(filepath)
+    manual_slicer(filepath, output_path, rotate=True, index=0, flip_channels=False)
+    # "Result_FSI_1_slice_data_R46A.json"
+    # customer_folder = "/media/fruitspec-lab/cam175/DEWAGD"
+    # for root, dirs, files in os.walk(customer_folder):
+    #     for file in files:
+    #         if file.endswith('.json') and "slice_data" in file:
+    #             data_file = os.path.join(root, file)
+    #             with open(data_file) as json_file:
+    #                 data = json.load(json_file)
+    #             data = {int(key): chhange_slice_format(item) for key, item in data.items()}
+    # manual_slicer(filepath, output_path, None, index=0, rotate=True)
+    #slice_to_trees(data_file, "", output_path)
+    # this part is to convert slicing to csv
+    # run one folder
+
+    # data_file = "/media/fruitspec-lab/easystore/trees_1_6/r8/Result_FSI_1_slice_data.json"
+    # output_path = f'/media/fruitspec-lab/easystore/trees_1_6/r8'
+    # slice_to_trees(data_file, fp, output_path)
+    # for i in range(1, 10):
+    #     output_path = f'/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/tmp{i}'
+    #     if not os.path.exists(output_path):
+    #         os.mkdir(output_path)
+    #     fp = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/R_{i}/Result_FSI_{i}.mkv"
+    #     data_file = f"/media/fruitspec-lab/easystore/JAIZED_CaraCara_151122/Result_FSI_{i}_slice_data.json"
+    #     slice_to_trees(data_file, fp, output_path)
+    #     print("finished ", i)
 
 

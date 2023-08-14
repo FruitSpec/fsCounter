@@ -23,7 +23,26 @@ from vision.tools.camera import batch_is_saturated
 from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_cams, get_frame_drop
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
-from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.feature_extractor.boxing_tools import xyz_center_of_box, cut_zed_in_jai
+from concurrent.futures import ThreadPoolExecutor
+from vision.feature_extractor.image_processing import get_percent_seen
+from vision.feature_extractor.tree_size_tools import stable_euclid_dist
+
+
+def debug_tracks_pc(jai_batch, trk_outputs, f_id):
+    from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
+    import matplotlib.pyplot as plt
+    frame = jai_batch[0].copy().astype(np.uint8)
+    for det in trk_outputs[0]:
+        track_id = det[6]
+        color_id = int(track_id) % 15  # 15 is the number of colors in list
+        color = get_color(color_id)
+        text_color = get_color(-1)
+        frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
+        title = f'ID:{int(track_id)}:({det[8]:.2f}, {det[9]:.2f}, {det[10]:.2f})'
+        frame = draw_highlighted_test(frame, title, (det[0], det[1]), frame.shape[1], color, text_color,
+                                      True, 10, 3)
+    cv2.imwrite(f"/media/fruitspec-lab/easystore/debug_pc/{f_id}.png", frame)
 
 def run(cfg, args, metadata=None):
 
@@ -33,15 +52,22 @@ def run(cfg, args, metadata=None):
     print(f'Inferencing on {args.jai.movie_path}\n')
 
     frame_drop_jai = get_frame_drop(args)
-    n_frames = len(adt.frames_loader.sync_jai_ids)
+    max_cut_frame = metadata['max_cut_frame'] if metadata is not None else np.inf
+    if isinstance(max_cut_frame, str):
+        if max_cut_frame == "inf":
+            max_cut_frame = np.inf
+        else:
+            max_cut_frame = int(max_cut_frame)
+    n_frames = min(len(adt.frames_loader.sync_jai_ids), max_cut_frame)
 
     f_id = 0
 
     pbar = tqdm(total=n_frames)
     while f_id < n_frames:
         pbar.update(adt.batch_size)
-        zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
-
+        zed_batch, pc_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
+        if not len(zed_batch): # not full batch
+            break
 
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
@@ -64,17 +90,18 @@ def run(cfg, args, metadata=None):
         # track:
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
 
-        # depth:
-        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
-        trk_outputs = append_to_trk(trk_outputs, depth_results)
+        # get depths
+        trk_outputs = adt.get_xyzs_dims(pc_batch, jai_batch, alignment_results, trk_outputs)
+        # debug_tracks_pc(jai_batch, trk_outputs, f_id)
+        # percent of tree seen
+        # percent_seen = adt.get_percent_seen(zed_batch, alignment_results)
+        percent_seen = [1] * len(zed_batch)
 
-        #collect results:
-        results_collector.collect_detections(det_outputs, f_id)
-        results_collector.collect_tracks(trk_outputs)
-        results_collector.collect_alignment(alignment_results, f_id)
-        results_collector.collect_jai_translation(translation_results, f_id)
+        # collect results:
+        results_collector.collect_adt(trk_outputs, alignment_results, percent_seen, f_id, translation_results)
 
-#        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
+       # results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
+        results_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -83,11 +110,11 @@ def run(cfg, args, metadata=None):
     adt.frames_loader.zed_cam.close()
     adt.frames_loader.jai_cam.close()
     adt.frames_loader.rgb_jai_cam.close()
-    adt.frames_loader.depth_cam.close()
+    # adt.frames_loader.depth_cam.close()
     adt.dump_log_stats(args)
 
     update_metadata(metadata, args)
-
+    results_collector.dump_feature_extractor(args.output_folder)
     return results_collector
 
 
@@ -97,7 +124,8 @@ class Pipeline():
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
-        self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+        self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode,
+                             maxlen=cfg.translation.maxlen)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size
 
@@ -118,7 +146,7 @@ class Pipeline():
             raise
 
 
-    def is_saturated(self, frame, f_id, percentile=0.4, cam_name='JAI'):
+    def is_saturated(self, frame, f_id, percentile=0.05, cam_name='JAI'):
         try:
             name = batch_is_saturated.__name__
             s = time.time()
@@ -220,7 +248,111 @@ class Pipeline():
         dump = pd.DataFrame(self.logger.statistics, columns=['id', 'func', 'time'])
         dump.to_csv(os.path.join(args.output_folder, 'log_stats.csv'))
 
+    def get_percent_seen(self, zed_batch, alignment_results):
+        """
+        Calculates the percentage of the scene that is visible in the jai for each input.
+        Full field is the Zed
 
+        Args:
+            zed_batch (List): List of lists of input frames.
+            alignment_results (List): List of lists of alignment results.
+
+        Returns:
+            List[float]: List of percentages of the scene that is visible for each input.
+        """
+        try:
+            name = "percent_seen"
+            s = time.time()
+            self.logger.info(f"Function {name} started")
+            cut_coords = [res[0] for res in alignment_results]
+            with ThreadPoolExecutor(max_workers=len(cut_coords)) as executor:
+                output = list(executor.map(get_percent_seen, zed_batch, cut_coords))
+            # output = list(map(get_percent_seen, zed_batch, cut_coords))
+            self.log_end_func(name, s)
+
+            return output
+
+        except:
+            self.logger.exception("Exception occurred")
+            raise
+
+    def get_xyzs_dims(self, xyz_batch, jai_batch, alignment_results, dets):
+        """
+        Computes the xyz values, width and height for each object detected in the image frames.
+
+        Args:
+            xyz_batch (list): A list of numpy arrays containing ZED camera Point Clouds frames.
+            jai_batch (list): A list of numpy arrays containing RGB JAI camera frames.
+            alignment_results (list): A list of alignment_ results, one for each frame in `xyz_batch`.
+            dets (list): A list containing the object detection results.
+
+        Returns:
+            list: A list containing depth values, one for each object detected in the image frames.
+        """
+        try:
+            name = "xyzs_to_outputs"
+            s = time.time()
+            self.logger.info(f"Function {name} started")
+            cut_coords = tuple(res[0] for res in alignment_results)
+            output = get_depth_to_bboxes_batch(xyz_batch, jai_batch, cut_coords, dets, True, True)
+            self.log_end_func(name, s)
+
+            return output
+
+        except:
+            self.logger.exception("Exception occurred")
+            raise
+
+    def close_cams(self):
+        """
+        Closes the cameras.
+        """
+        self.zed_cam.close()
+        self.jai_cam.close()
+        self.rgb_jai_cam.close()
+
+    def log_end_func(self, name, s):
+        """
+        Log the end of a function and its execution time.
+
+        Args:
+            name (str): The name of the function.
+            s (float): The start time of the function.
+
+        Returns:
+            None
+        """
+        self.logger.info(f"Function {name} ended")
+        e = time.time()
+        self.logger.info(f"Function {name} execution time {e - s:.3f}")
+        self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
+
+    def get_real_dims(self, xyz_batch, jai_batch, alignment_results, dets):
+        """
+        Computes the width and height values for each object detected in the image frames.
+
+        Args:
+            xyz_batch (list): A list of numpy arrays containing ZED camera Point Clouds frames.
+            jai_batch (list): A list of numpy arrays containing RGB JAI camera frames.
+            alignment_results (list): A list of alignment_ results, one for each frame in `xyz_batch`.
+            dets (list): A list containing the object detection results.
+
+        Returns:
+            list: A list containing depth values, one for each object detected in the image frames.
+        """
+        try:
+            name = "real_dims_to_outputs"
+            s = time.time()
+            self.logger.info(f"Function {name} started")
+            cut_coords = tuple(res[0] for res in alignment_results)
+            output = get_depth_to_bboxes_batch(xyz_batch, jai_batch, cut_coords, dets, True)
+            self.log_end_func(name, s)
+
+            return output
+
+        except:
+            self.logger.exception("Exception occurred")
+            raise
 
 def init_run_objects(cfg, args):
     """
@@ -294,7 +426,9 @@ def update_metadata(metadata, args):
     metadata["align_detect_track"] = False
     write_metadata(args, metadata)
 
-def get_depth_to_bboxes(depth_frame, jai_frame, cut_coords, dets, factor = 8 / 255):
+
+def get_depth_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=False, aligned=False,
+                        resize_factors=(1, 1)):
     """
     Retrieves the depth to each bbox
     Args:
@@ -304,36 +438,46 @@ def get_depth_to_bboxes(depth_frame, jai_frame, cut_coords, dets, factor = 8 / 2
         dets (list): list of detections
         pc (bool): flag for returning the entire x,y,z
         dims (bool): flag for returning the real width and height
+        aligned (bool): flag indicating if the frames are already aligned
+        resize_factors (Iterable): resize factors for an aligned imaged (r_h, r_w)
 
     Returns:
         z_s (list): list with depth to each detection
     """
-    depth_frame = depth_frame * factor
-    cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
-    depth_frame_aligned = cut_zed_in_jai({"zed": depth_frame}, cut_coords, rgb=False)["zed"]
-    r_h, r_w = depth_frame_aligned.shape[0] / jai_frame.shape[0], depth_frame_aligned.shape[1] / jai_frame.shape[1]
-    output = []
+    if not aligned:
+        cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
+        xyz_frame_aligned = cut_zed_in_jai({"zed": xyz_frame}, cut_coords, rgb=False)["zed"]
+        r_h, r_w = xyz_frame_aligned.shape[0] / jai_frame.shape[0], xyz_frame_aligned.shape[1] / jai_frame.shape[1]
+    else:
+        xyz_frame_aligned, r_h, r_w = xyz_frame, resize_factors[0], resize_factors[1]
     for det in dets:
         box = ((int(det[0] * r_w), int(det[1] * r_h)), (int(det[2] * r_w), int(det[3] * r_h)))
-        output.append(depth_center_of_box(depth_frame_aligned, box))
-    return output
+        det_output = []
+        if pc:
+            det += list(xyz_center_of_box(xyz_frame_aligned, box))
+        else:
+            det.append(xyz_center_of_box(xyz_frame_aligned, box)[2])
+        if dims:
+            det += list(stable_euclid_dist(xyz_frame_aligned, box))
+    return dets
 
-def get_depth_to_bboxes_batch(xyz_batch, jai_batch, batch_aligment, dets):
+
+def get_depth_to_bboxes_batch(xyz_batch, jai_batch, cut_coords, dets, pc=False, dims=False):
     """
     Retrieves the depth to each bbox in the batch
     Args:
         xyz_batch (np.array): batch a Point cloud image
         jai_batch (np.array): batch of FAI images
+        cut_coords (tuple): batch of jai in zed coords
         dets (list): batch of list of detections per image
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
 
     Returns:
         z_s (list): list of lists with depth to each detection
     """
-    cut_coords = []
-    for a in batch_aligment:
-        cut_coords.append(a[0])
     n = len(xyz_batch)
-    return list(map(get_depth_to_bboxes, xyz_batch, jai_batch, cut_coords, dets))
+    return list(map(get_depth_to_bboxes, xyz_batch, jai_batch, cut_coords, dets, [pc] * n, [dims] * n))
 
 
 def append_to_trk(trk_batch_res, results):

@@ -25,7 +25,7 @@ def run(cfg, args):
     print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode, maxlen=cfg.translation.maxlen)
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 

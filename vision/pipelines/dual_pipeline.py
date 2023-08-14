@@ -23,7 +23,8 @@ from vision.pipelines.misc.filters import filter_by_distance, filter_by_duplicat
 def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode,
+                    maxlen=cfg.translation.maxlen)
 
     zed_cam = video_wrapper(args.zed.movie_path, args.zed.rotate, args.zed.depth_minimum, args.zed.depth_maximum)
     jai_cam = video_wrapper(args.jai.movie_path, args.jai.rotate)

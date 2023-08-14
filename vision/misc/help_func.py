@@ -52,7 +52,7 @@ def validate_output_path(output_folder, flag=1):
     if flag == 0:
         return
     if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
+        os.makedirs(output_folder, exist_ok=True)
 
 def copy_configs(pipeline_config, runtime_config, output_path):
     shutil.copy(pipeline_config, os.path.join(output_path, "pipeline_config.yaml"))
@@ -153,3 +153,12 @@ def pop_list_drom_dict(x_dict: dict, pop_list: list) -> dict:
         if item in x_dict.keys():
             x_dict.pop(item)
     return x_dict
+
+def go_up_n_levels(path, n):
+    current_path = os.path.abspath(path)
+    for _ in range(n):
+        current_path = os.path.dirname(current_path)
+    return current_path
+
+def contains_special_char(s, special_chars=['^', '/', '*']):
+    return any(char in s for char in special_chars)

@@ -1,0 +1,127 @@
+csv_paths: [/media/fruitspec-lab/cam175/customers_new/features_0908_new_translator.csv]
+#csv_paths: [/media/fruitspec-lab/cam175/FOWLER/FOWLER_25_7.csv]
+table_config: /home/fruitspec-lab/FruitSpec/Code/fsCounter/MHS/sqlread/config.json
+# features names of location features
+location_features_names: ['mst_sums_arr', 'mst_mean_arr', 'mst_skew_arr', 'clusters_area_mean_arr',
+                               'clusters_area_med_arr', 'clusters_ch_area_mean_arr', 'clusters_ch_area_med_arr',
+                               'n_clust_arr_2', 'n_clust_arr_4', 'n_clust_arr_6', 'n_clust_mean_arr', 'n_clust_med_arr']
+# name of vegetational indexes to drop
+drop_cols_vi: ["tdvi", "gci", "msavi2", "tgi", "gndvi", "gosavi", "dvi", "gndvi", "gdvi", "gemi", "lai", "msr", "ndre",
+               "vari","grvi", "rdvi", "savi", "arvi", "ipvi", "sr", "mnli", "wdrvi", "evi", "gari", "pvi", "nli"]
+# other columns to drop
+drop_cols: ["q1", "q3", "n_clust_arr_4", "n_clust_arr_6", "n_clust_mean_arr", "n_clust_med_arr", "cont", "ndvi_bin",
+                 "frame", "avg_intens_arr", "cv1", "cv2", "cv3", "cv4", "cv5", "total_time",
+            "full_process_time",
+            'avg_width', 'avg_perimeter', 'perimeter', 'height', 'width', 'avg_height']
+
+cv_vol: 3
+# sides to drop from train set. format {customer_name}_{block_name}_{side}
+drop_sides: ["SHANIR_SUMGLD_B"]
+
+# spesific trees to drop from train set. format {customer_name}_{block_name}_{name}
+drop_trees: ["SHANIR_SUMGLD_R4_S1_T2", "SHANIR_SUMGLD_R4_S1_T4",
+              "DEWAGD_DWDBLE34_R34_S2_T1", "DEWAGD_DWDBLE42_R1_S1_T1", "DEWAGD_DWDBLE42_R25_S1_T1",
+             "DEWAGD_DWDBLE42_R29_S1_T1", "DEWAGD_DWDBLE42_R9_S1_T1", "DEWAGD_DWDBLE43_R34_S2_T1",
+             "DEWAGD_DWDBLE43_R42_S1_T1", "DEWAGD_DWDBM17B_R5_S1_T1", "DEWAGD_DWDBMN16_R2_S1_T1",
+             "DEWAGD_DWDBM17B_R66_S1_T1", "DEWAGD_DWDBMN16_R20_S1_T1", "DEWAGD_DWDBMN38_R14_S1_T1",
+             "DEWAGD_DWDBMN16_R7_S2_T1", "2018XXXX_R53_S2_T1", "PROPAL_2018XXXX_R65_S1_T1",
+             "PROPAL_2020injx_R12_S1_T1","DEWAGD_DWDBVM20_R7_S1_T1","DEWAGD_DWDBVM18_R70_S2_T1",
+             "DEWAGD_DWDBVM18_R42_S2_T1", "DEWAGD_DWDBNW40_R66_S1_T1", "DEWAGD_DWDBNW40_R6_S2_T1",
+             "DEWAGD_DWDBM17B_R34_S1_T1", "DEWAGD_DWDBLE42_R17_S1_T1", "DEWAGD_DWDBMN16_R10_S1_T1",
+            "DEWAGD_DWDBLE42_R1_S2_T1","DEWAGD_DWDBMN16_R4_S1_T1", "DEWAGD_DWDBCL46_R55_S2_T1",
+             "PROPAL_Mandarin_R44_S2_T1",
+
+              # no sync
+             "PROPAL_2004XXXX_R26_S1_T1", "PROPAL_2018XXXX_R23_S1_T1","PROPAL_2020injx_R16_S1_T1",
+             "PROPAL_2020injx_R21_S1_T1", "PROPAL_2020injx_R28_S1_T1","DEWAGD_DWDBNB09_R27_S2_T1",
+             "PROPAL_FUKUMOTO_R16_S1_T1", "DEWAGD_DWDBLE42_R17_S2_T1", "DEWAGD_DWDBNB09_R27_S1_T1",
+
+              # alignment issues (jumpy, not in place)
+             "DEWAGD_DWDBNW39_R30_S2_T1", "DEWAGD_DWDBNW40_R46_S2_T1", "DEWAGD_DWDBNW39_R26_S1_T1",
+             "DEWAGD_DWDBNW39_R18_S2_T1",
+
+              # need reslice
+#             # resliced - neeed to check if good now
+#             "PROPAL_FUKUMOTO_R44_S1_T1", "PROPAL_FUKUMOTO_R40_S1_T1", "PROPAL_2004XXXX_R29_S1_T1",
+#             "PROPAL_LaneLatX_R7_S1_T1", "PROPAL_2018XXXX_R66_S1_T1", "PROPAL_Mandarin_R25_S1_T1",
+#
+#             "DEWAGD_DWDBM17B_R34_S2_T1", "DEWAGD_DWDBM17A_R17_S1_T1", "DEWAGD_DWDBM17A_R33_S1_T1",
+#             "DEWAGD_DWDBNB07_R13_S2_T1", "DEWAGD_DWDBNB07_R1_S2_T1",  "DEWAGD_DWDBLE43_R18_S1_T1",
+#             "DEWAGD_DWDBNB09_R11_S1_T1", "DEWAGD_DWDBNB05_R29_S2_T1", "DEWAGD_DWDBMN38_R22_S1_T1",
+#             "DEWAGD_DWDBNB05_R17_S2_T1", "DEWAGD_DWDBNB05_R29_S1_T1", "DEWAGD_DWDBNW39_R30_S1_T1",
+
+
+              # not resliced yet
+             "SHANIR_SUMGLD_R5_S1_T33", "SHANIR_SUMGLD_R6_S1_T30", "SHANIR_SUMGLD_R2_S1_T10",
+             "SHANIR_SUMGLD_R5_S1_T17", "SHANIR_SUMGLD_R11_S1_T5", "SHANIR_SUMGLD_R11_S1_T33",
+             "SHANIR_SUMGLD_R5_S1_T35", "SHANIR_SUMGLD_R8_S1_T34",
+
+             # wrong F?
+             "PROPAL_94000000_R44_S2_T1", "PROPAL_94000000_R44_S2_T1" ,"PROPAL_2018XXXX_R65_S2_T1",
+             "PROPAL_2018XXXX_R65_S2_T2",
+
+              # invalid dets or tracks
+             "DEWAGD_DWDBLE43_R26_S1_T1", "DEWAGD_DWDBLE43_R26_S2_T1", "DEWAGD_DWDBCN51_R5_S2_T1",
+             "DEWAGD_DWDBCN51_R5_S1_T1", "PROPAL_M7XXXXXX_R24_S2_T1", "SHANIR_SUMGLD_R10_S1_T24",
+
+
+             "DEWAGD_DWDBNW39_R6_S1_T1",
+             "DEWAGD_DWDBVM18_R70_S1_T1","DEWAGD_DWDBVM18_R54_S2_T1","DEWAGD_DWDBVM20_R43_S1_T1"]
+# drop comple customers form dataset
+drop_customer: ["MOTCHA", "MOTCHADS", "FOWLER"]
+# which columns to drop from training data of trees
+drop_from_trees: ["cv^2", "clusters_area_med_arr", "avg_height", "height", "avg_perimeter", "perimeter",
+                   "width", "avg_width", "mst_sums_arr^2", "cv/fruit_foliage_ratio", "avg_volume"]
+# which columns to drop in the preprocess step
+drop_preprocess: ["F", "block_name", "side", "tree_number", "name", "customer"]
+# which columns to chane dtype (its a bug fix measure):
+change_cols: ['gli', 'gli_skew', 'ndri', 'ndri_skew', 'ndvi', 'ndvi_skew', 'sipi', 'sipi_skew']
+# path to one hot encoder object:
+ohe_path: "/home/fruitspec-lab/FruitSpec/Code/fsCounter/MHS/models_studies/ohe.pkl"
+# path to folder containg dataframes of F values
+f_fdfs_path: "/media/fruitspec-lab/cam175/F_dfs"
+cleaning:
+  hidden_range: (-np.inf, np.inf)
+  cv_range: (0, np.inf)
+  F_range: (0, np.inf)
+  fruits_exclude: ["apple"]
+#method for group Cross validation, options: rows, blocks, customers, summergold
+group_method: "blocks"
+# where to save the studies
+output_folder: "/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_19_7_new_data_integrated"
+# flag for adding fruit variety for each observation
+add_variety: false
+# list of fruits
+supported_fruits: ["lemon", "mandarin", "orange"]
+
+# columns for X_train_trees
+tree_cols: ["cv", "mst_mean_arr", "cv/surface_area", "orange_surface_area", "cv/fruit_foliage_ratio",
+        "orange_cv", "cv/total_foliage", "cv/center_height",
+        "w_h_ratio", "fruit_dist_center", "mst_sums_arr",
+        "center_height", "center_perimeter", "clusters_area_med_arr", "mandarin", "lemon",
+            "foliage_fullness"]
+
+# GFS features GBM
+#tree_cols: ['total_foliage', 'total_orange', 'center_height', 'mst_mean_arr', 'clusters_area_mean_arr',
+#            'clusters_area_med_arr', 'q_2_precent_fruits', 'q_3_precent_fruits', 'gli', 'sipi', 'sipi_skew',
+#             'ndri_skew', 'orange', 'cv^2', 'cv/surface_area', 'orange_cv', 'lemon_cv',
+#             'lemon_surface_area', 'mandarin_cv']
+
+#tree_cols: ["cv", "lemon", "mandarin", 'w_h_ratio', 'fruit_foliage_ratio', 'center_height',
+#            'ndri', 'mst_mean_arr']
+# linear features:
+
+lin_feat: ['total_orange', 'volume', 'avg_volume', 'center_perimeter',
+       'center_height', 'w_h_ratio', 'fruit_foliage_ratio', 'mst_mean_arr',
+       'mst_skew_arr', 'clusters_ch_area_mean_arr', 'clusters_ch_area_med_arr',
+       'n_clust_arr_2', 'q_1_precent_fruits', 'q_2_precent_fruits',
+       'q_3_precent_fruits', 'fruit_dist_center', 'ndvi', 'gli', 'ndri',
+       'gli_skew', 'sipi_skew', 'ndri_skew', 'cv', 'cv^2',
+       'cv/total_foliage', 'lemon_cv', 'lemon_surface_area', 'mandarin_cv',
+       "mandarin", "lemon", "foliage_fullness"]
+
+rel_features: ['total_orange', 'volume', 'avg_volume', 'perimeter', 'height', 'w_h_ratio', 'fruit_foliage_ratio',
+               'mst_mean_arr', 'mst_skew_arr', 'clusters_ch_area_mean_arr', 'clusters_ch_area_med_arr',
+              'n_clust_arr_2', 'q_1_precent_fruits', 'q_2_precent_fruits', 'q_3_precent_fruits', 'fruit_dist_center',
+               'ndvi', 'gli', 'ndri', 'gli_skew', 'sipi_skew', 'ndri_skew', 'cv',
+               'cv^2', 'center_width', 'total_foliage', 'surface_area', 'enter_width']
