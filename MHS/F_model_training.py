@@ -30,7 +30,7 @@ from MHS.model_hybrid_selector import model_hybrid_selector, LassoSelector
 import pickle
 from omegaconf import OmegaConf
 from MHS.sqlread.MySQLRead import get_table
-from MHS.F_model_models_dict import F_model_models
+from MHS.F_model_models_dict import F_model_models, model_folder
 from MHS.models import models
 from vision.misc.help_func import validate_output_path
 
@@ -693,7 +693,7 @@ def load_model_cols(model_args):
     return model_cols
 
 
-def get_dict_models_results(X, y, groups=None, naive_preds=None):
+def get_dict_models_results(X, y, groups=None, naive_preds=None, results_summary=[]):
     """
     Fits and saves the results of several models.
     F_model_models format should be: 'model_name': {'model_params'(None,dict,path to optuna study),
@@ -704,10 +704,9 @@ def get_dict_models_results(X, y, groups=None, naive_preds=None):
     Returns:
         pandas.DataFrame: A summary of the results of each model, including the model name, mean score, and standard deviation.
     """
-    trees = pd.read_csv("trees.csv")
+    trees = pd.read_csv(os.path.join(model_folder, "trees.csv"))
     if not isinstance(naive_preds, type(None)):
         trees["cv pred"] = naive_preds
-    results_summary = []
     for model_name, model_args in F_model_models.items():
         model = models[model_name.split("_")[0]]
         model_cols = load_model_cols(model_args)
@@ -733,11 +732,11 @@ def get_dict_models_results(X, y, groups=None, naive_preds=None):
                                 "group_score": group_score, "groups_std": groups_std,
                                 "group_log_score": groups_score_log, "groups_log_std": groups_std_log})
         trees[model_name] = preds
-        trees.to_csv("trees.csv")
+        trees.to_csv(os.path.join(model_folder, "trees.csv"))
     trees["cv"] = X_train["cv"]
-    trees.to_csv("trees.csv")
+    trees.to_csv(os.path.join(model_folder, "trees.csv"))
     res_df = pd.DataFrame.from_records(results_summary)
-    res_df.to_csv("results_F_models.csv")
+    res_df.to_csv(os.path.join(model_folder, "results_F_models.csv"))
     return res_df
 
 
@@ -803,7 +802,7 @@ def get_mape(csv_path, group_col="block_name"):
             "group_mape_avg": group_mape.mean(), "group_mape_std": group_mape.std()}
 
 
-def train_model(cfg):
+def train_model(cfg, include_only_2_sided_tree=False):
     """
     Train a model using the given configuration.
 
@@ -821,18 +820,29 @@ def train_model(cfg):
     full_name_org = get_full_name(features_df)
     features_df_clean = clean_the_df(features_df, drop_final, cfg)
     features_df_w_f = add_fs(features_df_clean, f_df)
+    if include_only_2_sided_tree:
+        features_df_w_f["base_tree_name"] = features_df_w_f["block_name"] + "_" + features_df_w_f["name"].apply(
+            lambda x: x.split("_")[0] + "_" + x.split("_")[-1])
+        counts = features_df_w_f["base_tree_name"].value_counts() > 1
+        features_df_w_f = features_df_w_f[features_df_w_f["base_tree_name"].map(dict(zip(counts.index, counts.values)))]
+        features_df_w_f.drop("base_tree_name", axis=1, inplace=True)
+        features_df_w_f.reset_index(inplace=True, drop=True)
     full_name_clean = get_full_name(features_df_w_f)
     dropped_obs = features_df[~full_name_org.isin(full_name_clean)]
-    dropped_obs.to_csv("dropped_obs.csv", index=False)
+    validate_output_path(model_folder)
+    dropped_obs.to_csv(os.path.join(model_folder, "dropped_obs.csv"), index=False)
     X_tr_lr, y, groups = get_X_y(features_df_w_f, cfg)
     X_train_trees = X_tr_lr[[col for col in cfg.tree_cols if col in X_tr_lr.columns]]
-    X_tr_lr.to_csv("X_train.csv", index=False)
-    y.to_csv("y_train.csv", index=False)
+    X_tr_lr.to_csv(os.path.join(model_folder, "X_train.csv"), index=False)
+    y.to_csv(os.path.join(model_folder, "y_train.csv"), index=False)
     pd.concat([full_name_clean, features_df_w_f["F"]],
-              axis=1).rename({"customer": "full_name"}, axis=1).to_csv("trees.csv", index=False)
-    X_train_trees.to_csv("X_train_trees.csv", index=False)
-    preds = print_navie_scores(features_df_w_f, X_tr_lr, y, groups)
-    res_df = get_dict_models_results(X_tr_lr, y, groups, naive_preds=preds)
+              axis=1).rename({"customer": "full_name"}, axis=1).to_csv(os.path.join(model_folder, "trees.csv"), index=False)
+    X_train_trees.to_csv(os.path.join(model_folder, "X_train_trees.csv"), index=False)
+    preds, res_mean, res_std = print_navie_scores(features_df_w_f, X_tr_lr, y, groups, ret_res=True)
+    results_summary = [{"model": "cv_model", "score": 100, "std": 0,
+                            "group_score": res_mean, "groups_std": res_std,
+                            "group_log_score": 100, "groups_log_std": 0}]
+    res_df = get_dict_models_results(X_tr_lr, y, groups, naive_preds=preds, results_summary=results_summary)
     return res_df
 
 def folwer_analysis(features_df):

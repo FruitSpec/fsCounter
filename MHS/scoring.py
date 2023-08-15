@@ -43,7 +43,7 @@ def naive_score(data, frames=False):
 
 
 def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret_preds=False, use_log1p=False,
-                             random_state=43, use_pandas=False):
+                             random_state=43, use_pandas=False, ret_all_res=False):
     """
     cross validate the model with mean value per row (oe fake row, meaning a random group of instances)
     :param model: model to predict with
@@ -93,19 +93,23 @@ def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret
         all_preds[test_index] = y_pred
         print(F"true: {y_true_sum},    pred: {y_pred_sum}. ({acc*100 :.2f} %) {test_group}" )
     print(np.mean(tree_res), np.std(tree_res))
+    if ret_all_res:
+        return np.mean(results), np.std(results), np.mean(tree_res), np.std(tree_res), all_preds
     if ret_preds:
         return np.mean(results), np.std(results), all_preds
     return np.mean(results), np.std(results)
 
 
 
-def print_navie_scores(df, X_tr_lr, y, rows):
+def print_navie_scores(df, X_tr_lr, y, rows, ret_res = False):
     print(naive_score(df, frames=False))
     cols = ["cv"] + [col for col in ["orange", "lemon", "mandarin", "apple"] if col in X_tr_lr.columns]
     print(cross_validate_with_mean(LinearRegression(), X_tr_lr[cols], y))
     res_mean, res_std, preds = cross_validate_with_mean(LinearRegression(), X_tr_lr[cols], y, groups=rows,
                                                         ret_preds=True)
     print(res_mean, res_std)
+    if ret_res:
+        return preds, res_mean, res_std
     return preds
 
 

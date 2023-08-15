@@ -2,7 +2,7 @@
 import os
 
 prefix_studies = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_studies"
-model_folder = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_0908_new_translator"
+model_folder = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_1308_new_translator"
 
 gfs_train_cols = ['total_foliage', 'total_orange', 'volume', 'surface_area', 'avg_volume',
              'center_perimeter', 'center_height', 'w_h_ratio',
@@ -11,7 +11,7 @@ gfs_train_cols = ['total_foliage', 'total_orange', 'volume', 'surface_area', 'av
              'clusters_ch_area_mean_arr', 'clusters_ch_area_med_arr',
              'n_clust_arr_2', 'q_1_precent_fruits', 'q_2_precent_fruits',
              'q_3_precent_fruits', 'fruit_dist_center', 'ndvi', 'gli', 'sipi',
-             'ndri', 'ndvi_skew', 'gli_skew', 'sipi_skew', 'ndri_skew', 'cv',
+             'ndri', 'ndvi_skew', 'gli_skew', 'sipi_skew', 'ndri_skew', 'cv1', 'cv2', 'cv3', 'cv4', 'cv5',
              'lemon', 'mandarin', 'orange', 'cv^2', 'cv/center_height',
              'cv/surface_area', 'cv/total_foliage',
              'cv/fruit_foliage_ratio', 'orange_cv', 'orange_surface_area',
@@ -66,6 +66,8 @@ lasso_chosen = ['total_foliage', 'total_orange', 'volume', 'avg_volume',
        'orange_surface_area', 'lemon_cv', 'lemon_surface_area',
        'cv/center_width']
 
+cv_feauteres = ["cv", "cv2", "cv3", "cv4", "cv5", "lemon", "mandarin", "w_h_ratio", "fruit_foliage_ratio"]
+
 F_model_models = {
     # "SVR": {"model_params": "models_studies/SVR_study.pkl",
     #         "X_data": "X_train.csv",
@@ -91,6 +93,14 @@ F_model_models = {
                               "output_path": os.path.join(model_folder, "DecisionTreeRegressor.pkl"),
                               "preprocess_type": 0,
                               "model_pkl_path": ""},
+
+    "DecisionTreeRegressor_non_zed": {"model_params": os.path.join(prefix_studies, "DecisionTreeRegressor_study.pkl"),
+                              "gfs_train_cols": "",
+                              "columns": cv_feauteres,
+                              "output_path": os.path.join(model_folder, "DecisionTreeRegressor_non_zed.pkl"),
+                              "preprocess_type": 0,
+                              "model_pkl_path": ""},
+
 
     "DecisionTreeRegressor_gfs_chosen": {"model_params": os.path.join(prefix_studies, "DecisionTreeRegressor_study.pkl"),
                               "gfs_train_cols": "",
@@ -120,6 +130,13 @@ F_model_models = {
                      "preprocess_type": 0,
                      "model_pkl_path": ""},
 
+    "XGBRegressor_non_zed": {"model_params": os.path.join(prefix_studies, "study_xgb_notebook.pkl"),
+                     "gfs_train_cols": "",
+                     "columns": cv_feauteres,
+                     "output_path": os.path.join(model_folder, "xgb_notebook_non_zed.pkl"),
+                     "preprocess_type": 0,
+                     "model_pkl_path": ""},
+
     "XGBRegressor_local": {"model_params": os.path.join(prefix_studies, "XGBRegressor_study.pkl"),
                            "gfs_train_cols": gfs_train_cols,
                            "columns": X_trees_cols,
@@ -127,25 +144,24 @@ F_model_models = {
                            "preprocess_type": 0,
                            "model_pkl_path": ""},
 
-    "LassoPipe": {"model_params": {},
+    "LinearRegression": {"model_params": {},
                   "gfs_train_cols": gfs_train_cols,
                   "columns": X_tr_cols,
-                  "output_path": os.path.join(model_folder, "lasso_pipe.pkl"),
+                  "output_path": os.path.join(model_folder, "lm.pkl"),
                   "preprocess_type": 0,
                   "model_pkl_path": ""},
-
-    "LassoPipe_gfs": {"model_params": {},
-                  "gfs_train_cols": "",
-                  "columns": lasso_chosen,
-                  "output_path": os.path.join(model_folder, "lasso_pipe.pkl"),
-                  "preprocess_type": 0,
-                  "model_pkl_path": ""},
-
 
     "GradientBoostingRegressor": {"model_params": os.path.join(prefix_studies, "GradientBoostingRegressor_study.pkl"),
                                   "gfs_train_cols": gfs_train_cols,
                                   "columns": X_trees_cols,
                                   "output_path": os.path.join(model_folder, "GradientBoostingRegressor.pkl"),
+                                  "preprocess_type": 0,
+                                  "model_pkl_path": ""},
+
+    "GradientBoostingRegressor_non_zed": {"model_params": os.path.join(prefix_studies, "GradientBoostingRegressor_study.pkl"),
+                                  "gfs_train_cols": "",
+                                  "columns": cv_feauteres,
+                                  "output_path": os.path.join(model_folder, "GradientBoostingRegressor_non_zed.pkl"),
                                   "preprocess_type": 0,
                                   "model_pkl_path": ""},
 
@@ -173,6 +189,14 @@ F_model_models = {
         "preprocess_type": 0,
         "model_pkl_path": ""},
 
+    "HistGradientBoostingRegressor_non_zed": {
+        "model_params": os.path.join(prefix_studies, "HistGradientBoostingRegressor_study.pkl"),
+        "gfs_train_cols": "",
+        "columns": cv_feauteres,
+        "output_path": os.path.join(model_folder, "HistGradientBoostingRegressor_non_zed.pkl"),
+        "preprocess_type": 0,
+        "model_pkl_path": ""},
+
     "HistGradientBoostingRegressor_3107_trees": {
         "model_params": "/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/studies_31_07/HistGradientBoostingRegressor_trees_study.pkl",
         "gfs_train_cols": gfs_train_cols,
@@ -185,6 +209,27 @@ F_model_models = {
                       "gfs_train_cols": gfs_train_cols,
                       "columns": X_trees_cols,
                       "output_path": os.path.join(model_folder, "LGBMRegressor.pkl"),
+                      "preprocess_type": 0,
+                      "model_pkl_path": ""},
+
+    "LassoPipe": {"model_params": {},
+                  "gfs_train_cols": gfs_train_cols,
+                  "columns": X_tr_cols,
+                  "output_path": os.path.join(model_folder, "lasso_pipe.pkl"),
+                  "preprocess_type": 0,
+                  "model_pkl_path": ""},
+
+    "LassoPipe_non_zed": {"model_params": {},
+                          "gfs_train_cols": "",
+                          "columns": cv_feauteres,
+                          "output_path": os.path.join(model_folder, "lasso_pipe_non_zed.pkl"),
+                          "preprocess_type": 0,
+                          "model_pkl_path": ""},
+
+    "LassoPipe_gfs": {"model_params": {},
+                      "gfs_train_cols": "",
+                      "columns": lasso_chosen,
+                      "output_path": os.path.join(model_folder, "lasso_pipe_gfs.pkl"),
                       "preprocess_type": 0,
                       "model_pkl_path": ""},
 }

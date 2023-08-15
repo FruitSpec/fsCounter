@@ -37,7 +37,7 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
             continue
         print("starting ", row_runtime_params["jai_movie_path"])
         run_args = args.copy()
-        run_args = update_args_with_row_runtime_params(run_args, row_runtime_params, block_name, key)
+        run_args = update_args_with_row_runtime_params(run_args, cfg, row_runtime_params, block_name, key)
         validate_output_path(run_args.output_folder)
 
         run_args, metadata = update_arg_with_metadata(run_args)
@@ -113,8 +113,10 @@ def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_ja
             jai_cam.close()
 
 
-def update_args_with_row_runtime_params(args, row_runtime_params, block_name, key):
+def update_args_with_row_runtime_params(args, cfg, row_runtime_params, block_name, key):
     args.zed.movie_path = row_runtime_params["zed_movie_path"]
+    if cfg.frame_loader.mode == "sync_mkv":
+        args.zed.movie_path = row_runtime_params["zed_movie_path"].replace("svo", "mkv")
     args.depth.movie_path = row_runtime_params["depth_movie_path"]
     args.jai.movie_path = row_runtime_params["jai_movie_path"]
     args.rgb_jai.movie_path = row_runtime_params["rgb_jai_movie_path"]
@@ -487,15 +489,15 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
 
 
 if __name__ == "__main__":
-    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new"
-    # customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
+    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHADS"
+    # customers_folder_path = "/media/fruitspec-lab/TEMP SSD/USA_June/June_15"
     # customer_path = "/media/fruitspec-lab/TEMP SSD/USA_June/BERESG"
     skip_blocks = ["LDC42200"]
     skip_cust = ["LDCBRA"]
 
-    # run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=3)
-    run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
-                        skip_cust=skip_cust)
+    run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1)
+    # run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
+    #                     skip_cust=skip_cust)
     #run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[2])
 
     # skip_blocks_2 = []

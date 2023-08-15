@@ -40,7 +40,7 @@ translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
   dets_only: false # true: perfrom on detections only, false: on entire image
-  maxlen: 5 # max memory length, if 0 will not change negetive tx based on memory
+  maxlen: 0 # max memory length, if 0 will not change negetive tx based on memory
 
 
 sensor_aligner:

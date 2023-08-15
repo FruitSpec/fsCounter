@@ -155,7 +155,10 @@ class FramesLoader():
             rgb_jai_data = results[3]
 
         zed_batch = zed_data[0]
-        pc_batch = zed_data[1]
+        if mode == 'sync_svo':
+            pc_batch = zed_data[1]
+        else:
+            pc_batch = depth_data[0]
         zed_last_id = zed_data[2]
 
         jai_batch = jai_data[0]

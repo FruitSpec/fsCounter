@@ -353,7 +353,7 @@ if __name__ == '__main__':
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
     final_df_output = "/media/fruitspec-lab/cam175/customers_new/features_1308_new_translator.csv"
     over_write = False
-    njobs = 1
+    njobs = 5
     suffix = ""
     print_fids = False
     run_only_done_adt = False

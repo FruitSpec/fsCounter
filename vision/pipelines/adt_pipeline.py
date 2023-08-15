@@ -69,15 +69,15 @@ def run(cfg, args, metadata=None):
         if not len(zed_batch): # not full batch
             break
 
-        rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
-        zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
-        if rgb_stauts or zed_stauts:
-             for i in range(adt.batch_size):
-                if f_id + i in frame_drop_jai:
-                     adt.sensor_aligner.zed_shift += 1
-             f_id += adt.batch_size
-             adt.logger.iterations += 1
-             continue
+        # rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
+        # zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
+        # if rgb_stauts or zed_stauts:
+        #      for i in range(adt.batch_size):
+        #         if f_id + i in frame_drop_jai:
+        #              adt.sensor_aligner.zed_shift += 1
+        #      f_id += adt.batch_size
+        #      adt.logger.iterations += 1
+        #      continue
 
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
@@ -91,7 +91,11 @@ def run(cfg, args, metadata=None):
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
 
         # get depths
-        trk_outputs = adt.get_xyzs_dims(pc_batch, jai_batch, alignment_results, trk_outputs)
+        if cfg.frame_loader.mode == "sync_svo":
+            trk_outputs = adt.get_xyzs_dims(pc_batch, jai_batch, alignment_results, trk_outputs)
+        else:
+            trk_outputs = get_depth_to_bboxes_batch(pc_batch, jai_batch,
+                                                    tuple(res[0] for res in alignment_results), trk_outputs)
         # debug_tracks_pc(jai_batch, trk_outputs, f_id)
         # percent of tree seen
         # percent_seen = adt.get_percent_seen(zed_batch, alignment_results)
@@ -110,7 +114,8 @@ def run(cfg, args, metadata=None):
     adt.frames_loader.zed_cam.close()
     adt.frames_loader.jai_cam.close()
     adt.frames_loader.rgb_jai_cam.close()
-    # adt.frames_loader.depth_cam.close()
+    if not isinstance(adt.frames_loader.depth_cam, type(None)):
+        adt.frames_loader.depth_cam.close()
     adt.dump_log_stats(args)
 
     update_metadata(metadata, args)
@@ -428,7 +433,7 @@ def update_metadata(metadata, args):
 
 
 def get_depth_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=False, aligned=False,
-                        resize_factors=(1, 1)):
+                        resize_factors=(1, 1), factor = 8/255):
     """
     Retrieves the depth to each bbox
     Args:
@@ -444,6 +449,8 @@ def get_depth_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=F
     Returns:
         z_s (list): list with depth to each detection
     """
+    if not pc:
+        xyz_frame = xyz_frame * factor
     if not aligned:
         cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
         xyz_frame_aligned = cut_zed_in_jai({"zed": xyz_frame}, cut_coords, rgb=False)["zed"]

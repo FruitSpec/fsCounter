@@ -1,4 +1,4 @@
-csv_paths: [/media/fruitspec-lab/cam175/customers_new/features_0908_new_translator.csv]
+csv_paths: [/media/fruitspec-lab/cam175/customers_new/features_1308_new_translator.csv]
 #csv_paths: [/media/fruitspec-lab/cam175/FOWLER/FOWLER_25_7.csv]
 table_config: /home/fruitspec-lab/FruitSpec/Code/fsCounter/MHS/sqlread/config.json
 # features names of location features
@@ -10,11 +10,11 @@ drop_cols_vi: ["tdvi", "gci", "msavi2", "tgi", "gndvi", "gosavi", "dvi", "gndvi"
                "vari","grvi", "rdvi", "savi", "arvi", "ipvi", "sr", "mnli", "wdrvi", "evi", "gari", "pvi", "nli"]
 # other columns to drop
 drop_cols: ["q1", "q3", "n_clust_arr_4", "n_clust_arr_6", "n_clust_mean_arr", "n_clust_med_arr", "cont", "ndvi_bin",
-                 "frame", "avg_intens_arr", "cv1", "cv2", "cv3", "cv4", "cv5", "total_time",
+                 "frame", "avg_intens_arr", "cv1", "total_time",
             "full_process_time",
             'avg_width', 'avg_perimeter', 'perimeter', 'height', 'width', 'avg_height']
 
-cv_vol: 3
+cv_vol: 1
 # sides to drop from train set. format {customer_name}_{block_name}_{side}
 drop_sides: ["SHANIR_SUMGLD_B"]
 
@@ -62,13 +62,13 @@ drop_trees: ["SHANIR_SUMGLD_R4_S1_T2", "SHANIR_SUMGLD_R4_S1_T4",
 
               # invalid dets or tracks
              "DEWAGD_DWDBLE43_R26_S1_T1", "DEWAGD_DWDBLE43_R26_S2_T1", "DEWAGD_DWDBCN51_R5_S2_T1",
-             "DEWAGD_DWDBCN51_R5_S1_T1", "PROPAL_M7XXXXXX_R24_S2_T1", "SHANIR_SUMGLD_R10_S1_T24",
+#             "DEWAGD_DWDBCN51_R5_S1_T1", "PROPAL_M7XXXXXX_R24_S2_T1", "SHANIR_SUMGLD_R10_S1_T24",
 
 
              "DEWAGD_DWDBNW39_R6_S1_T1",
              "DEWAGD_DWDBVM18_R70_S1_T1","DEWAGD_DWDBVM18_R54_S2_T1","DEWAGD_DWDBVM20_R43_S1_T1"]
 # drop comple customers form dataset
-drop_customer: ["MOTCHA", "MOTCHADS", "FOWLER"]
+drop_customer: ["MOTCHADS", "MOTCHA", "FOWLER"]
 # which columns to drop from training data of trees
 drop_from_trees: ["cv^2", "clusters_area_med_arr", "avg_height", "height", "avg_perimeter", "perimeter",
                    "width", "avg_width", "mst_sums_arr^2", "cv/fruit_foliage_ratio", "avg_volume"]
