@@ -106,7 +106,7 @@ if __name__ == "__main__":
     max_frame = 30
     fps = 15
     new_vid_name = ""
-    frame_save_directory = "/media/fruitspec-lab/easystore"
+    frame_save_directory = ""
 
     jai_fp = os.path.join(row_path, f'Result_FSI.mkv')
     tracks_path = os.path.join(row_path, f'tracks.csv')
