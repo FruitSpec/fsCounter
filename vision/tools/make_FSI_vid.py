@@ -89,7 +89,7 @@ def make_vid_with_dets(cap_fsi, tracks_df, rotate, fps=0, new_vid_name="", s_fra
     if not fps:
         fps = int(cap_fsi.get(cv2.CAP_PROP_FPS))
     if new_vid_name == "":
-        new_vid_name = os.path.join(row_path, f'Result_FSI_{side}_with_dets.mkv')
+        new_vid_name = os.path.join(row_path, f'Result_FSI_with_dets.mkv')
     else:
         new_vid_name = os.path.join(row_path, new_vid_name)
     if frame_save_directory != "":
@@ -100,16 +100,15 @@ def make_vid_with_dets(cap_fsi, tracks_df, rotate, fps=0, new_vid_name="", s_fra
 
 
 if __name__ == "__main__":
-    row_path = r"/media/fruitspec-lab/cam175/APPLECHILE04_test/290323/APPCALIB/R1A"
+    row_path = r"/media/fruitspec-lab/cam175/customers_new/PROPAL/Mandarin/250323/row_7/1"
     rotate = True
     s_frame = 0
-    max_frame = 300
+    max_frame = 30
     fps = 15
     new_vid_name = ""
-    frame_save_directory = "/media/fruitspec-lab/easystore/debugging/APPLECHILE04_test_R1A"
+    frame_save_directory = "/media/fruitspec-lab/easystore"
 
-    side = 1 if row_path.endswith("A") else 2
-    jai_fp = os.path.join(row_path, f'Result_FSI_{side}.mkv')
+    jai_fp = os.path.join(row_path, f'Result_FSI.mkv')
     tracks_path = os.path.join(row_path, f'tracks.csv')
     tracks_df = pd.read_csv(tracks_path)
     cap_fsi = cv2.VideoCapture(jai_fp)
