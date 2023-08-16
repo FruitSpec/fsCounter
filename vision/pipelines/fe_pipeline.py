@@ -349,11 +349,11 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 
 
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/cam175/customers_new"
+    folder_path = "/media/fruitspec-lab/cam175/FOWLER"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
-    final_df_output = "/media/fruitspec-lab/cam175/customers_new/features_1308_new_translator.csv"
+    final_df_output = "/media/fruitspec-lab/cam175/FOWLER/features_FOWLER_3rd_scan.csv"
     over_write = False
-    njobs = 5
+    njobs = 1
     suffix = ""
     print_fids = False
     run_only_done_adt = False

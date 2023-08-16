@@ -26,7 +26,7 @@ from vision.data.fs_logger import Logger
 from vision.feature_extractor.boxing_tools import xyz_center_of_box, cut_zed_in_jai
 from concurrent.futures import ThreadPoolExecutor
 from vision.feature_extractor.image_processing import get_percent_seen
-from vision.feature_extractor.tree_size_tools import stable_euclid_dist
+from vision.feature_extractor.tree_size_tools import stable_euclid_dist, get_pix_size
 
 
 def debug_tracks_pc(jai_batch, trk_outputs, f_id):
@@ -433,7 +433,7 @@ def update_metadata(metadata, args):
 
 
 def get_depth_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=False, aligned=False,
-                        resize_factors=(1, 1), factor = 8/255):
+                        resize_factors=(1, 1), factor = 8/255, euclid_dist=False):
     """
     Retrieves the depth to each bbox
     Args:
@@ -452,20 +452,31 @@ def get_depth_to_bboxes(xyz_frame, jai_frame, cut_coords, dets, pc=False, dims=F
     if not pc:
         xyz_frame = xyz_frame * factor
     if not aligned:
-        cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
-        xyz_frame_aligned = cut_zed_in_jai({"zed": xyz_frame}, cut_coords, rgb=False)["zed"]
+        cut_coords_dict = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
+        xyz_frame_aligned = cut_zed_in_jai({"zed": xyz_frame}, cut_coords_dict, rgb=False)["zed"]
         r_h, r_w = xyz_frame_aligned.shape[0] / jai_frame.shape[0], xyz_frame_aligned.shape[1] / jai_frame.shape[1]
     else:
         xyz_frame_aligned, r_h, r_w = xyz_frame, resize_factors[0], resize_factors[1]
     for det in dets:
         box = ((int(det[0] * r_w), int(det[1] * r_h)), (int(det[2] * r_w), int(det[3] * r_h)))
-        det_output = []
         if pc:
             det += list(xyz_center_of_box(xyz_frame_aligned, box))
         else:
             det.append(xyz_center_of_box(xyz_frame_aligned, box)[2])
         if dims:
-            det += list(stable_euclid_dist(xyz_frame_aligned, box))
+            if euclid_dist:
+                det += list(stable_euclid_dist(xyz_frame_aligned, box))
+            else: # pix size algorithm
+                # Convert to zed original coordinates
+                new_det = det.copy()
+                new_det[0] = (new_det[0] * (cut_coords[2] - cut_coords[0]) / 1536 + cut_coords[0])
+                new_det[1] = (new_det[1] * (cut_coords[3] - cut_coords[1]) / 2048 + cut_coords[1])
+                new_det[2] = (new_det[2] * (cut_coords[2] - cut_coords[0]) / 1536 + cut_coords[0])
+                new_det[3] = (new_det[3] * (cut_coords[3] - cut_coords[1]) / 2048 + cut_coords[1])
+                # extract pixel size
+                size_pix_x, size_pix_y = get_pix_size(det[-1], [int(num) for num in new_det[:4]])
+                det += [np.nanmedian(size_pix_x) * (new_det[2]-new_det[0]),
+                        np.nanmedian(size_pix_y) * (new_det[3]-new_det[1])]
     return dets
 
 

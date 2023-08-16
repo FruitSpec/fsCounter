@@ -68,6 +68,12 @@ lasso_chosen = ['total_foliage', 'total_orange', 'volume', 'avg_volume',
 
 cv_feauteres = ["cv", "cv2", "cv3", "cv4", "cv5", "lemon", "mandarin", "w_h_ratio", "fruit_foliage_ratio"]
 
+lm_gfs = ['total_orange', 'surface_area', 'center_perimeter', 'w_h_ratio',
+       'mst_mean_arr', 'clusters_area_mean_arr', 'n_clust_arr_2',
+       'q_2_precent_fruits', 'q_3_precent_fruits', 'fruit_dist_center',
+       'ndvi_skew', 'ndri_skew', 'cv1', 'lemon', 'cv/center_height',
+       'orange_cv', 'lemon_cv', 'lemon_surface_area', 'center_width']
+
 F_model_models = {
     # "SVR": {"model_params": "models_studies/SVR_study.pkl",
     #         "X_data": "X_train.csv",
@@ -86,6 +92,20 @@ F_model_models = {
     #                         "y_data": "y_train.csv",
     #                         "output_path": os.path.join(model_folder, "models_studies/KNeighborsRegressor_pipe_trees.pkl"),
     #                         "scaler": "Robust"},
+
+    "LinearRegression": {"model_params": {},
+                         "gfs_train_cols": gfs_train_cols,
+                         "columns": X_tr_cols,
+                         "output_path": os.path.join(model_folder, "lm.pkl"),
+                         "preprocess_type": 0,
+                         "model_pkl_path": ""},
+
+    "LinearRegression_gfs": {"model_params": {},
+                         "gfs_train_cols": "",
+                         "columns": lm_gfs,
+                         "output_path": os.path.join(model_folder, "lm_gfs.pkl"),
+                         "preprocess_type": 0,
+                         "model_pkl_path": ""},
 
     "DecisionTreeRegressor": {"model_params": os.path.join(prefix_studies, "DecisionTreeRegressor_study.pkl"),
                               "gfs_train_cols": gfs_train_cols,
@@ -110,7 +130,7 @@ F_model_models = {
                               "model_pkl_path": ""},
 
     "RandomForestRegressor": {"model_params": os.path.join(prefix_studies, "study_rf_notebook.pkl"),
-                              "gfs_train_cols": "",
+                              "gfs_train_cols": gfs_train_cols,
                               "columns": X_trees_cols,
                               "output_path": os.path.join(model_folder, "rf_notebook.pkl"),
                               "preprocess_type": 0,
@@ -144,13 +164,6 @@ F_model_models = {
                            "preprocess_type": 0,
                            "model_pkl_path": ""},
 
-    "LinearRegression": {"model_params": {},
-                  "gfs_train_cols": gfs_train_cols,
-                  "columns": X_tr_cols,
-                  "output_path": os.path.join(model_folder, "lm.pkl"),
-                  "preprocess_type": 0,
-                  "model_pkl_path": ""},
-
     "GradientBoostingRegressor": {"model_params": os.path.join(prefix_studies, "GradientBoostingRegressor_study.pkl"),
                                   "gfs_train_cols": gfs_train_cols,
                                   "columns": X_trees_cols,
@@ -175,7 +188,7 @@ F_model_models = {
 
     "GradientBoostingRegressor_3107_trees": {
         "model_params": "/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/studies_31_07/GradientBoostingRegressor_trees_study.pkl",
-        "gfs_train_cols": gfs_train_cols,
+        "gfs_train_cols": "",
         "columns": X_trees_cols,
         "output_path": os.path.join(model_folder, "GradientBoostingRegressor_3107_trees.pkl"),
         "preprocess_type": 0,

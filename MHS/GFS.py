@@ -203,8 +203,8 @@ def run_exmaple():
     print(f"Best features: {np.where(best_features)}")
 
 
-def run_gfs(model_name, model_args, features_df, generations=50, population_size=500,
-                          mutation_rate=0.3, tournament_size=10, elitism=0.2):
+def run_gfs(model_name, model_args, features_df, generations=50, population_size=750,
+                          mutation_rate=0.5, tournament_size=5, elitism=0.2):
 
     model = models[model_name.split("_")[0]]
     model_params = model_args["model_params"]

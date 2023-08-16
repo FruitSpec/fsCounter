@@ -746,9 +746,13 @@ class FeatureExtractor:
                 if np.isnan(z_center):
                     continue
                 new_boxes[track_id] = (x_center, y_center, z_center)
-                boxes_w, boxes_h = np.append(boxes_w, width), np.append(boxes_h, height)
+                boxes_w[track_id] = np.array(width)
+                boxes_h[track_id] = np.array(height)
+                # boxes_w, boxes_h = np.append(boxes_w, width), np.append(boxes_h, height)
             else:
                 old_boxes[track_id] = (x_center, y_center, z_center)
+                boxes_w[track_id] = np.append(boxes_w[track_id], width)
+                boxes_h[track_id] = np.append(boxes_h[track_id], height)
         return frame_tracker_results, new_boxes, old_boxes, boxes_w, boxes_h
 
     def fruit_space_frame_postprocess(self, frame_tracker_results, last_frame_boxes, old_boxes, new_boxes):
@@ -769,7 +773,8 @@ class FeatureExtractor:
         self.fruit_3d_space, first_frame = self.init_3d_fruit_space()
         if not self.fruit_3d_space:
             return 0, []
-        boxes_w, boxes_h, last_frame_boxes = np.array([]), np.array([]), self.fruit_3d_space
+        boxes_w, boxes_h, last_frame_boxes = {key: np.array([]) for key in self.fruit_3d_space.keys()},\
+            {key: np.array([]) for key in self.fruit_3d_space.keys()}, self.fruit_3d_space
         for i, frame_number in enumerate(self.tracker_results.keys()):
             if int(frame_number) <= int(first_frame):
                 continue
@@ -791,11 +796,13 @@ class FeatureExtractor:
         centers = np.array(list(self.fruit_3d_space.values()))
         if self.debugger.debug_dict["3d_space"]:
             DebuggerFE.plot_3d_cloud(self.fruit_3d_space, centers, title=f"{self.block}_{self.tree_name}")
+        boxes_w = [np.nanmedian(value) for key, value in boxes_w.items()]
+        boxes_h = [np.nanmedian(value) for key, value in boxes_h.items()]
         med_diam = np.nanmedian(np.nanmax([boxes_w, boxes_h], axis=0))
-        return med_diam, centers
+        return med_diam, centers, np.nanmedian(boxes_w), np.nanmedian(boxes_h)
 
     def calc_localization_features(self, min_y, max_y):
-        med_diam, centers = self.create_3d_fruit_space()
+        med_diam, centers, fruit_median_width, fruit_median_height = self.create_3d_fruit_space()
         centers, dists, clustring_dict, mean_labels, med_labels, fail = self.get_clustring_results(centers, med_diam)
         if fail:
             return self.init_tree_loc_params()
@@ -806,7 +813,13 @@ class FeatureExtractor:
                            "clusters_ch_area_mean_arr": convex_hull_area_mean,
                            "clusters_ch_area_med_arr": convex_hull_area_med, **clustring_dict,
                            **self.get_fruit_distribution_on_tree(centers, min_y, max_y),
-                           "fruit_dist_center": (np.nanmean(centers[:, 1]) - min_y) / (max_y - min_y)}
+                           "fruit_dist_center": (np.nanmean(centers[:, 1]) - min_y) / (max_y - min_y),
+                           "fruit_height_diff": centers[:, 1].max() - centers[:, 1].min(),
+                           "fruit_width_diff": centers[:, 0].max() - centers[:, 0].min(),
+                           "fruit_depth_diff": centers[:, 2].max() - centers[:, 2].min(),
+                           "med_diam": med_diam,
+                           "fruit_median_width": fruit_median_width,
+                           "fruit_median_height": fruit_median_height}
         return tree_loc_params
 
     def verbosity_print(self, print_val):

@@ -489,14 +489,14 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
 
 
 if __name__ == "__main__":
-    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHADS"
+    customers_folder_path = "/media/fruitspec-lab/cam175/FOWLER"
     # customers_folder_path = "/media/fruitspec-lab/TEMP SSD/USA_June/June_15"
     # customer_path = "/media/fruitspec-lab/TEMP SSD/USA_June/BERESG"
     skip_blocks = ["LDC42200"]
     skip_cust = ["LDCBRA"]
 
     run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1)
-    # run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
+    # run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=3,
     #                     skip_cust=skip_cust)
     #run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[2])
 

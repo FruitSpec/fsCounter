@@ -10,9 +10,8 @@ drop_cols_vi: ["tdvi", "gci", "msavi2", "tgi", "gndvi", "gosavi", "dvi", "gndvi"
                "vari","grvi", "rdvi", "savi", "arvi", "ipvi", "sr", "mnli", "wdrvi", "evi", "gari", "pvi", "nli"]
 # other columns to drop
 drop_cols: ["q1", "q3", "n_clust_arr_4", "n_clust_arr_6", "n_clust_mean_arr", "n_clust_med_arr", "cont", "ndvi_bin",
-                 "frame", "avg_intens_arr", "cv1", "total_time",
-            "full_process_time",
-            'avg_width', 'avg_perimeter', 'perimeter', 'height', 'width', 'avg_height']
+                 "frame", "avg_intens_arr", "total_time",
+            "full_process_time", 'avg_width', 'avg_perimeter', 'perimeter', 'height', 'width', 'avg_height']
 
 cv_vol: 1
 # sides to drop from train set. format {customer_name}_{block_name}_{side}

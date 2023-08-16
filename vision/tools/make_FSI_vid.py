@@ -53,6 +53,7 @@ def write_vid(fsi, tracks_df, s_frame=0, max_frame=np.inf, t_index=6, frame_save
             break
         if rotate:
             frame_fsi = cv2.rotate(frame_fsi, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        tracks_df.rename({"frame_id": "frame"}, axis=1, inplace=True)
         dets = tracks_df[tracks_df["frame"] == i].to_numpy()
         if len(dets):
             frame_fsi = draw_dets(frame_fsi, dets, t_index=t_index)
@@ -100,11 +101,11 @@ def make_vid_with_dets(cap_fsi, tracks_df, rotate, fps=0, new_vid_name="", s_fra
 
 
 if __name__ == "__main__":
-    row_path = r"/media/fruitspec-lab/cam175/customers_new/PROPAL/Mandarin/250323/row_7/1"
+    row_path = r"/media/fruitspec-lab/cam175/FOWLER/G60CLEM0/140823/row_12/1"
     rotate = True
     s_frame = 0
-    max_frame = 30
-    fps = 15
+    max_frame = 1000
+    fps = 10
     new_vid_name = ""
     frame_save_directory = ""
 
