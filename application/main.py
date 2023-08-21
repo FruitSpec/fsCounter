@@ -69,9 +69,9 @@ def restart_application(killer=None):
         elif not killer or k != killer:
             manager[k].terminate()
     time.sleep(5)
-    logging.info("REBOOT")
-    print("REBOOT")
-    # os.system("reboot")
+    logging.info("APPLICATION RESTARTING...")
+    print("APPLICATION RESTARTING...")
+    os.execl("/bin/bash", "/bin/bash", consts.startup_script)
 
 
 def process_monitor():
