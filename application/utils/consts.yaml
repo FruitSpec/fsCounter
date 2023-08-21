@@ -3,6 +3,7 @@ apple: apple
 logs_path: "~/Desktop/counter_logs/"
 log_name: "log"
 global_polygon: "global"
+startup_script: "/home/mic-730ai/Desktop/startup_counter.sh"
 alignment: alignment
 jai_translation: jai_translation
 tracks: tracks
