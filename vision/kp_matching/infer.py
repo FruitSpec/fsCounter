@@ -60,7 +60,7 @@ class lightglue_infer():
         input_zed = self.to_tensor(input_zed)
         input_jai = self.to_tensor(input_jai)
 
-        return input_jai, rj, input_zed, rz
+        return input_zed, rz, input_jai, rj
 
 
     @staticmethod
@@ -89,8 +89,8 @@ class lightglue_infer():
         else:
 
 
-            tx = M[0, 2]
-            ty = M[1, 2]
+            tx = M[0, 2] * -1
+            ty = M[1, 2] * -1
             tx = tx / rz * self.sx
             ty = ty / rz * self.sy
             # tx = np.mean(deltas[:, 0, 0]) / rz * sx

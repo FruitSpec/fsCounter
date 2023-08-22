@@ -27,10 +27,16 @@ def run(cfg, args, n_frames=200, type="superpoint"):
     pbar = tqdm(total=n_frames)
     while f_id < n_frames:
         pbar.update(cfg.batch_size)
+
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id)
+        # if f_id < 171:
+        #     f_id += 1
+        #     continue
+        # rgb_g = cv2.cvtColor(rgb_batch[0], cv2.COLOR_BGR2GRAY)
+        # rgb_g = cv2.equalizeHist(rgb_g)
 
         s = time.time()
-        input0, r0, input1, r1 = matcher.preprocess_images(zed_batch[0], rgb_batch[0])
+        input0, r0, input1, r1 = matcher.preprocess_images(zed_batch[0], jai_batch[0])
         e = time.time()
         print(f'preprocess time: {e - s}')
         s = e
@@ -81,14 +87,14 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     #folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
-    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723/row_6/1"
+    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723/row_4/1"
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/Fowler_FREDIANI_210723_row_6_sp")
+    args.output_folder = os.path.join("/home/matans/Documents/fruitspec/sandbox/sa_vs_lg/FREDIANI_row4/lg_kp_jai_svi")
     validate_output_path(args.output_folder)
 
-    run(cfg, args)
+    run(cfg, args, n_frames=400)
 

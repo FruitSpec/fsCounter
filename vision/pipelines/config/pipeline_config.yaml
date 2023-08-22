@@ -51,7 +51,7 @@ tracker:
 translation:
   translation_size: 480
   mode: match # match: use template matching, keypoints: use keypoints detection
-  dets_only: true # true: perfrom on detections only, false: on entire image
+  dets_only: false # true: perfrom on detections only, false: on entire image
 
 
 sensor_aligner:

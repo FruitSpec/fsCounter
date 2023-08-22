@@ -239,8 +239,7 @@ class FramesLoader():
 
     @staticmethod
     def get_cameras_sync_data(log_fp):
-        zed_ids = []
-        jai_ids = []
+
         log_df = pd.read_csv(log_fp)
         jai_frame_ids = list(log_df['JAI_frame_number'])
         zed_frame_ids = list(log_df['ZED_frame_number'])

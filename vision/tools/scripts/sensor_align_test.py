@@ -52,8 +52,8 @@ def run(cfg, args, n_frames=200):
         debug = []
         for i in range(cfg.batch_size):
             debug.append({'output_path': keypoints_path, 'f_id': f_id + i})
-        alignment_results = sensor_aligner.align_on_batch(zed_batch, rgb_batch, debug=debug)
-        lg_results = lg.align_sensors(zed_batch[0], rgb_batch[0])
+        alignment_results = sensor_aligner.align_on_batch(zed_batch, jai_batch, debug=debug)
+        lg_results = lg.align_sensors(zed_batch[0], jai_batch[0])
 
         data += post_process_res(alignment_results, f_id, 'sa')
         data += post_process_res([lg_results], f_id, 'lg')
@@ -89,8 +89,8 @@ def run(cfg, args, n_frames=200):
                          f_id + id_,
                          #corr=alignment_results[id_][0], dets=det_outputs[id_])
                          corr=lg_results[0], dets=det_outputs)
-            #save_loaded_images(zed_batch[id_],
-            #                   jai_batch[id_], f_id + id_, loaded_path, crop)
+            save_loaded_images(zed_batch[id_],
+                              jai_batch[id_], f_id + id_, loaded_path, crop)
 
         f_id += cfg.batch_size
 
@@ -100,7 +100,7 @@ def run(cfg, args, n_frames=200):
     output_path = os.path.join(args.output_folder, "alignment.csv")
     rc.dump_to_csv(output_path, "alignment")
     df = pd.DataFrame(data)
-    df.to_csv(os.path.join(output_path, 'res.csv'))
+    df.to_csv(os.path.join(args.output_folder, 'res.csv'))
 
 #    res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', 'tx', 'ty', 'sx', 'sy', 'umatches', 'zed_shift'])
 #   res_df.to_csv(os.path.join(args.output_folder, "res.csv"))
@@ -395,16 +395,16 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     #folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
-    folder = "/media/matans/My Book/FruitSpec/jun6/HC2000XX/060623/row_4/1"
+    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/compare_det", 'orig')
+    args.output_folder = os.path.join("/home/matans/Documents/fruitspec/sandbox/sa_vs_lg", 'BLOCK700_row4_fix')
     validate_output_path(args.output_folder)
 
-    run(cfg, args, None)
+    run(cfg, args, 200)
     #folder = "/media/matans/My Book/FruitSpec/jun6/HC1000XX/060623/row_4/1"
     #t_p = os.path.join(folder, "tracks.csv")
     # a_p = os.path.join(folder, "alignment.csv")
