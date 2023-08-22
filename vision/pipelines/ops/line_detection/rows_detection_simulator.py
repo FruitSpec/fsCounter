@@ -1,14 +1,14 @@
 import pandas as pd
 import os
 import cv2
-from vision.line_detection.rows_detector import RowDetector
+from vision.pipelines.ops.line_detection.rows_detector import RowDetector
 from tqdm import tqdm
 import numpy as np
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import json
 from vision.tools.utils_general import find_subdirs_with_file
-from vision.line_detection.gps_distance import DistanceGPS
+from vision.pipelines.ops.line_detection.gps_distance import DistanceGPS
 
 
 def read_imu_log(file_path, columns_names=['date', 'timestamp', 'angular_velocity_x', 'angular_velocity_y', 'angular_velocity_z', 'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z']):

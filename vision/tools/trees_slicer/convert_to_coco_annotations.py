@@ -1,12 +1,10 @@
 import cv2
 import os
-import json
 import pandas as pd
 import json
 from collections import Counter
-from vision.trees_slicer.split_data_coco_format_to_tain_val import split_train_val_images
 from vision.tools.utils_general import find_subdirs_with_file
-from vision.tools.manual_slicer import slice_to_trees
+
 
 def add_bbox_to_slice_trees(df, frame_width = 1080, frame_height = 1920):
     # Add bbox coco format [top left x position, top left y position, width, height]
