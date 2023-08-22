@@ -5,8 +5,8 @@ output_folder_annotate: $(output_folder)/annotation
 
 frame_size:  [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
-depth_minimum: 0.1 # 1 counter
-depth_maximum: 2.5 # 8 counter
+depth_minimum: 0
+depth_maximum: 8
 
 debug:
   is_debug: true  # master switch

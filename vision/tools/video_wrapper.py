@@ -23,6 +23,7 @@ class video_wrapper():
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
 
+
     @staticmethod
     def init_video_capture(filepath, channels):
         cuda_supported = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False  # indicate that opencv compiled localy
@@ -51,21 +52,6 @@ class video_wrapper():
 
         return rotation
 
-    def get_zed(self, frame_number=None, exclude_depth=False):
-
-        if self.mode == 'svo':
-            self.grab(frame_number)
-            _, frame = self.get_frame()
-            point_cloud = self.get_point_cloud()
-            if exclude_depth:
-                return frame, point_cloud
-            depth = self.get_depth()
-        else:
-            Warning('Not implemented for file type')
-            frame = None
-            depth = None
-
-        return frame, depth, point_cloud
 
     def grab(self, frame_number=None):
         if self.mode == 'svo':
@@ -79,6 +65,31 @@ class video_wrapper():
 
         else:
             Warning('Grab Not implemented for file type')
+
+
+    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True, blur = True):
+
+        if self.mode != 'svo':
+            Warning('Not implemented for file type')
+            return None, None, None
+
+        else:
+            self.grab(frame_number)
+            _, frame = self.get_frame()
+
+            if exclude_point_cloud:
+                depth = self.get_depth(far_is_black, blur)
+                return frame, depth
+
+            elif exclude_depth:
+                point_cloud = self.get_point_cloud()
+                return frame, point_cloud
+
+            else:
+                depth = self.get_depth(far_is_black, blur)
+                point_cloud = self.get_point_cloud()
+                return frame, depth, point_cloud
+
 
     def get_frame(self, frame_number=None):
         if self.mode == 'svo':
@@ -101,18 +112,28 @@ class video_wrapper():
 
         return ret, frame
 
-    def get_depth(self):
+    def get_depth(self, far_is_black = True, blur = True):
         depth = None
         if self.mode == 'svo':
             if self.res:
                 cam_run_p = self.cam.get_init_parameters()
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
-                depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
-                bool_mask = np.where(np.isnan(depth), True, False)
-                depth[bool_mask] = 0
+                nan_mask = np.where(np.isnan(depth), True, False)
 
-                depth = cv2.medianBlur(depth, 5)
+                if far_is_black:
+                    depth = (cam_run_p.depth_maximum_distance - np.clip(depth, cam_run_p.depth_minimum_distance, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 255   # set nan to 255 (otherwise nan gets o by astype(np.uint8) function)
+
+                else:
+                    depth = (np.clip(depth, cam_run_p.depth_minimum_distance,cam_run_p.depth_maximum_distance)) * 255 / ( cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 0   # set nan to 0
+
+                depth = np.clip(depth, 0, 255)
+                depth = depth.astype(np.uint8)  # coverts nan to 0
+
+                if blur:
+                    depth = cv2.medianBlur(depth, 5)
                 depth = self.rotate(depth)
 
         else:
@@ -207,16 +228,16 @@ class video_wrapper():
         input_type = sl.InputType()
         input_type.set_from_svo_file(filepath)
         init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
-        init_params.depth_mode = sl.DEPTH_MODE.ULTRA
-        # init_params.depth_mode = sl.DEPTH_MODE.QUALITY
+        #init_params.depth_mode = sl.DEPTH_MODE.ULTRA
+        init_params.depth_mode = sl.DEPTH_MODE.QUALITY
         init_params.coordinate_units = sl.UNIT.METER
         init_params.depth_minimum_distance = depth_minimum
         init_params.depth_maximum_distance = depth_maximum
         init_params.depth_stabilization = True
         runtime = sl.RuntimeParameters()
         runtime.confidence_threshold = 100
-        # runtime.sensing_mode = sl.SENSING_MODE.STANDARD
-        runtime.sensing_mode = sl.SENSING_MODE.FILL
+        runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+        # runtime.sensing_mode = sl.SENSING_MODE.FILL   # fill nan
         cam = sl.Camera()
         status = cam.open(init_params)
         positional_tracking_parameters = sl.PositionalTrackingParameters()
