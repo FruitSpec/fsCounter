@@ -167,14 +167,14 @@ def restart_application(killer=None):
     time.sleep(2)
     global manager
     for k in manager:
-        if not conf.GUI and k == ModulesEnum.GUI:
-            continue
-        elif not killer or k != killer:
+        try:
             manager[k].terminate()
+        except:
+            pass
     time.sleep(5)
-    logging.info("REBOOT")
-    print("REBOOT")
-    # os.system("reboot")
+    logging.info("APPLICATION RESTARTING...")
+    print("APPLICATION RESTARTING...")
+    os.execl("/bin/bash", "/bin/bash", consts.startup_script)
 
 
 def process_monitor():
