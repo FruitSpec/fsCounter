@@ -4,12 +4,31 @@ log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"
 log_extension: "log"
 global_polygon: "global"
-alignment: alignment
-jai_translation: jai_translation
-tracks: tracks
-jaized_timestamps: jaized_timestamps
-success: success
-failed: failed
+startup_script: "/home/mic-730ai/Desktop/startup_counter.sh"
+
+GPS_timestamp: "timestamp",
+GPS_latitude: "latitude",
+GPS_longitude: "longitude",
+GPS_plot: "plot"
+
+JAI_frame_number: "JAI_frame_number"
+JAI_timestamp: "JAI_timestamp"
+ZED_frame_number: "ZED_frame_number"
+ZED_timestamp: "ZED_timestamp"
+IMU_angular_velocity: "IMU_angular_velocity"
+IMU_linear_acceleration: "IMU_linear_acceleration"
+depth_score: "depth_score"
+row_state: "row_state"
+
+
+alignment: "alignment"
+jai_translation: "jai_translation"
+tracks: "tracks"
+jaized_timestamps: "jaized_timestamps"
+
+success: "success"
+failed: "failed"
+
 nav_extension: "nav"
-routine: Routine
-urgent: Urgent
+routine: "Routine"
+urgent: "Urgent"

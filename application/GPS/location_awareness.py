@@ -1,6 +1,5 @@
 import signal
 import threading
-from threading import Lock
 import traceback
 from builtins import staticmethod
 from botocore.config import Config
@@ -11,6 +10,8 @@ import fscloudutils.exceptions
 from application.utils.settings import GPS_conf, conf, data_conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
+from vision.pipelines.ops.line_detection.rows_detector import RowState, RowDetector
+
 from fscloudutils.utils import NavParser
 import time
 from datetime import datetime, timedelta
@@ -24,9 +25,13 @@ class GPSSampler(Module):
     kml_flag = False
     locator = None
     sample_thread = None
+    row_detector = None
     start_sample_event = threading.Event()
-    gps_data = []
+    jaized_log_dict = dict()
+    current_timestamp = datetime.now().strftime(data_conf.timestamp_format)
+    current_lat, current_long = 0, 0
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
+    current_values_lock = threading.Lock()
     s3_client = None
     analysis_ongoing = False
     last_step_in, last_step_out = None, None
@@ -38,6 +43,7 @@ class GPSSampler(Module):
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown)
 
         GPSSampler.last_step_in, GPSSampler.last_step_out = datetime.now(), datetime.now()
+        GPSSampler.init_jaized_log_dict()
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
         GPSSampler.get_kml(once=True)
         GPSSampler.set_locator()
@@ -79,6 +85,22 @@ class GPSSampler(Module):
                 time.sleep(30)
 
     @staticmethod
+    def init_jaized_log_dict():
+        GPSSampler.jaized_log_dict = {
+            consts.JAI_frame_number: [],
+            consts.JAI_timestamp: [],
+            consts.ZED_frame_number: [],
+            consts.ZED_timestamp: [],
+            consts.IMU_angular_velocity: [],
+            consts.IMU_linear_acceleration: [],
+            consts.row_state: [],
+            consts.GPS_timestamp: [],
+            consts.GPS_latitude: [],
+            consts.GPS_longitude: [],
+            consts.GPS_plot: []
+        }
+
+    @staticmethod
     def receive_data():
         while True:
             data, sender_module = GPSSampler.in_qu.get()
@@ -86,6 +108,33 @@ class GPSSampler(Module):
             if sender_module == ModulesEnum.Acquisition:
                 if action == ModuleTransferAction.START_GPS:
                     GPSSampler.start_sample_event.set()
+                if action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+
+                    row_state = GPSSampler.get_row_state(
+                        angular_velocity_x=data[consts.IMU_angular_velocity][0],
+                        lat=GPSSampler.current_lat,
+                        long=GPSSampler.current_long,
+                        imu_timestamp=data[consts.ZED_timestamp],
+                        gps_timestamp=GPSSampler.current_timestamp,
+                        depth_img=data[consts.depth]
+                    )
+
+                    angular_velocity = data[consts.IMU_angular_velocity]
+                    linear_acceleration = data[consts.IMU_linear_acceleration]
+
+                    with GPSSampler.current_values_lock:
+                        GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
+                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestmap])
+                        GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
+                        GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
+                        GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
+                        GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
+                        GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
+                        GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
+                        GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
+                        GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
+                        GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
+
                 if action == ModuleTransferAction.ACQUISITION_CRASH:
                     GPSSampler.start_sample_event.clear()
                     time.sleep(1)
@@ -107,7 +156,7 @@ class GPSSampler(Module):
         ser = None
         while not GPSSampler.shutdown_event.is_set():
             try:
-                ser = serial.Serial("/dev/ttyUSB1", timeout=1, )
+                ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
                 ser.flushOutput()
                 ser.flushInput()
                 logging.info(f"SERIAL PORT INIT - SUCCESS")
@@ -133,16 +182,19 @@ class GPSSampler(Module):
                 continue
             timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
-                if sample_count % 20 == 0 and GPSSampler.gps_data:
-                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-                    GPSSampler.gps_data = []
-
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
                 lat, long = point.get_lat(), point.get_long()
                 GPSSampler.previous_plot = GPSSampler.current_plot
-                GPSSampler.current_plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
+                with GPSSampler.current_values_lock:
+                    GPSSampler.current_plot = plot
+                    GPSSampler.current_lat = lat
+                    GPSSampler.current_long = long
+                    GPSSampler.current_timestamp = timestamp
+
+                # check if in global
                 if GPSSampler.current_plot == consts.global_polygon:
                     if GPSSampler.analysis_ongoing:
                         LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
@@ -150,13 +202,25 @@ class GPSSampler(Module):
                         LedSettings.turn_on(LedColor.ORANGE)
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
+
                 sample_count += 1
+
+                if sample_count % 20 == 0 and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                    with GPSSampler.current_values_lock:
+                        GPSSampler.send_data(
+                            action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                            data=GPSSampler.jaized_log_dict,
+                            receiver=ModulesEnum.DataManager
+                        )
+
+                        GPSSampler.init_jaized_log_dict()
+
                 GPSSampler.gps_data.append(
                     {
-                        "timestamp": timestamp,
-                        "latitude": lat,
-                        "longitude": long,
-                        "plot": GPSSampler.current_plot
+                        consts.GPS_timestamp: timestamp,
+                        consts.GPS_latitude: lat,
+                        consts.GPS_longitude: long,
+                        consts.GPS_plot: GPSSampler.current_plot
                     }
                 )
 
@@ -165,6 +229,7 @@ class GPSSampler(Module):
                     GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                    # stepped into new block
                     if GPSSampler.previous_plot == consts.global_polygon:
                         state_changed = GPSSampler.step_in()
                     else:
@@ -180,10 +245,10 @@ class GPSSampler(Module):
                 timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 GPSSampler.gps_data.append(
                     {
-                        "timestamp": timestamp,
-                        "latitude": None,
-                        "longitude": None,
-                        "plot": GPSSampler.current_plot
+                        consts.GPS_timestamp: timestamp,
+                        consts.GPS_latitude: None,
+                        consts.GPS_longitude: None,
+                        consts.GPS_plot: GPSSampler.current_plot
                     }
                 )
                 sample_count += 1
@@ -212,6 +277,7 @@ class GPSSampler(Module):
     @staticmethod
     def step_in():
         if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
+            GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             print(f"STEP IN {GPSSampler.current_plot}")
             logging.info(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
@@ -228,10 +294,29 @@ class GPSSampler(Module):
 
             GPSSampler.last_step_out = datetime.now()
 
-            GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
-            GPSSampler.gps_data = []
+            if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                with GPSSampler.current_values_lock:
+                    GPSSampler.send_data(
+                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                        data=GPSSampler.jaized_log_dict,
+                        receiver=ModulesEnum.DataManager
+                    )
 
+                    GPSSampler.init_jaized_log_dict()
+                time.sleep(1)
             GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
             return True
         else:
             return False
+
+    @staticmethod
+    def get_row_state(angular_velocity_x, lat, long, imu_timestamp, gps_timestamp, depth_score):
+        GPSSampler.row_detector.detect_row(
+            angular_velocity_x=angular_velocity_x,
+            latitude=lat,
+            longitude=long,
+            imu_timestamp=imu_timestamp,
+            gps_timestamp=gps_timestamp,
+            depth_score=depth_score
+        )
+        return GPSSampler.row_detector.row_state

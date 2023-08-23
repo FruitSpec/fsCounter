@@ -41,7 +41,6 @@ class ModuleTransferAction(enum.Enum):
     RESTART_APP = "RESTART_APP"
     START_GPS = "START_GPS"
     NAV = "NAV"
-    IMU = "IMU"
     ASK_FOR_NAV = "ASK_FOR_NAV"
     JAIZED_TIMESTAMPS = "JAIZED_TIMESTAMPS"
     JAIZED_TIMESTAMPS_AND_STOP = "JAIZED_TIMESTAMPS_AND_STOP"
@@ -169,7 +168,6 @@ class Module:
         except queue.Full:
             logging.warning("COMMUNICATION QUEUE IS FULL!")
             return
-        # os.kill(Module.main_pid, signal.SIGUSR1)
 
     @staticmethod
     def receive_data():

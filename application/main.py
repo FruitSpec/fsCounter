@@ -29,6 +29,140 @@ from GUI.gui_interface import GUIInterface
 global manager, communication_queue, monitor_events
 
 
+def storage_cleanup():
+
+    def get_total_path(x, name_only=False):
+        name = os.path.join(
+            x["customer_code"], x["plot_code"],
+            str(x["scan_date"]), f"row_{x['row']}", str(x["folder_index"])
+        )
+        if name_only:
+            return name
+        else:
+            return os.path.join(data_conf.output_path, name)
+
+    def get_creation_date(path):
+            try:
+                return os.path.getctime(path)
+            except:
+                return None
+
+    def routine_cleanup():
+        logging.info("PERFORMING ROUTINE CLEANUP...")
+        uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
+        if uploaded_df.empty:
+            return pd.DataFrame()
+
+        uploaded_df["total_path"] = uploaded_df.apply(get_total_path, axis=1)
+        uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
+
+        # Filter the DataFrame to delete files older than 48 hours
+        cutoff_time = datetime.now() - timedelta(hours=48)
+        is_old = uploaded_df['creation_date'] <= cutoff_time.timestamp()
+        not_exist = pd.isna(uploaded_df['creation_date'])
+        uploaded_delete = uploaded_df[is_old | not_exist]
+
+        for _, r in uploaded_delete.iterrows():
+            if pd.isna(r["creation_date"]):
+                continue
+            total_path = r["total_path"]
+            row_name = get_total_path(r, name_only=True)
+            row_folder = os.path.dirname(total_path)
+            try:
+                shutil.rmtree(row_folder)
+                logging.info(f"ROUTINE STORAGE CLEANUP - DELETED {row_name}")
+            except (FileNotFoundError, IOError):
+                logging.warning(f"ROUTINE STORAGE CLEANUP - COULD NOT DELETE {row_name}")
+
+        uploaded_delete.drop(columns=["total_path", "creation_date"], inplace=True)
+        uploaded_delete["procedure_type"] = consts.routine
+
+        return uploaded_delete
+
+    def urgent_cleanup():
+        def get_folder_size(path):
+            try:
+                return sum([os.path.getsize(f) for f in os.scandir(path)]) / (1024 ** 2)
+            except:
+                return -1
+
+        logging.info(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+        print(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+        if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
+            logging.info("PERFORMING URGENT CLEANUP...")
+            analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
+            if analyzed_df.empty:
+                return pd.DataFrame()
+            analyzed_df["total_path"] = analyzed_df.apply(get_total_path, axis=1)
+
+            analyzed_df["file_size_in_MB"] = analyzed_df["total_path"].apply(get_folder_size)
+            invalid_df = analyzed_df[analyzed_df["file_size_in_MB"] == -1]
+            analyzed_df = analyzed_df[analyzed_df["file_size_in_MB"] >= data_conf.storage_cleanup_size_threshold]
+            analyzed_df.sort_values(by="file_size_in_MB", inplace=True)
+            analyzed_groups = analyzed_df.groupby(["customer_code", "plot_code", "scan_date"])
+
+            analyzed_delete = pd.DataFrame(columns=analyzed_df.columns)
+
+            for _, analyzed_gr in analyzed_groups:
+                if len(analyzed_gr) >= data_conf.storage_cleanup_min_files:
+                    delete_from_gr = analyzed_gr.iloc[data_conf.storage_cleanup_min_files:]
+                    analyzed_delete = pd.concat([analyzed_delete, delete_from_gr])
+
+            if analyzed_delete.empty:
+                logging.warning("DISK TOO FULL BUT NO FILES TO DELETE!")
+            else:
+                for _, r in analyzed_delete.iterrows():
+                    total_path = r["total_path"]
+                    row_name = get_total_path(r, name_only=True)
+                    try:
+                        files_to_delete = glob.glob(os.path.join(total_path, "*.svo")) \
+                                          + glob.glob(os.path.join(total_path, "*.mkv"))
+                        for f in files_to_delete:
+                            os.remove(f)
+                        logging.info(f"URGENT STORAGE CLEANUP - DELETED {row_name}")
+
+                    except (FileNotFoundError, IOError):
+                        logging.warning(f"URGENT STORAGE CLEANUP - COULD NOT DELETE {row_name}")
+                    if psutil.disk_usage("/").percent < data_conf.min_disk_occupancy:
+                        break
+
+            analyzed_delete.drop(columns=["total_path", "file_size_in_MB"], inplace=True)
+            analyzed_delete["procedure_type"] = consts.urgent
+            invalid_df["procedure_type"] = "FileNotFound"
+
+            analyzed_delete = pd.concat([analyzed_delete, invalid_df])
+
+            return analyzed_delete
+
+    def rewrite_not_deleted(path):
+        nonlocal deleted_df
+        df = pd.read_csv(path)
+        not_deleted_df = pd.merge(df, deleted_df, how='left', indicator=True,
+                                  on=["customer_code", "plot_code", "scan_date", "row", "folder_index"])
+
+        not_deleted_df = not_deleted_df[not_deleted_df['_merge'] == 'left_only']
+        not_deleted_df = not_deleted_df[df.columns]
+
+        not_deleted_df.to_csv(path, header=True, index=False)
+
+    r_delete = routine_cleanup()
+    u_delete = urgent_cleanup()
+
+    deleted_df = pd.concat([r_delete, u_delete])
+    if deleted_df.empty:
+        return
+    deleted_df = deleted_df[["customer_code", "plot_code", "scan_date", "row", "folder_index", "procedure_type"]]
+
+    is_first = not os.path.exists(data_conf.deleted_path)
+    deleted_df.to_csv(data_conf.deleted_path, mode='a+', header=is_first, index=False)
+    deleted_df = pd.read_csv(data_conf.deleted_path)
+    deleted_df = deleted_df[deleted_df["procedure_type"] == consts.routine]
+
+    rewrite_not_deleted(data_conf.collected_path)
+    rewrite_not_deleted(data_conf.analyzed_path)
+    rewrite_not_deleted(data_conf.uploaded_path)
+
+
 def restart_application(killer=None):
     time.sleep(2)
     global manager
@@ -45,27 +179,16 @@ def restart_application(killer=None):
 
 def process_monitor():
     global manager
-
-    start_date = datetime.now().strftime('%d-%m-%Y')
-    time.sleep(60)
-
+    time.sleep(10)
     while True:
-        today = datetime.now().strftime('%d-%m-%Y')
-        if today != start_date:
-            set_logger()
-
         logging.info("MONITORING MODULES")
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
-            monitor_events[k].clear()
-            send_data_to_module(ModuleTransferAction.MONITOR, None, k)
-
-        for k in manager:
-            if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
-                continue
             if manager[k].is_alive():
-                monitor_events[k].wait(2)
+                monitor_events[k].clear()
+                send_data_to_module(ModuleTransferAction.MONITOR, None, k)
+                monitor_events[k].wait(1)
                 alive = monitor_events[k].is_set()
             else:
                 alive = False
@@ -80,7 +203,6 @@ def process_monitor():
                 restart_application(killer=k)
                 return
         time.sleep(5)
-
 
 def send_data_to_module(action, data, recv_module):
     data = {
@@ -149,7 +271,6 @@ def transfer_data():
 
 def main():
     global manager, communication_queue, monitor_events
-
     manager = dict()
     monitor_events = dict()
     communication_queue = Queue()
@@ -159,6 +280,8 @@ def main():
         if module != ModulesEnum.Main:
             manager[module] = ModuleManager(main_pid, communication_queue)
             monitor_events[module] = threading.Event()
+
+    storage_cleanup()
 
     transfer_data_t = threading.Thread(target=transfer_data)
     transfer_data_t.start()

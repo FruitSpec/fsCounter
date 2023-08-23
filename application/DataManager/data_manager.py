@@ -5,6 +5,7 @@ from builtins import staticmethod
 import time
 from datetime import datetime, timedelta
 import signal
+import psutil
 import logging
 import boto3
 from botocore.config import Config
@@ -62,18 +63,18 @@ class DataManager(Module):
 
         def jaized_timestamps():
             try:
-                input_length = len(data["JAI_frame_number"])
+                input_length = len(data[consts.JAI_frame_number])
                 data["row"] = [DataManager.current_row] * input_length
                 data["folder_index"] = [DataManager.current_index] * input_length
 
                 jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
-                global_jaized_timestamps_log_path, _ = tools.get_file_path(tools.FileTypes.jaized_timestamps)
+                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
-                _is_first = not os.path.exists(global_jaized_timestamps_log_path)
-                jaized_timestamp_log_df.to_csv(global_jaized_timestamps_log_path, mode='a+', header=_is_first, index=False)
+                _is_first = not os.path.exists(jaized_timestamp_total_log_path)
+                jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
             except:
                 logging.exception("JAIZED TIMESTAMP ERROR")
                 traceback.print_exc()
@@ -81,58 +82,7 @@ class DataManager(Module):
         def stop_acquisition():
             filename_csv = f"{consts.jaized_timestamps}.csv"
             jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
-            jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by="JAI_frame_number")
-
-            jz_ts_key, nav_ts_key = "ZED_timestamp", "timestamp"
-
-            jaized_timestamp_log_df[jz_ts_key] = pd.to_datetime(
-                jaized_timestamp_log_df[jz_ts_key],
-                format=data_conf.timestamp_format
-            )
-
-            jz_earliest = jaized_timestamp_log_df[jz_ts_key].iloc[0]
-            jz_latest = jaized_timestamp_log_df[jz_ts_key].iloc[-1]
-
-            try:
-                DataManager.nav_df[nav_ts_key] = pd.to_datetime(
-                    DataManager.nav_df[nav_ts_key],
-                    format=data_conf.timestamp_format
-                )
-                nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
-            except (IndexError, KeyError):
-                nav_latest = jz_latest - timedelta(seconds=5)
-            except:
-                logging.exception("UNKNOWN STITCHING ERROR")
-                nav_latest = jz_latest - timedelta(seconds=5)
-
-            if nav_latest < jz_latest - timedelta(seconds=3):
-                logging.warning(f"STITCHING PROBLEM AT {DataManager.current_plot}/{DataManager.current_row}")
-                return
-
-            nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
-
-            current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)].copy()
-            current_nav_df[nav_ts_key] = pd.to_datetime(
-                current_nav_df[nav_ts_key],
-                format=data_conf.timestamp_format
-            )
-
-            DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
-
-            merged_df = pd.merge_asof(
-                left=jaized_timestamp_log_df,
-                right=current_nav_df,
-                left_on=jz_ts_key,
-                right_on=nav_ts_key,
-
-                direction="nearest",
-                tolerance=timedelta(seconds=3)
-            )
-
-            jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
-            jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
-            jaized_timestamp_log_df["longitude"] = merged_df["longitude"]
-            jaized_timestamp_log_df["plot"] = merged_df["plot"]
+            jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by=consts.JAI_frame_number)
 
             if data_conf.use_feather:
                 filename_feather = f"{consts.jaized_timestamps}.feather"
@@ -155,6 +105,8 @@ class DataManager(Module):
                 tmp_df = pd.DataFrame(data=collected_data, index=[0])
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
                 DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
+                if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
+                    DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
 
         while True:
             data, sender_module = DataManager.in_qu.get()
@@ -168,6 +120,8 @@ class DataManager(Module):
                     nav_path, _ = tools.FileTypes(tools.FileTypes.nav)
                     is_first = not os.path.exists(nav_path)
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+                    jaized_timestamps()
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.FRUITS_DATA:
                     logging.info(f"FRUIT DATA RECEIVED")
@@ -176,13 +130,6 @@ class DataManager(Module):
                             DataManager.fruits_data[k] += v
                         except KeyError:
                             DataManager.fruits_data[k] = v
-                elif action == ModuleTransferAction.IMU:
-                    # write IMU data to .imu file
-                    logging.info(f"WRITING NAV DATA TO FILE")
-                    imu_path = tools.get_imu_path()
-                    imu_df = pd.DataFrame(data)
-                    is_first = not os.path.exists(imu_path)
-                    imu_df.to_csv(imu_path, header=is_first)
                 elif action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
                         _data_key = _name
@@ -250,11 +197,6 @@ class DataManager(Module):
                         get_index_dir=True
                     )
                 elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
-                    stop_acquisition()
-                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
-                    jaized_timestamps()
-                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
-                    jaized_timestamps()
                     stop_acquisition()
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:

@@ -3,11 +3,13 @@ import threading
 from datetime import datetime
 
 from application.utils.module_wrapper import ModuleTransferAction, ModulesEnum
-from application.utils.settings import analysis_conf
+from application.utils.settings import analysis_conf, consts
+from vision.pipelines.ops.line_detection.rows_detector import RowDetector
+
 from queue import Queue
-import pandas as pd
-import os
 import time
+
+from vision.tools.camera import jai_to_channels
 
 
 class Batcher:
@@ -15,11 +17,10 @@ class Batcher:
     _frames_queue = None
     _batches_queue = None
     _drop_next_zed = False
-    _send_jaized_timestamps_lock = threading.Lock()
     _batch_push_event = threading.Event()
     _shutdown_event = threading.Event()
     _acquisition_start_event = threading.Event()
-    _timestamps_log_dict = {}
+    _timestamp_log_dict = {}
     output_dir = ""
 
     def __init__(self, frames_queue, send_data):
@@ -34,14 +35,17 @@ class Batcher:
         self._drop_next_zed = False
         return (x1, y1, x2, y2), tx, ty
 
-    def init_timestamp_log_dict(self):
-        self._timestamps_log_dict = {
-            "JAI_frame_number": [],
-            "JAI_timestamp": [],
-            "ZED_frame_number": [],
-            "ZED_timestamp": [],
-            "IMU_angular_velocity": [],
-            "IMU_linear_acceleration": []
+    def set_timestamp_log_dict(self, jai_frame_number, jai_timestamp, zed_frame_number, zed_timestamp,
+                               imu_angular_velocity, imu_linear_acceleration, depth_img):
+        depth_score = RowDetector.percent_far_pixels(depth_img)
+        self._timestamp_log_dict = {
+            consts.JAI_frame_number: jai_frame_number,
+            consts.JAI_timestamp: jai_timestamp,
+            consts.ZED_frame_number: zed_frame_number,
+            consts.ZED_timestamp: zed_timestamp,
+            consts.IMU_angular_velocity: imu_angular_velocity,
+            consts.IMU_linear_acceleration: imu_linear_acceleration,
+            consts.depth_score: depth_score
         }
 
     def prepare_batches(self):
@@ -68,20 +72,30 @@ class Batcher:
         batch_number = 0
 
         last_zed_frame = None
-        self.init_timestamp_log_dict()
         while not self._shutdown_event.is_set():
             self._acquisition_start_event.wait()
             jai_frame = self._frames_queue.pop_jai()
             zed_frame, last_zed_frame = get_zed_per_jai(jai_frame, last_zed_frame)
-            self._timestamps_log_dict["JAI_frame_number"].append(jai_frame.frame_number)
-            self._timestamps_log_dict["JAI_timestamp"].append(jai_frame.timestamp)
-            self._timestamps_log_dict["ZED_frame_number"].append(zed_frame.frame_number)
-            self._timestamps_log_dict["ZED_timestamp"].append(zed_frame.timestamp)
+
             angular_velocity, linear_acceleration = zed_frame.imu.angular_velocity, zed_frame.imu.linear_acceleration
             angular_velocity = (angular_velocity.x, angular_velocity.y, angular_velocity.z)
             linear_acceleration = (linear_acceleration.x, linear_acceleration.y, linear_acceleration.z)
-            self._timestamps_log_dict["IMU_angular_velocity"].append(angular_velocity)
-            self._timestamps_log_dict["IMU_linear_acceleration"].append(linear_acceleration)
+
+            self.set_timestamp_log_dict(
+                jai_frame_number=jai_frame.frame_number,
+                jai_timestamp=jai_frame.timestamp,
+                zed_frame_number=zed_frame.frame_number,
+                zed_timestamp=zed_frame.timestamp,
+                imu_angular_velocity=angular_velocity,
+                imu_linear_acceleration=linear_acceleration,
+                depth_img=zed_frame.depth
+            )
+
+            self._send_data(
+                ModuleTransferAction.JAIZED_TIMESTAMPS,
+                self._timestamp_log_dict,
+                ModulesEnum.GPS
+            )
 
             self.align(jai_frame.rgb, zed_frame.rgb)
             batch.append((jai_frame, zed_frame))
@@ -94,15 +108,6 @@ class Batcher:
                     except queue.Full:
                         self._batches_queue.get()
                 batch = []
-            if jai_frame.frame_number % 200 == 0:
-                with self._send_jaized_timestamps_lock:
-                    print("sending data from batcher")
-                    self._send_data(
-                        ModuleTransferAction.JAIZED_TIMESTAMPS,
-                        self._timestamps_log_dict,
-                        ModulesEnum.DataManager
-                    )
-                    self.init_timestamp_log_dict()
 
     def pop_batch(self):
         return self._batches_queue.get(block=True)
@@ -111,21 +116,9 @@ class Batcher:
         self._acquisition_start_event.set()
 
     def stop_acquisition(self):
-        with self._send_jaized_timestamps_lock:
-            self._acquisition_start_event.clear()
-            print("BATCHER STOP ACQUISITION")
-            if self._timestamps_log_dict["JAI_frame_number"]:
-                print("BATCHER TIME + STOP")
-                self._send_data(
-                    ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
-                    self._timestamps_log_dict,
-                    ModulesEnum.DataManager
-                )
-            else:
-                print("BATCHER STOP ONLY")
-                self._send_data(
-                    ModuleTransferAction.STOP_ACQUISITION,
-                    None,
-                    ModulesEnum.DataManager
-                )
-            self.init_timestamp_log_dict()
+        self._acquisition_start_event.clear()
+        self._send_data(
+            ModuleTransferAction.STOP_ACQUISITION,
+            None,
+            ModulesEnum.DataManager
+        )
