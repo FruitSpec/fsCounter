@@ -85,6 +85,13 @@ class AcquisitionManager(Module):
                 AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
 
     @staticmethod
+    def disconnect_cameras():
+        try:
+            AcquisitionManager.jz_recorder.disconnect_cameras()
+        except:
+            pass
+
+    @staticmethod
     def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
         with AcquisitionManager.acquisition_lock:
             AcquisitionManager.set_acquisition_parameters(
@@ -205,10 +212,11 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def receive_data():
+        logging.info("ACQUISITION MODULE receive_data STARTED")
+        print("ACQUISITION MODULE receive_data STARTED")
         while True:
             data, sender_module = AcquisitionManager.in_qu.get()
             action, data = data["action"], data["data"]
-            global_polygon = consts.global_polygon
             if sender_module == ModulesEnum.GPS:
                 if action == ModuleTransferAction.ENTER_PLOT and conf.autonomous_acquisition:
                     AcquisitionManager.plot = data
@@ -244,6 +252,8 @@ class AcquisitionManager(Module):
     @staticmethod
     def shutdown(sig, frame):
         print("acquisition shutdown")
+        if AcquisitionManager.zed_connected or AcquisitionManager.zed_connected:
+            AcquisitionManager.disconnect_cameras()
         if AcquisitionManager.running:
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.GPS)
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.DataManager)

@@ -10,7 +10,6 @@ from math import asin, atan2, cos, degrees, radians, sin, sqrt
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import seaborn as sns
-from skimage._shared.utils import deprecate_func
 
 
 class RowState(Enum):

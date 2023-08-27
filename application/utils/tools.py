@@ -47,7 +47,7 @@ def is_svo(filename):
     return filename[-3:] == "svo"
 
 
-def get_file_path(f_type: FileTypes):
+def get_file_path(f_type: FileTypes, with_s3_path=False):
     today = datetime.now().strftime(data_conf.date_format)
     if f_type == FileTypes.nav:
         filename = f"{today}.{consts.nav_extension}"
@@ -65,8 +65,11 @@ def get_file_path(f_type: FileTypes):
         os.makedirs(f_dir)
 
     path = os.path.join(f_dir, filename)
-    s3_path = s3_path_join(conf.customer_code, filename)
-    return path, s3_path
+    if with_s3_path:
+        s3_path = s3_path_join(conf.customer_code, filename)
+        return path, s3_path
+    else:
+        return path
 
 
 def get_old_file_paths(f_type: FileTypes):
@@ -99,7 +102,7 @@ def get_old_file_paths(f_type: FileTypes):
         s3_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in old_paths]
         return zip(old_paths, s3_paths)
     except:
-        return None
+        return []
 
 
 def get_imu_path():

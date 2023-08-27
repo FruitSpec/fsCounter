@@ -68,7 +68,7 @@ class DataManager(Module):
                 data["folder_index"] = [DataManager.current_index] * input_length
 
                 jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
-                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
+                jaized_timestamp_total_log_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
@@ -117,7 +117,7 @@ class DataManager(Module):
                     logging.info(f"WRITING NAV DATA TO FILE")
                     new_nav_df = pd.DataFrame(data)
                     DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
-                    nav_path, _ = tools.FileTypes(tools.FileTypes.nav)
+                    nav_path = tools.get_file_path(tools.FileTypes.nav)
                     is_first = not os.path.exists(nav_path)
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
@@ -275,9 +275,9 @@ class DataManager(Module):
 
     @staticmethod
     def upload_today_files(upload_speed_in_kbps, timeout=10):
-        nav_path, nav_s3_path = tools.get_file_path(tools.FileTypes.nav)
-        log_path, log_s3_path = tools.get_file_path(tools.FileTypes.log)
-        jzts_path, jzts_s3_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
+        nav_path, nav_s3_path = tools.get_file_path(tools.FileTypes.nav, with_s3_path=True)
+        log_path, log_s3_path = tools.get_file_path(tools.FileTypes.log, with_s3_path=True)
+        jzts_path, jzts_s3_path = tools.get_file_path(tools.FileTypes.jaized_timestamps, with_s3_path=True)
         t0 = time.time()
 
         nav_is_successful = DataManager.upload_to_s3(nav_path, nav_s3_path, upload_speed_in_kbps, timeout)

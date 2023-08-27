@@ -25,7 +25,7 @@ class GPSSampler(Module):
     kml_flag = False
     locator = None
     sample_thread = None
-    row_detector = None
+    # row_detector = None
     start_sample_event = threading.Event()
     jaized_log_dict = dict()
     current_timestamp = datetime.now().strftime(data_conf.timestamp_format)
@@ -116,7 +116,7 @@ class GPSSampler(Module):
                         long=GPSSampler.current_long,
                         imu_timestamp=data[consts.ZED_timestamp],
                         gps_timestamp=GPSSampler.current_timestamp,
-                        depth_img=data[consts.depth]
+                        depth_score=data[consts.depth_score]
                     )
 
                     angular_velocity = data[consts.IMU_angular_velocity]
@@ -124,7 +124,7 @@ class GPSSampler(Module):
 
                     with GPSSampler.current_values_lock:
                         GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
-                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestmap])
+                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestamp])
                         GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
                         GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
                         GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
@@ -139,6 +139,7 @@ class GPSSampler(Module):
                     GPSSampler.start_sample_event.clear()
                     time.sleep(1)
                     GPSSampler.previous_plot = consts.global_polygon
+                    print(142)
                     LedSettings.turn_on(LedColor.RED)
             if sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.ANALYSIS_ONGOING:
@@ -173,6 +174,7 @@ class GPSSampler(Module):
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
+                print(176)
                 LedSettings.turn_on(LedColor.RED)
                 continue
             data = ""
@@ -193,15 +195,6 @@ class GPSSampler(Module):
                     GPSSampler.current_lat = lat
                     GPSSampler.current_long = long
                     GPSSampler.current_timestamp = timestamp
-
-                # check if in global
-                if GPSSampler.current_plot == consts.global_polygon:
-                    if GPSSampler.analysis_ongoing:
-                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
-                    else:
-                        LedSettings.turn_on(LedColor.ORANGE)
-                else:
-                    LedSettings.turn_on(LedColor.GREEN)
 
                 sample_count += 1
 
@@ -237,6 +230,16 @@ class GPSSampler(Module):
                     if not state_changed:
                         GPSSampler.current_plot = GPSSampler.previous_plot
 
+                # check if in global
+                if GPSSampler.current_plot == consts.global_polygon:
+                    if GPSSampler.analysis_ongoing:
+                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
+                    else:
+                        LedSettings.turn_on(LedColor.ORANGE)
+                else:
+                    LedSettings.turn_on(LedColor.GREEN)
+
+
                 err_count = 0
 
             except fscloudutils.exceptions.InputError:
@@ -259,10 +262,13 @@ class GPSSampler(Module):
                 if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
                     GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
+                print(265)
                 LedSettings.turn_on(LedColor.RED)
+                traceback.print_exc()
             except Exception:
                 logging.exception("SAMPLE UNEXPECTED EXCEPTION")
                 traceback.print_exc()
+                print(269)
                 LedSettings.turn_on(LedColor.RED)
 
         try:
@@ -271,19 +277,22 @@ class GPSSampler(Module):
             pass
 
         logging.info("END")
+        print(277)
         LedSettings.turn_on(LedColor.RED)
         GPSSampler.shutdown_done_event.set()
 
     @staticmethod
     def step_in():
         if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
-            GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
+            # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             print(f"STEP IN {GPSSampler.current_plot}")
             logging.info(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
             GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
             return True
         else:
+            print(f"DID NOT STEP IN {GPSSampler.current_plot}")
+            logging.info(f"DID NOT STEP IN {GPSSampler.current_plot}")
             return False
 
     @staticmethod
@@ -311,12 +320,13 @@ class GPSSampler(Module):
 
     @staticmethod
     def get_row_state(angular_velocity_x, lat, long, imu_timestamp, gps_timestamp, depth_score):
-        GPSSampler.row_detector.detect_row(
-            angular_velocity_x=angular_velocity_x,
-            latitude=lat,
-            longitude=long,
-            imu_timestamp=imu_timestamp,
-            gps_timestamp=gps_timestamp,
-            depth_score=depth_score
-        )
-        return GPSSampler.row_detector.row_state
+        # GPSSampler.row_detector.detect_row(
+        #     angular_velocity_x=angular_velocity_x,
+        #     latitude=lat,
+        #     longitude=long,
+        #     imu_timestamp=imu_timestamp,
+        #     gps_timestamp=gps_timestamp,
+        #     depth_score=depth_score
+        # )
+        # return GPSSampler.row_detector.row_state
+        return -1

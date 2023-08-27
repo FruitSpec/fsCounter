@@ -48,10 +48,15 @@ def storage_cleanup():
                 return None
 
     def routine_cleanup():
-        logging.info("PERFORMING ROUTINE CLEANUP...")
-        uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
+        try:
+            uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
+        except (FileNotFoundError, IOError):
+            return pd.DataFrame()
+
         if uploaded_df.empty:
             return pd.DataFrame()
+
+        logging.info("PERFORMING ROUTINE CLEANUP...")
 
         uploaded_df["total_path"] = uploaded_df.apply(get_total_path, axis=1)
         uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
@@ -89,10 +94,15 @@ def storage_cleanup():
         logging.info(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
         print(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
         if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
-            logging.info("PERFORMING URGENT CLEANUP...")
-            analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
+            try:
+                analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
+            except (FileNotFoundError, IOError):
+                return pd.DataFrame()
+
             if analyzed_df.empty:
                 return pd.DataFrame()
+
+            logging.info("PERFORMING URGENT CLEANUP...")
             analyzed_df["total_path"] = analyzed_df.apply(get_total_path, axis=1)
 
             analyzed_df["file_size_in_MB"] = analyzed_df["total_path"].apply(get_folder_size)
@@ -136,7 +146,11 @@ def storage_cleanup():
 
     def rewrite_not_deleted(path):
         nonlocal deleted_df
-        df = pd.read_csv(path)
+        try:
+            df = pd.read_csv(path)
+        except (FileNotFoundError, IOError):
+            return
+
         not_deleted_df = pd.merge(df, deleted_df, how='left', indicator=True,
                                   on=["customer_code", "plot_code", "scan_date", "row", "folder_index"])
 
@@ -174,21 +188,25 @@ def restart_application(killer=None):
     time.sleep(5)
     logging.info("APPLICATION RESTARTING...")
     print("APPLICATION RESTARTING...")
-    os.execl("/bin/bash", "/bin/bash", consts.startup_script)
+    # os.execl("/bin/bash", "/bin/bash", consts.startup_script)
 
 
 def process_monitor():
     global manager
-    time.sleep(10)
+    time.sleep(60)
     while True:
         logging.info("MONITORING MODULES")
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
+            monitor_events[k].clear()
+            send_data_to_module(ModuleTransferAction.MONITOR, None, k)
+
+        for k in manager:
+            if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
+                continue
             if manager[k].is_alive():
-                monitor_events[k].clear()
-                send_data_to_module(ModuleTransferAction.MONITOR, None, k)
-                monitor_events[k].wait(1)
+                monitor_events[k].wait(2)
                 alive = monitor_events[k].is_set()
             else:
                 alive = False

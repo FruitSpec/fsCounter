@@ -27,7 +27,6 @@ class Batcher:
         self._frames_queue = frames_queue
         self._send_data = send_data
         self._batches_queue = Queue(maxsize=analysis_conf.max_batches)
-        self.init_timestamp_log_dict()
 
     def align(self, jai_frame, zed_frame):
         x1, x2, y1, y2 = 0, 0, 0, 0

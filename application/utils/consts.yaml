@@ -6,9 +6,9 @@ log_extension: "log"
 global_polygon: "global"
 startup_script: "/home/mic-730ai/Desktop/startup_counter.sh"
 
-GPS_timestamp: "timestamp",
-GPS_latitude: "latitude",
-GPS_longitude: "longitude",
+GPS_timestamp: "timestamp"
+GPS_latitude: "latitude"
+GPS_longitude: "longitude"
 GPS_plot: "plot"
 
 JAI_frame_number: "JAI_frame_number"
