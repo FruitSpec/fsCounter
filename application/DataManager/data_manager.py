@@ -318,10 +318,11 @@ class DataManager(Module):
                   [(old_jaized_timestamps_paths, consts.log_extension)]
 
         for old_list in old_all:
-            old_paths, extension = old_list
+            old_paths, ext = old_list
             for local_path, s3_path in old_paths:
                 t0 = time.time()
-                DataManager.upload_to_s3(local_path, s3_path, extension, upload_speed_in_kbps, timeout)
+                print(f"TRYING TO UPLOAD {os.path.basename(local_path)}")
+                DataManager.upload_to_s3(local_path, s3_path, upload_speed_in_kbps, timeout, extension=ext)
                 t1 = time.time()
                 timeout = max(timeout - (t1 - t0), 3)
 

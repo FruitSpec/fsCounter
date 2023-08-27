@@ -83,16 +83,19 @@ def get_old_file_paths(f_type: FileTypes):
             f_dir = os.path.join(data_conf.output_path, conf.customer_code)
             glob_pattern = f"{conf.counter_number}_*.{consts.nav_extension}"
             regex_pattern = f"{conf.counter_number}_[0-9]{{6}}.{consts.nav_extension}"
+            s3_folder_name = consts.s3_nav_folder
         elif f_type == FileTypes.log:
             today_filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
             f_dir = consts.log_dir
             glob_pattern = f"{conf.counter_number}_*.{consts.log_extension}"
             regex_pattern = f"{conf.counter_number}_{consts.log_name}_[0-9]{{6}}.{consts.log_extension}"
-        if f_type == FileTypes.jaized_timestamps:
+            s3_folder_name = consts.s3_log_folder
+        elif f_type == FileTypes.jaized_timestamps:
             today_filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
             f_dir = os.path.join(data_conf.output_path, conf.customer_code)
             glob_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_*.{consts.log_extension}"
             regex_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_[0-9]{{6}}.{consts.log_extension}"
+            s3_folder_name = consts.s3_jaized_folder
         else:
             raise ValueError("Wrong file type")
 
@@ -102,9 +105,10 @@ def get_old_file_paths(f_type: FileTypes):
             if re.fullmatch(regex_pattern, os.path.basename(f))
             and today_filename not in f
         ]
-        s3_paths = [s3_path_join(conf.customer_code, os.path.basename(f)) for f in old_paths]
+        s3_paths = [s3_path_join(conf.customer_code, s3_folder_name, os.path.basename(f)) for f in old_paths]
         return zip(old_paths, s3_paths)
     except:
+        traceback.print_exc()
         return []
 
 
