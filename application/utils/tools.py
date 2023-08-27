@@ -50,13 +50,13 @@ def is_svo(filename):
 def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
     today = datetime.now().strftime(data_conf.date_format)
     if f_type == FileTypes.nav:
-        filename = f"{today}.{consts.nav_extension}"
+        filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
         f_dir = os.path.join(data_conf.output_path, conf.customer_code)
     elif f_type == FileTypes.log:
-        filename = f"{today}.{consts.log_extension}"
+        filename = f"{conf.counter_number}_{today}.{consts.log_extension}"
         f_dir = consts.log_dir
     elif f_type == FileTypes.jaized_timestamps:
-        filename = f"{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+        filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
         f_dir = os.path.join(data_conf.output_path, conf.customer_code)
     else:
         raise ValueError("Wrong file type")
@@ -79,20 +79,20 @@ def get_old_file_paths(f_type: FileTypes):
     today = datetime.now().strftime(data_conf.date_format)
     try:
         if f_type == FileTypes.nav:
-            today_filename = f"{today}.{consts.nav_extension}"
+            today_filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
             f_dir = os.path.join(data_conf.output_path, conf.customer_code)
-            glob_pattern = f"*.{consts.nav_extension}"
-            regex_pattern = f"[0-9]{{6}}.{consts.nav_extension}"
+            glob_pattern = f"{conf.counter_number}_*.{consts.nav_extension}"
+            regex_pattern = f"{conf.counter_number}_[0-9]{{6}}.{consts.nav_extension}"
         elif f_type == FileTypes.log:
             today_filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
             f_dir = consts.log_dir
-            glob_pattern = f"*.{consts.log_extension}"
+            glob_pattern = f"{conf.counter_number}_*.{consts.log_extension}"
             regex_pattern = f"{conf.counter_number}_{consts.log_name}_[0-9]{{6}}.{consts.log_extension}"
         if f_type == FileTypes.jaized_timestamps:
-            today_filename = f"{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+            today_filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
             f_dir = os.path.join(data_conf.output_path, conf.customer_code)
-            glob_pattern = f"{consts.jaized_timestamps}_*.{consts.log_extension}"
-            regex_pattern = f"{consts.jaized_timestamps}_[0-9]{{6}}.{consts.log_extension}"
+            glob_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_*.{consts.log_extension}"
+            regex_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_[0-9]{{6}}.{consts.log_extension}"
         else:
             raise ValueError("Wrong file type")
 
