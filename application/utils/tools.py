@@ -18,7 +18,7 @@ import enum
 class FileTypes(enum.Enum):
     nav = "NAV"
     log = "log"
-    jaized_timestamps = "NAV"
+    jaized_timestamps = "jaized_timestamps"
 
 
 def s3_path_join(*args):
