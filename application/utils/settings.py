@@ -16,7 +16,7 @@ runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_conf
 
 
 def set_logger():
-    today = datetime.now().strftime('%d-%m-%Y')
+    today = datetime.now().strftime('%d%m%y')
     log_basename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
     log_path = os.path.join(consts.log_dir, log_basename)
     if not os.path.exists(consts.log_dir):
