@@ -336,7 +336,7 @@ def affine_to_values(M):
     ty = np.round(M[1, 2]).astype(np.int)
     return tx, ty, sx, sy
 
-def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20, fixed_scaling=False):
+def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20):
     match, _, _ = match_descriptors(des_zed, des_jai) # more than 90$ of time
     M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
 
