@@ -25,14 +25,14 @@ class LedSettings:
     _color = LedColor.ORANGE
 
     @staticmethod
-    def turn_on(color: LedColor, should_print=True):
-        if color == LedSettings._color and LedSettings._state != LedState.OFF:
+    def turn_on(color: LedColor, should_print=True, stop_blinking=True):
+        if color == LedSettings._color and LedSettings._state == LedState.ON:
             return
         if should_print:
             logging.info(f"LED TURN ON {color.name}")
             print(f"LED TURN ON {color.name}")
         LedSettings.turn_off(should_print=False)
-        if LedSettings._state != LedState.BLINK:
+        if LedSettings._state != LedState.BLINK or stop_blinking:
             LedSettings._state = LedState.ON
         LedSettings._color = color
         if LedSettings._color != LedColor.BLINK_TRANSPARENT:
@@ -63,7 +63,7 @@ class LedSettings:
             while LedSettings._state == LedState.BLINK:
                 LedSettings._color = colors[i % len(colors)]
                 i += 1
-                LedSettings.turn_on(LedSettings._color, should_print=False)
+                LedSettings.turn_on(LedSettings._color, should_print=False, stop_blinking=False)
                 time.sleep(GPS_conf.led_blink_sleep_time)
 
             logging.info(f"LED STOP BLINKING")

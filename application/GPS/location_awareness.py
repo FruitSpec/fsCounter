@@ -31,7 +31,6 @@ class GPSSampler(Module):
     current_timestamp = datetime.now().strftime(data_conf.timestamp_format)
     current_lat, current_long = 0, 0
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
-    current_values_lock = threading.Lock()
     s3_client = None
     analysis_ongoing = False
     last_step_in, last_step_out = None, None
@@ -122,24 +121,22 @@ class GPSSampler(Module):
                     angular_velocity = data[consts.IMU_angular_velocity]
                     linear_acceleration = data[consts.IMU_linear_acceleration]
 
-                    with GPSSampler.current_values_lock:
-                        GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
-                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestamp])
-                        GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
-                        GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
-                        GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
-                        GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
-                        GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
-                        GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
-                        GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
-                        GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
-                        GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
+                    GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
+                    GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestamp])
+                    GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
+                    GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
+                    GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
+                    GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
+                    GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
+                    GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
+                    GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
+                    GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
+                    GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
 
                 if action == ModuleTransferAction.ACQUISITION_CRASH:
                     GPSSampler.start_sample_event.clear()
                     time.sleep(1)
                     GPSSampler.previous_plot = consts.global_polygon
-                    print(142)
                     LedSettings.turn_on(LedColor.RED)
             if sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.ANALYSIS_ONGOING:
@@ -174,7 +171,6 @@ class GPSSampler(Module):
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
-                print(176)
                 LedSettings.turn_on(LedColor.RED)
                 continue
             data = ""
@@ -190,23 +186,21 @@ class GPSSampler(Module):
                 GPSSampler.previous_plot = GPSSampler.current_plot
                 plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
 
-                with GPSSampler.current_values_lock:
-                    GPSSampler.current_plot = plot
-                    GPSSampler.current_lat = lat
-                    GPSSampler.current_long = long
-                    GPSSampler.current_timestamp = timestamp
+                GPSSampler.current_plot = plot
+                GPSSampler.current_lat = lat
+                GPSSampler.current_long = long
+                GPSSampler.current_timestamp = timestamp
 
                 sample_count += 1
 
                 if sample_count % 20 == 0 and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
-                    with GPSSampler.current_values_lock:
-                        GPSSampler.send_data(
-                            action=ModuleTransferAction.JAIZED_TIMESTAMPS,
-                            data=GPSSampler.jaized_log_dict,
-                            receiver=ModulesEnum.DataManager
-                        )
+                    GPSSampler.send_data(
+                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                        data=GPSSampler.jaized_log_dict,
+                        receiver=ModulesEnum.DataManager
+                    )
 
-                        GPSSampler.init_jaized_log_dict()
+                    GPSSampler.init_jaized_log_dict()
 
                 GPSSampler.gps_data.append(
                     {
@@ -239,7 +233,6 @@ class GPSSampler(Module):
                 else:
                     LedSettings.turn_on(LedColor.GREEN)
 
-
                 err_count = 0
 
             except fscloudutils.exceptions.InputError:
@@ -262,13 +255,11 @@ class GPSSampler(Module):
                 if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
                     GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
-                print(265)
                 LedSettings.turn_on(LedColor.RED)
                 traceback.print_exc()
             except Exception:
                 logging.exception("SAMPLE UNEXPECTED EXCEPTION")
                 traceback.print_exc()
-                print(269)
                 LedSettings.turn_on(LedColor.RED)
 
         try:
@@ -277,7 +268,6 @@ class GPSSampler(Module):
             pass
 
         logging.info("END")
-        print(277)
         LedSettings.turn_on(LedColor.RED)
         GPSSampler.shutdown_done_event.set()
 
@@ -304,15 +294,14 @@ class GPSSampler(Module):
             GPSSampler.last_step_out = datetime.now()
 
             if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
-                with GPSSampler.current_values_lock:
-                    GPSSampler.send_data(
-                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
-                        data=GPSSampler.jaized_log_dict,
-                        receiver=ModulesEnum.DataManager
-                    )
+                GPSSampler.send_data(
+                    action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                    data=GPSSampler.jaized_log_dict,
+                    receiver=ModulesEnum.DataManager
+                )
 
-                    GPSSampler.init_jaized_log_dict()
-                time.sleep(1)
+                GPSSampler.init_jaized_log_dict()
+                time.sleep(0.5)
             GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
             return True
         else:

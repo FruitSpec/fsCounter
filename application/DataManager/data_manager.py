@@ -72,8 +72,11 @@ class DataManager(Module):
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
+                print(75, f"WRITE {len(jaized_timestamp_log_df)} LINES TO", jaized_timestamp_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
+
                 _is_first = not os.path.exists(jaized_timestamp_total_log_path)
+                print(79, f"WRITE {len(jaized_timestamp_total_log_path)} LINES TO", jaized_timestamp_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
             except:
                 logging.exception("JAIZED TIMESTAMP ERROR")
@@ -89,6 +92,7 @@ class DataManager(Module):
                 jaized_timestamps_feather_path = os.path.join(DataManager.current_path, filename_feather)
                 jaized_timestamp_log_df.to_feather(jaized_timestamps_feather_path)
             else:
+                print(95, f"WRITE {len(jaized_timestamp_log_df)} TO", jaized_timestamps_csv_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
 
             if conf.collect_data:
@@ -104,6 +108,7 @@ class DataManager(Module):
                 }
                 tmp_df = pd.DataFrame(data=collected_data, index=[0])
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
+                print(111, f"WRITE {len(DataManager.collected_df)} TO ", data_conf.collected_path)
                 DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
                 if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
                     DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
@@ -119,6 +124,8 @@ class DataManager(Module):
                     DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
                     nav_path = tools.get_file_path(tools.FileTypes.nav)
                     is_first = not os.path.exists(nav_path)
+                    print(127, f"WRITE {len(new_nav_df)} TO ", nav_path)
+                    print(f"DATA WRITTEN TO NAV:\n{new_nav_df}")
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
@@ -146,6 +153,7 @@ class DataManager(Module):
                         if data_conf.use_feather:
                             _df.to_feather(_file_path)
                         else:
+                            print(156, f"WRITE {len(_df)} LINES TO ", _file_path)
                             _df.to_csv(_file_path, index=False, header=True)
 
                     customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
@@ -182,6 +190,7 @@ class DataManager(Module):
 
                     analyzed_df = pd.DataFrame(data=analyzed_data, index=[0])
                     is_first = not os.path.exists(data_conf.analyzed_path)
+                    print(193, f"WRITE {len(analyzed_df)} LINES TO ", data_conf.analyzed_path)
                     analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
             elif sender_module == ModulesEnum.Acquisition:
                 if action == ModuleTransferAction.START_ACQUISITION:
@@ -451,7 +460,9 @@ class DataManager(Module):
                     }
                     add_row_to_dict(_uploaded_dict, _uploaded_indices, consts.success)
                     is_first = not os.path.exists(data_conf.uploaded_path)
-                    pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False,
+                    _uploaded_df = pd.DataFrame(_uploaded_dict)
+                    print(464, f"WRITE {len(_uploaded_df)} TO ", data_conf.uploaded_path)
+                    _uploaded_df.to_csv(data_conf.uploaded_path, mode='a+', index=False,
                                                         header=is_first)
             else:
                 _response_ok = False
@@ -461,7 +472,9 @@ class DataManager(Module):
             }
             add_row_to_dict(_failed_dict, _failed_indices, consts.failed)
             is_first = not os.path.exists(data_conf.uploaded_path)
-            pd.DataFrame(_failed_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
+            _failed_df = pd.DataFrame(_failed_dict)
+            print(476, f"WRITE {len(_failed_df)} LINES TO ", data_conf.uploaded_path)
+            _failed_df.to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
