@@ -28,3 +28,4 @@ def set_logger():
     root_logger = logging.getLogger()
     root_logger.addHandler(file_handler)
     root_logger.setLevel(logging.INFO)
+    return today

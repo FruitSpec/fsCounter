@@ -16,6 +16,7 @@ from botocore.exceptions import EndpointConnectionError
 from application.utils.settings import data_conf, conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
+from application.utils.settings import set_logger
 import speedtest
 
 
@@ -202,6 +203,8 @@ class DataManager(Module):
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     DataManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def update_output():

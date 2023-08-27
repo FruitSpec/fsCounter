@@ -7,6 +7,7 @@ import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf, consts
+from application.utils.settings import set_logger
 from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
@@ -34,6 +35,8 @@ class AlternativeFlow(Module):
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     AlternativeFlow.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def analyze():

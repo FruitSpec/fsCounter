@@ -17,7 +17,8 @@ sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
 from application.utils.settings import set_logger
 
-set_logger()
+global logger_date
+logger_date = set_logger()
 
 from GPS.location_awareness import GPSSampler
 from DataManager.data_manager import DataManager
@@ -192,9 +193,15 @@ def restart_application(killer=None):
 
 
 def process_monitor():
-    global manager
+    global manager, logger_date
     time.sleep(60)
     while True:
+        today = datetime.now().strftime('%d%m%y')
+        # if today != logger_date:
+        #     set_logger()
+        #     for k in manager:
+        #         send_data_to_module(ModuleTransferAction.SET_LOGGER, None, k)
+
         logging.info("MONITORING MODULES")
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:

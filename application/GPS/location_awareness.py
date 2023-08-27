@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 import logging
 import serial
 from application.GPS.GPS_locator import GPSLocator
+from application.utils.settings import set_logger
 from application.GPS.led_settings import LedSettings, LedColor
 
 
@@ -146,6 +147,8 @@ class GPSSampler(Module):
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GPSSampler.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def sample_gps():

@@ -37,6 +37,7 @@ class ModulesEnum(enum.Enum):
 
 
 class ModuleTransferAction(enum.Enum):
+    SET_LOGGER = "SET_LOGGER"
     MONITOR = "MONITOR"
     RESTART_APP = "RESTART_APP"
     START_GPS = "START_GPS"
@@ -99,6 +100,9 @@ class ModuleManager:
                 self.notify_on_death, self.death_action)
         self._process = Process(target=self.target, args=args, daemon=self.daemon, name=self.module_name.value)
         self.start(is_respawn=True)
+
+    def set_logger(self):
+        return self._process.is_alive()
 
     def is_alive(self):
         return self._process.is_alive()

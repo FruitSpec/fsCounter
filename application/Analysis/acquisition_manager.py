@@ -8,6 +8,7 @@ from builtins import staticmethod
 from application.utils.settings import conf, analysis_conf, data_conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils import tools
+from application.utils.settings import set_logger
 
 from application.Analysis.analysis_manager import AnalysisManager
 
@@ -248,6 +249,8 @@ class AcquisitionManager(Module):
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     AcquisitionManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def shutdown(sig, frame):

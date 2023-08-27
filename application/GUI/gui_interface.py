@@ -4,6 +4,7 @@ import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import GUI_conf, conf
+from application.utils.settings import set_logger
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
@@ -73,6 +74,8 @@ class GUIInterface(Module):
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GUIInterface.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     @sio.event
