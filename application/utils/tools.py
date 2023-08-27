@@ -47,7 +47,7 @@ def is_svo(filename):
     return filename[-3:] == "svo"
 
 
-def get_file_path(f_type: FileTypes, with_s3_path=False):
+def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
     today = datetime.now().strftime(data_conf.date_format)
     if f_type == FileTypes.nav:
         filename = f"{today}.{consts.nav_extension}"
@@ -66,7 +66,10 @@ def get_file_path(f_type: FileTypes, with_s3_path=False):
 
     path = os.path.join(f_dir, filename)
     if with_s3_path:
-        s3_path = s3_path_join(conf.customer_code, filename)
+        if s3_folder_name:
+            s3_path = s3_path_join(conf.customer_code, s3_folder_name, filename)
+        else:
+            s3_path = s3_path_join(conf.customer_code, filename)
         return path, s3_path
     else:
         return path

@@ -130,7 +130,11 @@ class ModuleManager:
         self._process.join()
 
     def terminate(self):
-        os.kill(self.pid, signal.SIGTERM)
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except:
+            print(f"COULD NOT KILL MODULE {self.module_name}")
+            logging.info(f"COULD NOT KILL MODULE {self.module_name}")
 
 
 class Module:

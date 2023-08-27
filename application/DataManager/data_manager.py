@@ -275,9 +275,23 @@ class DataManager(Module):
 
     @staticmethod
     def upload_today_files(upload_speed_in_kbps, timeout=10):
-        nav_path, nav_s3_path = tools.get_file_path(tools.FileTypes.nav, with_s3_path=True)
-        log_path, log_s3_path = tools.get_file_path(tools.FileTypes.log, with_s3_path=True)
-        jzts_path, jzts_s3_path = tools.get_file_path(tools.FileTypes.jaized_timestamps, with_s3_path=True)
+        nav_path, nav_s3_path = tools.get_file_path(
+            tools.FileTypes.nav,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_nav_folder
+        )
+
+        log_path, log_s3_path = tools.get_file_path(
+            tools.FileTypes.log,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_log_folder
+        )
+        jzts_path, jzts_s3_path = tools.get_file_path(
+            tools.FileTypes.jaized_timestamps,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_jaized_folder
+        )
+
         t0 = time.time()
 
         nav_is_successful = DataManager.upload_to_s3(nav_path, nav_s3_path, upload_speed_in_kbps, timeout)
