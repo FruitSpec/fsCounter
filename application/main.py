@@ -62,7 +62,7 @@ def storage_cleanup():
         uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
 
         # Filter the DataFrame to delete files older than 48 hours
-        cutoff_time = datetime.now() - timedelta(hours=48)
+        cutoff_time = datetime.now() - timedelta(hours=data_conf.routine_delete_time_hours)
         is_old = uploaded_df['creation_date'] <= cutoff_time.timestamp()
         not_exist = pd.isna(uploaded_df['creation_date'])
         uploaded_delete = uploaded_df[is_old | not_exist]

@@ -13,7 +13,8 @@ service_endpoint: "https://counter-api.intgr.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-temp-counter
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
 date_format: "%d%m%y"
-max_disk_occupancy: 70
-min_disk_occupancy: 50
-storage_cleanup_min_files: 3
-storage_cleanup_size_threshold: 100
+routine_delete_time_hours: 48
+max_disk_occupancy: 10
+min_disk_occupancy: 2
+storage_cleanup_min_files: 1
+storage_cleanup_size_threshold: 50
