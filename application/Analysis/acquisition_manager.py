@@ -252,7 +252,7 @@ class AcquisitionManager(Module):
     @staticmethod
     def shutdown(sig, frame):
         print("acquisition shutdown")
-        if AcquisitionManager.zed_connected or AcquisitionManager.zed_connected:
+        if not (AcquisitionManager.zed_connected and AcquisitionManager.jai_connected):
             AcquisitionManager.disconnect_cameras()
         if AcquisitionManager.running:
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.GPS)
