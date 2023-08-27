@@ -126,8 +126,8 @@ class ADTSBatchLoader:
         if "frame_id" in tracker_res_cols:
             self.tracker_results.rename({"frame_id": "frame"}, axis=1, inplace=True)
         xyz_dims_cols = ["pc_x", "pc_y", "depth", "width", "height"]
-        if ("depth" in tracker_res_cols) and (not np.all([col in tracker_res_cols for col in xyz_dims_cols])):
-            self.tracker_results.drop("depth", axis=1, inplace=True)
+        # if ("depth" in tracker_res_cols) and (not np.all([col in tracker_res_cols for col in xyz_dims_cols])):
+        #     self.tracker_results.drop("depth", axis=1, inplace=True)
 
     @staticmethod
     def validate_align(b_align, frame_ids):
@@ -178,7 +178,7 @@ class ADTSBatchLoader:
                         for frame in frame_ids]
             b_jai_translation = self.validate_jai_translation(b_jai_translation, frame_ids)
         else:
-            b_jai_translation = []
+            b_jai_translation = [[] for i in range(len(frame_ids))]
         return batch_slicer, batch_tracker, b_align, b_jai_translation
 
     def tracker_postprocess(self, batch_tracker, b_align, batch_zed, batch_fsi):
@@ -186,12 +186,14 @@ class ADTSBatchLoader:
         tracker_res_cols = self.tracker_results.columns
         if np.all([col in tracker_res_cols for col in xyz_dims_cols]):
             return batch_tracker
+        if "depth" in tracker_res_cols:
+            return batch_tracker
         cut_coords = tuple(res[:4] for res in b_align)
         batch_tracker = get_depth_to_bboxes_batch([zed[:, :, (1, 0, 2)] for zed in batch_zed], batch_fsi, cut_coords,
                                                   batch_tracker, True, True)
         return batch_tracker
 
-    def load_batch(self, frame_ids):
+    def load_batch(self, frame_ids, shift=0):
         """
         Load a batch of data.
 
@@ -206,7 +208,8 @@ class ADTSBatchLoader:
         try:
             batch_slicer, batch_tracker, b_align, b_jai_translation = self.load_adts(frame_ids)
             batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed = [], [], [], []
-            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0]), 0)
+            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0])+shift,
+                                                                                              shift)
             batch_zed = [zed[:, :, (1, 0, 2)] for zed in batch_zed]
             batch_fsi = [fsi[:, :, ::-1] for fsi in batch_fsi]
             batch_tracker = self.tracker_postprocess(batch_tracker, b_align, batch_zed, batch_fsi)

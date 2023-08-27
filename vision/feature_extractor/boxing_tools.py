@@ -324,7 +324,7 @@ def get_box_center(box):
     return med_x_med_y(l, t, r, b)
 
 
-def filter_outside_tree_boxes(tracker_results, slicer_results, direction = "right"):
+def filter_outside_tree_boxes(tracker_results, slicer_results, direction = "right", x_size=1536):
     """
     removes detections that are not on the tree
     :param tracker_results: dict of the tracker results
@@ -337,10 +337,10 @@ def filter_outside_tree_boxes(tracker_results, slicer_results, direction = "righ
         x_start, x_end = slicer_results[frame]
         if direction == "left":
             x_end, x_start = slicer_results[frame]
-            if x_start == 600:
+            if x_start == x_size:
                 x_start = 0
             if x_end == 0:
-                x_end = 600
+                x_end = x_size
         x_0 = np.array([box[0][0] for box in tracker_results[frame].values()])
         x_1 = np.array([box[1][0] for box in tracker_results[frame].values()])
         for id in np.array(list(tracker_results[frame].keys()))[np.all([x_0 > x_start, x_1 < x_end], axis=0) == False]:

@@ -32,7 +32,8 @@ min_dets_3d_init: 0.1 # chosen first frame for 3d space must have n_trackes >  q
 max_depth_change: 5 # filters fruit with higher depth change between tracklets, 0 means no filtering
 
 # tracker related params
-tracker_format: [6, 0, 1, 2, 3, 9, 8, 10, 11, 12] # track_id, x1,y1,x2,y2, pc_x, pc_y, pc_z, width, height
+#tracker_format: [6, 0, 1, 2, 3, 9, 8, 10, 11, 12] # track_id, x1,y1,x2,y2, pc_x, pc_y, pc_z, width, height
+tracker_format: [6, 0, 1, 2, 3, 8] # track_id, x1,y1,x2,y2,pc_z this shold be on in MKV mode
 
 # translation related params
 dets_only: false # whether to use only the detections for the translation between images or the full image

@@ -67,7 +67,7 @@ drop_trees: ["SHANIR_SUMGLD_R4_S1_T2", "SHANIR_SUMGLD_R4_S1_T4",
              "DEWAGD_DWDBNW39_R6_S1_T1",
              "DEWAGD_DWDBVM18_R70_S1_T1","DEWAGD_DWDBVM18_R54_S2_T1","DEWAGD_DWDBVM20_R43_S1_T1"]
 # drop comple customers form dataset
-drop_customer: ["MOTCHADS", "MOTCHA", "FOWLER"]
+drop_customer: ["MOTCHADS", "FOWLER"]
 # which columns to drop from training data of trees
 drop_from_trees: ["cv^2", "clusters_area_med_arr", "avg_height", "height", "avg_perimeter", "perimeter",
                    "width", "avg_width", "mst_sums_arr^2", "cv/fruit_foliage_ratio", "avg_volume"]

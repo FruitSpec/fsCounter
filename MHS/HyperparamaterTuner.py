@@ -23,7 +23,7 @@ class HyperparameterTuner:
         else:
             self.mode = "single"
         self.model = model
-        self.X = X.reset_index()
+        self.X = X.reset_index(drop=True)
         if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values.reshape(-1)
         self.y = y
@@ -46,7 +46,7 @@ class HyperparameterTuner:
         self.optimization_technique = optimization_technique
         self.train_until_n_trails = train_until_n_trails
 
-    def objective(self, trial, shuffle: bool=True, random_state: int=42):
+    def objective(self, trial, shuffle: bool=True, random_state: int=7):
         kfolds = KFold(n_splits=self.n_splits, shuffle=shuffle, random_state=random_state)
         params = {}
         for param_name, param_distribution in self.param_distributions.items():
@@ -60,6 +60,8 @@ class HyperparameterTuner:
         self.model.set_params(**params)
 
         X = self.X.copy()
+        if "index" in X.columns:
+            X.drop("index", axis=1, inplace=True)
         if self.feature_selection:
             features_to_use = []
             for i in range(self.X.shape[1]):
@@ -162,74 +164,77 @@ if __name__ == "__main__":
 
     # trees
     tuner = HyperparameterTuner(models_params, X_trees, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="trees", read_from="studies_31_07")
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="trees",
+                                read_from="studies_1308_new_translator")
     tuner.tune()
 
     #original
     tuner = HyperparameterTuner(models_params, X_org, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="org", read_from="studies_31_07")
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="org",
+                                read_from="studies_1308_new_translator")
     tuner.tune()
 
 
     # all
     tuner = HyperparameterTuner(models_params, X, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="", read_from="studies_31_07")
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="",
+                                read_from="studies_1308_new_translator")
     tuner.tune()
 
     # with feature selection
     # trees
     tuner = HyperparameterTuner(models_params, X_trees, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="trees_fs",
-                                read_from="studies_31_07", feature_selection=True)
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="trees_fs",
+                                read_from="studies_1308_new_translator", feature_selection=True)
     tuner.tune()
 
     # original
     tuner = HyperparameterTuner(models_params, X_org, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="org_fs",
-                                read_from="studies_31_07", feature_selection=True)
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="org_fs",
+                                read_from="studies_1308_new_translator", feature_selection=True)
     tuner.tune()
 
     # all
     tuner = HyperparameterTuner(models_params, X, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="fs",
-                                read_from="studies_31_07", feature_selection=True)
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="fs",
+                                read_from="studies_1308_new_translator", feature_selection=True)
     tuner.tune()
 
 
     # CAMES - genetic algorithm optimization
     # trees
     tuner = HyperparameterTuner(models_params, X_trees, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="trees_cmaes",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="trees_cmaes",
                                 optimization_technique='cmaes')
     tuner.tune()
 
     #org
     tuner = HyperparameterTuner(models_params, X_org, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="org_cmaes",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="org_cmaes",
                                 optimization_technique='cmaes')
     tuner.tune()
 
     #all
     tuner = HyperparameterTuner(models_params, X, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="cmaes",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="cmaes",
                                 optimization_technique='cmaes')
     tuner.tune()
 
     # with feature selection
     # trees
     tuner = HyperparameterTuner(models_params, X_trees, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="trees_cmaes_fs",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="trees_cmaes_fs",
                                 optimization_technique='cmaes', feature_selection=True)
     tuner.tune()
 
     # original
     tuner = HyperparameterTuner(models_params, X_org, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="org_cmaes_fs",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="org_cmaes_fs",
                                 optimization_technique='cmaes', feature_selection=True)
     tuner.tune()
 
     # all
     tuner = HyperparameterTuner(models_params, X, y, n_trials=500, save_int=24,
-                                direction='maximize', save_dst="studies_31_07", suffix="cmaes_fs",
+                                direction='maximize', save_dst="studies_1308_new_translator", suffix="cmaes_fs",
                                 optimization_technique='cmaes', feature_selection=True)
     tuner.tune()

@@ -2,7 +2,9 @@
 import os
 
 prefix_studies = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_studies"
-model_folder = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_1308_new_translator"
+model_folder = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/models_1308_new_translator_w_motcha"
+studies_1308_new_translator = r"/home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/MHS/studies_1308_new_translator"
+
 
 gfs_train_cols = ['total_foliage', 'total_orange', 'volume', 'surface_area', 'avg_volume',
              'center_perimeter', 'center_height', 'w_h_ratio',
@@ -92,6 +94,17 @@ F_model_models = {
     #                         "y_data": "y_train.csv",
     #                         "output_path": os.path.join(model_folder, "models_studies/KNeighborsRegressor_pipe_trees.pkl"),
     #                         "scaler": "Robust"},
+
+
+    "HistGradientBoostingRegressor_fs": {
+                    "model_params": os.path.join(studies_1308_new_translator,
+                                                 "HistGradientBoostingRegressor_trees_fs_study.pkl"),
+                    "gfs_train_cols": "",
+                    "columns": os.path.join(studies_1308_new_translator,
+                                            "HistGradientBoostingRegressor_trees_fs_study.pkl"),
+                    "output_path": os.path.join(model_folder, "HistGradientBoostingRegressor_13study_fs.pkl"),
+                    "preprocess_type": 0,
+                    "model_pkl_path": ""},
 
     "LinearRegression": {"model_params": {},
                          "gfs_train_cols": gfs_train_cols,
@@ -236,6 +249,13 @@ F_model_models = {
                           "gfs_train_cols": "",
                           "columns": cv_feauteres,
                           "output_path": os.path.join(model_folder, "lasso_pipe_non_zed.pkl"),
+                          "preprocess_type": 0,
+                          "model_pkl_path": ""},
+
+    "LassoPipe_cv_fruits": {"model_params": {},
+                          "gfs_train_cols": "",
+                          "columns": ["cv", "cv2", "cv3", "cv4", "cv5", "lemon", "mandarin"],
+                          "output_path": os.path.join(model_folder, "lasso_pipe_cv_fruits.pkl"),
                           "preprocess_type": 0,
                           "model_pkl_path": ""},
 

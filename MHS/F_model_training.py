@@ -689,7 +689,14 @@ def model_fit_save(model, X, y, save_name, cv=6, n_jobs=6, scoring="neg_mean_abs
 def load_model_cols(model_args):
     model_cols = model_args["columns"]
     if isinstance(model_cols, str):
-        model_cols = json.load(model_cols)["best_features"]
+        if model_cols.endswith("json"):
+            model_cols = json.load(model_cols)["best_features"]
+        else: # assuming pkl
+            study = joblib.load(model_cols)
+            model_params = study.best_params
+            model_cols = [key.split("use_feature_")[1] for key, val in model_params.items() if
+                          key.startswith("use_feature") and val and "index" not in key]
+
     return model_cols
 
 
@@ -716,6 +723,7 @@ def get_dict_models_results(X, y, groups=None, naive_preds=None, results_summary
         if isinstance(model_params, str):
             study = joblib.load(model_params)
             model_params = study.best_params
+            model_params = {key: val for key, val in model_params.items() if not key.startswith("use_feature")}
         model.set_params(**model_params)
         if "scaler" in model_args.keys():
             scaler = scalers[model_args["scaler"]]

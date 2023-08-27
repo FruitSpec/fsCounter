@@ -185,13 +185,17 @@ class DebuggerFE:
         slice_start, slice_end = slices
         max_y = frame_fsi.shape[0]
         frame_fsi = cv2.line(frame_fsi, (slice_start, 0), (slice_start, max_y), color=(255, 0, 0), thickness=2)
-        frame_fsi = cv2.line(frame_fsi, (slice_end, 0), (slice_end, max_y), color=(255, 0, 0), thickness=2)
+        frame_fsi = cv2.line(frame_fsi, (slice_end, 0), (slice_end, max_y), color=(255, 0, 255), thickness=2)
         zed = cv2.line(zed, (slice_start, 0), (slice_start, max_y), color=(255, 0, 0), thickness=2)
-        zed = cv2.line(zed, (slice_end, 0), (slice_end, max_y), color=(255, 0, 0), thickness=2)
+        zed = cv2.line(zed, (slice_end, 0), (slice_end, max_y), color=(255, 0, 255), thickness=2)
         tree_align_folder = os.path.join(self.debug_dict["alignment"]["save_to"], tree_folder)
         validate_output_path(tree_align_folder)
         save_to = os.path.join(tree_align_folder, f"{frame_number}.jpg")
-        plot_2_imgs(zed[:, :, ::-1], frame_fsi[:, :, ::-1], frame_number, save_to=save_to, quick_save=True)
+        if not np.all(np.array(zed.shape[:2]) == np.array(frame_fsi.shape[:2])):
+            plot_2_imgs(cv2.resize(zed[:, :, ::-1], frame_fsi.shape[:2][::-1]),
+                        frame_fsi[:, :, ::-1], frame_number, save_to=save_to, quick_save=True)
+        else:
+            plot_2_imgs(zed[:, :, ::-1], frame_fsi[:, :, ::-1], frame_number, save_to=save_to, quick_save=True)
 
 def init_cams(args):
     """
@@ -510,6 +514,13 @@ class FeatureExtractor:
                                                         (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
                                                         (row[pc_x], row[pc_y], row[pc_z], row[width], row[height]))
                                    for row in track_res})
+        if len(self.tracker_format) == 6:
+            track_id, x1, y1, x2, y2, pc_z = self.tracker_format
+            for track_res in self.b_tracker_results:
+                new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
+                                                        (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
+                                                        (row[pc_z], row[pc_z], row[pc_z]))
+                                   for row in track_res})
         else:
             track_id, x1, y1, x2, y2 = self.tracker_format
             for track_res in self.b_tracker_results:
@@ -532,7 +543,7 @@ class FeatureExtractor:
 
     def load_batch(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer, b_frame_numbers,
                    b_align, b_jai_translation):
-        self.b_fsi, self.b_zed, self.b_jai_rgb = b_fsi, [zed[:, :, :3] for zed in b_zed], b_jai_rgb
+        self.b_fsi, self.b_zed, self.b_jai_rgb = b_fsi, [zed[:, :, :3] for zed in b_zed] if b_zed else b_zed, b_jai_rgb
         # pixel_size_imgs = [get_pix_size(zed[:, :, 2]) for zed in self.b_zed]
         # self.pix_size_img_x, self.pix_size_img_y = [img[0] for img in pixel_size_imgs],\
         #     [img[1] for img in pixel_size_imgs]
@@ -605,7 +616,6 @@ class FeatureExtractor:
 
 
     def scale_align_batch(self, mode="all"):
-        # TODO break into 2 parts: align sacle batch for fruit features and for tree features
         try:
             if mode == "all":
                 with ThreadPoolExecutor(max_workers=min(len(self.b_fsi), 4)) as executor:
@@ -633,11 +643,11 @@ class FeatureExtractor:
     def accumulate_tracker_res(self):
         b_tracker_results = dict(zip(self.b_frame_numbers, self.b_tracker_results))
         slicer_res = dict(zip(self.b_frame_numbers, self.b_slicer))
-        b_tracker_results = filter_outside_tree_boxes(b_tracker_results, slicer_res, self.direction)
+        b_tracker_results = filter_outside_tree_boxes(b_tracker_results, slicer_res, self.direction, self.max_x_pix)
         b_tracker_results = filter_small_fruits(b_tracker_results)
         if self.max_z > 0:
             tree_images = {}
-            if len(self.tracker_format) in [8, 10]: # has depth
+            if len(self.tracker_format) in [6, 8, 10]: # has depth
                 for frame_number in self.b_frame_numbers:
                     tree_images[frame_number] = {"zed": None, "nir": None, "swir_975": None}
                 b_tracker_results = filter_outside_zed_boxes(b_tracker_results, tree_images, self.max_z,
@@ -869,7 +879,7 @@ class FeatureExtractor:
         if self.debugger.debug_dict["alignment"]["apply"]:
             list(map(self.debugger.draw_alignment, [self.tracker_results]*len(self.b_zed), self.b_frame_numbers,
                      self.b_fsi, self.b_rgb_zed, [f"{self.block}_{self.tree_name}"]*len(self.b_zed), self.b_slicer))
-        if self.debugger.debug_dict["translation"]["apply"]:
+        if self.debugger.debug_dict["translation"]["apply"] and not self.cv_only:
             if not isinstance(self.last_frame_tra, type(None)):
                 self.debugger.translation_debugging([self.last_frame_tra, *self.b_fsi], self.false_masks,
                                                     [self.last_frame_number, *self.b_frame_numbers],
@@ -925,8 +935,8 @@ class FeatureExtractor:
         self.logger.time_and_log(self.scale_align_batch, "scale_align_batch_fruits", "fruits")
 
         stat_fruit_params = self.process_fruit_params()
-        if not stat_fruit_params:
-            self.logger.stop_timer("process_batch")
+        if not stat_fruit_params or self.cv_only:
+            self.logger.time_and_log(self.debug_process_batch, "debug_process")
             return
 
         self.process_tree_parmas()
@@ -1006,7 +1016,7 @@ class FeatureExtractor:
         self.get_cv()
         if self.cv_only:
             if isinstance(self.min_number_of_tracks, Iterable):
-                return {f"cv{i}": self.cv_res[f"cv{i}"] for i in self.min_number_of_tracks}
+                return [{f"cv{i}": self.cv_res[f"cv{i}"] for i in self.min_number_of_tracks}]
             self.logger.stop_timer("close tree (cv)")
             return self.cv_res["cv"]
         self.logger.stop_timer("close tree (cv)")
@@ -1287,14 +1297,14 @@ class FeatureExtractor:
         return tree_physical_params
 
 
-def run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids=False, verbosity=0):
+def run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids=False, verbosity=0, shift=0):
     n_batchs = len(tree_frames) // batch_size
     for i in tqdm(range(n_batchs)):
         frame_ids = tree_frames[i * batch_size: (i + 1) * batch_size]
         if print_fids:
             print(frame_ids)
         s_t = time.time()
-        batch_res = adts_loader.load_batch(frame_ids)
+        batch_res = adts_loader.load_batch(frame_ids, shift)
         e_t = time.time()
         if verbosity:
             print("adts timing: ", e_t - s_t)
@@ -1304,7 +1314,7 @@ def run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids=False, verb
         frame_ids = tree_frames[n_batchs * batch_size:]
         if print_fids:
             print(frame_ids)
-        batch_res = adts_loader.load_batch(frame_ids)
+        batch_res = adts_loader.load_batch(frame_ids, shift)
         fe.process_batch(*batch_res)
 
 

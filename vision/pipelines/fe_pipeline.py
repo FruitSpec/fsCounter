@@ -12,6 +12,7 @@ from itertools import chain
 from vision.tools.manual_slicer import slice_to_trees_df
 from vision.pipelines.ops.frame_loader import FramesLoader
 from tqdm import tqdm
+from vision.feature_extractor.boxing_tools import filter_outside_tree_boxes
 
 
 def get_row_name(row_scan_path):
@@ -57,6 +58,9 @@ def get_customer_name(row_scan_path):
 
 def update_args(args_adts, row_scan_path):
     args_adts.zed.movie_path = os.path.join(row_scan_path, f"ZED.svo")
+    if not os.path.exists(args_adts.zed.movie_path):
+        args_adts.zed.movie_path = os.path.join(row_scan_path, f"ZED.mkv")
+        args_adts.mode = "sync_mkv"
     args_adts.depth.movie_path = os.path.join(row_scan_path, f"DEPTH.mkv")
     args_adts.rgb_jai.movie_path = os.path.join(row_scan_path, f"Result_RGB.mkv")
     args_adts.jai.movie_path = os.path.join(row_scan_path, f"Result_FSI.mkv")
@@ -72,7 +76,7 @@ def update_args(args_adts, row_scan_path):
     return args_adts
 
 
-def init_fe_obj(row_scan_path, tree_id, adts_loader=None):
+def init_fe_obj(row_scan_path, tree_id, adts_loader=None, cv_only=False, direction="right"):
     """
     Initialize the FeatureExtractor object and ADTSBatchLoader object.
 
@@ -89,6 +93,8 @@ def init_fe_obj(row_scan_path, tree_id, adts_loader=None):
     fe_args = OmegaConf.load(repo_dir + "/vision/feature_extractor/feature_extractor_config.yaml")
     # fe_args["logger"]["output_folder"] = row_scan_path
     fe = FeatureExtractor(fe_args, tree_id, row_name, block_name)
+    fe.direction = direction
+    fe.cv_only = cv_only
     args_adts = OmegaConf.load(repo_dir + "/vision/pipelines/config/dual_runtime_config.yaml")
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
@@ -121,7 +127,54 @@ def create_tree_features(fe, row_scan_path):
     return tree_features
 
 
-def run_on_row(row_scan_path, suffix="", print_fids=False):
+def read_slices_from_row_path(row_scan_path):
+    slices_path = os.path.join(row_scan_path, "slices.csv")
+    if os.path.exists(slices_path):
+        slices = pd.read_csv(slices_path)
+    else:
+        slices = pd.read_csv(os.path.join(row_scan_path, "all_slices.csv"))
+    return slices
+
+
+def extract_tree_cv(tracks_df, slices_df, tree_id, direction="right", max_depth=5):
+    tree_slices = slices_df[slices_df["tree_id"] == tree_id]
+    tree_slices["start"] = tree_slices["start"].replace(-1, 0 if direction == "right" else 1536)
+    tree_slices["end"] = tree_slices["end"].replace(-1, 1536 if direction == "right" else 0)
+    slicer_results = {int(row["frame_id"]): (int(row["start"]), int(row["end"])) for i, row in tree_slices.iterrows()}
+    tree_tracks = tracks_df[np.isin(tracks_df["frame_id"], tree_slices["frame_id"])]
+    if max_depth > 0:
+        tree_tracks = tree_tracks[tree_tracks["depth"] < max_depth]
+    tracker_results = {}
+    for frame_id in tree_tracks["frame_id"].unique():
+        tracker_results[frame_id] = {int(row["track_id"]): ((row["x1"], row["y1"]),
+                                                       (row["x2"], row["y2"]))
+                                     for i, row in tree_tracks[tree_tracks["frame_id"] == frame_id].iterrows()}
+    tracker_results = filter_outside_tree_boxes(tracker_results, slicer_results, direction=direction, x_size=1536)
+    uniq, counts = np.unique(
+        [id for frame in set(tracker_results.keys()) - {"cv"} for id in tracker_results[frame].keys()],
+        return_counts=True)
+    return {f"cv{i}": len(uniq[counts >= i]) for i in range(1, 6)}
+
+
+
+def run_on_row_cv(row_scan_path, direction="right"):
+    row_tree_features = []
+    slices_df = read_slices_from_row_path(row_scan_path)
+    tracks_df = pd.read_csv(os.path.join(row_scan_path, "tracks.csv"))
+    for tree_id in slices_df["tree_id"].unique():
+        tree_features = extract_tree_cv(tracks_df, slices_df, tree_id, direction)
+        row = get_row_name(row_scan_path)
+        tree_features["block_name"] = get_block_name(row_scan_path)
+        tree_features["name"] = f"{row}_T{tree_id}"
+        tree_features["customer"] = get_customer_name(row_scan_path)
+        row_tree_features.append(tree_features)
+        row_post_process(row_scan_path, row_tree_features, "cv")
+    return row_tree_features
+
+
+
+
+def run_on_row(row_scan_path, suffix="", print_fids=False, cv_only=False, direction="right"):
     """
     Process a row scan.
 
@@ -133,11 +186,7 @@ def run_on_row(row_scan_path, suffix="", print_fids=False):
     Returns:
         list: List of tree features dictionaries for the row scan.
     """
-    slices_path = os.path.join(row_scan_path, "slices.csv")
-    if os.path.exists(slices_path):
-        slices = pd.read_csv(slices_path)
-    else:
-        slices = pd.read_csv(os.path.join(row_scan_path, "all_slices.csv"))
+    slices = read_slices_from_row_path(row_scan_path)
 
     trees = slices["tree_id"].unique()
     row_tree_features = []
@@ -148,8 +197,8 @@ def run_on_row(row_scan_path, suffix="", print_fids=False):
             continue
         try:
             tree_frames = slices["frame_id"][slices["tree_id"] == tree_id].apply(str).values
-            fe, adts_loader, batch_size = init_fe_obj(row_scan_path, tree_id, adts_loader)
-            run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids)
+            fe, adts_loader, batch_size = init_fe_obj(row_scan_path, tree_id, adts_loader, cv_only, direction)
+            run_on_tree(tree_frames, fe, adts_loader, batch_size, print_fids, shift=direction=="left")
             tree_features = create_tree_features(fe, row_scan_path)
             row_tree_features.append(tree_features)
         except:
@@ -324,7 +373,7 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
 
 
 def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fids=False, run_only_done_adt=False,
-                  min_slice_len=5):
+                  min_slice_len=5, cv_only=False, direction="right"):
     """
     Process all row scans in a master folder.
 
@@ -342,9 +391,9 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     n = len(paths_list)
     if njobs > 1:
         with ProcessPoolExecutor(max_workers=njobs) as executor:
-            res = list(executor.map(run_on_row, paths_list, [suffix]*n, [print_fids]*n))
+            res = list(executor.map(run_on_row, paths_list, [suffix]*n, [print_fids]*n, [cv_only]*n, [direction]*n))
     else:
-        res = list(map(run_on_row, paths_list, [suffix] * n, [print_fids] * n))
+        res = list(map(run_on_row, paths_list, [suffix] * n, [print_fids] * n, [cv_only]*n, [direction]*n))
     return list(chain.from_iterable(res + process_data))
 
 
@@ -352,19 +401,22 @@ if __name__ == '__main__':
     folder_path = "/media/fruitspec-lab/cam175/FOWLER"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
     final_df_output = "/media/fruitspec-lab/cam175/FOWLER/features_FOWLER_3rd_scan.csv"
-    over_write = False
+    over_write = True
     njobs = 1
-    suffix = ""
+    suffix = "cv"
     print_fids = False
     run_only_done_adt = False
     min_slice_len = 0
+    cv_only = True
+    direction = "left"
 
-    results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len)
-    pd.DataFrame(results).to_csv(final_df_output)
-    pd.DataFrame(results)
+    # results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len)
+    # pd.DataFrame(results).to_csv(final_df_output)
+    # pd.DataFrame(results)
 
-    # for folder_path in [
-    #                     "/media/fruitspec-lab/cam175/customers_new/MOTCHA"]:
-    #     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len)
+    for folder_path in [
+                        "/media/fruitspec-lab/cam175/MEHADRINEXP/BEERAMU0/first row 9_00 - 10_00/row_2/1"]:
+        results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
+                                cv_only, direction)
 
     print("Done")
