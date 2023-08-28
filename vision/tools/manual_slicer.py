@@ -336,7 +336,7 @@ def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
     df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return df_out
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -349,7 +349,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data, border_data = parse_data_to_trees(data)
+    trees_data, border_data = parse_data_to_trees(data, direction)
 
     if not on_fly:
         cap = cv2.VideoCapture(file_path)
@@ -397,7 +397,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         return pd.concat(df_all, axis=0), border_df
 
 
-def parse_data_to_trees(data):
+def parse_data_to_trees(data, direction):
     tree_id = 0
     # started_tree = False
     # start_and_end_tree = False
@@ -406,11 +406,11 @@ def parse_data_to_trees(data):
     trees_data = {}
     border_data = []
     for frame_id, loc in data.items():
-        if frame_id == 668:
+        if frame_id == 299:
             a = 1
 
         trees = list(trees_data.keys())
-        state = get_state(loc)
+        state = get_state(loc, direction)
 
         if last_state == 0:
             if state == 0:
@@ -612,7 +612,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
-                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 border_data = update_border_data(border_data, loc, frame_id, tree_id)
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
@@ -648,7 +648,15 @@ def update_border_data(border_data, loc, frame_id, tree_id):
 
 
 
-def get_state(loc):
+def get_state(loc, direction):
+    if direction == 'right':
+        state = right_direction_states(loc)
+    else:
+        state = left_direction_states(loc)
+
+    return state
+
+def right_direction_states(loc):
     if loc['start'] is None and loc['end'] is None:
         state = 0
     elif loc['start'] is not None and loc['end'] is not None:
@@ -668,14 +676,38 @@ def get_state(loc):
 
     return state
 
+def left_direction_states(loc):
+    if loc['start'] is None and loc['end'] is None:
+        state = 0
+    elif loc['start'] is not None and loc['end'] is not None:
+        if np.abs(loc['end'] - loc['start']) < 20:
+            if loc['end'] > loc['start']:  # assuming moving right
+                state = 4  # start-end
+            else:
+                state = 3  # end-start
+        elif loc['end'] < loc['start']:
+            state = 5  # whole tree
+        else:
+            state = 6  # start - end
+    elif loc['end'] is not None:
+        state = 2  # end
+    else:
+        state = 1  # start
+
+    return state
+
 
 if __name__ == "__main__":
-    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
+    fp = '/home/matans/Documents/fruitspec/sandbox/manual_slicer/Result_FSI.mkv'
+    output_path = '/home/matans/Documents/fruitspec/sandbox/manual_slicer'
     validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=2)
+    #manual_slicer(fp, output_path, rotate=1)
 
-    data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
+    data_file = "/home/matans/Documents/fruitspec/sandbox/manual_slicer/Result_FSI_slice_data.json"
+    output_path = '/home/matans/Documents/fruitspec/sandbox/manual_slicer/output_path'
+    direction = 'left'
+
+    trees, _ = slice_to_trees(data_file, None, output_path, direction=direction, h=2048, w=1536)
+    trees.to_csv(os.path.join(output_path, 'slices.csv'))
 
 
