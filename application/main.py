@@ -212,15 +212,15 @@ def process_monitor():
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
-            if manager[k].is_alive():
-                monitor_events[k].wait(2)
-                alive = monitor_events[k].is_set()
-                manager[k].terminate()
-                death_source = "PROCESS_NOT_RESPONDING"
-            else:
+            if not manager[k].is_alive():
                 alive = False
                 death_source = "PROCESS_NOT_ALIVE"
+            else:
+                monitor_events[k].wait(2)
+                alive = monitor_events[k].is_set()
+                death_source = "PROCESS_NOT_RESPONDING"
             if not alive:
+                manager[k].terminate()
                 logging.warning(f"PROCESS {k} IS DEAD - {death_source} - RESPAWNING...")
                 try:
                     for recv_module in manager[k].notify_on_death:
