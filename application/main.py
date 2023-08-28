@@ -305,6 +305,9 @@ def main():
     communication_queue = Queue()
     main_pid = os.getpid()
 
+    print(f"MAIN PID: {main_pid}")
+    logging.info(f"MAIN PID: {main_pid}")
+
     for _, module in enumerate(ModulesEnum):
         if module != ModulesEnum.Main:
             manager[module] = ModuleManager(main_pid, communication_queue)
@@ -314,9 +317,6 @@ def main():
 
     transfer_data_t = threading.Thread(target=transfer_data)
     transfer_data_t.start()
-
-    print(f"MAIN PID: {main_pid}")
-    logging.info(f"MAIN PID: {main_pid}")
 
     manager[ModulesEnum.GPS].set_process(
         target=GPSSampler.init_module,

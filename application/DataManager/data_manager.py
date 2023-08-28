@@ -279,6 +279,10 @@ class DataManager(Module):
 
     @staticmethod
     def upload_today_files(upload_speed_in_kbps, timeout=10):
+
+        logging.info("UPLOADING TODAY FILES")
+        print("UPLOADING TODAY FILES")
+
         nav_path, nav_s3_path = tools.get_file_path(
             tools.FileTypes.nav,
             with_s3_path=True,
@@ -311,6 +315,9 @@ class DataManager(Module):
 
     @staticmethod
     def upload_old_files(upload_speed_in_kbps, timeout=10):
+
+        logging.info("UPLOADING OLD FILES")
+        print("UPLOADING OLD FILES")
 
         old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
         old_log_paths = tools.get_old_file_paths(tools.FileTypes.log)
