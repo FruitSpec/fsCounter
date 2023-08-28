@@ -44,14 +44,15 @@ def run(cfg, args, n_frames=200):
         for i in range(cfg.batch_size):
             debug.append({'output_path': output_translation, 'f_id': f_id + i})
             cv2.imwrite(os.path.join(output_frames, f'frame_f{f_id + i}.jpg'), jai_batch[i])
-
+        if f_id == 131:
+            a = 1
         res = translation.batch_translation(jai_batch, [[],[],[],[]], debug)
 
-        data.append({'tx': res[0][0], 'ty': res[0][1], 'score': res[0][2]})
+        data.append({'tx': res[0][0], 'ty': res[0][1]})
         f_id += 1
 
     df = pd.DataFrame(data, columns=['tx', 'ty', 'score'])
-    df.to_csv(os.path.join(output, 'translation.csv'))
+    df.to_csv(os.path.join(args.output_folder, 'translation.csv'))
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
     #args.output_folder = os.path.join(output, 'FREDIANI_210723_row_5_1_all_image')
-    args.output_folder = os.path.join(output, 'BLOCK700_row_4_sqdiff')
+    args.output_folder = os.path.join(output, 'BLOCK700_row_4_recovery')
     validate_output_path(args.output_folder)
 
     run(cfg, args, 200)

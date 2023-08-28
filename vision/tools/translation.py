@@ -12,7 +12,7 @@ from vision.visualization.drawer import draw_highlighted_test
 
 class translation():
 
-    def __init__(self, batch_size, translation_size=480, dets_only=True, mode='match', debug_path=None, maxlen=5, direction="right"):
+    def __init__(self, batch_size, translation_size=480, dets_only=True, mode='match', debug_path=None, history_length=5, direction="right"):
 
         self.translation_size = translation_size
         self.dets_only = dets_only
@@ -22,10 +22,10 @@ class translation():
         self.last_kp = None
         self.last_des = None
         self.debug_path = debug_path # in case no path given, no debug data is saved
-        self.maxlen = maxlen
-        self.memory = deque(maxlen=maxlen)
-        self.memory.append(0)
-        self.direction = direction
+        self.history_length = history_length
+        self.history = deque(maxlen=history_length)
+        self.border_case_counter = 0
+
 
     def mode_init(self, mode):
         self.mode = mode
@@ -90,12 +90,58 @@ class translation():
 
         self.last_frame = batch_preproc_[-1].copy()
 
-        self.validate_results(results)
+        results = self.validate_results(results)
 
         return results
 
-    def validate_results(self, results, res):
-        pass
+    def validate_results(self, results, margin=5, true_border_case_switch=False):
+        """
+            true_border_case: if true is allowing a border value to be used.
+                              happen when the border events in sequence is above
+                              2 * history length
+        """
+        final_results = []
+        for result in results:
+            if result[0] is None:
+                final_results.append(result)
+                continue
+            tx = result[0]
+            max_width = result[2]
+            if (tx > max_width - margin) or (tx < margin): # border case
+                if true_border_case_switch:
+                    if self.border_case_counter > 2 * self.history_length: # true border case
+                        final_results.append((tx, result[1]))
+                        continue
+                if len(self.history) == self.history_length:
+                    tx = np.mean(self.history)
+                self.border_case_counter += 1
+            else: # valid result
+                self.history.append(tx)
+                self.border_case_counter = 0
+
+            final_results.append((tx, result[1]))
+
+        return final_results
+
+
+
+
+
+        if isinstance(tx, type(None)):
+            return tx
+        if not self.maxlen:
+            return tx
+        if self.direction == "right":
+            if tx > 0:
+                self.memory.append(tx)
+            else:
+                tx = np.mean(self.memory)
+        else:
+            if tx < 0:
+                self.memory.append(tx)
+            else:
+                tx = np.mean(self.memory)
+        return tx
 
 
 
@@ -164,6 +210,7 @@ class translation():
                 max_pt = cv2.minMaxLoc(res)[3]
                 tx = (max_pt[0] - (res.shape[1] // 2 + 1)) / r
                 ty = (max_pt[1] - (res.shape[0] // 2 + 1)) / r
+                max_width = (res.shape[1] // 2) / r
 
                 if debug is not None:
                     save_results(res, max_pt, debug)
@@ -173,11 +220,13 @@ class translation():
                 Warning('failed to match')
                 tx = None
                 ty = None
+                max_width = None
         else:
             tx = None
             ty = None
+            max_width = None
 
-        return tx, ty
+        return tx, ty, max_width
 
     @staticmethod
     def get_score(res, max_pt, half_roi=16):
