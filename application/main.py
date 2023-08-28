@@ -215,10 +215,13 @@ def process_monitor():
             if manager[k].is_alive():
                 monitor_events[k].wait(2)
                 alive = monitor_events[k].is_set()
+                manager[k].terminate()
+                death_source = "PROCESS_NOT_RESPONDING"
             else:
                 alive = False
+                death_source = "PROCESS_NOT_ALIVE"
             if not alive:
-                logging.warning(f"PROCESS {k} IS DEAD - RESPAWNING...")
+                logging.warning(f"PROCESS {k} IS DEAD - {death_source} - RESPAWNING...")
                 try:
                     for recv_module in manager[k].notify_on_death:
                         send_data_to_module(manager[k].death_action, None, recv_module)
@@ -228,6 +231,7 @@ def process_monitor():
                 restart_application(killer=k)
                 return
         time.sleep(5)
+
 
 def send_data_to_module(action, data, recv_module):
     data = {
