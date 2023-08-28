@@ -2,6 +2,8 @@ import os
 import sys
 import torch
 from concurrent.futures import ThreadPoolExecutor
+from ultralytics import YOLO
+
 import time
 
 cwd = os.getcwd()
@@ -19,8 +21,6 @@ class counter_detection():
 
     def __init__(self, cfg, args):
 
-        self.preprocess = Preprocess(cfg.device, cfg.input_size)
-        self.detector, self.decoder_ = self.init_detector(cfg)
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
@@ -28,6 +28,19 @@ class counter_detection():
         self.input_size = cfg.input_size
         self.tracker = self.init_tracker(cfg, args)
         self.device = cfg.device
+        self.detector_type = cfg.detector.detector_type.lower()
+
+        if self.detector_type == 'yolox':
+            self.preprocess = Preprocess(cfg.device, cfg.input_size)
+            self.detector, self.decoder_ = self.init_detector(cfg)
+
+        elif self.detector_type == 'yolov8':
+            self.detector = YOLO(cfg.ckpt_file) # self.detector = model
+
+        else:
+            raise NotImplementedError(f"The '{self.detector_type}' detector algorithm is not implemented.")
+
+
 
     @staticmethod
     def init_detector(cfg):

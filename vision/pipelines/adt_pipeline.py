@@ -96,10 +96,14 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
+        self.detector_type = cfg.detector.detector_type.lower()
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size
+        self.nms_thresh = cfg.detector.nms
+        self.max_detections = cfg.detector.max_detections
+
 
 
     def get_frames(self, f_id):
@@ -141,10 +145,52 @@ class Pipeline():
 
     def detect(self, frames):
         try:
-            name = self.detector.detect.__name__
             s = time.time()
-            self.logger.debug(f"Function {name} started")
-            output = self.detector.detect(frames)
+            ###############################################################3
+            if self.detector_type == 'yolox':
+
+                name = self.detector.detect.__name__
+                self.logger.debug(f"Function {name} started")
+
+                output = self.detector.detect(frames)
+
+
+
+            elif self.detector_type == 'yolov8':
+                import torch
+                name = self.detector.detector.predict.__name__
+                self.logger.debug(f"Function {name} started")
+
+                frames_tensor = self.convert_images_to_tensor(frames)
+
+                results = self.detector.detector.predict(
+                    source = frames_tensor,
+                    conf = self.detector.confidence_threshold,
+                    half = self.detector.fp16,
+                    iou = self.nms_thresh,
+                    imgsz = self.detector.input_size[0],
+                    show = False,
+                    save = False,
+                    hide_labels = True,
+                    max_det = self.max_detections,
+                    project = "projects/debug",
+                    name = "debuging",
+                    line_width = 2) # todo add device
+
+                # convert results to yolox format:
+                output = []
+                for img_res in results:
+                    xyxy_coordinates = img_res.boxes.xyxy
+                    # todo - replace class conf (=1) with real value
+                    stacked_tensors = torch.stack((img_res.boxes.conf, torch.ones(img_res.boxes.cls.shape[0]).to(img_res.boxes.conf.device), img_res.boxes.cls)).t()
+                    conc = torch.cat((xyxy_coordinates, stacked_tensors), dim=1)
+                    conc = conc.to('cpu').tolist() # load to cpu, convert to list
+                    conc = [[int(x) if i < 4 else x for i, x in enumerate(sublist)] for sublist in conc] # convert the 4 bbox coordinates to ints
+                    # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
+                    output.append(conc)
+
+
+            ################################################################
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -220,7 +266,15 @@ class Pipeline():
         dump = pd.DataFrame(self.logger.statistics, columns=['id', 'func', 'time'])
         dump.to_csv(os.path.join(args.output_folder, 'log_stats.csv'))
 
+    def convert_images_to_tensor(self, img_list):
+        import torch
 
+        images_np = np.array(img_list)
+        images_np = images_np[:, :, :, ::-1] # Convert from BGR to RGB
+        images_np = images_np / 255.0  # Normalize the images to [0, 1]
+        images_tensor = torch.from_numpy(images_np).float() # Convert numpy array to torch tensor
+        images_tensor = images_tensor.permute(0, 3, 1, 2) # Change the shape from (x, height, width, channels) to (x, channels, height, width)
+        return images_tensor
 
 def init_run_objects(cfg, args):
     """

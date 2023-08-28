@@ -1,9 +1,13 @@
 # config.yaml
-exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+#/home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 
 #ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
 #ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
-ckpt_file: /home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
+#/home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
+
+#ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_290623/Apples_1_29_June_23/best_ckpt.pth
+ckpt_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/YOLOv8/projects/apples_290623/yolov8n_1024_batch8/weights/best.pt # yolov8
 
 
 
@@ -13,12 +17,14 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  confidence: 0.381
-  nms: 0.65
+  detector_type: yolov8 # implemented: yolox, yolov8
+  confidence: 0.3
+  nms: 0.3
   num_of_classes: 1
   fp16: true
   fuse: false
   trt: false
+  max_detections: 300 # currently implemented for yolov8, and not to yolox
 
 classes:
   full: 0
@@ -33,7 +39,7 @@ tracker:
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
-  compile_data_path: /home/mic-730ai/fruitspec/code/matan/tracker_init.pkl
+  compile_data_path: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/tracker_init.pkl
   debug: false
 
 
