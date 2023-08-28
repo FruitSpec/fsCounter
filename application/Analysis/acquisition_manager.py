@@ -21,6 +21,7 @@ class AcquisitionManager(Module):
     jz_recorder, analyzer = None, None
     jai_connected, zed_connected, running = False, False, False
     health_check_lock = threading.Lock()
+    acquisition_lock = threading.Lock()
     receive_data_thread = None
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
@@ -74,16 +75,16 @@ class AcquisitionManager(Module):
     def connect_cameras():
         AcquisitionManager.fps = 15
         AcquisitionManager.debug_mode = True
-        # with AcquisitionManager.health_check_lock:
-        cam_status = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
-                                                                    AcquisitionManager.debug_mode)
-        AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = cam_status
-        if conf.GUI:
-            AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, cam_status, ModulesEnum.GUI)
-            time.sleep(1)
-            AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
-        else:
-            AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
+        with AcquisitionManager.health_check_lock:
+            cam_status = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
+                                                                        AcquisitionManager.debug_mode)
+            AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = cam_status
+            if conf.GUI:
+                AcquisitionManager.send_data(ModuleTransferAction.GUI_SET_DEVICE_STATE, cam_status, ModulesEnum.GUI)
+                time.sleep(1)
+                AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
+            else:
+                AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
 
     @staticmethod
     def disconnect_cameras():
@@ -96,34 +97,36 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def start_acquisition(acquisition_parameters=None, from_healthcheck=False, from_gps=False):
-        AcquisitionManager.set_acquisition_parameters(
-            data=acquisition_parameters,
-            index_only=from_healthcheck,
-            from_gps=from_gps
-        )
-        running = AcquisitionManager.jz_recorder.start_acquisition(
-            AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
-            AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
-            AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb,
-            AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
-            AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc,
-            AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
-            AcquisitionManager.debug_mode
-        )
-        print("RUNNING")
-        if from_healthcheck:
-            AcquisitionManager.running = running
-        else:
-            # with AcquisitionManager.health_check_lock:
-            AcquisitionManager.running = running
-        AcquisitionManager.analyzer.start_acquisition()
+        with AcquisitionManager.acquisition_lock:
+            AcquisitionManager.set_acquisition_parameters(
+                data=acquisition_parameters,
+                index_only=from_healthcheck,
+                from_gps=from_gps
+            )
+            running = AcquisitionManager.jz_recorder.start_acquisition(
+                AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
+                AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
+                AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb,
+                AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
+                AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc,
+                AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
+                AcquisitionManager.debug_mode
+            )
+            print("RUNNING")
+            if from_healthcheck:
+                AcquisitionManager.running = running
+            else:
+                with AcquisitionManager.health_check_lock:
+                    AcquisitionManager.running = running
+            AcquisitionManager.analyzer.start_acquisition()
 
     @staticmethod
     def stop_acquisition():
-        AcquisitionManager.analyzer.stop_acquisition()
-        AcquisitionManager.jz_recorder.stop_acquisition()
-        # with AcquisitionManager.health_check_lock:
-        AcquisitionManager.running = False
+        with AcquisitionManager.acquisition_lock:
+            AcquisitionManager.analyzer.stop_acquisition()
+            AcquisitionManager.jz_recorder.stop_acquisition()
+            with AcquisitionManager.health_check_lock:
+                AcquisitionManager.running = False
 
     @staticmethod
     def get_row_number(row_name):
