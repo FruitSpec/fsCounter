@@ -2,9 +2,13 @@ import os
 import cv2
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+import matplotlib.pyplot as plt
+from matplotlib import cm
 
 from vision.tools.image_stitching import find_keypoints, find_translation, keep_dets_only, resize_img
 from collections import deque
+
+from vision.visualization.drawer import draw_highlighted_test
 
 class translation():
 
@@ -68,12 +72,8 @@ class translation():
             output = self.batch_keypoints(batch)
         else:
             raise Exception(f'{self.mode} is not implemented')
-        fixed_tx_output = []
-        for frame_res in output:
-            tpl = frame_res
-            new_tx = self.postptrocess_tx(frame_res[0])
-            fixed_tx_output.append((new_tx, *tpl[1:]))
-        return fixed_tx_output
+
+        return output
 
 
     def batch_match(self, batch, detections, workers=4, debug=None):
@@ -90,7 +90,16 @@ class translation():
 
         self.last_frame = batch_preproc_[-1].copy()
 
+        self.validate_results(results)
+
         return results
+
+    def validate_results(self, results, res):
+        pass
+
+
+
+
 
     def preprocess_batch(self, batch, detections, workers=4):
         is_dets_only = [self.dets_only for i in range(len(batch))]
@@ -150,25 +159,15 @@ class translation():
             try:
                 # Apply template Matching
                 res = cv2.matchTemplate(last_frame, frame[50:-50, 50:-50], cv2.TM_CCOEFF_NORMED)
-                if debug is not None:
-                    file_name = os.path.join(debug['output_path'], f"matching_result_f{debug['f_id']}.jpg")
-                    cv2.imwrite(file_name, res * 255)
-                # x_vec = np.mean(res, axis=0)
-                # y_vec = np.mean(res, axis=1)
-                # tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
-                # ty = (np.argmax(y_vec) - (res.shape[0] // 2 + 1)) / r
-                # res = cv2.matchTemplate(last_frame, frame[50:-50, 30:-30], cv2.TM_CCOEFF_NORMED)
-
-                # averaging method
-                # x_vec = np.mean(res, axis=0)
-                # y_vec = np.mean(res, axis=1)
-                # tx = (np.argmax(x_vec) - (res.shape[1] // 2 + 1)) / r
-                # ty = (np.argmax(y_vec) - (res.shape[0] // 2 + 1)) / r
 
                 # max point method
                 max_pt = cv2.minMaxLoc(res)[3]
                 tx = (max_pt[0] - (res.shape[1] // 2 + 1)) / r
-                ty = (max_pt[1] - (res.shape[1] // 2 + 1)) / r
+                ty = (max_pt[1] - (res.shape[0] // 2 + 1)) / r
+
+                if debug is not None:
+                    save_results(res, max_pt, debug)
+
 
             except:
                 Warning('failed to match')
@@ -179,3 +178,31 @@ class translation():
             ty = None
 
         return tx, ty
+
+    @staticmethod
+    def get_score(res, max_pt, half_roi=16):
+        max_score = res[max_pt[1], max_pt[0]]
+
+        mar_right = min(res.shape[1] - max_pt[0], half_roi + 1)
+        mar_left = min(max_pt[0], half_roi)
+        mar_down = min(res.shape[0] - max_pt[1], half_roi + 1)
+        mar_up = min(max_pt[1], half_roi)
+
+        roi = res[max_pt[1] - mar_up: max_pt[1] + mar_down, max_pt[0] - mar_left: max_pt[0] + mar_right]
+        #mean_roi = np.mean(roi)
+        mean_roi = np.mean(res)
+
+        score = max_score / mean_roi
+
+        return score
+
+
+def save_results(res, max_pt, debug):
+
+    file_name = os.path.join(debug['output_path'], f"matching_result_f{debug['f_id']}.jpg")
+
+    # selected_cmap = cm.YlGn
+    selected_cmap = cm.YlOrRd
+    res = cv2.circle(res * 255, max_pt, 3, (255, 0, 0))
+    plt.imsave(file_name, res, cmap=selected_cmap)
+
