@@ -172,9 +172,13 @@ class Module:
         logging.info(f"SENDING DATA")
         try:
             Module.communication_queue.put(Module.module_name, timeout=1)
-            Module.out_qu.put((data, receiver))
         except queue.Full:
             logging.warning("COMMUNICATION QUEUE IS FULL!")
+            return
+        try:
+            Module.out_qu.put((data, receiver), timeout=1)
+        except queue.Full:
+            logging.warning("OUT QUEUE IS FULL!")
             return
 
     @staticmethod
