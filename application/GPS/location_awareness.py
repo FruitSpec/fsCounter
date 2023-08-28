@@ -224,6 +224,9 @@ class GPSSampler(Module):
                         state_changed = GPSSampler.step_in()
                     else:
                         state_changed = GPSSampler.step_out()
+                        if state_changed:
+                            GPSSampler.current_plot = consts.global_polygon
+
                     if not state_changed:
                         GPSSampler.current_plot = GPSSampler.previous_plot
 
@@ -304,7 +307,7 @@ class GPSSampler(Module):
                 )
 
                 GPSSampler.init_jaized_log_dict()
-                time.sleep(0.5)
+
             GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
             return True
         else:
