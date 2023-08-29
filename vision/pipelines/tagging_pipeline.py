@@ -110,7 +110,7 @@ if __name__ == "__main__":
     runtime_config = "/vision/pipelines/config/runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
     args = OmegaConf.load(repo_dir + runtime_config)
-    args.task = {'annotation': 0, 'tracking': 20}
+    args.task = {'annotation': 70, 'tracking': 0}
 
     validate_output_path(args.output_folder)
     validate_output_path(args.output_folder_track, flag=args.task['tracking'])
