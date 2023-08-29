@@ -8,7 +8,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pickle
-
+import torch
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
 repo_dir = get_repo_dir()
@@ -96,10 +96,14 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
+        # self.detector_type = cfg.detector.detector_type.lower()
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size
+        self.nms_thresh = cfg.detector.nms
+        self.max_detections = cfg.detector.max_detections
+
 
 
     def get_frames(self, f_id):
@@ -141,10 +145,13 @@ class Pipeline():
 
     def detect(self, frames):
         try:
-            name = self.detector.detect.__name__
             s = time.time()
+
+            name = self.detector.detect.__name__
             self.logger.debug(f"Function {name} started")
+
             output = self.detector.detect(frames)
+
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -219,7 +226,6 @@ class Pipeline():
 
         dump = pd.DataFrame(self.logger.statistics, columns=['id', 'func', 'time'])
         dump.to_csv(os.path.join(args.output_folder, 'log_stats.csv'))
-
 
 
 def init_run_objects(cfg, args):

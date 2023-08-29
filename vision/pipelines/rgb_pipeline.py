@@ -46,7 +46,7 @@ def run(cfg, args):
             continue
 
         # detect:
-        det_outputs = detector.detect(frame)
+        det_outputs = detector.detect_yolox(frame)
 
         # filter by size:
         filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)

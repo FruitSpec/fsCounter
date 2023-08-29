@@ -43,7 +43,7 @@ def run(cfg, args):
 
         # detect:
         try:
-            det_outputs = detector.detect(jai_frame)
+            det_outputs = detector.detect_yolox(jai_frame)
         except:
             continue
         # find translation
