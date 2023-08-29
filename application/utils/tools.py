@@ -229,7 +229,7 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
                 )
                 return False, []
 
-    log(f"UPLOAD TO S3 - SUCCESS - {current_path} - INDICES - {valid_indices}")
+        log(f"UPLOAD TO S3 - SUCCESS - {current_path} - INDICES - {valid_indices}")
     return True, valid_indices
 
 
