@@ -104,7 +104,7 @@ class counter_detection():
                          debug_folder=None)
 
 
-    def detect(self, frames):
+    def detect(self, frames): # todo - detect yolox
         input_ = self.preprocess_batch(frames)
 
         if self.fp16:

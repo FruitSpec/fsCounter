@@ -8,7 +8,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pickle
-
+import torch
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
 repo_dir = get_repo_dir()
@@ -146,22 +146,21 @@ class Pipeline():
     def detect(self, frames):
         try:
             s = time.time()
-            ###############################################################3
+
             if self.detector_type == 'yolox':
 
                 name = self.detector.detect.__name__
                 self.logger.debug(f"Function {name} started")
-
                 output = self.detector.detect(frames)
 
 
 
             elif self.detector_type == 'yolov8':
-                import torch
+
                 name = self.detector.detector.predict.__name__
                 self.logger.debug(f"Function {name} started")
 
-                frames_tensor = self.convert_images_to_tensor(frames)
+                frames_tensor = self._convert_images_to_tensor(frames)
 
                 results = self.detector.detector.predict(
                     source = frames_tensor,
@@ -177,20 +176,10 @@ class Pipeline():
                     name = "debuging",
                     line_width = 2) # todo add device
 
-                # convert results to yolox format:
-                output = []
-                for img_res in results:
-                    xyxy_coordinates = img_res.boxes.xyxy
-                    # todo - replace class conf (=1) with real value
-                    stacked_tensors = torch.stack((img_res.boxes.conf, torch.ones(img_res.boxes.cls.shape[0]).to(img_res.boxes.conf.device), img_res.boxes.cls)).t()
-                    conc = torch.cat((xyxy_coordinates, stacked_tensors), dim=1)
-                    conc = conc.to('cpu').tolist() # load to cpu, convert to list
-                    conc = [[int(x) if i < 4 else x for i, x in enumerate(sublist)] for sublist in conc] # convert the 4 bbox coordinates to ints
-                    # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
-                    output.append(conc)
+
+                output = self._convert_yolov8_results_to_detections_format(results)
 
 
-            ################################################################
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -266,15 +255,31 @@ class Pipeline():
         dump = pd.DataFrame(self.logger.statistics, columns=['id', 'func', 'time'])
         dump.to_csv(os.path.join(args.output_folder, 'log_stats.csv'))
 
-    def convert_images_to_tensor(self, img_list):
+    def _convert_images_to_tensor(self, img_list):
         import torch
 
         images_np = np.array(img_list)
-        images_np = images_np[:, :, :, ::-1] # Convert from BGR to RGB
-        images_np = images_np / 255.0  # Normalize the images to [0, 1]
-        images_tensor = torch.from_numpy(images_np).float() # Convert numpy array to torch tensor
-        images_tensor = images_tensor.permute(0, 3, 1, 2) # Change the shape from (x, height, width, channels) to (x, channels, height, width)
+        images_np = images_np[:, :, :, ::-1]                  # Convert from BGR to RGB
+        images_np = images_np / 255.0                         # Normalize the images to [0, 1]
+        images_tensor = torch.from_numpy(images_np).float()   # Convert numpy array to torch tensor
+        images_tensor = images_tensor.permute(0, 3, 1, 2)     # Change the shape from (x, height, width, channels) to (x, channels, height, width)
         return images_tensor
+
+
+    def _convert_yolov8_results_to_detections_format(self, results):
+        output = []
+        for img_res in results:
+            xyxy_coordinates = img_res.boxes.xyxy
+            # todo - replace class conf (=1) with real value
+            stacked_tensors = torch.stack((img_res.boxes.conf,
+                                           torch.ones(img_res.boxes.cls.shape[0]).to(img_res.boxes.conf.device),
+                                           img_res.boxes.cls)).t()
+            conc = torch.cat((xyxy_coordinates, stacked_tensors), dim=1)
+            conc = conc.to('cpu').tolist()  # load to cpu, convert tensor to list
+            conc = [[int(x) if i < 4 else x for i, x in enumerate(sublist)] for sublist in
+                    conc]  # convert the 4 bbox coordinates to ints
+            output.append(conc)  # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
+        return output
 
 def init_run_objects(cfg, args):
     """

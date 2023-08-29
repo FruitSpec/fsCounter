@@ -6,8 +6,8 @@ exp_file: vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 #ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
 #/home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
 
-#ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_290623/Apples_1_29_June_23/best_ckpt.pth
-ckpt_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/YOLOv8/projects/apples_290623/yolov8n_1024_batch8/weights/best.pt # yolov8
+ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_290623/Apples_1_29_June_23/best_ckpt.pth
+#ckpt_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/YOLOv8/projects/apples_290623/yolov8n_1024_batch8/weights/best.pt # yolov8
 
 
 
@@ -17,7 +17,7 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  detector_type: yolov8 # implemented: yolox, yolov8
+  detector_type: yolox #yolov8 # implemented: yolox, yolov8
   confidence: 0.3
   nms: 0.3
   num_of_classes: 1
