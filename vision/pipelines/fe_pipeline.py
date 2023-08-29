@@ -249,7 +249,7 @@ def get_metadata(row_scan_path):
     return metadata, metadata_path
 
 
-def update_processed_data(process_data, row_scan_path):
+def update_processed_data(process_data, row_scan_path, suffix=""):
     """
     Update the processed data list with the row scan features.
 
@@ -257,8 +257,11 @@ def update_processed_data(process_data, row_scan_path):
         process_data (list): List of processed data.
         row_scan_path (str): Path to the row scan.
     """
+    if suffix != "":
+        if not suffix.startswith("_"):
+            suffix = "_" + suffix
     try:
-        df = pd.read_csv(os.path.join(row_scan_path, "row_features.csv"))
+        df = pd.read_csv(os.path.join(row_scan_path, f"row_features{suffix}.csv"))
     except:
         print("empty df: ", row_scan_path)
         return
@@ -268,7 +271,7 @@ def update_processed_data(process_data, row_scan_path):
         process_data.append([df.iloc[i, :].to_dict()])
 
 
-def validate_slice_data(row_scan_path, min_slice_len=5):
+def validate_slice_data(row_scan_path, min_slice_len=5, direction="right"):
     """
     Validate the existence and format of slice data for a row scan.
 
@@ -293,9 +296,9 @@ def validate_slice_data(row_scan_path, min_slice_len=5):
     if os.path.exists(all_slices_path):
         slice_df = pd.read_csv(all_slices_path)
     elif os.path.exists(slice_data_jai):
-            slice_df = slice_to_trees_df(slice_data_jai, row_scan_path)
+            slice_df = slice_to_trees_df(slice_data_jai, row_scan_path, direction=direction)
     elif os.path.exists(slice_data_rgb):
-        slice_df = slice_to_trees_df(slice_data_rgb, row_scan_path)
+        slice_df = slice_to_trees_df(slice_data_rgb, row_scan_path, direction=direction)
     else:
         return False
     slice_df = post_process_slice_df(slice_df)
@@ -333,7 +336,8 @@ def validate_jai_zed_json(row_scan_path):
     return True
 
 
-def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True, min_slice_len=5):
+def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True, min_slice_len=5, suffix="",
+                        direction="right"):
     """
     Get valid row scan paths for analysis from a master folder.
 
@@ -352,7 +356,7 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
             metadata, _ = get_metadata(row_scan_path)
             align_detect_track, tree_features = get_assignments(metadata)
             try:
-                slices_validation = validate_slice_data(row_scan_path, min_slice_len)
+                slices_validation = validate_slice_data(row_scan_path, min_slice_len, direction=direction)
             except:
                 print("validate slice bug: ", row_scan_path)
                 continue
@@ -368,7 +372,7 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
             if tree_features or over_write:
                 paths_list.append(row_scan_path)
             else:
-                update_processed_data(process_data, row_scan_path)
+                update_processed_data(process_data, row_scan_path, suffix)
     return paths_list, process_data
 
 
@@ -387,7 +391,8 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     Returns:
         list: List of tree features dictionaries for all row scans.
     """
-    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt, min_slice_len)
+    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt, min_slice_len, suffix,
+                                                   direction)
     n = len(paths_list)
     if njobs > 1:
         with ProcessPoolExecutor(max_workers=njobs) as executor:
@@ -398,9 +403,9 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 
 
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/cam175/FOWLER"
+    folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA"
-    final_df_output = "/media/fruitspec-lab/cam175/FOWLER/features_FOWLER_3rd_scan.csv"
+    final_df_output = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/cv_features.csv"
     over_write = True
     njobs = 1
     suffix = "cv"
@@ -410,13 +415,15 @@ if __name__ == '__main__':
     cv_only = True
     direction = "left"
 
-    # results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len)
-    # pd.DataFrame(results).to_csv(final_df_output)
-    # pd.DataFrame(results)
+    results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
+                            cv_only, direction)
+    pd.DataFrame(results).to_csv(final_df_output)
+    pd.DataFrame(results)
 
-    for folder_path in [
-                        "/media/fruitspec-lab/cam175/MEHADRINEXP/BEERAMU0/first row 9_00 - 10_00/row_2/1"]:
-        results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
-                                cv_only, direction)
+    # for folder_path in [
+    #                     "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/220823/row_113/1"]:
+    #     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
+    #                             cv_only, direction)
+
 
     print("Done")

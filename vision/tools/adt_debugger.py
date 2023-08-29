@@ -122,7 +122,7 @@ class ADTDebugger:
         frame = frame.copy()
         for det in dets:
             track_id = det[t_index]
-            color_id = int(track_id) % 20  # 15 is the number of colors in list
+            color_id = int(track_id) % 15  # 15 is the number of colors in list
             color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
@@ -308,7 +308,7 @@ class ADTDebugger:
 
          """
         if self.scan_type == "multi_scans":
-            block_name = os.path.basename(os.path.dirname(os.path.dirname(self.row_path)))
+            block_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(self.row_path))))
         else:
             block_name = os.path.basename(os.path.dirname(self.row_path))
         outputs_dir = os.path.join(args.outputs_dir, f"{block_name}{args.block_suffix}")
@@ -626,7 +626,7 @@ class ADTDebugger:
         r_h, r_w = resize_factors
         if frame_number in tracker_results.keys():
             for track_id, track in tracker_results[frame_number].items():
-                color_id = int(track_id) % 20  # 15 is the number of colors in list
+                color_id = int(track_id) % 15  # 15 is the number of colors in list
                 color = get_color(color_id)
                 track = ((int(track[0][0] * r_w), int(track[0][1] * r_h)),
                          (int(track[1][0] * r_w), int(track[1][1] * r_h)))

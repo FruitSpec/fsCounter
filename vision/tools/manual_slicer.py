@@ -94,18 +94,19 @@ def print_lines(params):
     y = int(params['height'] // params['resize_factor'])
 
     if params['data'][params['index']]['start'] is not None:
-        x = params['data'][params['index']]['start']
+        x = int(params['data'][params['index']]['start'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
-        x = params['data'][params['index']]['end']
+        x = int(params['data'][params['index']]['end'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
 
 def print_rectangles(frame, params):
-    left_clusters = params['data'][params['index']]['left_clusters']
-    right_clusters = params['data'][params['index']]['right_clusters']
-
+    left_clusters = params['data'][params['index']].get('left_clusters')
+    right_clusters = params['data'][params['index']].get('right_clusters')
+    if isinstance(left_clusters, type(None)):
+        return frame
     for key, values in left_clusters.items():
         if key != 'count':
             start_point = (values[0], values[1])
@@ -322,7 +323,7 @@ def load_json(filepath, output_path):
         data = {}
     return data
 
-def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
+def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536, direction="right"):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -335,14 +336,14 @@ def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data, border_data = parse_data_to_trees(data)
+    trees_data, border_data = parse_data_to_trees(data, direction)
     df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
     df_out[["start", "end"]] = df_out[["start", "end"]]/r
     df_out[["start", "end"]] = df_out[["start", "end"]].replace((-1)/r, -1)
     df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return df_out
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -355,7 +356,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data, border_data = parse_data_to_trees(data)
+    trees_data, border_data = parse_data_to_trees(data, direction)
 
     if not on_fly:
         cap = cv2.VideoCapture(file_path)
@@ -403,7 +404,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         return pd.concat(df_all, axis=0), border_df
 
 
-def parse_data_to_trees(data):
+def parse_data_to_trees(data, direction):
     tree_id = 0
     # started_tree = False
     # start_and_end_tree = False
@@ -412,11 +413,11 @@ def parse_data_to_trees(data):
     trees_data = {}
     border_data = []
     for frame_id, loc in data.items():
-        if frame_id == 668:
+        if frame_id == 299:
             a = 1
 
         trees = list(trees_data.keys())
-        state = get_state(loc)
+        state = get_state(loc, direction)
 
         if last_state == 0:
             if state == 0:
@@ -618,7 +619,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
-                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 border_data = update_border_data(border_data, loc, frame_id, tree_id)
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
@@ -654,7 +655,15 @@ def update_border_data(border_data, loc, frame_id, tree_id):
 
 
 
-def get_state(loc):
+def get_state(loc, direction):
+    if direction == 'right':
+        state = right_direction_states(loc)
+    else:
+        state = left_direction_states(loc)
+
+    return state
+
+def right_direction_states(loc):
     if loc['start'] is None and loc['end'] is None:
         state = 0
     elif loc['start'] is not None and loc['end'] is not None:
@@ -674,6 +683,25 @@ def get_state(loc):
 
     return state
 
+def left_direction_states(loc):
+    if loc['start'] is None and loc['end'] is None:
+        state = 0
+    elif loc['start'] is not None and loc['end'] is not None:
+        if np.abs(loc['end'] - loc['start']) < 20:
+            if loc['end'] > loc['start']:  # assuming moving right
+                state = 4  # start-end
+            else:
+                state = 3  # end-start
+        elif loc['end'] < loc['start']:
+            state = 5  # whole tree
+        else:
+            state = 6  # start - end
+    elif loc['end'] is not None:
+        state = 2  # end
+    else:
+        state = 1  # start
+
+    return state
 
 def get_all_slicing_and_n_trees():
     json_paths = []
@@ -726,7 +754,7 @@ if __name__ == "__main__":
     #             print("problem with", sub_folder)
     # this part is for fixing bad slicing
     # filepath = "/media/fruitspec-lab/cam175/DEWAGB_test/190123/DWDBLE33/R59B/Result_FSI_1.mkv"
-    filepath = "/media/fruitspec-lab/cam175/customers/Counter_Fruitcount_MOTCHA/Shamuty_Vais/row_4/1/Result_FSI.mkv"
+    filepath = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/220823/row_2/1/Result_FSI.mkv"
     output_path = os.path.dirname(filepath)
     manual_slicer(filepath, output_path, rotate=True, index=0, flip_channels=False)
     # "Result_FSI_1_slice_data_R46A.json"

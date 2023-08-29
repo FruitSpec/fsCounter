@@ -208,8 +208,8 @@ class ADTSBatchLoader:
         try:
             batch_slicer, batch_tracker, b_align, b_jai_translation = self.load_adts(frame_ids)
             batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed = [], [], [], []
-            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0])+shift,
-                                                                                              shift)
+            batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0]),
+                                                                                              0)
             batch_zed = [zed[:, :, (1, 0, 2)] for zed in batch_zed]
             batch_fsi = [fsi[:, :, ::-1] for fsi in batch_fsi]
             batch_tracker = self.tracker_postprocess(batch_tracker, b_align, batch_zed, batch_fsi)
