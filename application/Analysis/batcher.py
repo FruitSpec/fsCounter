@@ -1,3 +1,4 @@
+import logging
 import queue
 import threading
 from datetime import datetime
@@ -115,9 +116,17 @@ class Batcher:
         self._acquisition_start_event.set()
 
     def stop_acquisition(self):
-        self._acquisition_start_event.clear()
-        self._send_data(
-            ModuleTransferAction.STOP_ACQUISITION,
-            None,
-            ModulesEnum.DataManager
-        )
+        try:
+            self._acquisition_start_event.clear()
+            self._send_data(
+                ModuleTransferAction.STOP_ACQUISITION,
+                None,
+                ModulesEnum.DataManager
+            )
+        except:
+            tools.log(
+                "PROBLEM WITH STOP_ACQUISITION",
+                log_level=logging.ERROR,
+                exc_info=True
+            )
+            exit(1)
