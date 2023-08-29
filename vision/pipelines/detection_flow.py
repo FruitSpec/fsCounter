@@ -3,6 +3,7 @@ import sys
 import torch
 from concurrent.futures import ThreadPoolExecutor
 from ultralytics import YOLO
+import numpy as np
 
 import time
 
@@ -21,22 +22,26 @@ class counter_detection():
 
     def __init__(self, cfg, args):
 
+        # params
         self.confidence_threshold = cfg.detector.confidence
         self.nms_threshold = cfg.detector.nms
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
-        self.tracker = self.init_tracker(cfg, args)
+        self.max_detections = cfg.detector.max_detections
         self.device = cfg.device
         self.detector_type = cfg.detector.detector_type.lower()
+        self.nms_thresh = cfg.detector.nms
+        self.input_size = cfg.input_size
+
+        # init
+        self.tracker = self.init_tracker(cfg, args)
 
         if self.detector_type == 'yolox':
-            self.preprocess = Preprocess(cfg.device, cfg.input_size)
+            self.preprocess = Preprocess(cfg.device, self.input_size)
             self.detector, self.decoder_ = self.init_detector(cfg)
-
         elif self.detector_type == 'yolov8':
             self.detector = YOLO(cfg.ckpt_file) # self.detector = model
-
         else:
             raise NotImplementedError(f"The '{self.detector_type}' detector algorithm is not implemented.")
 
@@ -104,7 +109,69 @@ class counter_detection():
                          debug_folder=None)
 
 
-    def detect(self, frames): # todo - detect yolox
+    def detect(self, frames):
+
+        if self.detector_type == 'yolox':
+            output = self.detect_yolox(frames)
+
+        elif self.detector_type == 'yolov8':
+            output = self.detect_yolov8(frames)
+
+        return output
+
+    def detect_yolov8(self, frames):
+
+        frames_tensor = self._convert_images_to_tensor(frames)
+
+        results = self.detector.predict(
+            source=frames_tensor,
+            conf=self.confidence_threshold,
+            half=self.fp16,
+            iou=self.nms_thresh,
+            imgsz=self.input_size[0],
+            show=False,
+            save=False,
+            hide_labels=True,
+            max_det=self.max_detections,
+            project="projects/debug",
+            name="debuging",
+            line_width=2)  # todo add device
+
+        output = self._convert_yolov8_results_to_detections_format(results)
+        return output
+
+
+    def _convert_yolov8_results_to_detections_format(self, results):
+        output = []
+        for img_res in results:
+            xyxy_coordinates = img_res.boxes.xyxy
+            # todo - replace class conf (=1) with real value.
+            stacked_tensors = torch.stack((img_res.boxes.conf,
+                                           torch.ones(img_res.boxes.cls.shape[0]).to(img_res.boxes.conf.device),
+                                           img_res.boxes.cls)).t()
+            conc = torch.cat((xyxy_coordinates, stacked_tensors), dim=1)
+            conc = conc.to('cpu').tolist()  # load to cpu, convert tensor to list
+            conc = [[int(x) if i < 4 else x for i, x in enumerate(sublist)] for sublist in
+                    conc]  # convert the 4 bbox coordinates to ints
+            output.append(conc)  # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
+        return output
+
+
+    def _convert_images_to_tensor(self, img_list):
+        import torch
+
+        images_np = np.array(img_list)
+        images_np = images_np[:, :, :, ::-1]  # Convert from BGR to RGB
+        images_np = images_np / 255.0  # Normalize the images to [0, 1]
+        images_tensor = torch.from_numpy(images_np).float()  # Convert numpy array to torch tensor
+        images_tensor = images_tensor.permute(0, 3, 1,
+                                              2)  # Change the shape from (x, height, width, channels) to (x, channels, height, width)
+        return images_tensor
+
+
+
+
+    def detect_yolox(self, frames): # todo - detect yolox
         input_ = self.preprocess_batch(frames)
 
         if self.fp16:

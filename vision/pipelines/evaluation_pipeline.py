@@ -40,7 +40,7 @@ def run(cfg, args):
 
         img = cv2.imread(os.path.join(data_dir, img_name))
 
-        output = detector.detect(img)
+        output = detector.detect_yolox(img)
 
         scale_ = scale(detector.input_size, img.shape)
         det_outputs = scale_dets(output, scale_)

@@ -50,7 +50,7 @@ def run(cfg, args, detector=None):
 
         frame = cv2.imread(os.path.join(args.data_dir, img_name))
 
-        det_outputs = detector.detect(frame)
+        det_outputs = detector.detect_yolox(frame)
 
         tx, ty = translation.get_translation(frame, det_outputs)
 

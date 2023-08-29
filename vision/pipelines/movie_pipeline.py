@@ -43,7 +43,7 @@ def run(cfg, args):
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
             # detect:
-            det_outputs = detector.detect(frame)
+            det_outputs = detector.detect_yolox(frame)
 
             # track:
             trk_outputs, trk_windows = detector.track(det_outputs, f_id, frame)
