@@ -23,7 +23,8 @@ class translation():
         self.last_des = None
         self.debug_path = debug_path # in case no path given, no debug data is saved
         self.history_length = history_length
-        self.history = deque(maxlen=history_length)
+        self.history_x = deque(maxlen=history_length)
+        self.history_y = deque(maxlen=history_length)
         self.border_case_counter = 0
 
 
@@ -103,23 +104,27 @@ class translation():
         final_results = []
         for result in results:
             if result[0] is None:
-                final_results.append(result)
+                final_results.append((result[0], result[1]))
                 continue
             tx = result[0]
+            ty = result[1]
             max_width = result[2]
             if (tx > max_width - margin) or (tx < margin): # border case
                 if true_border_case_switch:
                     if self.border_case_counter > 2 * self.history_length: # true border case
-                        final_results.append((tx, result[1]))
+                        final_results.append((tx, ty))
                         continue
-                if len(self.history) == self.history_length:
-                    tx = np.mean(self.history)
+                if len(self.history_x) == self.history_length:
+                    tx = np.mean(self.history_x)
+                if len(self.history_y) == self.history_length:
+                    ty = np.mean(self.history_y)
                 self.border_case_counter += 1
             else: # valid result
-                self.history.append(tx)
+                self.history_x.append(tx)
+                self.history_y.append(ty)
                 self.border_case_counter = 0
 
-            final_results.append((tx, result[1]))
+            final_results.append((tx, ty))
 
         return final_results
 
