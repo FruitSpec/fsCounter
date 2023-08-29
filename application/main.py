@@ -7,6 +7,7 @@ import threading
 import traceback
 from multiprocessing import Queue
 from application.utils.settings import conf, data_conf, consts
+from application.utils import tools
 from datetime import datetime, timedelta
 import psutil
 import shutil
@@ -57,7 +58,7 @@ def storage_cleanup():
         if uploaded_df.empty:
             return pd.DataFrame()
 
-        logging.info("PERFORMING ROUTINE CLEANUP...")
+        tools.log("PERFORMING ROUTINE CLEANUP...")
 
         uploaded_df["total_path"] = uploaded_df.apply(get_total_path, axis=1)
         uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
@@ -76,9 +77,9 @@ def storage_cleanup():
             row_folder = os.path.dirname(total_path)
             try:
                 shutil.rmtree(row_folder)
-                logging.info(f"ROUTINE STORAGE CLEANUP - DELETED {row_name}")
+                tools.log(f"ROUTINE STORAGE CLEANUP - DELETED {row_name}")
             except (FileNotFoundError, IOError):
-                logging.warning(f"ROUTINE STORAGE CLEANUP - COULD NOT DELETE {row_name}")
+                tools.log(f"ROUTINE STORAGE CLEANUP - COULD NOT DELETE {row_name}", logging.WARNING)
 
         uploaded_delete.drop(columns=["total_path", "creation_date"], inplace=True)
         uploaded_delete["procedure_type"] = consts.routine
@@ -92,8 +93,8 @@ def storage_cleanup():
             except:
                 return -1
 
-        logging.info(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
-        print(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+        tools.log(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+
         if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
             try:
                 analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
@@ -103,7 +104,7 @@ def storage_cleanup():
             if analyzed_df.empty:
                 return pd.DataFrame()
 
-            logging.info("PERFORMING URGENT CLEANUP...")
+            tools.log("PERFORMING URGENT CLEANUP...")
             analyzed_df["total_path"] = analyzed_df.apply(get_total_path, axis=1)
 
             analyzed_df["file_size_in_MB"] = analyzed_df["total_path"].apply(get_folder_size)
@@ -120,7 +121,7 @@ def storage_cleanup():
                     analyzed_delete = pd.concat([analyzed_delete, delete_from_gr])
 
             if analyzed_delete.empty:
-                logging.warning("DISK TOO FULL BUT NO FILES TO DELETE!")
+                tools.log("DISK TOO FULL BUT NO FILES TO DELETE!", logging.WARNING)
             else:
                 for _, r in analyzed_delete.iterrows():
                     total_path = r["total_path"]
@@ -130,10 +131,10 @@ def storage_cleanup():
                                           + glob.glob(os.path.join(total_path, "*.mkv"))
                         for f in files_to_delete:
                             os.remove(f)
-                        logging.info(f"URGENT STORAGE CLEANUP - DELETED {row_name}")
+                        tools.log(f"URGENT STORAGE CLEANUP - DELETED {row_name}")
 
                     except (FileNotFoundError, IOError):
-                        logging.warning(f"URGENT STORAGE CLEANUP - COULD NOT DELETE {row_name}")
+                        tools.log(f"URGENT STORAGE CLEANUP - COULD NOT DELETE {row_name}", logging.WARNING)
                     if psutil.disk_usage("/").percent < data_conf.min_disk_occupancy:
                         break
 
@@ -178,21 +179,33 @@ def storage_cleanup():
     rewrite_not_deleted(data_conf.uploaded_path)
 
 
-def restart_application(killer=None):
+def restart_application(startup_count, startup_time):
     time.sleep(2)
     global manager
+
+    time_since_startup = time.time() - startup_time
+
+    if time_since_startup > consts.restart_threashold:
+        startup_count += 1
+    else:
+        startup_count = 1
+
     for k in manager:
         try:
             manager[k].terminate()
         except:
             pass
+
     time.sleep(5)
-    logging.info("APPLICATION RESTARTING...")
-    print("APPLICATION RESTARTING...")
-    # os.execl("/bin/bash", "/bin/bash", consts.startup_script)
+    if startup_count <= consts.restart_count_threashold:
+        tools.log(f"APPLICATION RESTARTING - NEW STARTUP COUNT: {startup_count}")
+        os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
+    else:
+        tools.log("SYSTEM REBOOTING...")
+        os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
 
 
-def process_monitor():
+def process_monitor(startup_count, startup_time):
     global manager, logger_date
     time.sleep(60)
     while True:
@@ -202,7 +215,7 @@ def process_monitor():
         #     for k in manager:
         #         send_data_to_module(ModuleTransferAction.SET_LOGGER, None, k)
 
-        logging.info("MONITORING MODULES")
+        tools.log("MONITORING MODULES")
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
@@ -214,21 +227,21 @@ def process_monitor():
                 continue
             if not manager[k].is_alive():
                 alive = False
-                death_source = "PROCESS_NOT_ALIVE"
+                death_cause = consts.process_not_alive
             else:
                 monitor_events[k].wait(2)
                 alive = monitor_events[k].is_set()
-                death_source = "PROCESS_NOT_RESPONDING"
+                death_cause = consts.process_not_responding
             if not alive:
+                tools.log(f"PROCESS {k} IS DEAD - {death_cause} - RESPAWNING...", logging.WARNING)
                 manager[k].terminate()
-                logging.warning(f"PROCESS {k} IS DEAD - {death_source} - RESPAWNING...")
                 try:
                     for recv_module in manager[k].notify_on_death:
                         send_data_to_module(manager[k].death_action, None, recv_module)
                 except TypeError:
                     pass
                 # manager[k].respawn()
-                restart_application(killer=k)
+                restart_application(startup_count, startup_time)
                 return
         time.sleep(5)
 
@@ -253,7 +266,7 @@ def transfer_data():
             data, recv_module = manager[sender_module].retrieve_transferred_data()
             retrieved = True
             action = data["action"]
-            logging.info(
+            tools.log(
                 f"DATA TRANSFER:\n\t"
                 f"FROM {sender_module}\n\t"
                 f"TO {recv_module}\n\t"
@@ -273,40 +286,41 @@ def transfer_data():
             err_msg = "PROCESS LOOKUP ERROR"
         except Exception as e:
             err_msg = "UNKNOWN ERROR: " + str(e)
-            logging.exception("!UNKNOWN ERROR!")
-            traceback.print_exc()
+            tools.log("!UNKNOWN ERROR!", logging.ERROR, exc_info=True)
         finally:
             if not success:
                 if not retrieved:
                     communication_queue.put(sender_module)
                 else:
-                    logging.warning(f"IPC WARNING - SIGNAL LOST")
+                    tools.log(f"IPC WARNING - SIGNAL LOST", logging.WARNING)
 
-                logging.warning(
+                tools.log(
                     f"IPC FAILURE\n\t"
                     f"FROM {sender_module}\n\t"
                     f"TO {recv_module}\n\t"
                     f"ACTION {action}\n\t"
-                    f"ERROR {err_msg}"
-                )
-                print(
-                    f"IPC FAILURE\n\t"
-                    f"FROM {sender_module}\n\t"
-                    f"TO {recv_module}\n\t"
-                    f"ACTION {action}\n\t"
-                    f"ERROR {err_msg}"
+                    f"ERROR {err_msg}",
+                    log_level=logging.WARNING
                 )
 
 
 def main():
     global manager, communication_queue, monitor_events
+
+    try:
+        startup_count = sys.argv[0]
+    except:
+        startup_count = 1
+
+    startup_time = time.time()
+
     manager = dict()
     monitor_events = dict()
     communication_queue = Queue()
     main_pid = os.getpid()
 
-    print(f"MAIN PID: {main_pid}")
-    logging.info(f"MAIN PID: {main_pid}")
+    tools.log(f"APPLICATION STARTING - STARTUP COUNT: {startup_count}")
+    tools.log(f"MAIN PID: {main_pid}")
 
     for _, module in enumerate(ModulesEnum):
         if module != ModulesEnum.Main:
@@ -346,13 +360,13 @@ def main():
         module_name=ModulesEnum.Analysis,
     )
 
-    gps_pid = manager[ModulesEnum.GPS].start()
-    gui_pid = manager[ModulesEnum.GUI].start()
-    data_manager_pid = manager[ModulesEnum.DataManager].start()
     acquisition_pid = manager[ModulesEnum.Acquisition].start()
     analysis_pid = manager[ModulesEnum.Analysis].start()
+    data_manager_pid = manager[ModulesEnum.DataManager].start()
+    gui_pid = manager[ModulesEnum.GUI].start()
+    gps_pid = manager[ModulesEnum.GPS].start()
 
-    monitor_t = threading.Thread(target=process_monitor, daemon=True)
+    monitor_t = threading.Thread(target=process_monitor, args=(startup_count, startup_time), daemon=True)
     monitor_t.start()
 
     manager[ModulesEnum.GPS].join()
