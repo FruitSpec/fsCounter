@@ -185,7 +185,7 @@ def restart_application(startup_count, startup_time):
 
     time_since_startup = time.time() - startup_time
 
-    if time_since_startup > consts.restart_threashold:
+    if time_since_startup > consts.restart_time_threshold:
         startup_count += 1
     else:
         startup_count = 1
@@ -197,7 +197,7 @@ def restart_application(startup_count, startup_time):
             pass
 
     time.sleep(5)
-    if startup_count <= consts.restart_count_threashold:
+    if startup_count <= consts.restart_count_threshold:
         tools.log(f"APPLICATION RESTARTING - NEW STARTUP COUNT: {startup_count}")
         os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
     else:
@@ -308,7 +308,7 @@ def main():
     global manager, communication_queue, monitor_events
 
     try:
-        startup_count = sys.argv[0]
+        startup_count = sys.argv[1]
     except:
         startup_count = 1
 

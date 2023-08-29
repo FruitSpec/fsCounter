@@ -1,7 +1,7 @@
 citrus: citrus
 apple: apple
-restart_count_threashold: 3
-restart_time_threashold: 600
+restart_count_threshold: 3
+restart_time_threshold: 600
 
 log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"

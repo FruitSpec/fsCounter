@@ -212,8 +212,8 @@ class DataManager(Module):
 
     @staticmethod
     def internet_scan():
+        last_nav_upload = time.time()
         while True:
-            last_nav_upload = time.time()
             upload_speed_in_kbps = 0
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
@@ -234,7 +234,8 @@ class DataManager(Module):
                     is_successful, timeout = DataManager.upload_today_files(upload_speed_in_kbps, timeout=timeout)
                     if is_successful:
                         last_nav_upload = time.time()
-
+                else:
+                    print()
                 timeout = DataManager.upload_old_files(upload_speed_in_kbps, timeout=timeout)
                 DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
                 tools.log(f"INTERNET SCAN - END")
