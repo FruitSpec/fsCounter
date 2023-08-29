@@ -13,8 +13,9 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  confidence: 0.381
-  nms: 0.65
+  detector_type: yolox #yolov8 # implemented: yolox, yolov8
+  confidence: 0.3
+  nms: 0.3
   num_of_classes: 1
   fp16: true
   fuse: false
