@@ -146,7 +146,12 @@ class GPSSampler(Module):
                     GPSSampler.analysis_ongoing = False
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    GPSSampler.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    GPSSampler.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 
@@ -215,7 +220,12 @@ class GPSSampler(Module):
                 )
 
                 if sample_count % 20 == 0 and GPSSampler.gps_data:
-                    GPSSampler.send_data(ModuleTransferAction.NAV, GPSSampler.gps_data, ModulesEnum.DataManager)
+                    GPSSampler.send_data(
+                        action=ModuleTransferAction.NAV,
+                        data=GPSSampler.gps_data,
+                        receiver=ModulesEnum.DataManager,
+                        log_option=tools.LogOptions.LOG
+                    )
                     GPSSampler.gps_data = []
 
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block

@@ -76,7 +76,12 @@ class GUIInterface(Module):
                     )
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    GUIInterface.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    GUIInterface.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 

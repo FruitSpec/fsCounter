@@ -166,14 +166,13 @@ class Module:
         signal.signal(signal.SIGTERM, shutdown_func)
 
     @staticmethod
-    def send_data(action, data, receiver, to_print=True):
+    def send_data(action, data, receiver, log_option=tools.LogOptions.LOG):
         data = {
             "action": action,
             "data": data,
-            "to_print": to_print
+            "log_option": log_option
         }
-        if to_print:
-            tools.log(f"SENDING DATA")
+        tools.log(f"SENDING DATA", log_option=log_option)
         try:
             Module.communication_queue.put(Module.module_name, timeout=1)
         except queue.Full:

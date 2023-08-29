@@ -35,7 +35,7 @@ def storage_cleanup():
 
     def get_total_path(x, name_only=False):
         name = os.path.join(
-            x["customer_code"], x["plot_code"],
+            str(x["customer_code"]), str(x["plot_code"]),
             str(x["scan_date"]), f"row_{x['row']}", str(x["folder_index"])
         )
         if name_only:
@@ -249,7 +249,7 @@ def process_monitor(startup_count, startup_time):
 def send_data_to_module(action, data, recv_module):
     data = {
         "action": action,
-        "data": data,
+        "data": data
     }
     manager[recv_module].receive_transferred_data(data, ModulesEnum.Main)
 
@@ -265,15 +265,15 @@ def transfer_data(startup_count, startup_time):
         try:
             data, recv_module = manager[sender_module].retrieve_transferred_data()
             retrieved = True
-            to_print = data["to_print"]
-            if to_print:
-                action = data["action"]
-                tools.log(
-                    f"DATA TRANSFER:\n\t"
-                    f"FROM {sender_module}\n\t"
-                    f"TO {recv_module}\n\t"
-                    f"ACTION: {action}"
-                )
+            log_option = data["log_option"]
+            action = data["action"]
+            tools.log(
+                f"DATA TRANSFER:\n\t"
+                f"FROM {sender_module}\n\t"
+                f"TO {recv_module}\n\t"
+                f"ACTION: {action}",
+                log_option=log_option
+            )
             if recv_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     monitor_events[sender_module].set()

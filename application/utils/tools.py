@@ -16,9 +16,16 @@ import enum
 
 
 class FileTypes(enum.Enum):
-    nav = "NAV"
+    nav = "nav"
     log = "log"
     jaized_timestamps = "jaized_timestamps"
+
+
+class LogOptions(enum.Enum):
+    PRINT = "PRINT"
+    LOG = "LOG"
+    BOTH = "BOTH"
+    NONE = "NONE"
 
 
 def s3_path_join(*args):
@@ -252,12 +259,16 @@ def send_request_to_server(customer_code, plot_code, scan_date, indices):
                          timeout=data_conf.request_timeout)
 
 
-def log(msg, log_level=logging.INFO, exc_info=False):
+def log(msg, log_level=logging.INFO, exc_info=False, log_option: LogOptions = LogOptions.BOTH):
+    to_log = log_option == LogOptions.LOG or log_option == LogOptions.BOTH
+    to_print = log_option == LogOptions.PRINT or log_option == LogOptions.BOTH
     try:
-        logging.log(log_level, msg, exc_info=exc_info)
-        print(f"{log_level} | {msg}")
-        if exc_info:
-            print(traceback.format_exc())
+        if to_log:
+            logging.log(log_level, msg, exc_info=exc_info)
+        if to_print:
+            print(f"{log_level} | {msg}")
+            if exc_info:
+                print(traceback.format_exc())
     except:
         logging.exception("LOGGING ERROR")
         print("LOGGING ERROR")

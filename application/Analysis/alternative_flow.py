@@ -35,7 +35,12 @@ class AlternativeFlow(Module):
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    AlternativeFlow.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    AlternativeFlow.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 

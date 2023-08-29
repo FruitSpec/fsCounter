@@ -4,12 +4,11 @@ from datetime import datetime
 
 from application.utils.module_wrapper import ModuleTransferAction, ModulesEnum
 from application.utils.settings import analysis_conf, consts
+from application.utils import tools
 from vision.pipelines.ops.line_detection.rows_detector import RowDetector
 
 from queue import Queue
 import time
-
-from vision.tools.camera import jai_to_channels
 
 
 class Batcher:
@@ -94,7 +93,7 @@ class Batcher:
                 ModuleTransferAction.JAIZED_TIMESTAMPS,
                 self._timestamp_log_dict,
                 ModulesEnum.GPS,
-                to_print=False
+                log_option=tools.LogOptions.NONE
             )
 
             self.align(jai_frame.rgb, zed_frame.rgb)

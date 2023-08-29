@@ -245,7 +245,12 @@ class AcquisitionManager(Module):
                     tools.log("STOP ACQUISITION FROM GUI")
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    AcquisitionManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    AcquisitionManager.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 

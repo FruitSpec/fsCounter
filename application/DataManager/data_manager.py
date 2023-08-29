@@ -201,7 +201,12 @@ class DataManager(Module):
                     stop_acquisition()
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    DataManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    DataManager.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 
