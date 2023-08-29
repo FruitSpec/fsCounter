@@ -185,7 +185,7 @@ def restart_application(startup_count, startup_time):
 
     time_since_startup = time.time() - startup_time
 
-    if time_since_startup > consts.restart_time_threshold:
+    if time_since_startup < consts.restart_time_threshold:
         startup_count += 1
     else:
         startup_count = 1
@@ -249,12 +249,12 @@ def process_monitor(startup_count, startup_time):
 def send_data_to_module(action, data, recv_module):
     data = {
         "action": action,
-        "data": data
+        "data": data,
     }
     manager[recv_module].receive_transferred_data(data, ModulesEnum.Main)
 
 
-def transfer_data():
+def transfer_data(startup_count, startup_time):
     global manager, communication_queue, monitor_events
 
     while True:
@@ -265,18 +265,20 @@ def transfer_data():
         try:
             data, recv_module = manager[sender_module].retrieve_transferred_data()
             retrieved = True
-            action = data["action"]
-            tools.log(
-                f"DATA TRANSFER:\n\t"
-                f"FROM {sender_module}\n\t"
-                f"TO {recv_module}\n\t"
-                f"ACTION: {action}"
-            )
+            to_print = data["to_print"]
+            if to_print:
+                action = data["action"]
+                tools.log(
+                    f"DATA TRANSFER:\n\t"
+                    f"FROM {sender_module}\n\t"
+                    f"TO {recv_module}\n\t"
+                    f"ACTION: {action}"
+                )
             if recv_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     monitor_events[sender_module].set()
                 elif action == ModuleTransferAction.RESTART_APP:
-                    restart_application(sender_module)
+                    restart_application(startup_count, startup_time)
             else:
                 manager[recv_module].receive_transferred_data(data, sender_module)
             success = True
@@ -329,7 +331,7 @@ def main():
 
     storage_cleanup()
 
-    transfer_data_t = threading.Thread(target=transfer_data)
+    transfer_data_t = threading.Thread(target=transfer_data, args=(startup_count, startup_time))
     transfer_data_t.start()
 
     manager[ModulesEnum.GPS].set_process(

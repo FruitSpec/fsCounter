@@ -10,6 +10,7 @@ from builtins import staticmethod
 from multiprocessing import Process, Queue
 from application.utils import tools
 
+
 class DataError(Exception):
     """ raised when there is no data to receive """
 
@@ -165,12 +166,14 @@ class Module:
         signal.signal(signal.SIGTERM, shutdown_func)
 
     @staticmethod
-    def send_data(action, data, receiver, require_ack=False):
+    def send_data(action, data, receiver, to_print=True):
         data = {
             "action": action,
-            "data": data
+            "data": data,
+            "to_print": to_print
         }
-        tools.log(f"SENDING DATA")
+        if to_print:
+            tools.log(f"SENDING DATA")
         try:
             Module.communication_queue.put(Module.module_name, timeout=1)
         except queue.Full:
