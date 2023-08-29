@@ -93,7 +93,8 @@ class Batcher:
             self._send_data(
                 ModuleTransferAction.JAIZED_TIMESTAMPS,
                 self._timestamp_log_dict,
-                ModulesEnum.GPS
+                ModulesEnum.GPS,
+                to_print=False
             )
 
             self.align(jai_frame.rgb, zed_frame.rgb)
