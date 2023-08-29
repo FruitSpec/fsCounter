@@ -13,7 +13,7 @@ sys.path.append(os.path.join(cwd, 'vision', 'detector', 'yolo_x'))
 from vision.detector.yolo_x.yolox.exp import get_exp
 from vision.detector.preprocess import Preprocess
 from vision.detector.yolo_x.yolox.utils.boxes import postprocess
-from vision.misc.help_func import scale_dets, scale
+from vision.misc.help_func import scale_dets, scale, scale_dets_yolov8
 from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 
@@ -37,8 +37,8 @@ class counter_detection():
         # init
         self.tracker = self.init_tracker(cfg, args)
 
+        self.preprocess = Preprocess(cfg.device, self.input_size)
         if self.detector_type == 'yolox':
-            self.preprocess = Preprocess(cfg.device, self.input_size)
             self.detector, self.decoder_ = self.init_detector(cfg)
         elif self.detector_type == 'yolov8':
             self.detector = YOLO(cfg.ckpt_file) # self.detector = model
@@ -138,6 +138,7 @@ class counter_detection():
             line_width=2)  # todo add device
 
         output = self._convert_yolov8_results_to_detections_format(results)
+        output = self.scale_output(output, frames[0].shape)
         return output
 
 
@@ -159,14 +160,15 @@ class counter_detection():
 
     def _convert_images_to_tensor(self, img_list):
         import torch
-
-        images_np = np.array(img_list)
-        images_np = images_np[:, :, :, ::-1]  # Convert from BGR to RGB
-        images_np = images_np / 255.0  # Normalize the images to [0, 1]
-        images_tensor = torch.from_numpy(images_np).float()  # Convert numpy array to torch tensor
-        images_tensor = images_tensor.permute(0, 3, 1,
-                                              2)  # Change the shape from (x, height, width, channels) to (x, channels, height, width)
-        return images_tensor
+        img_list = [img[:, :, ::-1] for img in img_list]
+        images_tensor = self.preprocess_batch(img_list)
+        #images_np = np.array(img_list)
+        #images_np = images_np[:, :, :, ::-1]  # Convert from BGR to RGB
+        #images_np = images_np / 255.0  # Normalize the images to [0, 1]
+        #images_tensor = torch.from_numpy(images_np).float()  # Convert numpy array to torch tensor
+        #images_tensor = images_tensor.permute(0, 3, 1,
+        #                                      2)  # Change the shape from (x, height, width, channels) to (x, channels, height, width)
+        return images_tensor / 255.0
 
 
 
@@ -246,7 +248,10 @@ class counter_detection():
     def scale_output(self, output, frame_size):
 
         scale_ = scale(self.input_size, frame_size)
-        output = scale_dets(output, scale_)
+        if self.detector_type == 'yolox':
+            output = scale_dets(output, scale_)
+        else:
+            output = scale_dets_yolov8(output, scale_)
 
         return output
 

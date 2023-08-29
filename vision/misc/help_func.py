@@ -36,6 +36,19 @@ def scale_dets(det_outputs, scale_):
 
     return dets
 
+def scale_dets_yolov8(det_outputs, scale_):
+
+    dets = []
+    for frame_dets in det_outputs:
+        if frame_dets is None:
+            dets.append([])
+        else:
+            scales = [scale_ for _ in frame_dets]
+            scaled_dets = list(map(scale_det, frame_dets, scales))
+            dets.append(scaled_dets)
+
+    return dets
+
 
 def get_repo_dir():
     cwd = os.getcwd()
