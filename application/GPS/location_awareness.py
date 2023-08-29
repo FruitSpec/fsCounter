@@ -64,9 +64,9 @@ class GPSSampler(Module):
                 kml_aws_path = tools.s3_path_join(conf.customer_code, GPS_conf.s3_kml_file_name)
                 GPSSampler.s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
                 GPSSampler.kml_flag = True
-                logging.info("LATEST KML FILE RETRIEVED")
+                tools.log("LATEST KML FILE RETRIEVED")
             except Exception:
-                logging.info("KML FILE NOT RETRIEVED")
+                tools.log("KML FILE NOT RETRIEVED")
                 if once:
                     break
                 time.sleep(30)
@@ -79,9 +79,9 @@ class GPSSampler(Module):
         while not (GPSSampler.locator or GPSSampler.shutdown_event.is_set()):
             try:
                 GPSSampler.locator = GPSLocator(GPS_conf.kml_path)
-                logging.info("LOCATOR INITIALIZED")
+                tools.log("LOCATOR INITIALIZED")
             except Exception:
-                logging.error("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...")
+                tools.log("LOCATOR COULD NOT BE INITIALIZED - RETRYING IN 30 SECONDS...", logging.ERROR, exc_info=True)
                 time.sleep(30)
 
     @staticmethod
@@ -152,7 +152,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def sample_gps():
-        logging.info("START")
+        tools.log("START")
         parser = NavParser("", is_file=False)
         ser = None
         while not GPSSampler.shutdown_event.is_set():
@@ -160,13 +160,13 @@ class GPSSampler(Module):
                 ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
                 ser.flushOutput()
                 ser.flushInput()
-                logging.info(f"SERIAL PORT INIT - SUCCESS")
+                tools.log(f"SERIAL PORT INIT - SUCCESS")
                 break
             except (serial.SerialException, TimeoutError) as e:
-                logging.warning(f"SERIAL PORT ERROR - RETRYING IN 5...")
+                tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
                 time.sleep(5)
             except Exception:
-                logging.exception(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...")
+                tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
                 time.sleep(5)
         err_count = 0
         sample_count = 0
@@ -256,16 +256,14 @@ class GPSSampler(Module):
                 sample_count += 1
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
-                    logging.error(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)")
+                    tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
                 # release the last detected block into Global if it is over 300 sec without GPS
                 if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
                     GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
-                traceback.print_exc()
             except Exception:
-                logging.exception("SAMPLE UNEXPECTED EXCEPTION")
-                traceback.print_exc()
+                tools.log("SAMPLE UNEXPECTED EXCEPTION", logging.ERROR, exc_info=True)
                 LedSettings.turn_on(LedColor.RED)
 
         try:
@@ -273,7 +271,7 @@ class GPSSampler(Module):
         except AttributeError:
             pass
 
-        logging.info("END")
+        tools.log("END")
         LedSettings.turn_on(LedColor.RED)
         GPSSampler.shutdown_done_event.set()
 
@@ -281,21 +279,18 @@ class GPSSampler(Module):
     def step_in():
         if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
-            print(f"STEP IN {GPSSampler.current_plot}")
-            logging.info(f"STEP IN {GPSSampler.current_plot}")
+            tools.log(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
             GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
             return True
         else:
-            print(f"DID NOT STEP IN {GPSSampler.current_plot}")
-            logging.info(f"DID NOT STEP IN {GPSSampler.current_plot}")
+            tools.log(f"DID NOT STEP IN {GPSSampler.current_plot}")
             return False
 
     @staticmethod
     def step_out():
         if GPSSampler.last_step_in + timedelta(seconds=3) < datetime.now():
-            print(f"STEP OUT {GPSSampler.previous_plot}")
-            logging.info(f"STEP OUT {GPSSampler.previous_plot}")
+            tools.log(f"STEP OUT {GPSSampler.previous_plot}")
 
             GPSSampler.last_step_out = datetime.now()
 

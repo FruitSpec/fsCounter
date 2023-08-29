@@ -5,6 +5,7 @@ import threading
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import GUI_conf, conf
 from application.utils.settings import set_logger
+from application.utils import tools
 from eventlet import listen as wsgi_listen
 from eventlet.wsgi import server as wsgi_server
 import socketio
@@ -69,8 +70,10 @@ class GUIInterface(Module):
                         "ZED": GUIInterface.zed_state
                     })
                     GUIInterface.sio.emit('set_camera_state', states)
-                    logging.log(logging.INFO, f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
-                                              f" ZED -> {GUIInterface.zed_state}")
+                    tools.log(
+                        f"SET CAMERAS STATE: JAI -> {GUIInterface.jai_state},"
+                        f" ZED -> {GUIInterface.zed_state}"
+                    )
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GUIInterface.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
@@ -80,7 +83,7 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def connect_gui(sid, environ):
-        logging.info(f"CONNECTION ESTABLISHED: {sid}")
+        tools.log(f"CONNECTION ESTABLISHED: {sid}")
         states = json.dumps({
             'JAI': GUIInterface.jai_state,
             "ZED": GUIInterface.zed_state
@@ -90,43 +93,43 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def disconnect_gui(sid, environ):
-        logging.info(f"DISCONNECTED GUI: {sid}")
+        tools.log(f"DISCONNECTED GUI: {sid}")
 
     # custom events
 
     @staticmethod
     @sio.event
     def start_recording(sid, data):
-        logging.info(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
+        tools.log(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
         GUIInterface.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.Acquisition)
 
     @staticmethod
     @sio.event
     def start_view(sid):
-        logging.log(logging.INFO, f"CAMERA START VIEW RECEIVED: {sid}")
+        tools.log(f"CAMERA START VIEW RECEIVED: {sid}")
         GUIInterface.send_data(ModuleTransferAction.VIEW_START, None, ModulesEnum.Acquisition)
 
     @staticmethod
     @sio.event
     def stop_recording(sid, data):
-        logging.info(f"CAMERA STOP RECEIVED: {sid}")
+        tools.log(f"CAMERA STOP RECEIVED: {sid}")
         GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Acquisition)
 
     @staticmethod
     @sio.event
     def stop_view(sid, data):
-        logging.log(logging.INFO, f"CAMERA STOP RECEIVED: {sid}")
+        tools.log(f"CAMERA STOP RECEIVED: {sid}")
         GUIInterface.send_data(ModuleTransferAction.VIEW_STOP, None, ModulesEnum.Acquisition)
 
     @staticmethod
     def set_GPS_state(state):
-        logging.log(logging.INFO, f"SET GPS STATE TO {state}")
+        tools.log(f"SET GPS STATE TO {state}")
         GUIInterface.gps_state = state
         GUIInterface.sio.emit('set_GPS_state', json.dumps({'gps': state}))
 
     @staticmethod
     def set_camera_custom_config(FPS, integration_time, output_fsi, output_rgb, output_800, output_975, output_svo):
-        logging.log(logging.INFO, f"SET CAMERA CONFIG")
+        tools.log(f"SET CAMERA CONFIG")
         camera_config = {
             'FPS': FPS,
             'integration time': integration_time,
@@ -141,6 +144,6 @@ class GUIInterface(Module):
 
     @staticmethod
     def set_camera_easy_config(weather):
-        logging.log(logging.INFO, f"SET CAMERA CONFIG")
+        tools.log(f"SET CAMERA CONFIG")
         # trigger gui
         GUIInterface.sio.emit('get_camera_state', json.dumps({'weather': weather}))

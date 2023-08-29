@@ -18,10 +18,11 @@ import jaized
 
 class AcquisitionManager(Module):
     acquisition_start_event = threading.Event()
+    healthcheck_lock = threading.Lock()
+    receive_data_t, healthcheck_t = None, None
     jz_recorder, analyzer = None, None
     jai_connected, zed_connected, running = False, False, False
-    health_check_lock = threading.Lock()
-    receive_data_thread = None
+
     fps = -1
     exposure_rgb, exposure_800, exposure_975 = -1, -1, -1
     plot, row, folder_index = None, None, None
@@ -42,39 +43,39 @@ class AcquisitionManager(Module):
         AcquisitionManager.jz_recorder = jaized.JaiZed()
         AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
 
-        AcquisitionManager.receive_data_thread = threading.Thread(target=AcquisitionManager.receive_data, daemon=True)
-        AcquisitionManager.receive_data_thread.start()
+        AcquisitionManager.receive_data_t = threading.Thread(target=AcquisitionManager.receive_data, daemon=True)
+        AcquisitionManager.receive_data_t.start()
+
+        # AcquisitionManager.healthcheck_t = threading.Thread(target=AcquisitionManager.healthcheck, daemon=True)
+        # AcquisitionManager.healthcheck_t.start()
 
         AcquisitionManager.connect_cameras()
-        # AcquisitionManager.cameras_health_check()
         AcquisitionManager.analyzer.start_analysis()
 
-        AcquisitionManager.receive_data_thread.join()
+        AcquisitionManager.receive_data_t.join()
+        # AcquisitionManager.healthcheck_t.join()
 
     @staticmethod
-    def cameras_health_check():
-        def health_check():
-            while not AcquisitionManager.shutdown_event.wait(1):
-                with AcquisitionManager.health_check_lock:
-                    actual_jai_connected = AcquisitionManager.jz_recorder.jai_connected()
-                    actual_zed_connected = AcquisitionManager.jz_recorder.zed_connected()
-                    actual_running = AcquisitionManager.jz_recorder.is_running()
-                    if AcquisitionManager.jai_connected and (not actual_jai_connected):
-                        AcquisitionManager.jz_recorder.disconect_jai()
-                        AcquisitionManager.jai_connected = AcquisitionManager.jz_recorder.connect_jai()
-                    if AcquisitionManager.zed_connected and (not actual_zed_connected):
-                        AcquisitionManager.jz_recorder.disconect_zed()
-                        AcquisitionManager.zed_connected = AcquisitionManager.jz_recorder.connect_zed(AcquisitionManager.fps)
-                    if AcquisitionManager.running and not actual_running:
-                        AcquisitionManager.start_acquisition(from_healthcheck=True)
-        t = threading.Thread(target=health_check, daemon=True)
-        t.start()
+    def healthcheck():
+        while not AcquisitionManager.shutdown_event.wait(1):
+            with AcquisitionManager.healthcheck_lock:
+                actual_jai_connected = AcquisitionManager.jz_recorder.jai_connected()
+                actual_zed_connected = AcquisitionManager.jz_recorder.zed_connected()
+                actual_running = AcquisitionManager.jz_recorder.is_running()
+                if AcquisitionManager.jai_connected and (not actual_jai_connected):
+                    AcquisitionManager.jz_recorder.disconnect_jai()
+                    AcquisitionManager.jai_connected = AcquisitionManager.jz_recorder.connect_jai()
+                if AcquisitionManager.zed_connected and (not actual_zed_connected):
+                    AcquisitionManager.jz_recorder.disconnect_zed()
+                    AcquisitionManager.zed_connected = AcquisitionManager.jz_recorder.connect_zed(AcquisitionManager.fps)
+                if AcquisitionManager.running and not actual_running:
+                    AcquisitionManager.start_acquisition(from_healthcheck=True)
 
     @staticmethod
     def connect_cameras():
         AcquisitionManager.fps = 15
         AcquisitionManager.debug_mode = True
-        # with AcquisitionManager.health_check_lock:
+        # with AcquisitionManager.healthcheck_lock:
         cam_status = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.fps,
                                                                     AcquisitionManager.debug_mode)
         AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = cam_status
@@ -88,8 +89,7 @@ class AcquisitionManager(Module):
     @staticmethod
     def disconnect_cameras():
         try:
-            print("DISCONNECTING CAMERAS...")
-            logging.info("DISCONNECTING CAMERAS...")
+            tools.log("DISCONNECTING CAMERAS...")
             AcquisitionManager.jz_recorder.disconnect_cameras()
         except:
             traceback.print_exc()
@@ -110,11 +110,10 @@ class AcquisitionManager(Module):
             AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
             AcquisitionManager.debug_mode
         )
-        print("RUNNING")
         if from_healthcheck:
             AcquisitionManager.running = running
         else:
-            # with AcquisitionManager.health_check_lock:
+            # with AcquisitionManager.healthcheck_lock:
             AcquisitionManager.running = running
         AcquisitionManager.analyzer.start_acquisition()
 
@@ -122,7 +121,7 @@ class AcquisitionManager(Module):
     def stop_acquisition():
         AcquisitionManager.analyzer.stop_acquisition()
         AcquisitionManager.jz_recorder.stop_acquisition()
-        # with AcquisitionManager.health_check_lock:
+        # with AcquisitionManager.healthcheck_lock:
         AcquisitionManager.running = False
 
     @staticmethod
@@ -213,9 +212,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def receive_data():
-        logging.info("ACQUISITION MODULE receive_data STARTED")
-        print("ACQUISITION MODULE receive_data STARTED")
-        while True:
+        while not AcquisitionManager.shutdown_event.is_set():
             data, sender_module = AcquisitionManager.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.GPS:
@@ -226,7 +223,7 @@ class AcquisitionManager(Module):
                         conf.customer_code, AcquisitionManager.plot,
                         AcquisitionManager.row, str(AcquisitionManager.folder_index)
                     ])
-                    logging.info(f"START ACQUISITION FROM GPS - {row_name}/")
+                    tools.log(f"START ACQUISITION FROM GPS - {row_name}/")
                     data = {
                         "plot": AcquisitionManager.plot,
                         "row": AcquisitionManager.get_row_number(AcquisitionManager.row),
@@ -234,18 +231,18 @@ class AcquisitionManager(Module):
                     }
                     AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
                 elif action == ModuleTransferAction.EXIT_PLOT and conf.autonomous_acquisition:
-                    logging.info("STOP ACQUISITION FROM GPS")
+                    tools.log("STOP ACQUISITION FROM GPS")
                     AcquisitionManager.stop_acquisition()
             elif sender_module == ModulesEnum.GUI:
                 if action == ModuleTransferAction.START_ACQUISITION:
-                    logging.info("START ACQUISITION FROM GUI")
+                    tools.log("START ACQUISITION FROM GUI")
                     AcquisitionManager.start_acquisition(acquisition_parameters=data)
                     row_path = os.path.dirname(AcquisitionManager.output_dir)
                     data["folder_index"] = tools.get_folder_index(row_path, get_next_index=False)
                     AcquisitionManager.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.DataManager)
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     AcquisitionManager.stop_acquisition()
-                    logging.info("STOP ACQUISITION FROM GUI")
+                    tools.log("STOP ACQUISITION FROM GUI")
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     AcquisitionManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
@@ -254,7 +251,6 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def shutdown(sig, frame):
-        print("acquisition shutdown")
         if not (AcquisitionManager.zed_connected and AcquisitionManager.jai_connected):
             AcquisitionManager.disconnect_cameras()
         if AcquisitionManager.running:

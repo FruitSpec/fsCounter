@@ -1,5 +1,8 @@
 citrus: citrus
 apple: apple
+restart_count_threashold: 3
+restart_time_threashold: 600
+
 log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"
 log_extension: "log"
@@ -20,7 +23,6 @@ IMU_linear_acceleration: "IMU_linear_acceleration"
 depth_score: "depth_score"
 row_state: "row_state"
 
-
 alignment: "alignment"
 jai_translation: "jai_translation"
 tracks: "tracks"
@@ -32,6 +34,9 @@ failed: "failed"
 nav_extension: "nav"
 routine: "Routine"
 urgent: "Urgent"
+
+process_not_alive: "PROCESS_NOT_ALIVE"
+process_not_responding: "PROCESS_NOT_RESPONDING"
 
 s3_nav_folder: "counter_navs"
 s3_log_folder: "counter_logs"

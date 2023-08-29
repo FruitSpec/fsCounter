@@ -8,7 +8,7 @@ import logging
 import traceback
 from builtins import staticmethod
 from multiprocessing import Process, Queue
-
+from application.utils import tools
 
 class DataError(Exception):
     """ raised when there is no data to receive """
@@ -40,6 +40,7 @@ class ModuleTransferAction(enum.Enum):
     SET_LOGGER = "SET_LOGGER"
     MONITOR = "MONITOR"
     RESTART_APP = "RESTART_APP"
+    CONNECT_CAMERAS = "CONNECT_CAMERAS"
     START_GPS = "START_GPS"
     NAV = "NAV"
     ASK_FOR_NAV = "ASK_FOR_NAV"
@@ -124,10 +125,10 @@ class ModuleManager:
         self.pid = self._process.pid
         if is_respawn:
             print(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
-            logging.info(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
+            tools.log(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
         else:
             print(f"{self.module_name} PID: {self.pid}")
-            logging.info(f"{self.module_name} PID: {self.pid}")
+            tools.log(f"{self.module_name} PID: {self.pid}")
         return self.pid
 
     def join(self):
@@ -138,7 +139,7 @@ class ModuleManager:
             os.kill(self.pid, signal.SIGTERM)
         except:
             print(f"COULD NOT KILL MODULE {self.module_name}")
-            logging.info(f"COULD NOT KILL MODULE {self.module_name}")
+            tools.log(f"COULD NOT KILL MODULE {self.module_name}")
 
 
 class Module:
@@ -169,16 +170,16 @@ class Module:
             "action": action,
             "data": data
         }
-        logging.info(f"SENDING DATA")
+        tools.log(f"SENDING DATA")
         try:
             Module.communication_queue.put(Module.module_name, timeout=1)
         except queue.Full:
-            logging.warning("COMMUNICATION QUEUE IS FULL!")
+            tools.log("COMMUNICATION QUEUE IS FULL!", logging.WARNING)
             return
         try:
             Module.out_qu.put((data, receiver), timeout=1)
         except queue.Full:
-            logging.warning("OUT QUEUE IS FULL!")
+            tools.log("OUT QUEUE IS FULL!", logging.WARNING)
             return
 
     @staticmethod
@@ -188,8 +189,7 @@ class Module:
 
     @staticmethod
     def shutdown(sig, frame):
-        print(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
-        logging.warning(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
+        tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
         Module.shutdown_event.set()
         while not Module.shutdown_done_event.is_set():
             time.sleep(5)

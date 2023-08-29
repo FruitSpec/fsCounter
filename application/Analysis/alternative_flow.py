@@ -8,6 +8,7 @@ import threading
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf, consts
 from application.utils.settings import set_logger
+from application.utils import tools
 from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
@@ -53,8 +54,7 @@ class AlternativeFlow(Module):
 
                 # using try in case of collapse in analysis flow
                 try:
-                    logging.info(f"ANALYZING NEW ROW - {row_name}")
-                    print(f"ANALYZING NEW ROW - {row_name}")
+                    tools.log(f"ANALYZING NEW ROW - {row_name}")
 
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
                     rc = run(pipeline_conf, row_runtime_args)
@@ -84,12 +84,10 @@ class AlternativeFlow(Module):
 
                     # send results to data manager
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
-                    logging.info(f"DONE ANALYZING ROW - {row_name}")
-                    print(f"DONE ANALYZING ROW - {row_name}")
+                    tools.log(f"DONE ANALYZING ROW - {row_name}")
                 except:
                     is_success = False
-                    logging.exception(f"FAILED TO ANALYZE - {row_name}")
-                    print(f"FAILED TO ANALYZE - {row_name}")
+                    tools.log(f"FAILED TO ANALYZE - {row_name}", logging.ERROR, exc_info=True)
                     data = AlternativeFlow.prepare_data(row=row, status=is_success)
 
                     # send results to data manager
@@ -98,8 +96,7 @@ class AlternativeFlow(Module):
                     collected.drop(index=row_index, inplace=True)
             else:
                 AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
-                logging.info("NO NEW FILE FOUND, WAITING 1 MINUTE")
-                print("NO NEW FILE FOUND, WAITING 1 MINUTE")
+                tools.log("NO NEW FILE FOUND, WAITING 1 MINUTE")
                 time.sleep(60)
                 collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
@@ -167,10 +164,10 @@ class AlternativeFlow(Module):
         while True:
             try:
                 collected = pd.read_csv(data_conf.collected_path, dtype=str)
-                print('collected was read')
+                tools.log("COLLECTED FILES READ")
                 break
             except (FileNotFoundError, PermissionError):
-                print('collected not read')
+                tools.log("COLLECTED FILES NOT READ")
                 time.sleep(60)
                 pass
             except Exception:
