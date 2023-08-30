@@ -93,10 +93,12 @@ def storage_cleanup():
             except:
                 return -1
 
-        tools.log(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+        disk_occupancy = psutil.disk_usage("/").percent
+
+        tools.log(f"DISK OCCUPANCY {disk_occupancy}%")
         tools.log(f"DISK OCCUPANCY THRESHOLD {data_conf.max_disk_occupancy}%")
 
-        if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
+        if disk_occupancy > data_conf.max_disk_occupancy:
             try:
                 analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
             except (FileNotFoundError, IOError):

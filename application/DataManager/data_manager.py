@@ -111,7 +111,7 @@ class DataManager(Module):
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
                 DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
 
-            if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
+            if disk_occupancy > data_conf.max_disk_occupancy:
                 time.sleep(0.5)
                 DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
 
