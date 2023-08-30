@@ -200,8 +200,9 @@ class DataManager(Module):
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     stop_acquisition()
                 elif action == ModuleTransferAction.ACQUISITION_CRASH:
-                    tools.log("DATA MANAGER IS HANDLING ACQUISITION CRASH...")
+                    tools.log("HANDLING ACQUISITION CRASH")
                     stop_acquisition()
+                    tools.log("ACQUISITION CRASH HANDLING DONE")
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     DataManager.send_data(
