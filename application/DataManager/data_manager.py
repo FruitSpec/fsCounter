@@ -115,7 +115,7 @@ class DataManager(Module):
             if sender_module == ModulesEnum.GPS:
                 if action == ModuleTransferAction.NAV:
                     # write GPS data to .nav file
-                    tools.log(f"WRITING NAV DATA TO FILE")
+                    tools.log(f"WRITING NAV DATA TO FILE", log_option=tools.LogOptions.LOG)
                     new_nav_df = pd.DataFrame(data)
                     DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
                     nav_path = tools.get_file_path(tools.FileTypes.nav)
@@ -197,7 +197,10 @@ class DataManager(Module):
                         index=DataManager.current_index,
                         get_index_dir=True
                     )
-                elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
+                elif action == ModuleTransferAction.STOP_ACQUISITION:
+                    stop_acquisition()
+                elif action == ModuleTransferAction.ACQUISITION_CRASH:
+                    tools.log("DATA MANAGER IS HANDLING ACQUISITION CRASH...")
                     stop_acquisition()
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
