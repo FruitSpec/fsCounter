@@ -107,9 +107,10 @@ class DataManager(Module):
                     "folder_index": [str(int(DataManager.current_index))],
                     "ext": [ext]
                 }
-                tmp_df = pd.DataFrame(data=collected_data, index=[0])
-                DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
-                DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
+
+                tmp_collected_df = pd.DataFrame(data=collected_data, index=[0])
+                _is_first = not os.path.exists(nav_path)
+                tmp_collected_df.to_csv(data_conf.collected_path, mode="a+", index=False, header=_is_first)
 
             if disk_occupancy > data_conf.max_disk_occupancy:
                 time.sleep(0.5)
