@@ -94,6 +94,7 @@ def storage_cleanup():
                 return -1
 
         tools.log(f"DISK OCCUPANCY {psutil.disk_usage('/').percent}%")
+        tools.log(f"DISK OCCUPANCY THRESHOLD {data_conf.max_disk_occupancy}%")
 
         if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
             try:

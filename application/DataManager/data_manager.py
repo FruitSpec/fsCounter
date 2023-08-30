@@ -92,6 +92,10 @@ class DataManager(Module):
             else:
                 jaized_timestamp_log_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
 
+            disk_occupancy = psutil.disk_usage("/").percent
+            tools.log(f"DISK OCCUPANCY {disk_occupancy}%")
+            tools.log(f"DISK OCCUPANCY THRESHOLD {data_conf.max_disk_occupancy}%")
+
             if conf.collect_data:
                 today = datetime.now().strftime("%d%m%y")
                 ext = "feather" if data_conf.use_feather else "csv"
@@ -106,8 +110,10 @@ class DataManager(Module):
                 tmp_df = pd.DataFrame(data=collected_data, index=[0])
                 DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
                 DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
-                if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
-                    DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
+
+            if psutil.disk_usage("/").percent > data_conf.max_disk_occupancy:
+                time.sleep(0.5)
+                DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
 
         while True:
             data, sender_module = DataManager.in_qu.get()
