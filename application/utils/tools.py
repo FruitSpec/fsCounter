@@ -266,7 +266,7 @@ def log(msg, log_level=logging.INFO, exc_info=False, log_option: LogOptions = Lo
         if to_log:
             logging.log(log_level, msg, exc_info=exc_info)
         if to_print:
-            print(f"{log_level} | {msg}")
+            print(f"{logging.getLevelName(log_level)} | {msg}")
             if exc_info:
                 print(traceback.format_exc())
     except:

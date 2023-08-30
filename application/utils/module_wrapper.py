@@ -33,8 +33,7 @@ class ModulesEnum(enum.Enum):
         try:
             return self.value == other.value
         except AttributeError:
-            print(other)
-            traceback.print_exc()
+            tools.log(str(other), log_level=logging.ERROR, exc_info=True)
 
 
 class ModuleTransferAction(enum.Enum):
@@ -125,10 +124,8 @@ class ModuleManager:
         self._process.start()
         self.pid = self._process.pid
         if is_respawn:
-            print(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
             tools.log(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
         else:
-            print(f"{self.module_name} PID: {self.pid}")
             tools.log(f"{self.module_name} PID: {self.pid}")
         return self.pid
 
@@ -139,7 +136,6 @@ class ModuleManager:
         try:
             os.kill(self.pid, signal.SIGTERM)
         except:
-            print(f"COULD NOT KILL MODULE {self.module_name}")
             tools.log(f"COULD NOT KILL MODULE {self.module_name}")
 
 

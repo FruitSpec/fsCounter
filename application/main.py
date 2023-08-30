@@ -180,7 +180,7 @@ def storage_cleanup():
 
 
 def restart_application(startup_count, startup_time):
-    time.sleep(2)
+    time.sleep(3)
     global manager
 
     time_since_startup = time.time() - startup_time
@@ -207,15 +207,15 @@ def restart_application(startup_count, startup_time):
 
 def process_monitor(startup_count, startup_time):
     global manager, logger_date
-    time.sleep(60)
+    time.sleep(40)
     while True:
-        today = datetime.now().strftime('%d%m%y')
+        # today = datetime.now().strftime('%d%m%y')
         # if today != logger_date:
         #     set_logger()
         #     for k in manager:
         #         send_data_to_module(ModuleTransferAction.SET_LOGGER, None, k)
 
-        tools.log("MONITORING MODULES")
+        tools.log("MONITORING MODULES", log_option=tools.LogOptions.LOG)
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
@@ -353,8 +353,7 @@ def main():
         target=AcquisitionManager.init_module,
         module_name=ModulesEnum.Acquisition,
         notify_on_death=[ModulesEnum.GPS, ModulesEnum.DataManager],
-        death_action=ModuleTransferAction.ACQUISITION_CRASH,
-        daemon=False
+        death_action=ModuleTransferAction.ACQUISITION_CRASH
     )
 
     manager[ModulesEnum.Analysis].set_process(
