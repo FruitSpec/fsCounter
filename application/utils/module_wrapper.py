@@ -174,15 +174,17 @@ class Module:
         }
         tools.log(f"SENDING DATA", log_option=log_option)
         try:
-            Module.communication_queue.put(Module.module_name, timeout=1)
-        except queue.Full:
-            tools.log("COMMUNICATION QUEUE IS FULL!", logging.WARNING)
-            return
-        try:
-            Module.out_qu.put((data, receiver), timeout=1)
-        except queue.Full:
-            tools.log("OUT QUEUE IS FULL!", logging.WARNING)
-            return
+            try:
+                Module.communication_queue.put(Module.module_name, timeout=1)
+            except queue.Full:
+                tools.log("COMMUNICATION QUEUE IS FULL!", logging.WARNING)
+                return
+            try:
+                Module.out_qu.put((data, receiver), timeout=1)
+            except queue.Full:
+                tools.log("OUT QUEUE IS FULL!", logging.WARNING)
+        except:
+            tools.log("UNDETECTED PROBLEM IN send_data", log_level=logging.ERROR, exc_info=True)
 
     @staticmethod
     def receive_data():
