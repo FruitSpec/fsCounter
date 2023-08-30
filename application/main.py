@@ -234,10 +234,15 @@ def process_monitor(startup_count, startup_time):
                 death_cause = consts.process_not_responding
             if not alive:
                 tools.log(f"PROCESS {k} IS DEAD - {death_cause} - RESPAWNING...", logging.WARNING)
-                manager[k].terminate()
                 try:
-                    for recv_module in manager[k].notify_on_death:
-                        send_data_to_module(manager[k].death_action, None, recv_module)
+                    for receiver in manager[k].notify_on_death:
+                        send_data_to_module(
+                            action=manager[k].death_action,
+                            data=None,
+                            receiver=receiver,
+                            sender=k,
+                            log_option=tools.LogOptions.BOTH
+                        )
                 except TypeError:
                     pass
                 # manager[k].respawn()
@@ -246,12 +251,19 @@ def process_monitor(startup_count, startup_time):
         time.sleep(5)
 
 
-def send_data_to_module(action, data, recv_module):
+def send_data_to_module(action, data, receiver, sender=ModulesEnum.Main, log_option=tools.LogOptions.NONE):
     data = {
         "action": action,
         "data": data
     }
-    manager[recv_module].receive_transferred_data(data, ModulesEnum.Main)
+    tools.log(
+        f"DATA TRANSFER:\n\t"
+        f"FROM {ModulesEnum.Main} AS {sender}\n\t"
+        f"TO {receiver}\n\t"
+        f"ACTION: {action}",
+        log_option=log_option
+    )
+    manager[receiver].receive_transferred_data(data, sender)
 
 
 def transfer_data(startup_count, startup_time):
@@ -260,27 +272,27 @@ def transfer_data(startup_count, startup_time):
     while True:
         sender_module = communication_queue.get()
         success, retrieved = False, False
-        recv_module, action, err_msg = None, None, None
+        receiver, action, err_msg = None, None, None
 
         try:
-            data, recv_module = manager[sender_module].retrieve_transferred_data()
+            data, receiver = manager[sender_module].retrieve_transferred_data()
             retrieved = True
             log_option = data["log_option"]
             action = data["action"]
             tools.log(
                 f"DATA TRANSFER:\n\t"
                 f"FROM {sender_module}\n\t"
-                f"TO {recv_module}\n\t"
+                f"TO {receiver}\n\t"
                 f"ACTION: {action}",
                 log_option=log_option
             )
-            if recv_module == ModulesEnum.Main:
+            if receiver == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     monitor_events[sender_module].set()
                 elif action == ModuleTransferAction.RESTART_APP:
                     restart_application(startup_count, startup_time)
             else:
-                manager[recv_module].receive_transferred_data(data, sender_module)
+                manager[receiver].receive_transferred_data(data, sender_module)
             success = True
         except DataError:
             err_msg = "DATA ERROR"
@@ -299,7 +311,7 @@ def transfer_data(startup_count, startup_time):
                 tools.log(
                     f"IPC FAILURE\n\t"
                     f"FROM {sender_module}\n\t"
-                    f"TO {recv_module}\n\t"
+                    f"TO {receiver}\n\t"
                     f"ACTION {action}\n\t"
                     f"ERROR {err_msg}",
                     log_level=logging.WARNING
