@@ -201,7 +201,7 @@ def restart_application(startup_count, startup_time):
         tools.log(f"APPLICATION RESTARTING - NEW STARTUP COUNT: {startup_count}")
         os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
     else:
-        tools.log(f"SYSTEM REBOOTING - NEW STARTUP COUNT: {startup_count}")
+        tools.log(f"SYSTEM REBOOTING - STARTUP COUNT: {startup_count}")
         os.system("reboot")
 
 
