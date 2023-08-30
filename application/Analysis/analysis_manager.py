@@ -12,17 +12,17 @@ class AnalysisManager:
 
         self._batcher = Batcher(frames_queue, send_data)
         self._batch_thread = Thread(target=self.batch, daemon=True)
-        self._detect_proc = Process(target=self.detect, daemon=True)
-        self._track_proc = Process(target=self.track, daemon=True)
+        # self._detect_proc = Process(target=self.detect, daemon=True)
+        # self._track_proc = Process(target=self.track, daemon=True)
 
     def start_analysis(self):
         self._batch_thread.start()
-        self._detect_proc.start()
-        self._track_proc.start()
+        # self._detect_proc.start()
+        # self._track_proc.start()
 
         self._batch_thread.join()
-        self._detect_proc.join()
-        self._track_proc.join()
+        # self._detect_proc.join()
+        # self._track_proc.join()
 
     def set_output_dir(self, output_dir):
         self._batcher.output_dir = output_dir
