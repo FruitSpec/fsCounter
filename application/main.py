@@ -182,7 +182,7 @@ def storage_cleanup():
     rewrite_not_deleted(data_conf.uploaded_path)
 
 
-def restart_application(startup_count, startup_time):
+def restart_application(startup_count, startup_time, reboot=False):
     time.sleep(3)
     global manager
 
@@ -200,7 +200,7 @@ def restart_application(startup_count, startup_time):
             pass
 
     time.sleep(5)
-    if startup_count <= consts.restart_count_threshold:
+    if (not reboot) and startup_count <= consts.restart_count_threshold:
         tools.log(f"APPLICATION RESTARTING - NEW STARTUP COUNT: {startup_count}")
         os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
     else:
@@ -294,6 +294,8 @@ def transfer_data(startup_count, startup_time):
                     monitor_events[sender_module].set()
                 elif action == ModuleTransferAction.RESTART_APP:
                     restart_application(startup_count, startup_time)
+                elif action == ModuleTransferAction.REBOOT:
+                    restart_application(startup_count, startup_time, reboot=True)
             else:
                 manager[receiver].receive_transferred_data(data, sender_module)
             success = True

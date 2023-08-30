@@ -32,6 +32,7 @@ class GPSSampler(Module):
     current_timestamp = datetime.now().strftime(data_conf.timestamp_format)
     current_lat, current_long = 0, 0
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
+    is_in_plot = False
     s3_client = None
     analysis_ongoing = False
     last_step_in, last_step_out = None, None
@@ -231,13 +232,13 @@ class GPSSampler(Module):
                 if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
                     # stepped into new block
                     if GPSSampler.previous_plot == consts.global_polygon:
-                        state_changed = GPSSampler.step_in()
+                        GPSSampler.is_in_plot = GPSSampler.step_in()
                     else:
-                        state_changed = GPSSampler.step_out()
-                        if state_changed:
+                        GPSSampler.is_in_plot = GPSSampler.step_out()
+                        if GPSSampler.is_in_plot:
                             GPSSampler.current_plot = consts.global_polygon
 
-                    if not state_changed:
+                    if not GPSSampler.is_in_plot:
                         GPSSampler.current_plot = GPSSampler.previous_plot
 
                 # check if in global
@@ -252,7 +253,7 @@ class GPSSampler(Module):
                 err_count = 0
 
             except fscloudutils.exceptions.InputError:
-                print(data)
+                GPSSampler.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
             except ValueError as e:
                 timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 GPSSampler.gps_data.append(
@@ -330,3 +331,11 @@ class GPSSampler(Module):
         # )
         # return GPSSampler.row_detector.row_state
         return -1
+
+    @staticmethod
+    def shutdown(sig, frame):
+        tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
+        if GPSSampler.is_in_plot:
+            GPSSampler.step_out()
+        time.sleep(0.5)
+        exit(0)

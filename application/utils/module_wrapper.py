@@ -39,6 +39,7 @@ class ModulesEnum(enum.Enum):
 class ModuleTransferAction(enum.Enum):
     SET_LOGGER = "SET_LOGGER"
     MONITOR = "MONITOR"
+    REBOOT = "REBOOT"
     RESTART_APP = "RESTART_APP"
     CONNECT_CAMERAS = "CONNECT_CAMERAS"
     START_GPS = "START_GPS"
@@ -191,5 +192,5 @@ class Module:
     def shutdown(sig, frame):
         tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
         Module.shutdown_event.set()
-        while not Module.shutdown_done_event.is_set():
-            time.sleep(5)
+        time.sleep(3)
+        exit(0)

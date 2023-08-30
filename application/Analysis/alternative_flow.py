@@ -50,7 +50,12 @@ class AlternativeFlow(Module):
         collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
         while True:
-            found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
+            found, row, row_index = False, 0, 0
+            try:
+                found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
+            except RuntimeError:
+                AlternativeFlow.send_data(ModuleTransferAction.REBOOT, None, ModulesEnum.Main)
+
             if found:
                 AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
 
