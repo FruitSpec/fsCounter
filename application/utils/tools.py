@@ -60,7 +60,7 @@ def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
         filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
         f_dir = os.path.join(data_conf.output_path, conf.customer_code)
     elif f_type == FileTypes.log:
-        filename = f"{conf.counter_number}_{today}.{consts.log_extension}"
+        filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
         f_dir = consts.log_dir
     elif f_type == FileTypes.jaized_timestamps:
         filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
