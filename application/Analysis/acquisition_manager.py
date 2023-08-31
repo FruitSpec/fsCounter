@@ -59,6 +59,8 @@ class AcquisitionManager(Module):
         AcquisitionManager.receive_data_t.join()
         # AcquisitionManager.healthcheck_t.join()
 
+        tools.log("GOT TO THIS LINE")
+
     @staticmethod
     def healthcheck():
         while not AcquisitionManager.shutdown_event.wait(1):
@@ -123,10 +125,14 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def stop_acquisition():
+        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
         AcquisitionManager.analyzer.stop_acquisition()
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
         AcquisitionManager.jz_recorder.stop_acquisition()
+        print("####################################################################################")
         # with AcquisitionManager.healthcheck_lock:
         AcquisitionManager.running = False
+        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 
     @staticmethod
     def get_row_number(row_name):
@@ -247,7 +253,7 @@ class AcquisitionManager(Module):
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     AcquisitionManager.stop_acquisition()
                     tools.log("STOP ACQUISITION FROM GUI")
-            if sender_module == ModulesEnum.Main:
+            elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     AcquisitionManager.send_data(
                         action=ModuleTransferAction.MONITOR,

@@ -330,9 +330,3 @@ class GPSSampler(Module):
         # )
         # return GPSSampler.row_detector.row_state
         return -1
-
-    @staticmethod
-    def shutdown(sig, frame):
-        tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
-        if GPSSampler.is_in_plot:
-            GPSSampler.step_out()
