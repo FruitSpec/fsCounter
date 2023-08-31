@@ -1,5 +1,7 @@
 import os
 import sys
+import threading
+
 import cv2
 from omegaconf import OmegaConf
 from tqdm import tqdm
@@ -25,7 +27,7 @@ from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 
-def run(cfg, args, metadata=None):
+def run(cfg, args, metadata=None, shutdown_event=None):
 
     adt = Pipeline(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
@@ -38,7 +40,7 @@ def run(cfg, args, metadata=None):
     f_id = 0
 
     pbar = tqdm(total=n_frames)
-    while f_id < n_frames:
+    while f_id < n_frames and not shutdown_event.is_set():
         pbar.update(adt.batch_size)
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 

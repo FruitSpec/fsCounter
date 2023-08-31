@@ -22,6 +22,7 @@ import speedtest
 
 class DataManager(Module):
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
+    is_in_plot = False
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
@@ -80,7 +81,28 @@ class DataManager(Module):
             except:
                 tools.log("JAIZED TIMESTAMP ERROR", logging.ERROR, exc_info=True)
 
+        def start_acquisition():
+            if DataManager.is_in_plot:
+                tools.log("START_ACQUISITION RECEIVED WHILE IN PLOT", log_level=logging.WARNING)
+            DataManager.is_in_plot = True
+            DataManager.previous_plot = DataManager.current_plot
+            DataManager.current_plot = data["plot"]
+            DataManager.current_row = data["row"]
+            DataManager.current_index = data["folder_index"]
+
+            DataManager.current_path = tools.get_path(
+                plot=DataManager.current_plot,
+                row=DataManager.current_row,
+                index=DataManager.current_index,
+                get_index_dir=True
+            )
+
         def stop_acquisition():
+            if not DataManager.is_in_plot:
+                return
+
+            DataManager.is_in_plot = False
+
             filename_csv = f"{consts.jaized_timestamps}.csv"
             jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
             jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by=consts.JAI_frame_number)
@@ -113,10 +135,11 @@ class DataManager(Module):
                 tmp_collected_df.to_csv(data_conf.collected_path, mode="a+", index=False, header=_is_first)
 
             if disk_occupancy > data_conf.max_disk_occupancy:
-                time.sleep(0.5)
+                time.sleep(1)
+                tools.log("RESTARTING TO PERFORM DISK CLEANUP")
                 DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
 
-        while True:
+        while not DataManager.shutdown_event.is_set():
             data, sender_module = DataManager.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.GPS:
@@ -193,17 +216,7 @@ class DataManager(Module):
                     analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
             elif sender_module == ModulesEnum.Acquisition:
                 if action == ModuleTransferAction.START_ACQUISITION:
-                    DataManager.previous_plot = DataManager.current_plot
-                    DataManager.current_plot = data["plot"]
-                    DataManager.current_row = data["row"]
-                    DataManager.current_index = data["folder_index"]
-
-                    DataManager.current_path = tools.get_path(
-                        plot=DataManager.current_plot,
-                        row=DataManager.current_row,
-                        index=DataManager.current_index,
-                        get_index_dir=True
-                    )
+                    start_acquisition()
                 elif action == ModuleTransferAction.STOP_ACQUISITION:
                     stop_acquisition()
                 elif action == ModuleTransferAction.ACQUISITION_CRASH:
@@ -229,7 +242,7 @@ class DataManager(Module):
     @staticmethod
     def internet_scan():
         last_nav_upload = time.time()
-        while True:
+        while not DataManager.shutdown_event.is_set():
             upload_speed_in_kbps = 0
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
@@ -381,7 +394,6 @@ class DataManager(Module):
                 folder_path = os.path.join(data_conf.output_path, folder_name)
                 ext = "csv"
 
-                # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
                 tracks_path = os.path.join(folder_path, f"{consts.tracks}.{ext}")
                 tracks_s3_path = tools.s3_path_join(folder_name, f"{consts.tracks}.{ext}")
 

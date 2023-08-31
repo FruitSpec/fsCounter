@@ -57,7 +57,7 @@ class GUIInterface(Module):
     @staticmethod
     @sio.event
     def receive_data(sid=None, environ=None):
-        while True:
+        while not GUIInterface.shutdown_event.is_set():
             data, sender_module = GUIInterface.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.Acquisition:

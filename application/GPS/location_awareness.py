@@ -60,7 +60,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def get_kml(once=False):
-        while not GPSSampler.kml_flag:
+        while not (GPSSampler.kml_flag or GPSSampler.shutdown_event.is_set()):
             try:
                 kml_aws_path = tools.s3_path_join(conf.customer_code, GPS_conf.s3_kml_file_name)
                 GPSSampler.s3_client.download_file(GPS_conf.kml_bucket_name, kml_aws_path, GPS_conf.kml_path)
@@ -103,7 +103,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def receive_data():
-        while True:
+        while not GPSSampler.shutdown_event.is_set():
             data, sender_module = GPSSampler.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.Acquisition:
@@ -284,7 +284,6 @@ class GPSSampler(Module):
 
         tools.log("END")
         LedSettings.turn_on(LedColor.RED)
-        GPSSampler.shutdown_done_event.set()
 
     @staticmethod
     def step_in():
@@ -337,5 +336,3 @@ class GPSSampler(Module):
         tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
         if GPSSampler.is_in_plot:
             GPSSampler.step_out()
-        time.sleep(0.5)
-        exit(0)

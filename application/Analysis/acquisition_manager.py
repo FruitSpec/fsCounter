@@ -41,7 +41,11 @@ class AcquisitionManager(Module):
         signal.signal(signal.SIGUSR2, AcquisitionManager.shutdown)
 
         AcquisitionManager.jz_recorder = jaized.JaiZed()
-        AcquisitionManager.analyzer = AnalysisManager(AcquisitionManager.jz_recorder, AcquisitionManager.send_data)
+        AcquisitionManager.analyzer = AnalysisManager(
+            AcquisitionManager.jz_recorder,
+            AcquisitionManager.send_data,
+            AcquisitionManager.shutdown_event
+        )
 
         AcquisitionManager.receive_data_t = threading.Thread(target=AcquisitionManager.receive_data, daemon=True)
         AcquisitionManager.receive_data_t.start()
@@ -256,8 +260,11 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def shutdown(sig, frame):
+        tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
+        AcquisitionManager.shutdown_event.set()
         if not (AcquisitionManager.zed_connected and AcquisitionManager.jai_connected):
             AcquisitionManager.disconnect_cameras()
         if AcquisitionManager.running:
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.GPS)
             AcquisitionManager.send_data(ModuleTransferAction.ACQUISITION_CRASH, None, ModulesEnum.DataManager)
+        time.sleep(3)

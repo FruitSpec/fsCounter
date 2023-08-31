@@ -8,8 +8,8 @@ import numpy as np
 class AnalysisManager:
     _batcher = None
 
-    def __init__(self, frames_queue, send_data):
-
+    def __init__(self, frames_queue, send_data, shutdown_event):
+        self.shutdown_event = shutdown_event
         self._batcher = Batcher(frames_queue, send_data)
         self._batch_thread = Thread(target=self.batch, daemon=True)
         # self._detect_proc = Process(target=self.detect, daemon=True)
@@ -36,7 +36,7 @@ class AnalysisManager:
     def batch(self):
 
         def share_batches():
-            while True:
+            while not self.shutdown_event.is_set():
                 batch, batch_number, batch_timestamp = self._batcher.pop_batch()
                 del batch, batch_number, batch_timestamp
                 frame_number_s, fsi_s, jai_rgb_s, p_cloud_s, zed_rgb_s = [], [], [], [], []

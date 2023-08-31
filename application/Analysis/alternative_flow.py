@@ -30,7 +30,7 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def receive_data():
-        while True:
+        while not AlternativeFlow.shutdown_event.is_set():
             data, sender_module = AlternativeFlow.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.Main:
@@ -49,7 +49,7 @@ class AlternativeFlow(Module):
 
         collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
-        while True:
+        while not AlternativeFlow.shutdown_event.is_set():
             found, row, row_index = False, 0, 0
             try:
                 found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
@@ -67,7 +67,7 @@ class AlternativeFlow(Module):
                     tools.log(f"ANALYZING NEW ROW - {row_name}")
 
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
-                    rc = run(pipeline_conf, row_runtime_args)
+                    rc = run(pipeline_conf, row_runtime_args, shutdown_event=AlternativeFlow.shutdown_event)
 
                     is_success = True  # analysis ended without exceptions
 
@@ -171,7 +171,7 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def read_collected_analyzed():
-        while True:
+        while not AlternativeFlow.shutdown_event.is_set():
             try:
                 collected = pd.read_csv(data_conf.collected_path, dtype=str)
                 tools.log("COLLECTED FILES READ")

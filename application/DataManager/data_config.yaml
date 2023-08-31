@@ -16,5 +16,5 @@ date_format: "%d%m%y"
 routine_delete_time_hours: 48
 max_disk_occupancy: 70
 min_disk_occupancy: 35
-storage_cleanup_min_files: 1
-storage_cleanup_size_threshold: 50
+storage_cleanup_min_files: 3
+storage_cleanup_size_threshold: 100

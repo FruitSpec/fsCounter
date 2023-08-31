@@ -139,6 +139,13 @@ class ModuleManager:
         except:
             tools.log(f"COULD NOT KILL MODULE {self.module_name}")
 
+    def force_kill(self):
+        try:
+            os.kill(self.pid, signal.SIGKILL)
+            tools.log(f"FORCE-KILL MODULE {self.module_name}")
+        except:
+            pass
+
 
 class Module:
     """ An abstraction class for all modules """
@@ -146,7 +153,6 @@ class Module:
     main_pid, in_qu, out_qu, module_name = -1, None, None, None
     communication_queue = None
     shutdown_event = threading.Event()
-    shutdown_done_event = threading.Event()
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
@@ -193,4 +199,3 @@ class Module:
         tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
         Module.shutdown_event.set()
         time.sleep(3)
-        exit(0)

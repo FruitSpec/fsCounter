@@ -50,15 +50,17 @@ def storage_cleanup():
                 return None
 
     def routine_cleanup():
+        tools.log("PERFORMING ROUTINE CLEANUP...")
+
         try:
             uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
         except (FileNotFoundError, IOError):
+            tools.log("ROUTINE CLEANUP DONE")
             return pd.DataFrame()
 
         if uploaded_df.empty:
+            tools.log("ROUTINE CLEANUP DONE")
             return pd.DataFrame()
-
-        tools.log("PERFORMING ROUTINE CLEANUP...")
 
         uploaded_df["total_path"] = uploaded_df.apply(get_total_path, axis=1)
         uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
@@ -84,9 +86,12 @@ def storage_cleanup():
         uploaded_delete.drop(columns=["total_path", "creation_date"], inplace=True)
         uploaded_delete["procedure_type"] = consts.routine
 
+        tools.log("ROUTINE CLEANUP DONE")
+
         return uploaded_delete
 
     def urgent_cleanup():
+
         def get_folder_size(path):
             try:
                 return sum([os.path.getsize(f) for f in os.scandir(path)]) / (1024 ** 2)
@@ -95,19 +100,24 @@ def storage_cleanup():
 
         disk_occupancy = psutil.disk_usage("/").percent
 
+        tools.log("PERFORMING URGENT CLEANUP...")
         tools.log(f"DISK OCCUPANCY {disk_occupancy}%")
         tools.log(f"DISK OCCUPANCY THRESHOLD {data_conf.max_disk_occupancy}%")
 
+        analyzed_delete = None
         if disk_occupancy > data_conf.max_disk_occupancy:
             try:
                 analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
             except (FileNotFoundError, IOError):
+                tools.log("DISK TOO FULL BUT NO FILES TO DELETE!", logging.WARNING)
+                tools.log("URGENT CLEANUP DONE")
                 return pd.DataFrame()
 
             if analyzed_df.empty:
+                tools.log("DISK TOO FULL BUT NO FILES TO DELETE!", logging.WARNING)
+                tools.log("URGENT CLEANUP DONE")
                 return pd.DataFrame()
 
-            tools.log("PERFORMING URGENT CLEANUP...")
             analyzed_df["total_path"] = analyzed_df.apply(get_total_path, axis=1)
 
             analyzed_df["file_size_in_MB"] = analyzed_df["total_path"].apply(get_folder_size)
@@ -147,7 +157,8 @@ def storage_cleanup():
 
             analyzed_delete = pd.concat([analyzed_delete, invalid_df])
 
-            return analyzed_delete
+        tools.log("URGENT CLEANUP DONE")
+        return analyzed_delete
 
     def rewrite_not_deleted(path):
         nonlocal deleted_df
@@ -199,7 +210,16 @@ def restart_application(startup_count, startup_time, reboot=False):
         except:
             pass
 
-    time.sleep(5)
+    time.sleep(3)
+
+    for k in manager:
+        try:
+            manager[k].force_kill()
+        except:
+            pass
+
+    time.sleep(1)
+
     if (not reboot) and startup_count <= consts.restart_count_threshold:
         tools.log(f"APPLICATION RESTARTING - NEW STARTUP COUNT: {startup_count}")
         os.execl("/bin/bash", "/bin/bash", consts.startup_script, str(startup_count))
