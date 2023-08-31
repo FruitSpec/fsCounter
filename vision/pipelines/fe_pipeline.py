@@ -408,11 +408,11 @@ if __name__ == '__main__':
     final_df_output = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/cv_features.csv"
     over_write = True
     njobs = 1
-    suffix = "cv"
+    suffix = "features_left"
     print_fids = False
     run_only_done_adt = False
     min_slice_len = 0
-    cv_only = True
+    cv_only = False
     direction = "left"
 
     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
