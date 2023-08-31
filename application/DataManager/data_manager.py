@@ -109,7 +109,7 @@ class DataManager(Module):
                 }
 
                 tmp_collected_df = pd.DataFrame(data=collected_data, index=[0])
-                _is_first = not os.path.exists(nav_path)
+                _is_first = not os.path.exists(data_conf.collected_path)
                 tmp_collected_df.to_csv(data_conf.collected_path, mode="a+", index=False, header=_is_first)
 
             if disk_occupancy > data_conf.max_disk_occupancy:
