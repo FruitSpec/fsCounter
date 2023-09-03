@@ -8,6 +8,7 @@ import logging
 import traceback
 from builtins import staticmethod
 from multiprocessing import Process, Queue
+from application.utils import tools
 
 
 class DataError(Exception):
@@ -32,16 +33,17 @@ class ModulesEnum(enum.Enum):
         try:
             return self.value == other.value
         except AttributeError:
-            print(other)
-            traceback.print_exc()
+            tools.log(str(other), log_level=logging.ERROR, exc_info=True)
 
 
 class ModuleTransferAction(enum.Enum):
+    SET_LOGGER = "SET_LOGGER"
     MONITOR = "MONITOR"
+    REBOOT = "REBOOT"
     RESTART_APP = "RESTART_APP"
+    CONNECT_CAMERAS = "CONNECT_CAMERAS"
     START_GPS = "START_GPS"
     NAV = "NAV"
-    IMU = "IMU"
     ASK_FOR_NAV = "ASK_FOR_NAV"
     JAIZED_TIMESTAMPS = "JAIZED_TIMESTAMPS"
     JAIZED_TIMESTAMPS_AND_STOP = "JAIZED_TIMESTAMPS_AND_STOP"
@@ -101,6 +103,9 @@ class ModuleManager:
         self._process = Process(target=self.target, args=args, daemon=self.daemon, name=self.module_name.value)
         self.start(is_respawn=True)
 
+    def set_logger(self):
+        return self._process.is_alive()
+
     def is_alive(self):
         return self._process.is_alive()
 
@@ -120,18 +125,26 @@ class ModuleManager:
         self._process.start()
         self.pid = self._process.pid
         if is_respawn:
-            print(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
-            logging.info(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
+            tools.log(f"{self.module_name} PROCESS RESPAWNED - NEW PID: {self.pid}")
         else:
-            print(f"{self.module_name} PID: {self.pid}")
-            logging.info(f"{self.module_name} PID: {self.pid}")
+            tools.log(f"{self.module_name} PID: {self.pid}")
         return self.pid
 
     def join(self):
         self._process.join()
 
     def terminate(self):
-        os.kill(self.pid, signal.SIGTERM)
+        try:
+            os.kill(self.pid, signal.SIGTERM)
+        except:
+            tools.log(f"COULD NOT KILL MODULE {self.module_name}")
+
+    def force_kill(self):
+        try:
+            os.kill(self.pid, signal.SIGKILL)
+            tools.log(f"FORCE-KILL MODULE {self.module_name}")
+        except:
+            pass
 
 
 class Module:
@@ -140,7 +153,6 @@ class Module:
     main_pid, in_qu, out_qu, module_name = -1, None, None, None
     communication_queue = None
     shutdown_event = threading.Event()
-    shutdown_done_event = threading.Event()
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
@@ -157,19 +169,25 @@ class Module:
         signal.signal(signal.SIGTERM, shutdown_func)
 
     @staticmethod
-    def send_data(action, data, receiver, require_ack=False):
+    def send_data(action, data, receiver, log_option=tools.LogOptions.LOG):
         data = {
             "action": action,
-            "data": data
+            "data": data,
+            "log_option": log_option
         }
-        logging.info(f"SENDING DATA")
+        tools.log(f"SENDING DATA", log_option=log_option)
         try:
-            Module.communication_queue.put(Module.module_name, timeout=1)
-            Module.out_qu.put((data, receiver))
-        except queue.Full:
-            logging.warning("COMMUNICATION QUEUE IS FULL!")
-            return
-        # os.kill(Module.main_pid, signal.SIGUSR1)
+            try:
+                Module.communication_queue.put(Module.module_name, timeout=1)
+            except queue.Full:
+                tools.log("COMMUNICATION QUEUE IS FULL!", logging.WARNING)
+                return
+            try:
+                Module.out_qu.put((data, receiver), timeout=1)
+            except queue.Full:
+                tools.log("OUT QUEUE IS FULL!", logging.WARNING)
+        except:
+            tools.log("UNDETECTED PROBLEM IN send_data", log_level=logging.ERROR, exc_info=True)
 
     @staticmethod
     def receive_data():
@@ -178,8 +196,6 @@ class Module:
 
     @staticmethod
     def shutdown(sig, frame):
-        print(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
-        logging.warning(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}")
+        tools.log(f"SHUTDOWN RECEIVED IN PROCESS {Module.module_name}", logging.WARNING)
         Module.shutdown_event.set()
-        while not Module.shutdown_done_event.is_set():
-            time.sleep(5)
+        time.sleep(3)

@@ -3,5 +3,4 @@ GUI: false
 autonomous_acquisition: true
 customer_code: "MOTCHA"
 crop: citrus
-use_strace: false
 collect_data: true

@@ -5,6 +5,7 @@ from builtins import staticmethod
 import time
 from datetime import datetime, timedelta
 import signal
+import psutil
 import logging
 import boto3
 from botocore.config import Config
@@ -15,11 +16,13 @@ from botocore.exceptions import EndpointConnectionError
 from application.utils.settings import data_conf, conf, consts
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 import application.utils.tools as tools
+from application.utils.settings import set_logger
 import speedtest
 
 
 class DataManager(Module):
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
+    is_in_plot = False
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
@@ -62,77 +65,47 @@ class DataManager(Module):
 
         def jaized_timestamps():
             try:
-                input_length = len(data["JAI_frame_number"])
+                input_length = len(data[consts.JAI_frame_number])
                 data["row"] = [DataManager.current_row] * input_length
                 data["folder_index"] = [DataManager.current_index] * input_length
 
                 jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
-                jaized_timestamp_total_log_path = tools.get_jaized_timestamps_path()
+                jaized_timestamp_total_log_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
                 jaized_timestamp_log_df = pd.DataFrame(data)
 
                 _is_first = not os.path.exists(jaized_timestamp_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
+
                 _is_first = not os.path.exists(jaized_timestamp_total_log_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
             except:
-                logging.exception("JAIZED TIMESTAMP ERROR")
-                traceback.print_exc()
+                tools.log("JAIZED TIMESTAMP ERROR", logging.ERROR, exc_info=True)
+
+        def start_acquisition():
+            if DataManager.is_in_plot:
+                tools.log("START_ACQUISITION RECEIVED WHILE IN PLOT", log_level=logging.WARNING)
+            DataManager.is_in_plot = True
+            DataManager.previous_plot = DataManager.current_plot
+            DataManager.current_plot = data["plot"]
+            DataManager.current_row = data["row"]
+            DataManager.current_index = data["folder_index"]
+
+            DataManager.current_path = tools.get_path(
+                plot=DataManager.current_plot,
+                row=DataManager.current_row,
+                index=DataManager.current_index,
+                get_index_dir=True
+            )
 
         def stop_acquisition():
-            filename_csv = f"{consts.jaized_timestamps}.csv"
-            jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
-            jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by="JAI_frame_number")
-
-            jz_ts_key, nav_ts_key = "ZED_timestamp", "timestamp"
-
-            jaized_timestamp_log_df[jz_ts_key] = pd.to_datetime(
-                jaized_timestamp_log_df[jz_ts_key],
-                format=data_conf.timestamp_format
-            )
-
-            jz_earliest = jaized_timestamp_log_df[jz_ts_key].iloc[0]
-            jz_latest = jaized_timestamp_log_df[jz_ts_key].iloc[-1]
-
-            try:
-                DataManager.nav_df[nav_ts_key] = pd.to_datetime(
-                    DataManager.nav_df[nav_ts_key],
-                    format=data_conf.timestamp_format
-                )
-                nav_latest = DataManager.nav_df[nav_ts_key].iloc[-1]
-            except (IndexError, KeyError):
-                nav_latest = jz_latest - timedelta(seconds=5)
-            except:
-                logging.exception("UNKNOWN STITCHING ERROR")
-                nav_latest = jz_latest - timedelta(seconds=5)
-
-            if nav_latest < jz_latest - timedelta(seconds=3):
-                logging.warning(f"STITCHING PROBLEM AT {DataManager.current_plot}/{DataManager.current_row}")
+            if not DataManager.is_in_plot:
                 return
 
-            nav_ts = pd.to_datetime(DataManager.nav_df["timestamp"])
+            DataManager.is_in_plot = False
 
-            current_nav_df = DataManager.nav_df[(nav_ts <= jz_latest) & (nav_ts >= jz_earliest)].copy()
-            current_nav_df[nav_ts_key] = pd.to_datetime(
-                current_nav_df[nav_ts_key],
-                format=data_conf.timestamp_format
-            )
-
-            DataManager.nav_df = DataManager.nav_df[nav_ts >= jz_latest - timedelta(seconds=3)]
-
-            merged_df = pd.merge_asof(
-                left=jaized_timestamp_log_df,
-                right=current_nav_df,
-                left_on=jz_ts_key,
-                right_on=nav_ts_key,
-
-                direction="nearest",
-                tolerance=timedelta(seconds=3)
-            )
-
-            jaized_timestamp_log_df["GPS_timestamp"] = merged_df[nav_ts_key]
-            jaized_timestamp_log_df["latitude"] = merged_df["latitude"]
-            jaized_timestamp_log_df["longitude"] = merged_df["longitude"]
-            jaized_timestamp_log_df["plot"] = merged_df["plot"]
+            filename_csv = f"{consts.jaized_timestamps}.csv"
+            jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
+            jaized_timestamp_log_df = pd.read_csv(jaized_timestamps_csv_path).sort_values(by=consts.JAI_frame_number)
 
             if data_conf.use_feather:
                 filename_feather = f"{consts.jaized_timestamps}.feather"
@@ -140,6 +113,10 @@ class DataManager(Module):
                 jaized_timestamp_log_df.to_feather(jaized_timestamps_feather_path)
             else:
                 jaized_timestamp_log_df.to_csv(jaized_timestamps_csv_path, header=True, index=False)
+
+            disk_occupancy = psutil.disk_usage("/").percent
+            tools.log(f"DISK OCCUPANCY {disk_occupancy}%")
+            tools.log(f"DISK OCCUPANCY THRESHOLD {data_conf.max_disk_occupancy}%")
 
             if conf.collect_data:
                 today = datetime.now().strftime("%d%m%y")
@@ -152,37 +129,38 @@ class DataManager(Module):
                     "folder_index": [str(int(DataManager.current_index))],
                     "ext": [ext]
                 }
-                tmp_df = pd.DataFrame(data=collected_data, index=[0])
-                DataManager.collected_df = pd.concat([DataManager.collected_df, tmp_df], axis=0).drop_duplicates()
-                DataManager.collected_df.to_csv(data_conf.collected_path, mode="w", index=False, header=True)
 
-        while True:
+                tmp_collected_df = pd.DataFrame(data=collected_data, index=[0])
+                _is_first = not os.path.exists(data_conf.collected_path)
+                tmp_collected_df.to_csv(data_conf.collected_path, mode="a+", index=False, header=_is_first)
+
+            if disk_occupancy > data_conf.max_disk_occupancy:
+                time.sleep(1)
+                tools.log("RESTARTING TO PERFORM DISK CLEANUP")
+                DataManager.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
+
+        while not DataManager.shutdown_event.is_set():
             data, sender_module = DataManager.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.GPS:
                 if action == ModuleTransferAction.NAV:
                     # write GPS data to .nav file
-                    logging.info(f"WRITING NAV DATA TO FILE")
+                    tools.log(f"WRITING NAV DATA TO FILE", log_option=tools.LogOptions.LOG)
                     new_nav_df = pd.DataFrame(data)
                     DataManager.nav_df = pd.concat([DataManager.nav_df, new_nav_df], axis=0)
-                    nav_path = tools.get_nav_path()
+                    nav_path = tools.get_file_path(tools.FileTypes.nav)
                     is_first = not os.path.exists(nav_path)
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+                    jaized_timestamps()
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.FRUITS_DATA:
-                    logging.info(f"FRUIT DATA RECEIVED")
+                    tools.log(f"FRUIT DATA RECEIVED")
                     for k, v in data.items():
                         try:
                             DataManager.fruits_data[k] += v
                         except KeyError:
                             DataManager.fruits_data[k] = v
-                elif action == ModuleTransferAction.IMU:
-                    # write IMU data to .imu file
-                    logging.info(f"WRITING NAV DATA TO FILE")
-                    imu_path = tools.get_imu_path()
-                    imu_df = pd.DataFrame(data)
-                    is_first = not os.path.exists(imu_path)
-                    imu_df.to_csv(imu_path, header=is_first)
                 elif action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
                         _data_key = _name
@@ -203,12 +181,12 @@ class DataManager(Module):
 
                     customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
                     is_success = data["status"]
-                    logging.info(f"ANALYZED DATA ARRIVED: "
+                    tools.log(f"ANALYZED DATA ARRIVED: "
                                  f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
 
                     customer_code, plot_code, scan_date, row, folder_index, ext = list(data["row"])
                     is_success = data["status"]
-                    logging.info(f"ANALYZED DATA ARRIVED: "
+                    tools.log(f"ANALYZED DATA ARRIVED: "
                                  f"{data_conf.output_path}, {customer_code}, {plot_code}, {scan_date}, {row}")
 
                     if is_success:
@@ -238,27 +216,23 @@ class DataManager(Module):
                     analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
             elif sender_module == ModulesEnum.Acquisition:
                 if action == ModuleTransferAction.START_ACQUISITION:
-                    DataManager.previous_plot = DataManager.current_plot
-                    DataManager.current_plot = data["plot"]
-                    DataManager.current_row = data["row"]
-                    DataManager.current_index = data["folder_index"]
-
-                    DataManager.current_path = tools.get_path(
-                        plot=DataManager.current_plot,
-                        row=DataManager.current_row,
-                        index=DataManager.current_index,
-                        get_index_dir=True
-                    )
-                elif action == ModuleTransferAction.STOP_ACQUISITION or action == ModuleTransferAction.ACQUISITION_CRASH:
+                    start_acquisition()
+                elif action == ModuleTransferAction.STOP_ACQUISITION:
                     stop_acquisition()
-                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
-                    jaized_timestamps()
-                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
-                    jaized_timestamps()
+                elif action == ModuleTransferAction.ACQUISITION_CRASH:
+                    tools.log("HANDLING ACQUISITION CRASH")
                     stop_acquisition()
+                    tools.log("ACQUISITION CRASH HANDLING DONE")
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    DataManager.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    DataManager.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def update_output():
@@ -267,73 +241,130 @@ class DataManager(Module):
 
     @staticmethod
     def internet_scan():
-        while True:
+        last_nav_upload = time.time()
+        while not DataManager.shutdown_event.is_set():
             upload_speed_in_kbps = 0
             try:
                 upload_speed_in_bps = speedtest.Speedtest().upload()
                 upload_speed_in_kbps = upload_speed_in_bps / (1024 * 8)
-                logging.info(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
-                print(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
+                tools.log(f"INTERNET UPLOAD SPEED - {upload_speed_in_kbps} KB/s")
             except speedtest.SpeedtestException:
-                logging.info("NO INTERNET CONNECTION")
-                print("NO INTERNET CONNECTION")
+                tools.log("NO INTERNET CONNECTION")
             except Exception:
-                logging.exception("unknown handled exception: ")
+                tools.log("UNKNOWN HANDLED EXCEPTION: ", logging.ERROR, exc_info=True)
             t0 = time.time()
             if upload_speed_in_kbps > 10:
                 timeout = data_conf.upload_interval - 30
-                timeout = DataManager.upload_nav(upload_speed_in_kbps, timeout=timeout)
+
+                # upload nav file once every {nav_upload_interval} seconds
+                # if not uploaded successfully, keep trying every 5 minutes
+                now = time.time()
+                if (now - last_nav_upload) > data_conf.nav_upload_interval:
+                    is_successful, timeout = DataManager.upload_today_files(upload_speed_in_kbps, timeout=timeout)
+                    if is_successful:
+                        last_nav_upload = time.time()
+                else:
+                    print()
+                timeout = DataManager.upload_old_files(upload_speed_in_kbps, timeout=timeout)
                 DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
-                logging.info(f"INTERNET SCAN - END")
-                print(f"INTERNET SCAN - END")
+                tools.log(f"INTERNET SCAN - END")
             t1 = time.time()
             next_execution_time = max(10, data_conf.upload_interval - (t1 - t0))
             if DataManager.shutdown_event.wait(next_execution_time):
                 break
 
-        logging.info("INTERNET SCAN - FINISHED")
+        tools.log("INTERNET SCAN - FINISHED")
 
     @staticmethod
-    def upload_nav(upload_speed_in_kbps, timeout=10):
-        def _upload(_path, _s3_path):
-            _filename = os.path.basename(_path)
-            try:
-                _size_in_kb = os.path.getsize(_path) / 1024
-                if _size_in_kb >= upload_speed_in_kbps * timeout:
-                    logging.info(f"UPLOAD {_filename} - NOT ENOUGH TIME LEFT")
-                    return
-                # _s3_path = tools.get_nav_path(get_s3_path=True)
-                DataManager.s3_client.upload_file(_path, data_conf.upload_bucket_name, _s3_path)
-                logging.info(f"UPLOAD {_filename} TO S3 - SUCCESS")
-            except FileNotFoundError:
-                logging.info(f"UPLOAD {_filename} - FILE NOT EXIST")
-            except EndpointConnectionError:
-                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO INTERNET CONNECTION")
-            except S3UploadFailedError:
-                logging.warning(f"UPLOAD {_filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM")
-            except Exception:
-                logging.exception(f"UPLOAD {_filename} TO S3 - FAILED DUE TO AN ERROR - {_path}")
-                traceback.print_exc()
+    def upload_to_s3(path, s3_path, upload_speed_in_kbps, timeout, extension=None):
+        filename = os.path.basename(path)
+        try:
+            _size_in_kb = os.path.getsize(path) / 1024
+            if _size_in_kb >= upload_speed_in_kbps * timeout:
+                tools.log(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
+                return
+            DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name, s3_path)
+            if extension:
+                path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
+                os.rename(path, path_uploaded)
+            tools.log(f"UPLOAD {filename} TO S3 - SUCCESS")
+            return True
+        except FileNotFoundError:
+            tools.log(f"UPLOAD {filename} - FILE NOT EXIST")
+            return False
+        except EndpointConnectionError:
+            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO INTERNET CONNECTION", logging.WARNING)
+            return False
+        except S3UploadFailedError:
+            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM", logging.WARNING)
+            return False
+        except Exception:
+            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO AN ERROR - {path}", logging.ERROR, exc_info=True)
+            return False
+
+    @staticmethod
+    def upload_today_files(upload_speed_in_kbps, timeout=10):
+
+        tools.log("UPLOADING TODAY FILES")
+
+        nav_path, nav_s3_path = tools.get_file_path(
+            tools.FileTypes.nav,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_nav_folder
+        )
+
+        log_path, log_s3_path = tools.get_file_path(
+            tools.FileTypes.log,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_log_folder
+        )
+        jzts_path, jzts_s3_path = tools.get_file_path(
+            tools.FileTypes.jaized_timestamps,
+            with_s3_path=True,
+            s3_folder_name=consts.s3_jaized_folder
+        )
 
         t0 = time.time()
-        today_nav_path = tools.get_nav_path()
-        today_nav_s3_path = tools.get_nav_path(get_s3_path=True)
 
-        previous_nav_path = tools.get_previous_nav_path()
-        previous_nav_s3_path = tools.get_previous_nav_path(get_s3_path=True)
+        nav_is_successful = DataManager.upload_to_s3(nav_path, nav_s3_path, upload_speed_in_kbps, timeout)
+        log_is_successful = DataManager.upload_to_s3(log_path, log_s3_path, upload_speed_in_kbps, timeout)
+        jzts_is_successful = DataManager.upload_to_s3(jzts_path, jzts_s3_path, upload_speed_in_kbps, timeout)
 
-        _upload(today_nav_path, today_nav_s3_path)
-        if previous_nav_path:
-            _upload(previous_nav_path, previous_nav_s3_path)
+        is_successful = nav_is_successful and log_is_successful and jzts_is_successful
 
         t1 = time.time()
-        return max(timeout - (t1 - t0), 10)
+        timeout = max(timeout - (t1 - t0), 10)
+
+        return is_successful, timeout
+
+    @staticmethod
+    def upload_old_files(upload_speed_in_kbps, timeout=10):
+
+        tools.log("UPLOADING OLD FILES")
+
+        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
+        old_log_paths = tools.get_old_file_paths(tools.FileTypes.log)
+        old_jaized_timestamps_paths = tools.get_old_file_paths(tools.FileTypes.jaized_timestamps)
+
+        old_all = [(old_nav_paths, consts.nav_extension)] + \
+                  [(old_log_paths, consts.log_extension)] + \
+                  [(old_jaized_timestamps_paths, consts.log_extension)]
+
+        for old_list in old_all:
+            old_paths, ext = old_list
+            for local_path, s3_path in old_paths:
+                t0 = time.time()
+                tools.log(f"TRYING TO UPLOAD {os.path.basename(local_path)}")
+                DataManager.upload_to_s3(local_path, s3_path, upload_speed_in_kbps, timeout, extension=ext)
+                t1 = time.time()
+                timeout = max(timeout - (t1 - t0), 3)
+
+        return max(timeout, 10)
 
     @staticmethod
     def scan_analyzed(upload_speed_in_kbps, scan_timeout):
 
-        logging.info("START SCANNING ANALYZED FILES")
-        print("START SCANNING ANALYZED FILES")
+        tools.log("START SCANNING ANALYZED FILES")
         t_scan_start = time.time()
 
         def upload_analyzed(timeout_before, analyzed_group):
@@ -362,53 +393,52 @@ class DataManager(Module):
                 folder_name = os.path.join(_customer_code, _plot_code, _scan_date, row, folder_index)
                 folder_path = os.path.join(data_conf.output_path, folder_name)
                 ext = "csv"
-                # TODO: modify the 'collected', 'analyzed' and 'uploaded' to contain the file type (csv / feather)
+
                 tracks_path = os.path.join(folder_path, f"{consts.tracks}.{ext}")
-                tracks_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.tracks}.{ext}")
+                tracks_s3_path = tools.s3_path_join(folder_name, f"{consts.tracks}.{ext}")
 
                 alignment_path = os.path.join(folder_path, f"{consts.alignment}.{ext}")
-                alignment_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.alignment}.{ext}")
+                alignment_s3_path = tools.s3_path_join(folder_name, f"{consts.alignment}.{ext}")
 
                 timestamps_path = os.path.join(folder_path, f"{consts.jaized_timestamps}.{ext}")
-                timestamps_s3_path = tools.create_s3_upload_path(folder_name, f"{consts.jaized_timestamps}.{ext}")
+                timestamps_s3_path = tools.s3_path_join(folder_name, f"{consts.jaized_timestamps}.{ext}")
 
                 try:
                     data_size_in_kb = get_data_size(tracks_path, alignment_path, timestamps_path)
-                    logging.info(f"TRYING TO UPLOAD {folder_name}")
+                    tools.log(f"TRYING TO UPLOAD {folder_name}")
                     if data_size_in_kb >= upload_speed_in_kbps * timeout:
-                        logging.info(f"UPLOAD {folder_name} - NOT ENOUGH TIME LEFT")
+                        tools.log(f"UPLOAD {folder_name} - NOT ENOUGH TIME LEFT")
                         continue
                     DataManager.s3_client.upload_file(tracks_path, data_conf.upload_bucket_name, tracks_s3_path)
                     DataManager.s3_client.upload_file(alignment_path, data_conf.upload_bucket_name, alignment_s3_path)
                     DataManager.s3_client.upload_file(timestamps_path, data_conf.upload_bucket_name, timestamps_s3_path)
                     add_to_dict(_uploaded_indices, row, folder_index)
                     add_to_dict(_uploaded_extensions, row, ext)
-                    logging.info(f"UPLOAD {folder_name} - SUCCESS")
+                    tools.log(f"UPLOAD {folder_name} - SUCCESS")
                 except TimeoutError:
-                    print("timeout error")
+                    tools.log("timeout error")
                     break
                 except FileNotFoundError:
-                    logging.warning(f"UPLOAD TO S3 - MISSING INDEX - {folder_name} - MARKED AS FAILED")
+                    tools.log(f"UPLOAD TO S3 - MISSING INDEX - {folder_name} - MARKED AS FAILED", logging.WARNING)
                     add_to_dict(_failed_indices, row, folder_index)
-                    print(f"UPLOAD TO S3 - MISSING INDEX - {folder_name} - MARKED AS FAILED")
                     break
                 except EndpointConnectionError:
-                    logging.warning(f"UPLOAD TO S3 - FAILED DUE TO INTERNET CONNECTION  - {folder_name}")
-                    print(f"UPLOAD TO S3 - FAILED DUE TO INTERNET CONNECTION  - {folder_name}")
+                    tools.log(f"UPLOAD TO S3 - FAILED DUE TO INTERNET CONNECTION  - {folder_name}", logging.WARNING)
                     break
                 except S3UploadFailedError:
-                    logging.warning(f"UPLOAD TO S3 - FAILED DUE TO S3 RELATED PROBLEM  - {folder_name}")
-                    print(f"UPLOAD TO S3 - FAILED DUE TO S3 RELATED PROBLEM  - {folder_name}")
+                    tools.log(f"UPLOAD TO S3 - FAILED DUE TO S3 RELATED PROBLEM  - {folder_name}", logging.WARNING)
                     break
                 except Exception:
-                    logging.exception(f"UPLOAD TO S3 - FAILED DUE TO AN ERROR - {folder_name}")
-                    traceback.print_exc()
+                    tools.log(f"UPLOAD TO S3 - FAILED DUE TO AN ERROR - {folder_name}", logging.ERROR, exc_info=True)
                     break
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
-                logging.warning(f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}")
+                tools.log(
+                    f"NEGATIVE TIMEOUT IN upload_analyzed. BEFORE: {timeout_before} AFTER {timeout_after}",
+                    log_level=logging.WARNING
+                )
             timeout_after = max(10, timeout_after)
             return _customer_code, _plot_code, _scan_date, _uploaded_indices, _uploaded_extensions, _failed_indices, \
                 timeout_after
@@ -440,21 +470,21 @@ class DataManager(Module):
                     "output types": ['FSI']
                 }
 
-                print("request sent")
-                logging.info(f"REQUEST SENT - {_plot_code}: {_uploaded_indices}")
+                tools.log(f"REQUEST SENT - {_plot_code}: {_uploaded_indices}")
                 response = requests.post(data_conf.service_endpoint, json=request_data, headers=headers,
                                          timeout=timeout)
                 _response_ok = response.ok
                 if _response_ok:
-                    print("request success")
+                    tools.log(f"REQUEST SUCCESS - {_plot_code}: {_uploaded_indices}")
                     _uploaded_dict = {
                         "customer_code": [], "plot_code": [], "scan_date": [], "row": [], "folder_index": [],
                         "status": []
                     }
                     add_row_to_dict(_uploaded_dict, _uploaded_indices, consts.success)
                     is_first = not os.path.exists(data_conf.uploaded_path)
-                    pd.DataFrame(_uploaded_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False,
-                                                        header=is_first)
+                    _uploaded_df = pd.DataFrame(_uploaded_dict)
+                    _uploaded_df.to_csv(data_conf.uploaded_path, mode='a+', index=False,
+                                        header=is_first)
             else:
                 _response_ok = False
 
@@ -463,12 +493,16 @@ class DataManager(Module):
             }
             add_row_to_dict(_failed_dict, _failed_indices, consts.failed)
             is_first = not os.path.exists(data_conf.uploaded_path)
-            pd.DataFrame(_failed_dict).to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
+            _failed_df = pd.DataFrame(_failed_dict)
+            _failed_df.to_csv(data_conf.uploaded_path, mode='a+', index=False, header=is_first)
 
             t_delta = time.time() - t0
             timeout_after = timeout_before - t_delta
             if timeout_after <= 0:
-                logging.warning(f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}")
+                tools.log(
+                    f"NEGATIVE TIMEOUT IN send_request. BEFORE: {timeout_before} AFTER {timeout_after}",
+                    log_level=logging.WARNING
+                )
             timeout_after = max(10, timeout_after)
             return timeout_after, _response_ok
 
@@ -506,7 +540,10 @@ class DataManager(Module):
         analyzed_groups = analyzed_not_uploaded.groupby(["customer_code", "plot_code", "scan_date"])
         timeout = scan_timeout - t_delta
         if timeout <= 0:
-            logging.warning(f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout}")
+            tools.log(
+                f"NEGATIVE TIMEOUT IN UPLOAD. BEFORE: {scan_timeout} AFTER {timeout}",
+                log_level=logging.WARNING
+            )
         timeout = max(10, timeout)
 
         for _, analyzed_gr in analyzed_groups:
@@ -516,5 +553,5 @@ class DataManager(Module):
                 timeout, response_ok = send_request(timeout, customer_code, plot_code, scan_date,
                                                     uploaded_indices, uploaded_extensions, failed_indices)
             except:
-                traceback.print_exc()
+                tools.log("", logging.ERROR, exc_info=True)
                 break
