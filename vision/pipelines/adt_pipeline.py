@@ -7,6 +7,7 @@ import numpy as np
 import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
+import pickle
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
@@ -22,7 +23,7 @@ from vision.tools.camera import batch_is_saturated
 from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_cams, get_frame_drop
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
-
+from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 
 def run(cfg, args, metadata=None):
 
@@ -32,18 +33,16 @@ def run(cfg, args, metadata=None):
     print(f'Inferencing on {args.jai.movie_path}\n')
 
     frame_drop_jai = get_frame_drop(args)
-    n_frames = get_number_of_frames(adt.jai_cam.get_number_of_frames(), metadata)
+    n_frames = len(adt.frames_loader.sync_jai_ids)
 
     f_id = 0
 
     pbar = tqdm(total=n_frames)
     while f_id < n_frames:
         pbar.update(adt.batch_size)
-        zed_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
-        #zed_frame, point_cloud, fsi_ret, jai_frame, rgb_ret, rgb_jai_frame = adt.get_frames(f_id)
+        zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
-        #if not fsi_ret or not adt.zed_cam.res or not rgb_ret:  # couldn't get frames, Break the loop
-             #break
+
         rgb_stauts, rgb_detailed = adt.is_saturated(rgb_batch, f_id)
         zed_stauts, zed_detailed = adt.is_saturated(zed_batch, f_id)
         if rgb_stauts or zed_stauts:
@@ -51,11 +50,9 @@ def run(cfg, args, metadata=None):
                 if f_id + i in frame_drop_jai:
                      adt.sensor_aligner.zed_shift += 1
              f_id += adt.batch_size
+             adt.logger.iterations += 1
              continue
 
-         # align sensors
-        # corr, tx_a, ty_a, sx, sy = adt.align_cameras(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
-        #                                                            rgb_jai_frame)
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
         # detect:
@@ -67,10 +64,15 @@ def run(cfg, args, metadata=None):
         # track:
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
 
+        # depth:
+        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
+        trk_outputs = append_to_trk(trk_outputs, depth_results)
+
         #collect results:
         results_collector.collect_detections(det_outputs, f_id)
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
+        results_collector.collect_jai_translation(translation_results, f_id)
 
 #        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
 
@@ -78,14 +80,13 @@ def run(cfg, args, metadata=None):
         adt.logger.iterations += 1
 
     pbar.close()
-    adt.zed_cam.close()
-    adt.jai_cam.close()
-    adt.rgb_jai_cam.close()
+    adt.frames_loader.zed_cam.close()
+    adt.frames_loader.jai_cam.close()
+    adt.frames_loader.rgb_jai_cam.close()
+    adt.frames_loader.depth_cam.close()
     adt.dump_log_stats(args)
 
-    results_collector.dump_feature_extractor(args.output_folder)
-
-    update_metadata(metadata)
+    update_metadata(metadata, args)
 
     return results_collector
 
@@ -97,8 +98,7 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
-        self.zed_cam, self.rgb_jai_cam, self.jai_cam = init_cams(args)
+        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
         self.batch_size = cfg.batch_size
 
 
@@ -106,11 +106,10 @@ class Pipeline():
         try:
             name = self.frames_loader.get_frames.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.frames_loader.get_frames(f_id, self.sensor_aligner.zed_shift)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
 
             return output
@@ -119,21 +118,20 @@ class Pipeline():
             raise
 
 
-    def is_saturated(self, frame, f_id, percentile=0.6, cam_name='JAI'):
+    def is_saturated(self, frame, f_id, percentile=0.4, cam_name='JAI'):
         try:
             name = batch_is_saturated.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             status, detailed = batch_is_saturated(frame, percentile=percentile)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
             if status:
                 if len(detailed) == 1:
-                    self.logger.info(f'Frame {f_id} is saturated, skipping')
+                    self.logger.debug(f'Frame {f_id} is saturated, skipping')
                 else:
-                    self.logger.info(f'Batch starting with frame {f_id} is saturated, skipping')
+                    self.logger.debug(f'Batch starting with frame {f_id} is saturated, skipping')
 
             return status, detailed
         except:
@@ -145,11 +143,11 @@ class Pipeline():
         try:
             name = self.detector.detect.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.detector.detect(frames)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -162,11 +160,11 @@ class Pipeline():
         try:
             name = self.detector.track.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.detector.track(inputs, translations, f_id)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -179,13 +177,13 @@ class Pipeline():
         try:
             name = self.translation.get_translation.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.translation.batch_translation(frames, det_outputs)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
             for res in output:
-                self.logger.info(f"JAI X translation {res[0]}, Y translation {res[1]}")
+                self.logger.debug(f"JAI X translation {res[0]}, Y translation {res[1]}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -201,14 +199,14 @@ class Pipeline():
         try:
             name = self.sensor_aligner.align_sensors.__name__
             s = time.time()
-            self.logger.info(f"Function {name} started")
+            self.logger.debug(f"Function {name} started")
             output = self.sensor_aligner.align_on_batch(zed_batch, rgb_jai_batch)
             # corr, tx_a, ty_a, sx, sy, kp_zed, kp_jai, match, st, M = self.sensor_aligner.align_sensors(cv2.cvtColor(zed_frame, cv2.COLOR_BGR2RGB),
             #                                                                                            rgb_jai_frame)
-            self.logger.info(f"Function {name} ended")
+            self.logger.debug(f"Function {name} ended")
             e = time.time()
-            self.logger.info(f"Function {name} execution time {e - s:.3f}")
-            self.logger.info(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
+            self.logger.debug(f"Function {name} execution time {e - s:.3f}")
+            self.logger.debug(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -290,11 +288,63 @@ def get_number_of_frames(jai_max_frames, metadata=None):
 
     return n_frames
 
-def update_metadata(metadata):
+def update_metadata(metadata, args):
     if metadata is None:
         metadata = {}
     metadata["align_detect_track"] = False
     write_metadata(args, metadata)
+
+def get_depth_to_bboxes(depth_frame, jai_frame, cut_coords, dets, factor = 8 / 255):
+    """
+    Retrieves the depth to each bbox
+    Args:
+        xyz_frame (np.array): a Point cloud image
+        jai_frame (np.array): FSI image
+        cut_coords (tuple): jai in zed coords
+        dets (list): list of detections
+        pc (bool): flag for returning the entire x,y,z
+        dims (bool): flag for returning the real width and height
+
+    Returns:
+        z_s (list): list with depth to each detection
+    """
+    depth_frame = depth_frame * factor
+    cut_coords = dict(zip(["x1", "y1", "x2", "y2"], [[int(cord)] for cord in cut_coords]))
+    depth_frame_aligned = cut_zed_in_jai({"zed": depth_frame}, cut_coords, rgb=False)["zed"]
+    r_h, r_w = depth_frame_aligned.shape[0] / jai_frame.shape[0], depth_frame_aligned.shape[1] / jai_frame.shape[1]
+    output = []
+    for det in dets:
+        box = ((int(det[0] * r_w), int(det[1] * r_h)), (int(det[2] * r_w), int(det[3] * r_h)))
+        output.append(depth_center_of_box(depth_frame_aligned, box))
+    return output
+
+def get_depth_to_bboxes_batch(xyz_batch, jai_batch, batch_aligment, dets):
+    """
+    Retrieves the depth to each bbox in the batch
+    Args:
+        xyz_batch (np.array): batch a Point cloud image
+        jai_batch (np.array): batch of FAI images
+        dets (list): batch of list of detections per image
+
+    Returns:
+        z_s (list): list of lists with depth to each detection
+    """
+    cut_coords = []
+    for a in batch_aligment:
+        cut_coords.append(a[0])
+    n = len(xyz_batch)
+    return list(map(get_depth_to_bboxes, xyz_batch, jai_batch, cut_coords, dets))
+
+
+def append_to_trk(trk_batch_res, results):
+    for frame_res, frame_depth in zip(trk_batch_res, results):
+        for trk, depth in zip(frame_res, frame_depth):
+            trk.append(np.round(depth, 3))
+
+    return trk_batch_res
+
+
+
 
 
 
@@ -308,4 +358,5 @@ if __name__ == "__main__":
     validate_output_path(args.output_folder)
     #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
-    run(cfg, args)
+    rc = run(cfg, args)
+    rc.dump_feature_extractor(args.output_folder)

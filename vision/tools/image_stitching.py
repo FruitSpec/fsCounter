@@ -26,6 +26,63 @@ def keep_dets_only(frame, detections, margin = 0.5):
 
     return canvas
 
+
+def plot_2_imgs(img1, img2, title="", save_to="", save_only=False, cv2_save=False, quick_save=False):
+    if quick_save:
+        buffer = np.zeros((img1.shape[0], 10, 3), dtype=np.uint8)
+        concatenated = np.concatenate((img1, buffer, img2), axis=1)
+        concatenated = cv2.cvtColor(concatenated, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(save_to, concatenated)
+        return
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+    ax1.imshow(img1)
+    ax2.imshow(img2)
+
+    ax_1_range_x = np.arange(0, img1.shape[1], 25)
+    ax_1_range_y = np.arange(0, img1.shape[0], 25)
+    ax1.set_xticks(ax_1_range_x[::4])
+    ax1.set_yticks(ax_1_range_y[::4])
+    ax1.set_xticklabels(ax_1_range_x[::4])
+    ax1.set_yticklabels(ax_1_range_y[::4])
+    ax1.set_xticks(ax_1_range_x, minor=True)
+    ax1.set_yticks(ax_1_range_y, minor=True)
+
+    ax_2_range_x = np.arange(0, img2.shape[1], 25)
+    ax_2_range_y = np.arange(0, img2.shape[0], 25)
+    ax2.set_xticks(ax_2_range_x[::4])
+    ax2.set_yticks(ax_2_range_y[::4])
+    ax2.set_xticklabels(ax_2_range_x[::4])
+    ax2.set_yticklabels(ax_2_range_y[::4])
+    ax2.set_xticks(ax_2_range_x, minor=True)
+    ax2.set_yticks(ax_2_range_y, minor=True)
+
+    plt.title(title)
+    if save_to != "":
+        if cv2_save:
+            fig.canvas.draw()
+            buf = fig.canvas.buffer_rgba()
+            arr = np.asarray(buf)
+
+            # Convert the array to an OpenCV image
+            bgr_image = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+
+            # Save the image to a file
+            cv2.imwrite(save_to, bgr_image)
+        else:
+            plt.savefig(save_to)
+    if save_only:
+        plt.close()
+        return
+    plt.show()
+
+
+def load_color_img(file_path):
+    img = cv2.imread(file_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    return img
+
+
 def get_ECCtranslation(img1, img2, number_of_iterations=10000, termination_eps=1e-10):
 
     # Define termination criteria
@@ -197,6 +254,13 @@ def find_keypoints(img, matcher=None):
 
     return kp, des
 
+def find_keypoints_cuda(img_GPU, matcher_GPU=None):
+    if matcher_GPU is None:
+        matcher_GPU = cv2.cuda.SURF_CUDA_create(300)#300,_nOctaveLayers=2)
+    kpGPU, desGPU = matcher_GPU.detectWithDescriptors(img_GPU, None)
+    kp = cv2.cuda_SURF_CUDA.downloadKeypoints(matcher_GPU, kpGPU)
+
+    return kp, desGPU
 
 def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     FLANN_INDEX_KDTREE = 1
@@ -220,6 +284,34 @@ def match_descriptors(des1, des2, min_matches=10, threshold=0.7):
     return match, matches, matchesMask
 
 
+def match_descriptors_cuda(des1, des2, stream, threshold=0.7, matcherGPU=None):
+    if matcherGPU is None:
+        matcherGPU = cv2.cuda.DescriptorMatcher_createBFMatcher(cv2.NORM_L2)
+
+    try:
+        results = matcherGPU.knnMatchAsync(des1, des2, k=2, stream=stream)
+        matches = matcherGPU.knnMatchConvert(results)
+    except:
+        Warning('matcherGPU.knnMatch collapsed, return empty matches')
+        matches = []
+    # store all the good matches as per Lowe's ratio test.
+    match = []
+    matchesMask = [[0, 0] for i in range(len(matches))]
+    id = 0
+    #for m, n in matches:
+    for i in range(matches.__len__()):
+        if matches[i].__len__() < 2:
+            matches = []
+            matchesMask = [[0, 0] for j in range(len(matches))]
+            break
+        m, n = matches[i]
+        if m.distance < threshold * n.distance:
+            match.append(m)
+            matchesMask[id] = [1, 0]
+        id += 1
+    return match, matches, matchesMask
+
+
 def calc_affine_transform(kp1, kp2, match, ransac):
     dst_pts = np.float32([kp1[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
     src_pts = np.float32([kp2[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
@@ -227,7 +319,7 @@ def calc_affine_transform(kp1, kp2, match, ransac):
     if dst_pts.__len__() > 0  and src_pts.__len__() > 0:  # not empty - there was a match
         M, status = cv2.estimateAffine2D(src_pts, dst_pts, ransacReprojThreshold=ransac)
     else:
-        M, status = None, [0]
+        M, status = None, []
 
 
     return M, status
@@ -244,11 +336,13 @@ def affine_to_values(M):
     ty = np.round(M[1, 2]).astype(np.int)
     return tx, ty, sx, sy
 
-def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20, fixed_scaling=False):
+def get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, ransac=20):
     match, _, _ = match_descriptors(des_zed, des_jai) # more than 90$ of time
     M, st = calc_affine_transform(kp_zed, kp_jai, match, ransac)
 
     return M, st, match
+
+
 
 
 def calc_homography(kp1, kp2, match):
@@ -476,6 +570,22 @@ def resize_img(input_, size):
     ).astype(np.uint8)
 
     return resized_img, r
+
+def resize_img_cuda(input_GPU, size, stream):
+    r = min(size / input_GPU.size()[0], size / input_GPU.size()[1])
+    output_GPU = cv2.cuda.resize(input_GPU, (int(input_GPU.size()[0] * r),
+                                             int(input_GPU.size()[1] * r)),
+                                 interpolation=cv2.INTER_CUBIC,
+                                 stream=stream)
+
+    return output_GPU, r
+
+
+def draw_matches(img1, kp1, img2, kp2, match, status, draw_output, id_):
+    if np.sum(status) > 0:
+        out_img = cv2.drawMatches(img1, kp1, img2, kp2, np.array(match)[status.reshape(-1).astype(np.bool_)],
+                                  None, (255, 0, 0), (0, 0, 255), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imwrite(os.path.join(draw_output, f"alignment_f{id_}.jpg"), out_img)
 
 if __name__ == "__main__":
     #fp = r'C:\Users\Matan\Documents\Projects\Data\Slicer\wetransfer_ra_3_a_10-zip_2022-08-09_0816\15_20_A_16\15_20_A_16'

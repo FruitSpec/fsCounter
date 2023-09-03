@@ -1,0 +1,10 @@
+upload_bucket_name: fsCounter
+counter_number: 4
+logs_path: "~/Desktop/counter_logs/"
+log_name: "log"
+GUI: false
+autonomous_acquisition: true
+customer_code: "MOTCHA"
+crop: citrus
+use_strace: false
+collect_data: true

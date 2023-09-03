@@ -11,7 +11,7 @@ from matplotlib.lines import Line2D
 from vision.misc.help_func import get_repo_dir, validate_output_path
 from vision.data.results_collector import ResultsCollector
 from vision.pipelines.adt_pipeline import run as adt_run
-from vision.pipelines.fe_pipeline import run as fe_run
+#from vision.pipelines.fe_pipeline import run as fe_run
 from vision.pipelines.ops.simulator import update_arg_with_metadata, get_jai_drops, get_max_cut_frame, load_logs
 from vision.pipelines.ops.simulator import init_cams
 from vision.pipelines.ops.debug_methods import plot_alignmnt_graph, draw_on_tracked_imgaes
@@ -48,14 +48,14 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
         # perform align -> detect -> track
         if align_detect_track or args.overwrite.adt:
             rc = adt_run(cfg, run_args, metadata)
-            adt_slice_postprocess(run_args, rc, slice_data_zed, slice_data_jai, all_slices_path)
+            #adt_slice_postprocess(run_args, rc, slice_data_zed, slice_data_jai, all_slices_path)
             if run_args.debug.align_graph:
                 frame_drop_jai = get_jai_drops(run_args.frame_drop_path)
                 plot_alignmnt_graph(run_args, rc, frame_drop_jai)
 
         # perform features extraction
-        if tree_features or run_args.overwrite.trees:
-            fe_run(run_args)
+        #if tree_features or run_args.overwrite.trees:
+        #    fe_run(run_args)
 
 def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_jai, all_slices_path):
 
@@ -466,16 +466,16 @@ if __name__ == "__main__":
     # run_multi_block(customer_path, skip_blocks=skip_blocks_2, sides=[])
 
 
-    block_path = "/media/fruitspec-lab-3/cam172/customers/DEWAGD/190123/DWDBLE33"
-    output_path = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/DWDB_branch_refactor_test/1"
+    block_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor/data"
+    output_path = "/home/mic-730ai/fruitspec/test_data/validate_refactor"
 
     validate_output_path(output_path)
     # TODO add logic for non json calibraion (all_slices.csv)
     input_dict_a = {}
     input_dict_a = create_input(block_path, output_path, row_list=get_rows_with_slicing(block_path))
     input_dict_b = {}
-    # input_dict_b = create_input(block_path, output_path, side=2, row_list=get_rows_with_slicing(block_path))
+    input_dict_b = create_input(block_path, output_path, side=2, row_list=get_rows_with_slicing(block_path))
 
-    exclude = []
+    exclude = ['R2B', 'R3A', 'R3B', 'R4A', 'R4B', 'R5A', 'RBA']
     run_on_rows({**input_dict_a, **input_dict_b}, exclude)
 

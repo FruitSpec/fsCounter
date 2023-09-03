@@ -179,12 +179,10 @@ def main(exp, args, num_gpu):
         assert (
             not args.fuse and not is_distributed and args.batch_size == 1
         ), "TensorRT model is not support model fusing and distributed inferencing!"
-        trt_file = os.path.join(file_name, "model_trt.pth")
-        assert os.path.exists(
-            trt_file
-        ), "TensorRT model is not found!\n Run tools/trt.py first!"
+
         model.head.decode_in_inference = False
         decoder = model.head.decode_outputs
+        trt_file = args.ckpt
     else:
         trt_file = None
         decoder = None

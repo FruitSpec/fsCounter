@@ -20,17 +20,37 @@ class ResultsCollector():
     def __init__(self, rotate=False):
 
         self.detections = []
+        self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
         self.tracks = []
+        self.tracks_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame_id", "depth"]
         self.results = []
         self.file_names = []
         self.file_ids = []
         self.rotate = rotate
         self.alignment = []
+        self.alignment_header = ["x1", "y1", "x2", "y2", "tx", "ty", "frame", "zed_shift"]
+        self.jai_translation = []
+        self.jai_translation_header = ["tx", "ty", "frame"]
         self.jai_zed = {}
         self.trees = {}
         self.hash = {}
         self.jai_width = 1536
         self.jai_height = 2048
+        self.percent_seen = {}
+
+
+    def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
+        self.collect_tracks(trk_outputs)
+        self.collect_alignment(alignment_results, f_id)
+        self.collect_percent_seen(percent_seen, f_id)
+        self.collect_jai_translation(jai_translation_results, f_id)
+
+    def collect_jai_translation(self, jai_translation_results, f_id):
+        if not jai_translation_results:
+            return
+        for i, translations in enumerate(jai_translation_results):
+            self.jai_translation.append(list(translations) + [f_id+i])
+
 
     def collect_detections(self, batch_results, img_id):
         for i, detection_results in enumerate(batch_results):
@@ -40,6 +60,7 @@ class ResultsCollector():
                     det.append(img_id + i)
                     output.append(det)
                 self.detections += output
+
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -117,17 +138,21 @@ class ResultsCollector():
 
     def dump_to_csv(self, output_file_path, type='detections'):
         if type == 'detections':
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "image_id", "class_pred"]
+            fields = self.detections_header
             rows = self.detections
+        elif type == "jai_translations":
+            fields = self.jai_translation_header
+            rows = self.jai_translation
         elif type == 'measures':
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame", "cluster", "height",
                       "width", "color", "color_std"]
             rows = self.results
         elif type == "alignment":
-            pd.DataFrame.from_records(self.alignment).to_csv(output_file_path)
-            return
+            fields = self.alignment_header
+            rows = self.alignment
+
         else:
-            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "track_id", "frame"]
+            fields = self.tracks_header
             rows = self.tracks
         with open(output_file_path, 'w') as f:
             # using csv.writer method from CSV package
@@ -216,6 +241,11 @@ class ResultsCollector():
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
 
+    def draw_and_save_batch(self, batch_frame, batch_dets, f_id, output_path, t_index=6):
+
+        for id_ in range(len(batch_frame)):
+            self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
+
     def draw_dets(self, frame, dets, t_index=6):
 
         for det in dets:
@@ -276,18 +306,15 @@ class ResultsCollector():
         cv2.imwrite(os.path.join(args.output_folder, 'windows', f"windows_frame_{f_id}.jpg"), canvas)
 
     def collect_alignment(self, alignment_results, f_id):
-        for r in alignment_results:
+        for i, r in enumerate(alignment_results):
             x1, y1, x2, y2 = r[0]
             tx = r[1]
             ty = r[2]
-            sx = r[3]
-            sy = r[4]
-            zed_shift = r[5]
+            zed_shift = r[3]
             tx = tx if not np.isnan(tx) else 0
             ty = ty if not np.isnan(ty) else 0
-            self.alignment.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2,
-                                    "tx": int(tx), "ty": int(ty), "sx": sx, "sy": sy, "frame": f_id, "zed_shift": zed_shift})
-            self.jai_zed[f_id] = f_id + zed_shift
+            self.alignment.append([x1, y1, x2, y2, int(tx), int(ty), f_id + i, zed_shift])
+            self.jai_zed[f_id + i] = (f_id + i) + zed_shift
 
         pass
 
@@ -356,7 +383,7 @@ class ResultsCollector():
         """
         trees = sliced_df["tree_id"].unique()
         slicer_results = get_slicer_data(sliced_df, self.jai_width, tree_id=-1)
-        aligemnet_df = pd.DataFrame.from_records(self.alignment)
+        aligemnet_df = pd.DataFrame(self.alignment, columns=self.alignment_header)
         cvs = []
         res_df = pd.DataFrame([])
         for tree in tqdm(trees):

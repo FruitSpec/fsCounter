@@ -1,0 +1,2 @@
+GUI_server_port: 5000
+GUI_startup_script: "npm run dev --prefix application/GUI/JAI-Operator-client"

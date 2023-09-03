@@ -129,9 +129,9 @@ if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
 
-    args.exp_file = "/home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py"
+    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_trees_debug_lihi.py"
     args.batch_size = 16
-    args.experiment_name = 'Run_1_8_oct_2022'
+    args.experiment_name = 'trees_lihi_debug_040723'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
     args.ckpt = '/home/fruitspec-lab/FruitSpec/weights/pre_trained/yolox_tiny.pth'

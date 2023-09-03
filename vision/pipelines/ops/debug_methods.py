@@ -1,8 +1,6 @@
 import os
 import numpy as np
 import cv2
-import matplotlib as mpl
-mpl.use('TkAgg')
 import matplotlib.pyplot as plt
 
 
@@ -32,6 +30,8 @@ def plot_alignmnt_graph(args, results_collector, frame_drop_jai, show=True):
     plt.savefig(f"{args.output_folder}_{run_type}_graph.png")
     if show:
         plt.show()
+    else:
+        plt.close()
 
 
 def draw_on_tracked_imgaes(args, slice_df, filtered_trees, jai_cam, results_collector):

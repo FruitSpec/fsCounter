@@ -6,22 +6,40 @@ import copy
 
 class video_wrapper():
 
-    def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5):
+    def __init__(self, filepath, rotate=0, depth_minimum=0.1, depth_maximum=2.5, channels=3):
         if 'svo' in filepath.split('.')[-1]:
             self.mode = 'svo'
             self.cam, self.runtime = self.init_cam(filepath, depth_minimum, depth_maximum)
             self.mat = sl.Mat()
             self.res = None
 
-
         else:
             self.mode = 'other'
-            self.cam = cv2.VideoCapture(filepath)
+            self.cam = self.init_video_capture(filepath, channels)
             self.runtime = None
             self.mat = None
             self.res = None
+        self.channels = channels
         self.to_rotate = rotate
         self.rotation = self.get_rotation(rotate)
+
+
+    @staticmethod
+    def init_video_capture(filepath, channels):
+        cuda_supported = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False  # indicate that opencv compiled localy
+        if cuda_supported:
+            if channels == 3:
+                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! nvv4l2decoder ! video/x-raw(memory:NVMM),format=NV12 ! nvvidconv ! video/x-raw,format=BGRx ! appsink"
+            else: # 1 channel - grayscale
+                pipeline = f"filesrc location={filepath} ! matroskademux ! h265parse ! omxh265dec ! videoconvert ! video/x-raw,format=BGRx ! appsink"
+            cam = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+            if not cam.isOpened():
+                print('gstreamer pipline for camera not opened. using opencv')
+                cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+        else:
+            cam = cv2.VideoCapture(filepath, cv2.CAP_FFMPEG)
+
+        return cam
 
     @staticmethod
     def get_rotation(rotate):
@@ -49,7 +67,7 @@ class video_wrapper():
             Warning('Grab Not implemented for file type')
 
 
-    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False):
+    def get_zed(self, frame_number=None, exclude_depth=False, exclude_point_cloud=False, far_is_black = True, blur = True):
 
         if self.mode != 'svo':
             Warning('Not implemented for file type')
@@ -60,7 +78,7 @@ class video_wrapper():
             _, frame = self.get_frame()
 
             if exclude_point_cloud:
-                depth = self.get_depth()
+                depth = self.get_depth(far_is_black, blur)
                 return frame, depth
 
             elif exclude_depth:
@@ -68,7 +86,7 @@ class video_wrapper():
                 return frame, point_cloud
 
             else:
-                depth = self.get_depth()
+                depth = self.get_depth(far_is_black, blur)
                 point_cloud = self.get_point_cloud()
                 return frame, depth, point_cloud
 
@@ -86,24 +104,36 @@ class video_wrapper():
             if frame_number is not None:
                 self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
             ret, frame = self.cam.read()
+            if self.channels == 3:
+                frame = frame[:, :, :3].copy()
 
         if ret:
             frame = self.rotate(frame)
 
         return ret, frame
 
-    def get_depth(self):
+    def get_depth(self, far_is_black = True, blur = True):
         depth = None
         if self.mode == 'svo':
             if self.res:
                 cam_run_p = self.cam.get_init_parameters()
                 self.cam.retrieve_measure(self.mat, sl.MEASURE.DEPTH)
                 depth = self.mat.get_data()
-                depth = (cam_run_p.depth_maximum_distance - np.clip(depth, 0, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
-                bool_mask = np.where(np.isnan(depth), True, False)
-                depth[bool_mask] = 0
+                nan_mask = np.where(np.isnan(depth), True, False)
 
-                depth = cv2.medianBlur(depth, 5)
+                if far_is_black:
+                    depth = (cam_run_p.depth_maximum_distance - np.clip(depth, cam_run_p.depth_minimum_distance, cam_run_p.depth_maximum_distance)) * 255 / (cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 255   # set nan to 255 (otherwise nan gets o by astype(np.uint8) function)
+
+                else:
+                    depth = (np.clip(depth, cam_run_p.depth_minimum_distance,cam_run_p.depth_maximum_distance)) * 255 / ( cam_run_p.depth_maximum_distance - cam_run_p.depth_minimum_distance)
+                    depth[nan_mask] = 0   # set nan to 0
+
+                depth = np.clip(depth, 0, 255)
+                depth = depth.astype(np.uint8)  # coverts nan to 0
+
+                if blur:
+                    depth = cv2.medianBlur(depth, 5)
                 depth = self.rotate(depth)
 
         else:
@@ -198,16 +228,16 @@ class video_wrapper():
         input_type = sl.InputType()
         input_type.set_from_svo_file(filepath)
         init_params = sl.InitParameters(input_t=input_type, svo_real_time_mode=False)
-        init_params.depth_mode = sl.DEPTH_MODE.ULTRA
-        # init_params.depth_mode = sl.DEPTH_MODE.QUALITY
+        #init_params.depth_mode = sl.DEPTH_MODE.ULTRA
+        init_params.depth_mode = sl.DEPTH_MODE.QUALITY
         init_params.coordinate_units = sl.UNIT.METER
         init_params.depth_minimum_distance = depth_minimum
         init_params.depth_maximum_distance = depth_maximum
         init_params.depth_stabilization = True
         runtime = sl.RuntimeParameters()
         runtime.confidence_threshold = 100
-        # runtime.sensing_mode = sl.SENSING_MODE.STANDARD
-        runtime.sensing_mode = sl.SENSING_MODE.FILL
+        runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+        # runtime.sensing_mode = sl.SENSING_MODE.FILL   # fill nan
         cam = sl.Camera()
         status = cam.open(init_params)
         positional_tracking_parameters = sl.PositionalTrackingParameters()
