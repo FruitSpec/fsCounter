@@ -489,15 +489,16 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
 
 
 if __name__ == "__main__":
-    customers_folder_path = "/media/fruitspec-lab/cam175/FOWLER"
+    # TODO add here an option to run FE in left mode
+    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # customers_folder_path = "/media/fruitspec-lab/TEMP SSD/USA_June/June_15"
     # customer_path = "/media/fruitspec-lab/TEMP SSD/USA_June/BERESG"
-    skip_blocks = ["BLOCKAT0", "BLOCKAX0", "BLOCKBT0", "G60CLEM0", "LEMONTE0"]
-    skip_cust = ["LDCBRA"]
+    skip_blocks = []
+    skip_cust = []
 
-    # run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=3)
-    run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=3,
-                        skip_cust=skip_cust)
+    run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1)
+    # run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
+    #                     skip_cust=skip_cust)
     #run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[2])
 
     # skip_blocks_2 = []

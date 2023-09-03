@@ -175,14 +175,22 @@ def slice_outside_trees(pictures, slicer_results, frame_number, reduce_size=Fals
         pictures[i] = pic
     return pictures
 
-def slice_outside_trees_il(images, slicer_results, mask):
+def slice_outside_trees_il(images, slicer_results, mask, direction="right"):
     x_start, x_end = slicer_results
+    if direction == "left":
+        x_end, x_start = slicer_results
+        x_size = mask.shape[1]
+        if x_start == x_size:
+            x_start = 0
+        if x_end == 0:
+            x_end = x_size
+
     x_start, x_end = adjust_x_start_end_to_mask(mask, x_start, x_end)
     return [pic[:, x_start: x_end] for pic in images]
 
 
-def slice_outside_trees_batch(list_of_images, slicer_results, masks):
-    return list(map(slice_outside_trees_il, list_of_images, slicer_results, masks))
+def slice_outside_trees_batch(list_of_images, slicer_results, masks, direction="right"):
+    return list(map(slice_outside_trees_il, list_of_images, slicer_results, masks, [direction]*len(list_of_images)))
 
 
 def get_w_h_ratio(boxes):
@@ -491,6 +499,7 @@ def project_boxes_to_fruit_space(fruit_3d_space, old_boxes, new_boxes, n_closest
         box_projection = tuple(np.array(box) - np.nanmedian(shifts, axis=0))
         fruit_3d_space[id] = box_projection
     return fruit_3d_space
+
 
 def project_boxes_to_fruit_space_vector(fruit_3d_space, old_boxes, new_boxes, n_closest=5, prefilter=0):
     """

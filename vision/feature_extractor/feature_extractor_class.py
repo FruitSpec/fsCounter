@@ -23,6 +23,8 @@ from omegaconf import OmegaConf
 from vision.visualization.drawer import get_color
 from tqdm import tqdm
 from vision.feature_extractor.feature_extractor_logger import FELogger
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.animation import FuncAnimation
 
 
 class DebuggerFE:
@@ -44,7 +46,8 @@ class DebuggerFE:
         cv2.waitKey()
         cv2.destroyAllWindows()
 
-    def translation_debugging(self, tree_images, masks, frame_numbers, tree_name, block_name, slice=None, slice_e=None):
+    def translation_debugging(self, tree_images, masks, frame_numbers, tree_name, block_name, slice=None, slice_e=None,
+                              direction="right"):
         """
         This function is used for debugging the translation of masks between frames.
          It plots the image of two consecutive frames, one with the mask applied and one without the mask.
@@ -74,14 +77,23 @@ class DebuggerFE:
             if isinstance(self.translation_image, type(None)):
                 self.translation_image = last_img
                 if not isinstance(slice, type(None)):
-                    self.translation_image = last_img[:, slice:]
+                    if direction == "right":
+                        self.translation_image = last_img[:, slice:]
+                    else:
+                        self.translation_image = last_img[:, :slice]
                 slice = None
-            x_0 = np.argmin(masks[i - 1].astype(bool)[0, :])
+            x_0 = np.argmin(masks[i - 1].astype(bool)[0, :] if direction == "right" else
+                            ~masks[i - 1].astype(bool)[0, :])
             if not isinstance(slice_e, type(None)):
                 x_end = slice_e[i - 1]
+                if direction == "left" and x_end==masks[i - 1].shape[1]:
+                    x_end = 0
             else:
-                x_end = cur_img.shape[1]
-            self.translation_image = np.concatenate([self.translation_image, cur_img[:, x_0:x_end]], axis=1)
+                x_end = cur_img.shape[1] if direction == "right" else 0
+            if direction == "right":
+                self.translation_image = np.concatenate([self.translation_image, cur_img[:, x_0:x_end]], axis=1)
+            else:
+                self.translation_image = np.concatenate([cur_img[:, x_end:x_0], self.translation_image], axis=1)
 
             plot_2_imgs(last_img, cur_img, title=frame_number,
                         save_to=os.path.join(save_to, "clean", f"{frame_number}.png"),
@@ -135,7 +147,7 @@ class DebuggerFE:
             save_to = os.path.join(saving_folder, f"{frame}_debug_fe.jpg")
             plot_2_imgs(zed, fsi, frame, save_to=save_to, quick_save=True)
     @staticmethod
-    def plot_3d_cloud(fruit_3d_space, centers, c=None, title=""):
+    def plot_3d_cloud(fruit_3d_space, centers, c=None, title="", save_to=""):
         """
         Plot the 3D point cloud of the fruit space
         :param fruit_3d_space: Dictionary containing the 3D coordinates of each fruit
@@ -145,6 +157,12 @@ class DebuggerFE:
         """
         fig = plt.figure(figsize=(10, 10))
         ax = plt.axes(projection='3d')
+
+        if isinstance(c, type(None)):
+            cmap = plt.get_cmap('hot')  # You can choose any colormap you like
+            norm = plt.Normalize(-centers[:, 2].max(), 0)
+            c = cmap(norm(-centers[:, 2]))
+
         ax.scatter3D(-centers[:, 2], -centers[:, 0], -centers[:, 1], c=c)
         for i, label in enumerate(fruit_3d_space.keys()):  # plot each point + it's index as text above
             ax.text(-centers[i, 2], -centers[i, 0], -centers[i, 1], '%s' % (str(label)), size=10, zorder=1,
@@ -154,7 +172,63 @@ class DebuggerFE:
         ax.set_zlabel('y')
         ax.view_init(20, 20)
         ax.set_title(title)
+        if save_to != "":
+            plt.savefig(os.path.join(save_to, "3d_pc.png"))
         plt.show()
+
+    @staticmethod
+    def plot_3d_cloud_animation(fruit_3d_space, centers, c=None, title="", save_to=""):
+        """
+        Plot the 3D point cloud of the fruit space
+        :param fruit_3d_space: Dictionary containing the 3D coordinates of each fruit
+        :param centers: array of the coordinates of each fruit
+        :param c: color of the points in the point cloud
+        :return: None
+        """
+        # fig = plt.figure(figsize=(10, 10))
+        # ax = fig.add_subplot(111, projection='3d')
+        #
+        # def update(frame):
+        #     ax.cla()  # Clear the previous frame
+        #     ax.scatter3D(-centers[:, 2], -centers[:, 0], -centers[:, 1], c=c)
+        #     for i, label in enumerate(fruit_3d_space.keys()):
+        #         ax.text(-centers[i, 2], -centers[i, 0], -centers[i, 1], '%s' % (str(label)), size=10, zorder=1,
+        #                 color='k')
+        #     ax.set_xlabel('z')
+        #     ax.set_ylabel('x')
+        #     ax.set_zlabel('y')
+        #     ax.view_init(elev=20, azim=frame)  # Adjust the azimuthal angle for rotation
+        #     ax.set_title(title)
+        #     fig.canvas.deaw_idle()
+        #
+        # # Create the animation
+        # rotation_animation = FuncAnimation(fig, update, frames=range(0, 360, 5), repeat=True)
+        # plt.show()
+        if isinstance(c, type(None)):
+            cmap = plt.get_cmap('hot')  # You can choose any colormap you like
+            norm = plt.Normalize(-centers[:, 2].max(), 0)
+            c = cmap(norm(-centers[:, 2]))
+        def update(frame):
+            fig = plt.figure(figsize=(10, 10))
+            ax = fig.add_subplot(111, projection='3d')
+            ax.cla()  # Clear the previous frame
+            ax.scatter3D(-centers[:, 2], -centers[:, 0], -centers[:, 1], c=c)
+            for i, label in enumerate(fruit_3d_space.keys()):
+                ax.text(-centers[i, 2], -centers[i, 0], -centers[i, 1], '%s' % (str(label)), size=10, zorder=1,
+                        color='k')
+            ax.set_xlabel('z')
+            ax.set_ylabel('x')
+            ax.set_zlabel('y')
+            ax.view_init(elev=0, azim=frame)  # Adjust the azimuthal angle for rotation
+            ax.set_title(title)
+            fig.canvas.draw_idle()
+            if save_to != "":
+                plt.savefig(os.path.join(save_to, f"3d_pc_{frame}.png"))
+            plt.show()
+
+        for frame in range(0, 375, 15):
+            update(frame)
+
 
     def draw_alignment(self, tracker_results, frame_number, frame_fsi, zed, tree_folder, slices):
         """
@@ -507,14 +581,14 @@ class FeatureExtractor:
                                                         (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
                                                         (row[pc_x], row[pc_y], row[pc_z]))
                                    for row in track_res})
-        if len(self.tracker_format) == 10:
+        elif len(self.tracker_format) == 10:
             track_id, x1, y1, x2, y2, pc_x, pc_y, pc_z, width, height = self.tracker_format
             for track_res in self.b_tracker_results:
                 new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
                                                         (min(int(row[x2]), max_x-1), min(int(row[y2]), max_y-1)),
                                                         (row[pc_x], row[pc_y], row[pc_z], row[width], row[height]))
                                    for row in track_res})
-        if len(self.tracker_format) == 6:
+        elif len(self.tracker_format) == 6:
             track_id, x1, y1, x2, y2, pc_z = self.tracker_format
             for track_res in self.b_tracker_results:
                 new_format.append({int(row[track_id]): ((max(int(row[x1]), 0), max(int(row[y1]), 0)),
@@ -802,10 +876,14 @@ class FeatureExtractor:
                 keys_to_pop.append(key)
         for key in keys_to_pop:
             self.fruit_3d_space.pop(key)
-
+        save_to = os.path.join(self.debugger.debug_dict["translation"]["save_to"], f"{self.block}_{self.tree_name}")
         centers = np.array(list(self.fruit_3d_space.values()))
         if self.debugger.debug_dict["3d_space"]:
-            DebuggerFE.plot_3d_cloud(self.fruit_3d_space, centers, title=f"{self.block}_{self.tree_name}")
+            DebuggerFE.plot_3d_cloud(self.fruit_3d_space, centers, title=f"{self.block}_{self.tree_name}",
+                                     save_to=save_to)
+        if self.debugger.debug_dict["3d_animation"]:
+            DebuggerFE.plot_3d_cloud_animation(self.fruit_3d_space, centers, title=f"{self.block}_{self.tree_name}",
+                                               save_to=save_to)
         boxes_w = [np.nanmedian(value) for key, value in boxes_w.items()]
         boxes_h = [np.nanmedian(value) for key, value in boxes_h.items()]
         med_diam = np.nanmedian(np.nanmax([boxes_w, boxes_h], axis=0))
@@ -849,14 +927,15 @@ class FeatureExtractor:
 
     def skip_frames(self, adts_res):
         if self.first_frame:
-            self.acc_tx = self.b_slicer[0][1] - self.b_slicer[0][0]
+            self.acc_tx = self.b_slicer[0][1] - self.b_slicer[0][0] if self.direction=="right" else -self.b_slicer[0][0]
             self.first_frame = False
         skip_interval = self.minimal_frames_params[2]
         if skip_interval == 1:
             return adts_res
         adts_res_final = [[] for i in range(len(adts_res))]
         for i in range(len(adts_res[6])): # slice results
-            if self.acc_tx >= skip_interval*self.max_x_pix:
+            if (self.acc_tx >= skip_interval*self.max_x_pix and self.direction == "right") or \
+                    (abs(self.acc_tx) >= skip_interval*self.max_x_pix and self.direction == "left"):
                 for j, sub_list in enumerate(adts_res):
                     if j == 8: # jai_translation
                         translation_res = adts_res[j][i].copy()
@@ -884,7 +963,8 @@ class FeatureExtractor:
                 self.debugger.translation_debugging([self.last_frame_tra, *self.b_fsi], self.false_masks,
                                                     [self.last_frame_number, *self.b_frame_numbers],
                                                     self.tree_name, self.block, self.last_slice_tra,
-                                                    [slice[-1] for slice in self.b_slicer])
+                                                    [slice[-1] for slice in self.b_slicer],
+                                                    self.direction)
             self.last_frame_tra = self.b_fsi[-1]
             self.last_slice_tra = self.b_slicer[0][0]
             self.last_frame_number = self.b_frame_numbers[-1]
@@ -1176,7 +1256,7 @@ class FeatureExtractor:
     def physical_features_batch_preprocess(self):
         list_of_images = list(zip(self.ndvis_binary, self.binary_box_imgs, self.b_zed,
                                   self.pix_size_img_x, self.pix_size_img_y))
-        slice_out_res = slice_outside_trees_batch(list_of_images, self.b_slicer, self.false_masks)
+        slice_out_res = slice_outside_trees_batch(list_of_images, self.b_slicer, self.false_masks, self.direction)
         ndvi_binary = [np.nan_to_num(imgs[0], nan=0) for imgs in slice_out_res]
         binary_box_img = [np.nan_to_num(imgs[1], nan=0) for imgs in slice_out_res]
         xyz_point_cloud = [imgs[2] for imgs in slice_out_res]
