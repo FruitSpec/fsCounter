@@ -16,7 +16,7 @@ from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, fi
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
-from vision.tools.camera import is_sturated
+from vision.tools.camera import is_saturated
 from vision.tools.color import get_hue, get_tomato_color
 from vision.tools.video_wrapper import video_wrapper
 
@@ -41,7 +41,7 @@ def run(cfg, args):
             # Break the loop
             break
 
-        if is_sturated(frame):
+        if is_saturated(frame):
             f_id += 1
             continue
 

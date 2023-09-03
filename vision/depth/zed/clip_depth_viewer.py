@@ -229,5 +229,5 @@ def draw_rect(event, x, y, flags, params):
 if __name__ == "__main__":
 
     #fp = '/media/fruitspec-lab/cam172/JAI_ZED_Scan_25_10_22/R2_SH_S_FHD15/HD1080_SN39018199_13-59-44.svo'
-    fp = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/HD720_SN39577186_M_11-06-35.svo"
+    fp = "/home/lihi/FruitSpec/Data/customers/DEWAGD/190123/DWDBLE33/R11A/ZED_1.svo"
     run(fp)

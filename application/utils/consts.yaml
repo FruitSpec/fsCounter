@@ -1,15 +1,43 @@
 citrus: citrus
 apple: apple
-logs_path: "~/Desktop/counter_logs/"
+restart_count_threshold: 3
+restart_time_threshold: 600
+
+log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"
+log_extension: "log"
 global_polygon: "global"
 startup_script: "/home/mic-730ai/Desktop/startup_counter.sh"
-alignment: alignment
-jai_translation: jai_translation
-tracks: tracks
-jaized_timestamps: jaized_timestamps
-success: success
-failed: failed
+
+GPS_timestamp: "GPS_timestamp"
+GPS_latitude: "latitude"
+GPS_longitude: "longitude"
+GPS_plot: "plot"
+
+JAI_frame_number: "JAI_frame_number"
+JAI_timestamp: "JAI_timestamp"
+ZED_frame_number: "ZED_frame_number"
+ZED_timestamp: "ZED_timestamp"
+IMU_angular_velocity: "IMU_angular_velocity"
+IMU_linear_acceleration: "IMU_linear_acceleration"
+depth_score: "depth_score"
+row_state: "row_state"
+
+alignment: "alignment"
+jai_translation: "jai_translation"
+tracks: "tracks"
+jaized_timestamps: "jaized_timestamps"
+
+success: "success"
+failed: "failed"
+
 nav_extension: "nav"
-routine: Routine
-urgent: Urgent
+routine: "Routine"
+urgent: "Urgent"
+
+process_not_alive: "PROCESS_NOT_ALIVE"
+process_not_responding: "PROCESS_NOT_RESPONDING"
+
+s3_nav_folder: "counter_navs"
+s3_log_folder: "counter_logs"
+s3_jaized_folder: "counter_jaized"

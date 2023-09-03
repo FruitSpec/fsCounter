@@ -7,6 +7,8 @@ import threading
 
 from application.utils.module_wrapper import ModulesEnum, Module, ModuleTransferAction
 from application.utils.settings import pipeline_conf, runtime_args, data_conf, conf, consts
+from application.utils.settings import set_logger
+from application.utils import tools
 from vision.pipelines.adt_pipeline import run
 import signal
 import numpy as np
@@ -28,31 +30,45 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def receive_data():
-        while True:
+        while not AlternativeFlow.shutdown_event.is_set():
             data, sender_module = AlternativeFlow.in_qu.get()
             action, data = data["action"], data["data"]
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    AlternativeFlow.send_data(ModuleTransferAction.MONITOR, None, ModulesEnum.Main)
+                    AlternativeFlow.send_data(
+                        action=ModuleTransferAction.MONITOR,
+                        data=None,
+                        receiver=ModulesEnum.Main,
+                        log_option=tools.LogOptions.LOG
+                    )
+                elif action == ModuleTransferAction.SET_LOGGER:
+                    set_logger()
 
     @staticmethod
     def analyze():
 
         collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
-        while True:
-            found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
+        while not AlternativeFlow.shutdown_event.is_set():
+            found, row, row_index = False, 0, 0
+            try:
+                found, row, row_index = AlternativeFlow.seek_new_row(collected, analyzed)
+            except RuntimeError:
+                AlternativeFlow.send_data(ModuleTransferAction.REBOOT, None, ModulesEnum.Main)
+
             if found:
-                # AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
+                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_ONGOING, None, ModulesEnum.GPS)
+
+                customer_code, plot_code, scan_date, row_name, folder_index, ext = tuple(row)
+                row_name = os.path.join(customer_code, plot_code, scan_date, row_name, str(folder_index))
+
                 # using try in case of collapse in analysis flow
                 try:
-                    logging.info(f"ANALYZING NEW ROW: {list(row)}")
-                    print(f"ANALYZING NEW ROW: {list(row)}")
+                    tools.log(f"ANALYZING NEW ROW - {row_name}")
 
                     row_runtime_args = AlternativeFlow.update_runtime_args(runtime_args, row)
-                    rc = run(pipeline_conf, row_runtime_args)
-                    logging.info(f"DONE ANALYZING ROW: {list(row)}")
-                    print(f"DONE ANALYZING ROW: {list(row)}")
+                    rc = run(pipeline_conf, row_runtime_args, shutdown_event=AlternativeFlow.shutdown_event)
+
                     is_success = True  # analysis ended without exceptions
 
                     if conf.crop == consts.citrus:
@@ -77,22 +93,20 @@ class AlternativeFlow(Module):
                         )
 
                     # send results to data manager
-                    print("sending data from analysis: ", time.time())
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
-                    logging.info(f"Done analyzing {list(row)}")
+                    tools.log(f"DONE ANALYZING ROW - {row_name}")
                 except:
                     is_success = False
-                    logging.exception(f"Failed to analyze {list(row)}")
-                    print(f"Failed to analyze {list(row)}")
+                    tools.log(f"FAILED TO ANALYZE - {row_name}", logging.ERROR, exc_info=True)
                     data = AlternativeFlow.prepare_data(row=row, status=is_success)
+
                     # send results to data manager
                     AlternativeFlow.send_data(ModuleTransferAction.ANALYZED_DATA, data, ModulesEnum.DataManager)
                 finally:
                     collected.drop(index=row_index, inplace=True)
             else:
-                # AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
-                logging.info('No new file found, waiting 1 minute')
-                print('No new file found, waiting 1 minute')
+                AlternativeFlow.send_data(ModuleTransferAction.ANALYSIS_DONE, None, ModulesEnum.GPS)
+                tools.log("NO NEW FILE FOUND, WAITING 1 MINUTE")
                 time.sleep(60)
                 collected, analyzed = AlternativeFlow.read_collected_analyzed()
 
@@ -122,9 +136,8 @@ class AlternativeFlow(Module):
 
         row_args = args.copy()
         folder_index = str(int(row['folder_index']))
-        # toDo: add ext to collected to understand ext
-        #ext = row['ext']
-        ext = 'csv'
+
+        ext = row['ext']
 
         row_folder = os.path.join(data_conf.output_path, row['customer_code'], row['plot_code'],
                                   str(row['scan_date']), f"row_{int(row['row'])}", folder_index)
@@ -137,7 +150,6 @@ class AlternativeFlow(Module):
         row_args.sync_data_log_path = os.path.join(row_folder, f"{consts.jaized_timestamps}.{ext}")
         row_args.slice_data_path = os.path.join(row_folder, f"Result_FSI_slice_data_R{row['row']}.json")
         row_args.frame_drop_path = os.path.join(row_folder, f"frame_drop.log")
-
 
         return row_args
 
@@ -159,13 +171,13 @@ class AlternativeFlow(Module):
 
     @staticmethod
     def read_collected_analyzed():
-        while True:
+        while not AlternativeFlow.shutdown_event.is_set():
             try:
                 collected = pd.read_csv(data_conf.collected_path, dtype=str)
-                print('collected was read')
+                tools.log("COLLECTED FILES READ")
                 break
             except (FileNotFoundError, PermissionError):
-                print('collected not read')
+                tools.log("COLLECTED FILES NOT READ")
                 time.sleep(60)
                 pass
             except Exception:

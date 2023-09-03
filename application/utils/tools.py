@@ -1,5 +1,6 @@
 import os
 import glob
+import re
 import logging
 import time
 import traceback
@@ -11,6 +12,20 @@ from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import EndpointConnectionError
 from application.utils.settings import conf, data_conf, consts
+import enum
+
+
+class FileTypes(enum.Enum):
+    nav = "nav"
+    log = "log"
+    jaized_timestamps = "jaized_timestamps"
+
+
+class LogOptions(enum.Enum):
+    PRINT = "PRINT"
+    LOG = "LOG"
+    BOTH = "BOTH"
+    NONE = "NONE"
 
 
 def s3_path_join(*args):
@@ -39,58 +54,75 @@ def is_svo(filename):
     return filename[-3:] == "svo"
 
 
-def get_nav_path(get_s3_path=False):
+def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
     today = datetime.now().strftime(data_conf.date_format)
-    nav_filename = f'{today}.{consts.nav_extension}'
-    if not get_s3_path:
-        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        if not os.path.exists(nav_dir):
-            os.makedirs(nav_dir)
-        return os.path.join(nav_dir, nav_filename)
+    if f_type == FileTypes.nav:
+        filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
+        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+    elif f_type == FileTypes.log:
+        filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
+        f_dir = consts.log_dir
+    elif f_type == FileTypes.jaized_timestamps:
+        filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
     else:
-        return create_s3_upload_path(conf.customer_code, nav_filename)
+        raise ValueError("Wrong file type")
 
+    if not os.path.exists(f_dir):
+        os.makedirs(f_dir)
 
-def get_previous_nav_path(get_s3_path=False):
-    try:
-        today = datetime.now().strftime(data_conf.date_format)
-        today_nav_filename = f'{today}.{consts.nav_extension}'
-        nav_dir = os.path.join(data_conf.output_path, conf.customer_code)
-        nav_file_names = glob.glob(os.path.join(nav_dir, f"*.{consts.nav_extension}"))
-        nav_file_names = [os.path.basename(f) for f in nav_file_names]
-        try:
-            nav_file_names.remove(today_nav_filename)
-        except:
-            pass
-        previous_nav_filename = max(
-            nav_file_names,
-            key=lambda f: datetime.strptime(f.split(".")[0], data_conf.date_format)
-        )
-        if not get_s3_path:
-            if not os.path.exists(nav_dir):
-                os.makedirs(nav_dir)
-            return os.path.join(nav_dir, previous_nav_filename)
+    path = os.path.join(f_dir, filename)
+    if with_s3_path:
+        if s3_folder_name:
+            s3_path = s3_path_join(conf.customer_code, s3_folder_name, filename)
         else:
-            return create_s3_upload_path(conf.customer_code, previous_nav_filename)
-    except ValueError:
-        return None
+            s3_path = s3_path_join(conf.customer_code, filename)
+        return path, s3_path
+    else:
+        return path
+
+
+def get_old_file_paths(f_type: FileTypes):
+    today = datetime.now().strftime(data_conf.date_format)
+    try:
+        if f_type == FileTypes.nav:
+            today_filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
+            f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+            glob_pattern = f"{conf.counter_number}_*.{consts.nav_extension}"
+            regex_pattern = f"{conf.counter_number}_[0-9]{{6}}.{consts.nav_extension}"
+            s3_folder_name = consts.s3_nav_folder
+        elif f_type == FileTypes.log:
+            today_filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
+            f_dir = consts.log_dir
+            glob_pattern = f"{conf.counter_number}_*.{consts.log_extension}"
+            regex_pattern = f"{conf.counter_number}_{consts.log_name}_[0-9]{{6}}.{consts.log_extension}"
+            s3_folder_name = consts.s3_log_folder
+        elif f_type == FileTypes.jaized_timestamps:
+            today_filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
+            f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+            glob_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_*.{consts.log_extension}"
+            regex_pattern = f"{conf.counter_number}_{consts.jaized_timestamps}_[0-9]{{6}}.{consts.log_extension}"
+            s3_folder_name = consts.s3_jaized_folder
+        else:
+            raise ValueError("Wrong file type")
+
+        old_paths = glob.glob(os.path.join(f_dir, glob_pattern))
+        old_paths = [
+            f for f in old_paths
+            if re.fullmatch(regex_pattern, os.path.basename(f))
+            and today_filename not in f
+        ]
+        s3_paths = [s3_path_join(conf.customer_code, s3_folder_name, os.path.basename(f)) for f in old_paths]
+        return zip(old_paths, s3_paths)
     except:
-        logging.exception(f"PREVIOUS NAV ERROR. file names: {nav_file_names}, glob: {os.path.join(nav_dir, f'*.{consts.nav_extension}')}")
-        return None
-
-
-def create_s3_upload_path(*args):
-    return s3_path_join(*args)
+        traceback.print_exc()
+        return []
 
 
 def get_imu_path():
     today = datetime.now().strftime(data_conf.date_format)
     return os.path.join(data_conf.output_path, conf.customer_code, f'{today}.imu')
 
-
-def get_jaized_timestamps_path():
-    today = datetime.now().strftime(data_conf.date_format)
-    return os.path.join(data_conf.output_path, conf.customer_code, f'{consts.jaized_timestamps}_{today}.log')
 
 def get_folder_index(row_path, get_next_index=True):
     try:
@@ -149,26 +181,26 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
             # this will cause the scan to act as if there was no internet
             raise speedtest.SpeedtestException
     except speedtest.SpeedtestException:
-        logging.info("DATA MANAGER - NO INTERNET CONNECTION")
+        log("DATA MANAGER - NO INTERNET CONNECTION")
         return False, []
 
-    logging.info(f"DATA MANAGER - INTERNET UPLOAD SPEED - {upload_in_kbps} KB/s")
+    log(f"DATA MANAGER - INTERNET UPLOAD SPEED - {upload_in_kbps} KB/s")
     s3_client = boto3.client("s3", config=Config(retries={"total_max_attempts": 1}))
 
     plot_path = os.path.join(customer_code, plot_code, scan_date)
-    logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - {plot_path}")
+    log(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - {plot_path}")
 
     for row, indices in indices_per_row.items():
         row = f"row_{row}"
         current_path = os.path.join(customer_code, plot_code, scan_date, row)
 
-        logging.info(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - UPLOADING INDICES {indices_per_row}")
+        log(f"DATA MANAGER - UPLOAD TO S3 (TRYING) - UPLOADING INDICES {indices_per_row}")
         for index in indices_per_row:
             filename = f"fruits.{file_suffix}"
             file_path = os.path.join(data_conf.output_path, customer_code, plot_code, scan_date, str(index), filename)
             f_size = get_file_size(file_path)
             if timeout <= 1:
-                logging.info(f"DATA MANAGER - UPLOAD TO S3 - TIMEOUT STATUS - {timeout} - STOPPING")
+                log(f"DATA MANAGER - UPLOAD TO S3 - TIMEOUT STATUS - {timeout} - STOPPING")
                 break
 
             filename = f"fruits.{file_suffix}"
@@ -184,24 +216,27 @@ def upload_to_s3(customer_code, plot_code, scan_date, indices_per_row, timeout):
                 # Attempt to upload the file and update the remaining time
                 timeout = timed_call(timeout, s3_client.upload_file, fruits_path, data_conf.upload_bucket_name,
                                      aws_path)
-                logging.info(f"DATA MANAGER - UPLOAD TO S3 - {current_path}/{filename} - SUCCESS, TIMEOUT STATUS - {timeout}")
+                log(f"DATA MANAGER - UPLOAD TO S3 - {current_path}/{filename} - SUCCESS, TIMEOUT STATUS - {timeout}")
                 valid_indices.append(index)
             except TimeoutError:
                 break
             except FileNotFoundError:
-                logging.warning(f"DATA MANAGER - UPLOAD TO S3 - MISSING INDEX - {index}")
+                log(f"DATA MANAGER - UPLOAD TO S3 - MISSING INDEX - {index}", logging.WARNING)
             except EndpointConnectionError:
-                logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - INTERNET CONNECTION - {current_path}")
+                log(f"DATA MANAGER - UPLOAD TO S3 FAILED - INTERNET CONNECTION - {current_path}", logging.WARNING)
                 return False, []
             except S3UploadFailedError:
-                logging.warning(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}")
+                log(f"DATA MANAGER - UPLOAD TO S3 FAILED - S3 RELATED PROBLEM - {current_path}", logging.WARNING)
                 return False, []
             except Exception:
-                logging.error(f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}")
-                traceback.print_exc()
+                log(
+                    f"DATA MANAGER - UPLOAD TO S3 FAILED - UNKNOWN ERROR (see traceback) - {current_path}",
+                    log_level=logging.ERROR,
+                    exc_info=True
+                )
                 return False, []
 
-    logging.info(f"UPLOAD TO S3 - SUCCESS - {current_path} - INDICES - {valid_indices}")
+        log(f"UPLOAD TO S3 - SUCCESS - {current_path} - INDICES - {valid_indices}")
     return True, valid_indices
 
 
@@ -222,3 +257,19 @@ def send_request_to_server(customer_code, plot_code, scan_date, indices):
     headers = {"Content-Type": "application/json; charset=utf-8", "Accept": "text/plain"}
     return requests.post(data_conf.service_endpoint, json=fruits_data, headers=headers,
                          timeout=data_conf.request_timeout)
+
+
+def log(msg, log_level=logging.INFO, exc_info=False, log_option: LogOptions = LogOptions.BOTH):
+    to_log = log_option == LogOptions.LOG or log_option == LogOptions.BOTH
+    to_print = log_option == LogOptions.PRINT or log_option == LogOptions.BOTH
+    try:
+        if to_log:
+            logging.log(log_level, msg, exc_info=exc_info)
+        if to_print:
+            print(f"{logging.getLevelName(log_level)} | {msg}")
+            if exc_info:
+                print(traceback.format_exc())
+    except:
+        logging.exception("LOGGING ERROR")
+        print("LOGGING ERROR")
+        print(traceback.format_exc())
