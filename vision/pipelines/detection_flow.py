@@ -121,10 +121,8 @@ class counter_detection():
 
     def detect_yolov8(self, frames):
 
-        frames_tensor = self._convert_images_to_tensor(frames)
-
         results = self.detector.predict(
-            source=frames_tensor,
+            source = frames,
             conf=self.confidence_threshold,
             half=self.fp16,
             iou=self.nms_thresh,
@@ -155,19 +153,6 @@ class counter_detection():
                     conc]  # convert the 4 bbox coordinates to ints
             output.append(conc)  # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
-
-
-    def _convert_images_to_tensor(self, img_list):
-        import torch
-
-        images_np = np.array(img_list)
-        images_np = images_np[:, :, :, ::-1]  # Convert from BGR to RGB
-        images_np = images_np / 255.0  # Normalize the images to [0, 1]
-        images_tensor = torch.from_numpy(images_np).float()  # Convert numpy array to torch tensor
-        images_tensor = images_tensor.permute(0, 3, 1,
-                                              2)  # Change the shape from (x, height, width, channels) to (x, channels, height, width)
-        return images_tensor
-
 
 
 
