@@ -31,18 +31,18 @@ class LedSettings:
             return
         if should_print:
             tools.log(f"LED TURN ON {color.name}")
+        LedSettings.turn_off(should_print=False)
         if LedSettings._state != LedState.BLINK or stop_blinking:
             LedSettings._state = LedState.ON
             time.sleep(GPS_conf.led_blink_sleep_time)
-        LedSettings.turn_off(should_print=False)
-        LedSettings._state = LedState.ON
+            LedSettings.turn_off(should_print=False, change_state=False)
         LedSettings._color = color
         if LedSettings._color != LedColor.BLINK_TRANSPARENT:
             os.system(f"{GPS_conf.led_exe_path} -set {color.value} {GPIO.HIGH}")
 
     @staticmethod
-    def turn_off(should_print=True):
-        if LedSettings._state != LedState.BLINK:
+    def turn_off(should_print=True, change_state=True):
+        if LedSettings._state != LedState.BLINK and change_state:
             LedSettings._state = LedState.OFF
         if should_print:
             tools.log("LED TURN OFF")
