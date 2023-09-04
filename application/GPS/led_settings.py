@@ -35,6 +35,7 @@ class LedSettings:
             LedSettings._state = LedState.ON
             time.sleep(GPS_conf.led_blink_sleep_time)
         LedSettings.turn_off(should_print=False)
+        LedSettings._state = LedState.ON
         LedSettings._color = color
         if LedSettings._color != LedColor.BLINK_TRANSPARENT:
             os.system(f"{GPS_conf.led_exe_path} -set {color.value} {GPIO.HIGH}")
