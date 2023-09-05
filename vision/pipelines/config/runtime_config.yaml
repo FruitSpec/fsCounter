@@ -1,7 +1,7 @@
-movie_path: /media/yotam/easystore/ssd data/V shape/202/Result_FSI.mkv
-output_folder: /media/yotam/easystore/ssd data/V shape/202
-output_folder_track: /home/yotam/FruitSpec/Data/tasq/batch8/PAULBLOC
-output_folder_annotate: /media/yotam/easystore/ssd data/V shape/202
+movie_path: /home/yotam/FruitSpec/Data/tasq/batch9/290323/6/Result_FSI_1.mkv
+output_folder: /home/yotam/FruitSpec/Data/tasq/test
+output_folder_track: /home/yotam/FruitSpec/Data/tasq/test/tracking
+output_folder_annotate: /home/yotam/FruitSpec/Data/tasq/test/annotations
 
 frame_size: [2048, 1536] # [1920, 1080] # [2048, 1536]
 rotate: 2 # 0: no rotate, 1: COUNTERCLOCKWISE, 2: CLOCKWISE
