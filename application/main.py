@@ -53,7 +53,7 @@ def storage_cleanup():
         tools.log("PERFORMING ROUTINE CLEANUP...")
 
         try:
-            uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str)
+            uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str).dropna(how="any")
         except (FileNotFoundError, IOError):
             tools.log("ROUTINE CLEANUP DONE")
             return pd.DataFrame()
@@ -107,7 +107,7 @@ def storage_cleanup():
         analyzed_delete = None
         if disk_occupancy > data_conf.max_disk_occupancy:
             try:
-                analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str)
+                analyzed_df = pd.read_csv(data_conf.analyzed_path, dtype=str).dropna(how="any")
             except (FileNotFoundError, IOError):
                 tools.log("DISK TOO FULL BUT NO FILES TO DELETE!", logging.WARNING)
                 tools.log("URGENT CLEANUP DONE")
