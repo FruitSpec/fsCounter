@@ -15,7 +15,7 @@ import random
 import cv2
 import numpy as np
 
-import albumentations as A
+#import albumentations as A
 from yolox.utils import xyxy2cxcywh
 
 

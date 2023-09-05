@@ -5,7 +5,7 @@ import shutil
 import numpy as np
 
 
-def convert_to_coco_format(outputs, info_imgs, img_size, class_ids, type_='dets', data_label=None):
+def convert_to_coco_format(outputs, class_ids, type_='dets', data_label=None):
     data_list = []
 
     # preprocessing: resize
@@ -76,8 +76,7 @@ def generate_coco_format(outputs, info_imgs, ids, img_size,
 
     coco["categories"] = create_category_dict(category_list)
     coco["images"] = create_images_dict(file_list, ids, info_imgs[0], info_imgs[1])
-    coco["annotations"] = convert_to_coco_format(outputs, info_imgs,
-                                                 img_size, class_ids, type_, data_label)
+    coco["annotations"] = convert_to_coco_format(outputs, class_ids, type_, data_label)
 
     return coco
 

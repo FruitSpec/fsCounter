@@ -285,6 +285,41 @@ def calc_intersection(bboxes1: np.array, bboxes2: np.array):
 
     return inter_aera
 
+def calc_iou(bboxes1, bboxes2):
+    bboxes1 = np.array(bboxes1).astype(np.uint16)
+    bboxes2 = np.array(bboxes2).astype(np.uint16)
+
+    bboxes1 = xywh2xyxy(bboxes1)
+    bboxes2 = xywh2xyxy(bboxes2)
+
+    intersection = get_intersection(bboxes1, bboxes2)
+    union = get_union(bboxes1, bboxes2, intersection)
+
+    iou = intersection / union
+
+    # todo: need to validate calc - bigger than 1
+    return iou
+
+def xywh2xyxy(bboxes):
+
+    bboxes[:, 2] = bboxes[:, 2] + bboxes[:, 0]
+    bboxes[:, 3] = bboxes[:, 3] + bboxes[:, 1]
+
+    return bboxes
+
+
+def get_union(bboxes1, bboxes2, intersection):
+    x11, y11, x12, y12 = bbox_to_coordinate_vectors(bboxes1)
+    x21, y21, x22, y22 = bbox_to_coordinate_vectors(bboxes2)
+
+    s1 = (x12 - x11) * (y12 - y11)
+    s2 = (x22 - x21) * (y22 - y21)
+
+    union = s1 + np.transpose(s2) - intersection
+
+    return union
+
+
 @jit(nopython=True)
 def bbox_to_coordinate_vectors(bboxes):
     x1_vec = bboxes[:, 0].copy()

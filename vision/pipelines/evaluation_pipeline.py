@@ -1,6 +1,7 @@
 import os
 import sys
 
+import numpy as np
 import torch
 from omegaconf import OmegaConf
 import cv2
@@ -12,72 +13,56 @@ repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.run_args import make_parser
-from vision.detector.yolo_x.yolox.data import COCODataset
 from vision.detector.yolo_x.yolox.utils import xyxy2xywh
-from vision.data.results_collector import ResultsCollector, scale
-from vision.data import COCO_utils
+from vision.data.COCO_utils import create_images_dict, write_coco_file
 
 
 
 
-def run(cfg, args):
+def run(cfg, args, data_path, test_conf=0.01):
 
-    detector = counter_detection(cfg)
-    results_collector = ResultsCollector()
+    cfg.detector.confidence = test_conf
+    detector = counter_detection(cfg, args, False)
 
-    data_dir = os.path.join(args.data_dir, args.ds_name)
-    img_list = os.listdir(data_dir)
-    gt = COCO_utils.load_coco_file(args.coco_gt)
-    map_ = map_img_to_id(gt)
+    img_list = os.listdir(data_path)
 
-    results = []
+    id_ = 0
+
+    annotations = []
+    ids = []
     for img_name in tqdm(img_list):
 
-        id_ = map_[img_name]
-        results_collector.collect_file_name(img_name)
-        results_collector.collect_id(id_)
+        img = cv2.imread(os.path.join(data_path, img_name))
 
-        img = cv2.imread(os.path.join(data_dir, img_name))
+        output = detector.detect([img])
 
-        output = detector.detect(img)
+        ids.append(id_)
+        if len(output) > 0:
+            annotations += output_to_coco(output,
+                                          id_)
 
-        scale_ = scale(detector.input_size, img.shape)
-        det_outputs = scale_dets(output, scale_)
-        results_collector.collect_detections(det_outputs, id_)
-        try:
-            results += output_to_coco(output,
-                                      img.shape[0],
-                                      img.shape[1],
-                                      detector.input_size[0],
-                                      detector.input_size[1],
-                                      id_)
-        except:
-            a = 1
+        id_ += 1
 
-    results_collector.draw_and_save_dir(os.path.join(args.data_dir, args.ds_name), args.output_folder)
-    coco_results = gt.copy()
-    coco_results['annotations'] = results
+    coco = dict()
+    coco['images'] = create_images_dict(img_list, ids, img.shape[0], img.shape[1])
+    coco['annotations'] = annotations
 
-    return coco_results
+    return coco
 
 
 
 
-def output_to_coco(outputs, img_h, img_w, infer_h, infer_w, img_id):
+def output_to_coco(outputs, img_id):
     data_list = []
     for output in outputs:
-        if output is None:
-            return
-        output = output.cpu()
+        if (output is None) or len(output) == 0:
+            continue
+        #output = output.cpu()
+        output = np.array(output)
 
         bboxes = output[:, 0:4]
 
-        # preprocessing: resize
-        scale = min(
-            infer_h / float(img_h), infer_w / float(img_w)
-        )
-        bboxes /= scale
+
         cls = output[:, 6]
         scores = output[:, 4] * output[:, 5]
 
@@ -87,8 +72,8 @@ def output_to_coco(outputs, img_h, img_w, infer_h, infer_w, img_id):
             pred_data = {
                 "image_id": int(img_id),
                 "category_id": int(cls[ind]),
-                "bbox": bboxes[ind].numpy().tolist(),
-                "score": scores[ind].numpy().item(),
+                "bbox": bboxes[ind].tolist(),
+                "score": scores[ind].item(),
                 "segmentation": [],
             }  # COCO json format
             data_list.append(pred_data)
@@ -116,44 +101,44 @@ def map_img_to_id(gt):
     return mapped
 
 
-def get_evaluation_dataloader(args , img_size, preprocess=None):
-
-    evaldataset = COCODataset(
-        data_dir=args.data_dir,
-        json_file=args.coco_gt,
-        name=args.ds_name,
-        img_size=img_size,
-        preproc=preprocess,
-        batch_size=args.eval_batch
-    )
-
-    dataloader_kwargs = {
-        "num_workers": 8,
-        "pin_memory": True,
-        "batch_size": args.eval_batch
-    }
-
-    eval_loader = torch.utils.data.DataLoader(evaldataset, **dataloader_kwargs)
-
-    return eval_loader
+# def get_evaluation_dataloader(args , img_size, preprocess=None):
+#
+#     evaldataset = COCODataset(
+#         data_dir=args.data_dir,
+#         json_file=args.coco_gt,
+#         name=args.ds_name,
+#         img_size=img_size,
+#         preproc=preprocess,
+#         batch_size=args.eval_batch
+#     )
+#
+#     dataloader_kwargs = {
+#         "num_workers": 8,
+#         "pin_memory": True,
+#         "batch_size": args.eval_batch
+#     }
+#
+#     eval_loader = torch.utils.data.DataLoader(evaldataset, **dataloader_kwargs)
+#
+#     return eval_loader
 
 
 if __name__ == "__main__":
 
     repo_dir = get_repo_dir()
     config_file = "/vision/pipelines/config/pipeline_config.yaml"
-    #config_file = "/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
+    args = OmegaConf.load(repo_dir + runtime_config)
+
+    data_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017"
+    output_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set"
+    test_conf = 0.01
 
 
-    args = make_parser()
 
-    args.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
-    args.coco_gt = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom/annotations/instances_val.json"
-    args.ds_name = "val2017"
-    args.eval_batch = 1
-    args.output_path = '/home/fruitspec-lab/FruitSpec/Sandbox/Run_3_5_oct_2022'
+    coco_results = run(cfg, args, data_path, test_conf)
 
-    coco_results = run(cfg, args)
-
-    COCO_utils.write_coco_file(coco_results, '/home/fruitspec-lab/FruitSpec/Sandbox/Run_3_5_oct_2022/instances_res.json')
+    splited = data_path.split('/')
+    coco_name = f'{splited[-1]}_{cfg.detector.detector_type}_results.json'
+    write_coco_file(coco_results, os.path.join(output_path, coco_name))

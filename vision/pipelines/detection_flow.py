@@ -20,7 +20,7 @@ from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 class counter_detection():
 
-    def __init__(self, cfg, args):
+    def __init__(self, cfg, args, do_tracker_init=True):
 
         # params
         self.confidence_threshold = cfg.detector.confidence
@@ -35,7 +35,7 @@ class counter_detection():
         self.input_size = cfg.input_size
 
         # init
-        self.tracker = self.init_tracker(cfg, args)
+        self.tracker = self.init_tracker(cfg, args, do_tracker_init)
 
         self.preprocess = Preprocess(cfg.device, self.input_size)
         if self.detector_type == 'yolox':
@@ -94,19 +94,24 @@ class counter_detection():
         return model, decoder_
 
     @staticmethod
-    def init_tracker(cfg, args):
+    def init_tracker(cfg, args, do_init):
 
-        return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
-                         score_weights=cfg.tracker.score_weights,
-                         match_type=cfg.tracker.match_type,
-                         det_area=cfg.tracker.det_area,
-                         max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
-                         major=cfg.tracker.major,
-                         minor=cfg.tracker.minor,
-                         compile_data=cfg.tracker.compile_data_path,
-                         debug_folder=None)
+        if do_init:
+
+            return FsTracker(frame_size=args.frame_size,
+                             minimal_max_distance=cfg.tracker.minimal_max_distance,
+                             score_weights=cfg.tracker.score_weights,
+                             match_type=cfg.tracker.match_type,
+                             det_area=cfg.tracker.det_area,
+                             max_losses=cfg.tracker.max_losses,
+                             translation_size=cfg.tracker.translation_size,
+                             major=cfg.tracker.major,
+                             minor=cfg.tracker.minor,
+                             compile_data=cfg.tracker.compile_data_path,
+                             debug_folder=None)
+
+        else:
+            return None
 
 
     def detect(self, frames):
@@ -123,6 +128,9 @@ class counter_detection():
 
         frames_tensor = self._convert_images_to_tensor(frames)
 
+        # preprocess
+        #frames = [img[:, :, ::-1] / 255.0 for img in frames]
+
         results = self.detector.predict(
             source=frames_tensor,
             conf=self.confidence_threshold,
@@ -131,7 +139,6 @@ class counter_detection():
             imgsz=self.input_size[0],
             show=False,
             save=False,
-            hide_labels=True,
             max_det=self.max_detections,
             project="projects/debug",
             name="debuging",
