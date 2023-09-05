@@ -7,7 +7,8 @@ from omegaconf import OmegaConf
 import cv2
 from tqdm import tqdm
 
-from vision.misc.help_func import get_repo_dir, scale_dets
+from vision.misc.help_func import get_repo_dir, scale_dets, validate_output_path
+from vision.data.results_collector import ResultsCollector
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -20,6 +21,7 @@ from vision.data.COCO_utils import create_images_dict, write_coco_file
 
 
 def run(cfg, args, data_path, test_conf=0.01):
+    results_collector = ResultsCollector(rotate=args.rotate)
 
     cfg.detector.confidence = test_conf
     detector = counter_detection(cfg, args, False)
@@ -35,6 +37,8 @@ def run(cfg, args, data_path, test_conf=0.01):
         img = cv2.imread(os.path.join(data_path, img_name))
 
         output = detector.detect([img])
+
+        results_collector.draw_and_save_batch([img], output, id_, args.output_folder)
 
         ids.append(id_)
         if len(output) > 0:
@@ -130,9 +134,13 @@ if __name__ == "__main__":
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + config_file)
     args = OmegaConf.load(repo_dir + runtime_config)
+    args.output_folder
 
-    data_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017"
-    output_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set"
+    data_path = "/media/matans/My Book/FruitSpec/detectors_evaluation/Detector_testset"
+    output_path = "/media/matans/My Book/FruitSpec/detectors_evaluation"
+    args.output_folder = os.path.join(output_path, f"{cfg.detector.detector_type}_res")
+    validate_output_path(args.output_folder)
+
     test_conf = 0.01
 
 

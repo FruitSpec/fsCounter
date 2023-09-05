@@ -48,6 +48,6 @@ def get_movie_meta(movie_path):
     return plot, date, row_id
 
 if __name__ == "__main__":
-    movie_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_5/1/Result_FSI.mkv"
+    movie_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/PAULBLOC/220723/row_13/1/Result_FSI.mkv"
     output_path = "/media/matans/My Book/FruitSpec/Detector_testset"
     random_split(movie_path, output_path)

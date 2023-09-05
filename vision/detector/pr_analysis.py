@@ -112,7 +112,8 @@ def execute_analysis(img_ids, src_ids, res_ids, src_id_to_bbox, res_id_to_bbox):
 
 
         iou = calc_iou(src_bbox, res_bbox)
-        conf_mat = np.expand_dims(src_conf, axis=1) * np.transpose(np.expand_dims(res_conf, axis=1))
+        ones = np.ones(len(src_conf))
+        conf_mat = np.expand_dims(ones, axis=1) * np.transpose(np.expand_dims(res_conf, axis=1))
 
         for conf_id, conf in enumerate(confs):
             for iou_id, test_iou in enumerate(ious):
@@ -216,9 +217,11 @@ def res_to_data(res, confs, ious, detector):
     return  data
 
 if __name__ == "__main__":
-    src_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/instances_val.json"
-    res_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017_yolox_results.json"
-    output_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set"
+    #src_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/instances_val.json"
+    #res_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017_yolox_results.json"
+    res_path = "/media/matans/My Book/FruitSpec/detectors_evaluation/Detector_testset_yolov8_results.json"
+    src_path = "/media/matans/My Book/FruitSpec/detectors_evaluation/Detector_testset_yolox_results.json"
+    output_path = "/media/matans/My Book/FruitSpec/detectors_evaluation"
 
     print(f"Start analyzing {res_path.split('/')[-1]}")
     s = time.time()
@@ -230,17 +233,17 @@ if __name__ == "__main__":
 
     print(f"Done analyzing {res_path.split('/')[-1]}")
 
-    res_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017_yolov8_results.json"
-
-    print(f"Start analyzing {res_path.split('/')[-1]}")
-    s = time.time()
-    res_mat, ious, confs = analyze(src_path, res_path)
-    e = time.time()
-    print(f"analysis time: {e-s}")
-    avg_res_yolov8 = np.nanmean(res_mat, axis=2)
-    data += res_to_data(avg_res_yolov8, confs, ious, 'yolov8')
-
-    print(f"Done analyzing {res_path.split('/')[-1]}")
+    # res_path = "/media/matans/My Book/FruitSpec/detectors_eval/val_set/val2017_yolov8_results.json"
+    #
+    # print(f"Start analyzing {res_path.split('/')[-1]}")
+    # s = time.time()
+    # res_mat, ious, confs = analyze(src_path, res_path)
+    # e = time.time()
+    # print(f"analysis time: {e-s}")
+    # avg_res_yolov8 = np.nanmean(res_mat, axis=2)
+    # data += res_to_data(avg_res_yolov8, confs, ious, 'yolov8')
+    #
+    # print(f"Done analyzing {res_path.split('/')[-1]}")
 
     df = pd.DataFrame(data, columns=['score', 'iou', 'precision', 'recall', 'f1', 'detector'])
     df.to_csv(os.path.join(output_path, 'detecotor_compare.csv'))
