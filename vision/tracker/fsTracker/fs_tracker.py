@@ -409,9 +409,9 @@ class FsTracker():
 
                     valid = self.validate_track_location(track, self.frame_size[1])
                     if valid:
-                        new_tracklets_list.append(track)
+                        new_tracklets_list.append(track.copy())
             else:
-                new_tracklets_list.append(track)
+                new_tracklets_list.append(track.copy())
 
         self.tracklets = new_tracklets_list
 

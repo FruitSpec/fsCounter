@@ -49,6 +49,7 @@ debug:
   trees: false
   features: false
   align_graph: true
+  clusters: false
   run_type: RGB_siftv1_kp_equalize # align graph naming
 
 

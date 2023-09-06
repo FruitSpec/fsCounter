@@ -1,9 +1,9 @@
 # config.yaml
-exp_file: /home/mic-730ai/fruitspec/code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/matans/Documents/fruitspec/code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/fs_yolox_tiny_lr_hires/model_trt.pth
-#ckpt_file: /home/mic-730ai/Documents/Expriments/weights/Apples_june29/fs_yolox_tiny_lr_hires_apple/model_trt.pth
-ckpt_file: /home/mic-730ai/fruitspec/weights/Apples_1_29_June_23/best_ckpt.pth
+ckpt_file: /home/matans/Documents/fruitspec/weights/Apples_290623/best_ckpt.pth  #yolox
+
+#ckpt_file: /home/matans/Documents/fruitspec/weights/v8/best.pt
 
 
 
@@ -13,9 +13,11 @@ input_size: [1024, 1024]
 batch_size: 4
 
 detector:
-  confidence: 0.381
-  nms: 0.65
+  detector_type: yolox # implemented: yolox, yolov8
+  confidence: 0.3
+  nms: 0.3
   num_of_classes: 1
+  max_detections: 300
   fp16: true
   fuse: false
   trt: false
@@ -33,7 +35,7 @@ tracker:
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
-  compile_data_path: /home/mic-730ai/fruitspec/code/matan/tracker_init.pkl
+  compile_data_path: /home/matans/Documents/fruitspec/code/tracker_init.pkl
   debug: false
 
 

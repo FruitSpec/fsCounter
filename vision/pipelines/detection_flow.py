@@ -76,19 +76,24 @@ class counter_detection():
         return model, decoder_
 
     @staticmethod
-    def init_tracker(cfg, args):
+    def init_tracker(cfg, args, do_init):
 
-        return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
-                         score_weights=cfg.tracker.score_weights,
-                         match_type=cfg.tracker.match_type,
-                         det_area=cfg.tracker.det_area,
-                         max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
-                         major=cfg.tracker.major,
-                         minor=cfg.tracker.minor,
-                         compile_data=cfg.tracker.compile_data_path,
-                         debug_folder=None)
+        if do_init:
+
+            return FsTracker(frame_size=args.frame_size,
+                             minimal_max_distance=cfg.tracker.minimal_max_distance,
+                             score_weights=cfg.tracker.score_weights,
+                             match_type=cfg.tracker.match_type,
+                             det_area=cfg.tracker.det_area,
+                             max_losses=cfg.tracker.max_losses,
+                             translation_size=cfg.tracker.translation_size,
+                             major=cfg.tracker.major,
+                             minor=cfg.tracker.minor,
+                             compile_data=cfg.tracker.compile_data_path,
+                             debug_folder=None)
+
+        else:
+            return None
 
 
     def detect(self, frames):
