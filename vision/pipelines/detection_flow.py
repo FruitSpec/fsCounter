@@ -17,7 +17,7 @@ from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 class counter_detection():
 
-    def __init__(self, cfg, args):
+    def __init__(self, cfg, args, tracker_init=True):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
         self.detector, self.decoder_ = self.init_detector(cfg)
@@ -26,7 +26,7 @@ class counter_detection():
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
-        self.tracker = self.init_tracker(cfg, args)
+        self.tracker = self.init_tracker(cfg, args, tracker_init)
         self.device = cfg.device
 
     @staticmethod

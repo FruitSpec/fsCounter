@@ -1,7 +1,7 @@
 import os.path
 import cv2
 import numpy as np
-from cython_bbox import bbox_overlaps
+#from cython_bbox import bbox_overlaps
 from numba import jit
 import pickle
 
@@ -34,6 +34,12 @@ class FsTracker():
         self.frame_size = frame_size
 
         self.translation_size = translation_size
+
+        if int(np.__version__.split('.')[-2]) > 21:
+            self.match_by_intersection = self.match_by_intersection_lab
+        else:
+            from cython_bbox import bbox_overlaps
+            self.match_by_intersection = self.match_by_intersection_edge
 
         if compile_data is not None:
             self.run_compile(compile_data)
@@ -263,22 +269,40 @@ class FsTracker():
 
         return matches
 
-    def match_by_intersection(self, bboxes1, bboxes2):
+    def match_by_intersection_lab(self, bboxes1, bboxes2):
 
         intersections = []
 
-        atlbrs = [box for box in bboxes1]
-        btlbrs = [box[:4] for box in bboxes2]
-        #bboxes2 = np.array(bboxes2).astype(np.float32)[:, :4]
-        ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
-        if ious.size > 0:
-            ious = bbox_overlaps(
-                np.ascontiguousarray(atlbrs, dtype=np.float),
-                np.ascontiguousarray(btlbrs, dtype=np.float)
-            )
-            intersections = ious > 0
+        if self.det_area < 1 and len(bboxes2) > 0:
+            bboxes2 = np.array(bboxes2)[:, :4]
+            margin_coef = (1 - self.det_area) / 2
+            margin_x = (bboxes2[:, 2] - bboxes2[:, 0]) * margin_coef
+            margin_y = (bboxes2[:, 3] - bboxes2[:, 1]) * margin_coef
+            bboxes2[:, 0] += margin_x
+            bboxes2[:, 2] -= margin_x
+            bboxes2[:, 1] += margin_y
+            bboxes2[:, 3] -= margin_y
+
+        inetr_area = get_intersection(bboxes1, bboxes2)
+        if len(inetr_area) > 0:
+            intersections = inetr_area > 0
 
         return intersections
+
+    def match_by_intersection_edge(self, bboxes1, bboxes2):
+       intersections = []
+       atlbrs = [box for box in bboxes1]
+       btlbrs = [box[:4] for box in bboxes2]
+       #bboxes2 = np.array(bboxes2).astype(np.float32)[:, :4]
+       ious = np.zeros((len(atlbrs), len(btlbrs)), dtype=np.float)
+       if ious.size > 0:
+           ious = bbox_overlaps(
+               np.ascontiguousarray(atlbrs, dtype=np.float32),
+               np.ascontiguousarray(btlbrs, dtype=np.float32)
+           )
+           intersections = ious > 0
+
+       return intersections
 
 
     def match_by_center(self, windows, detections):
