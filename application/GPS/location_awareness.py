@@ -152,7 +152,7 @@ class GPSSampler(Module):
                         action=ModuleTransferAction.MONITOR,
                         data=None,
                         receiver=ModulesEnum.Main,
-                        log_option=tools.LogOptions.LOG
+                        log_option=tools.LogOptions.NONE
                     )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()

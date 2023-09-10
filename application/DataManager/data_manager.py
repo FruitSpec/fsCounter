@@ -1,4 +1,5 @@
 import os.path
+import shutil
 import threading
 import traceback
 from builtins import staticmethod
@@ -57,6 +58,10 @@ class DataManager(Module):
 
         DataManager.receive_data_thread.start()
         DataManager.internet_scan_thread.start()
+
+        if data_conf.network_log:
+            DataManager.network_monitor_thread = threading.Thread(target=DataManager.network_monitor, daemon=True)
+            DataManager.network_monitor_thread.start()
 
         DataManager.internet_scan_thread.join()
 
@@ -221,7 +226,16 @@ class DataManager(Module):
                     stop_acquisition()
                 elif action == ModuleTransferAction.ACQUISITION_CRASH:
                     tools.log("HANDLING ACQUISITION CRASH")
+
                     stop_acquisition()
+
+                    # copy syslog to crash dir
+                    if data_conf.crash_syslog:
+                        now = datetime.now().strftime("%d%m%y_%H%M%S")
+                        crash_syslog_filename = f"{consts.syslog}_{now}.{consts.log_extension}"
+                        crash_syslog_path = os.path.join(consts.crash_dir, crash_syslog_filename)
+                        shutil.copyfile(consts.syslog_path, crash_syslog_path)
+
                     tools.log("ACQUISITION CRASH HANDLING DONE")
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
@@ -229,7 +243,7 @@ class DataManager(Module):
                         action=ModuleTransferAction.MONITOR,
                         data=None,
                         receiver=ModulesEnum.Main,
-                        log_option=tools.LogOptions.LOG
+                        log_option=tools.LogOptions.NONE
                     )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
@@ -555,3 +569,48 @@ class DataManager(Module):
             except:
                 tools.log("", logging.ERROR, exc_info=True)
                 break
+
+    @staticmethod
+    def network_monitor():
+        def bytes_to_human(_b):
+            suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+            index = 0
+            while _b >= 1024 and index < len(suffixes) - 1:
+                _b /= 1024.0
+                index += 1
+            return f"{_b:.2f} {suffixes[index]}"
+
+        def init_network_df():
+            return pd.DataFrame(
+                {
+                    consts.NIC: [],
+                    consts.bytes_sent: [],
+                    consts.bytes_recv: [],
+                    consts.network_sample_timestamp: []
+                }
+            )
+
+        network_df = init_network_df()
+        today = datetime.now().strftime('%d%m%y')
+        network_log_filename = f"{consts.network_log}_{today}.{consts.log_extension}"
+        network_log_path = os.path.join(data_conf.output_path, conf.customer_code, network_log_filename)
+
+        while not DataManager.shutdown_event.is_set():
+            net_stats = psutil.net_io_counters(pernic=True)
+
+            # Iterate over network interfaces
+            for interface, stats in net_stats.items():
+                network_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                if stats.bytes_sent > 0 and stats.bytes_recv > 0:
+                    network_df[consts.NIC].append(interface)
+                    network_df[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
+                    network_df[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
+                    network_df[consts.network_sample_timestamp].append(network_sample_timestamp)
+
+            if len(network_df[consts.NIC]) % 20 == 0 and len(network_df[consts.NIC]) > 0:
+                is_first = not os.path.exists(network_log_path)
+                network_df.to_csv(network_log_path, mode='a+', header=is_first, index=False)
+                network_df = init_network_df()
+
+            time.sleep(consts.network_traffic_sleep_duration)
+

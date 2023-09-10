@@ -28,7 +28,7 @@ from Analysis.alternative_flow import AlternativeFlow
 from utils.module_wrapper import ModuleManager, DataError, ModulesEnum, ModuleTransferAction
 from GUI.gui_interface import GUIInterface
 
-global manager, communication_queue, monitor_events
+global manager, communication_queue, process_monitor_events
 
 
 def storage_cleanup():
@@ -238,11 +238,11 @@ def process_monitor(startup_count, startup_time):
         #     for k in manager:
         #         send_data_to_module(ModuleTransferAction.SET_LOGGER, None, k)
 
-        tools.log("MONITORING MODULES", log_option=tools.LogOptions.LOG)
+        tools.log("MONITORING MODULES...", log_option=tools.LogOptions.LOG)
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
-            monitor_events[k].clear()
+            process_monitor_events[k].clear()
             send_data_to_module(ModuleTransferAction.MONITOR, None, k)
 
         for k in manager:
@@ -252,8 +252,8 @@ def process_monitor(startup_count, startup_time):
                 alive = False
                 death_cause = consts.process_not_alive
             else:
-                monitor_events[k].wait(2)
-                alive = monitor_events[k].is_set()
+                process_monitor_events[k].wait(2)
+                alive = process_monitor_events[k].is_set()
                 death_cause = consts.process_not_responding
             if not alive:
                 tools.log(f"PROCESS {k} IS DEAD - {death_cause} - RESPAWNING...", logging.WARNING)
@@ -271,6 +271,8 @@ def process_monitor(startup_count, startup_time):
                 # manager[k].respawn()
                 restart_application(startup_count, startup_time)
                 return
+
+        tools.log("MONITORING MODULES - OK", log_option=tools.LogOptions.LOG)
         time.sleep(5)
 
 
@@ -290,7 +292,7 @@ def send_data_to_module(action, data, receiver, sender=ModulesEnum.Main, log_opt
 
 
 def transfer_data(startup_count, startup_time):
-    global manager, communication_queue, monitor_events
+    global manager, communication_queue, process_monitor_events
 
     while True:
         sender_module = communication_queue.get()
@@ -311,7 +313,7 @@ def transfer_data(startup_count, startup_time):
             )
             if receiver == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
-                    monitor_events[sender_module].set()
+                    process_monitor_events[sender_module].set()
                 elif action == ModuleTransferAction.RESTART_APP:
                     restart_application(startup_count, startup_time)
                 elif action == ModuleTransferAction.REBOOT:
@@ -344,7 +346,7 @@ def transfer_data(startup_count, startup_time):
 
 
 def main():
-    global manager, communication_queue, monitor_events
+    global manager, communication_queue, process_monitor_events
 
     try:
         startup_count = int(sys.argv[1])
@@ -354,7 +356,7 @@ def main():
     startup_time = time.time()
 
     manager = dict()
-    monitor_events = dict()
+    process_monitor_events = dict()
     communication_queue = Queue()
     main_pid = os.getpid()
 
@@ -364,7 +366,7 @@ def main():
     for _, module in enumerate(ModulesEnum):
         if module != ModulesEnum.Main:
             manager[module] = ModuleManager(main_pid, communication_queue)
-            monitor_events[module] = threading.Event()
+            process_monitor_events[module] = threading.Event()
 
     storage_cleanup()
 
@@ -404,8 +406,11 @@ def main():
     gui_pid = manager[ModulesEnum.GUI].start()
     gps_pid = manager[ModulesEnum.GPS].start()
 
-    monitor_t = threading.Thread(target=process_monitor, args=(startup_count, startup_time), daemon=True)
-    monitor_t.start()
+    process_monitor_t = threading.Thread(target=process_monitor, args=(startup_count, startup_time), daemon=True)
+    process_monitor_t.start()
+
+    network_monitor_t = threading.Thread(target=network_monitor, args=(startup_count, startup_time), daemon=True)
+    network_monitor_t.start()
 
     manager[ModulesEnum.GPS].join()
     manager[ModulesEnum.GUI].join()

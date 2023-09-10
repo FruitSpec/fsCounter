@@ -14,6 +14,11 @@ GUI_conf = OmegaConf.load(os.path.abspath("application/GUI/GUI_config.yaml"))
 pipeline_conf = OmegaConf.load(os.path.abspath("application/Analysis/pipeline_config.yaml"))
 runtime_args = OmegaConf.load(os.path.abspath("application/Analysis/runtime_config.yaml"))
 
+if not conf.debug_mode:
+    analysis_conf.exposure_log = False
+    data_conf.crash_syslog = False
+    data_conf.network_log = False
+
 
 def set_logger():
     today = datetime.now().strftime('%d%m%y')
@@ -21,6 +26,8 @@ def set_logger():
     log_path = os.path.join(consts.log_dir, log_basename)
     if not os.path.exists(consts.log_dir):
         os.makedirs(consts.log_dir)
+    if not os.path.exists(consts.crash_dir):
+        os.makedirs(consts.crash_dir)
 
     log_formatter = logging.Formatter("%(asctime)s | %(levelname)s/%(processName)s | %(message)s", "%H:%M:%S")
     file_handler = logging.FileHandler(log_path)

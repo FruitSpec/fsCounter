@@ -3,6 +3,18 @@ apple: apple
 restart_count_threshold: 3
 restart_time_threshold: 600
 
+crash_dir: "/home/mic-730ai/Desktop/counter_crashes/"
+
+syslog_path: "/var/log/syslog"
+syslog: "syslog"
+
+network_traffic_sleep_duration: 1
+NIC: "NIC"
+bytes_sent: "NIC"
+bytes_recv: "bytes_recv"
+network_sample_timestamp: "network_sample_timestamp"
+network_log: "network"
+
 log_dir: "/home/mic-730ai/Desktop/counter_logs/"
 log_name: "log"
 log_extension: "log"
