@@ -616,7 +616,7 @@ class DataManager(Module):
                     pd.DataFrame(network_dict).to_csv(network_log_path, mode='a+', header=is_first, index=False)
                     network_dict = init_network_dict()
                 except:
-                    traceback.print_exc()
+                    print(network_dict)
 
             time.sleep(consts.network_traffic_sleep_duration)
 
