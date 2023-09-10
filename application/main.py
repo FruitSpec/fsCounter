@@ -409,9 +409,6 @@ def main():
     process_monitor_t = threading.Thread(target=process_monitor, args=(startup_count, startup_time), daemon=True)
     process_monitor_t.start()
 
-    network_monitor_t = threading.Thread(target=network_monitor, args=(startup_count, startup_time), daemon=True)
-    network_monitor_t.start()
-
     manager[ModulesEnum.GPS].join()
     manager[ModulesEnum.GUI].join()
     manager[ModulesEnum.DataManager].join()

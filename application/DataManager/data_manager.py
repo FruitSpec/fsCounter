@@ -1,11 +1,10 @@
 import os.path
 import shutil
 import threading
-import traceback
+from jtop import jtop, JtopException
 from builtins import staticmethod
 import time
-from datetime import datetime, timedelta
-import signal
+from datetime import datetime
 import psutil
 import logging
 import boto3
@@ -62,6 +61,10 @@ class DataManager(Module):
         if data_conf.network_log:
             DataManager.network_monitor_thread = threading.Thread(target=DataManager.network_monitor, daemon=True)
             DataManager.network_monitor_thread.start()
+
+        if data_conf.jtop_log:
+            jtop_t = threading.Thread(target=DataManager.jtop_logger, daemon=True)
+            jtop_t.start()
 
         DataManager.internet_scan_thread.join()
 
@@ -580,17 +583,15 @@ class DataManager(Module):
                 index += 1
             return f"{_b:.2f} {suffixes[index]}"
 
-        def init_network_df():
-            return pd.DataFrame(
-                {
+        def init_network_dict():
+            return {
                     consts.NIC: [],
                     consts.bytes_sent: [],
                     consts.bytes_recv: [],
                     consts.network_sample_timestamp: []
                 }
-            )
 
-        network_df = init_network_df()
+        network_dict = init_network_dict()
         today = datetime.now().strftime('%d%m%y')
         network_log_filename = f"{consts.network_log}_{today}.{consts.log_extension}"
         network_log_path = os.path.join(data_conf.output_path, conf.customer_code, network_log_filename)
@@ -602,15 +603,37 @@ class DataManager(Module):
             for interface, stats in net_stats.items():
                 network_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 if stats.bytes_sent > 0 and stats.bytes_recv > 0:
-                    network_df[consts.NIC].append(interface)
-                    network_df[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
-                    network_df[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
-                    network_df[consts.network_sample_timestamp].append(network_sample_timestamp)
+                    network_dict[consts.NIC].append(interface)
+                    network_dict[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
+                    network_dict[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
+                    network_dict[consts.network_sample_timestamp].append(network_sample_timestamp)
 
-            if len(network_df[consts.NIC]) % 20 == 0 and len(network_df[consts.NIC]) > 0:
+            if len(network_dict[consts.NIC]) % 20 == 0 and len(network_dict[consts.NIC]) > 0:
                 is_first = not os.path.exists(network_log_path)
-                network_df.to_csv(network_log_path, mode='a+', header=is_first, index=False)
-                network_df = init_network_df()
+                pd.DataFrame(network_dict).to_csv(network_log_path, mode='a+', header=is_first, index=False)
+                network_dict = init_network_dict()
 
             time.sleep(consts.network_traffic_sleep_duration)
+
+    @staticmethod
+    def jtop_logger():
+        try:
+            today = datetime.now().strftime(data_conf.date_format)
+            jtop_log_filename = f"{consts.jtop_log}_{today}.{consts.log_extension}"
+            jtop_log_path = os.path.join(data_conf.output_path, conf.customer_code, jtop_log_filename)
+
+            with jtop() as jetson:
+                # Create an empty DataFrame with the same column names as the statistics
+                stats = jetson.stats
+                jtop_df = pd.DataFrame(columns=stats.keys())
+
+                while jetson.ok():
+                    jtop_df = jtop_df.append(jetson.stats, ignore_index=True)
+                    if len(jtop_df) % 20 == 0:
+                        is_first = not os.path.exists(jtop_log_path)
+                        jtop_df.to_csv(jtop_log_path, mode='a+', header=is_first, index=False)
+                        jtop_df = pd.DataFrame(columns=stats.keys())
+
+        except JtopException as e:
+            print(e)
 
