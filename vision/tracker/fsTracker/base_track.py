@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 from collections import deque
 from numba import types
 
@@ -82,6 +83,7 @@ class Track:
         self.cls = det[6]
         self._count += 1
         self.frame_size = frame_size
+        self.lost_counter = 0
         self.depth = depth
         #self.state = TrackState.New
 
@@ -108,6 +110,8 @@ class Track:
     def output(self):
         return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]
 
+    def copy(self):
+        return copy.deepcopy(self)
 
 
 

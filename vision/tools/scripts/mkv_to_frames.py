@@ -30,25 +30,15 @@ def run(movie_path, output_path,  range=None, rotate=True):
             pbar.update(1)
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            BGR, channel_1, channel_2 = jai_to_channels(frame)
-            fsi = np.zeros((frame.shape[0], frame.shape[1], 3), dtype=np.uint8)
-            fsi[:, :, 2] = BGR[:, :, 0]
-            fsi[:, :, 1] = channel_1
-            fsi[:, :, 0] = channel_2
-            fsi = cv2.cvtColor(fsi, cv2.COLOR_RGB2BGR)
+
             if range:
                 if f_id > range[1]:
                     break
                 elif f_id > range[0]:
-                    cv2.imwrite(os.path.join(output_path, f'rgb_{f_id}.jpg'), BGR)
-                    cv2.imwrite(os.path.join(output_path, f'channel_1_{f_id}.jpg'), channel_1)
-                    cv2.imwrite(os.path.join(output_path, f'channel_2_{f_id}.jpg'), channel_2)
-                    cv2.imwrite(os.path.join(output_path, f'fsi_{f_id}.jpg'), fsi)
+
                     cv2.imwrite(os.path.join(output_path, f'frame_{f_id}.jpg'), frame)
             else:
-                cv2.imwrite(os.path.join(output_path, f'rgb_{f_id}.jpg'), BGR)
-                cv2.imwrite(os.path.join(output_path, f'channel_1_{f_id}.jpg'), channel_1)
-                cv2.imwrite(os.path.join(output_path, f'channel_2_{f_id}.jpg'), channel_2)
+
                 cv2.imwrite(os.path.join(output_path, f'frame_{f_id}.jpg'), frame)
 
             f_id += 1
@@ -86,7 +76,7 @@ def slice_to_frames(movie_path, output_path, rotate=True):
             pbar.update(1)
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            cv2.imwrite(os.path.join(output_path, f"channel_{channel_id}_frame_{f_id}.jpg"), frame)
+            cv2.imwrite(os.path.join(output_path, f"frame_{f_id}.jpg"), frame)
 
             f_id += 1
         else:
@@ -174,15 +164,15 @@ def get_frame_by_index(cap, index_):
     return frame
 
 if __name__ == "__main__":
-    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4",
-                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4", write_images=True)
-    mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3",
-                       "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3", write_images=True)
+    # mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4",
+    #                    "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4", write_images=True)
+    # mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3",
+    #                    "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3", write_images=True)
     #mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3","/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/preocessed")
     #slice_to_frames(movie_path, output_path, rotate=True)
-    movie_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/Result_FSI_2_30_720_30.mkv"
-    output_path = "/home/fruitspec-lab/FruitSpec/Sandbox/merge_sensors/FSI_2_30_720_30"
-    range_ = None # [250, 300]
+    movie_path = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/gc1/row_2/1/Result_FSI.mkv"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/debugging/060623/gc1_row_2_frames"
+    range_ = [250, 350]
     run(movie_path, output_path, range=range_)
 
 
