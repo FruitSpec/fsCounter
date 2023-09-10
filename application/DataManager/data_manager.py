@@ -1,6 +1,8 @@
 import os.path
 import shutil
 import threading
+import traceback
+
 from jtop import jtop, JtopException
 from builtins import staticmethod
 import time
@@ -609,9 +611,12 @@ class DataManager(Module):
                     network_dict[consts.network_sample_timestamp].append(network_sample_timestamp)
 
             if len(network_dict[consts.NIC]) % 20 == 0 and len(network_dict[consts.NIC]) > 0:
-                is_first = not os.path.exists(network_log_path)
-                pd.DataFrame(network_dict).to_csv(network_log_path, mode='a+', header=is_first, index=False)
-                network_dict = init_network_dict()
+                try:
+                    is_first = not os.path.exists(network_log_path)
+                    pd.DataFrame(network_dict).to_csv(network_log_path, mode='a+', header=is_first, index=False)
+                    network_dict = init_network_dict()
+                except:
+                    traceback.print_exc()
 
             time.sleep(consts.network_traffic_sleep_duration)
 
