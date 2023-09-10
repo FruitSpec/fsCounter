@@ -237,7 +237,7 @@ class DataManager(Module):
                     # copy syslog to crash dir
                     if data_conf.crash_syslog:
                         now = datetime.now().strftime("%d%m%y_%H%M%S")
-                        crash_syslog_filename = f"{consts.syslog}_{now}.{consts.log_extension}"
+                        crash_syslog_filename = f"{conf.counter_number}_{consts.syslog}_{now}.{consts.log_extension}"
                         crash_syslog_path = os.path.join(consts.crash_dir, crash_syslog_filename)
                         shutil.copyfile(consts.syslog_path, crash_syslog_path)
 
@@ -595,7 +595,7 @@ class DataManager(Module):
 
         network_dict = init_network_dict()
         today = datetime.now().strftime('%d%m%y')
-        network_log_filename = f"{consts.network_log}_{today}.{consts.log_extension}"
+        network_log_filename = f"{conf.counter_number}_{consts.network_log}_{today}.{consts.log_extension}"
         network_log_path = os.path.join(data_conf.output_path, conf.customer_code, network_log_filename)
 
         while not DataManager.shutdown_event.is_set():
@@ -624,7 +624,7 @@ class DataManager(Module):
     def jtop_logger():
         try:
             today = datetime.now().strftime(data_conf.date_format)
-            jtop_log_filename = f"{consts.jtop_log}_{today}.{consts.log_extension}"
+            jtop_log_filename = f"{conf.counter_number}_{consts.jtop_log}_{today}.{consts.log_extension}"
             jtop_log_path = os.path.join(data_conf.output_path, conf.customer_code, jtop_log_filename)
 
             with jtop() as jetson:
