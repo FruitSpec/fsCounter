@@ -10,7 +10,7 @@ syslog: "syslog"
 
 network_traffic_sleep_duration: 1
 NIC: "NIC"
-bytes_sent: "NIC"
+bytes_sent: "bytes_sent"
 bytes_recv: "bytes_recv"
 network_sample_timestamp: "network_sample_timestamp"
 network_log: "network"
