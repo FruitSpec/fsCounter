@@ -173,7 +173,7 @@ class TrainTransform:
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
-        self.transform = get_transform()
+        #self.transform = get_transform()
 
     def __call__(self, image, targets, input_dim):
         boxes = targets[:, :4].copy()
@@ -191,9 +191,9 @@ class TrainTransform:
         # bbox_o: [xyxy] to [c_x,c_y,w,h]
         boxes_o = xyxy2cxcywh(boxes_o)
 
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = self.transform(image=image)["image"]
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #image = self.transform(image=image)["image"]
+        #image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
