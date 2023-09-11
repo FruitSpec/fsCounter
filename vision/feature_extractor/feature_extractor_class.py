@@ -7,7 +7,6 @@ import pandas as pd
 from scipy.stats import skew
 from sklearn.cluster import DBSCAN
 from scipy.spatial import ConvexHull
-from tqdm import tqdm
 from vision.feature_extractor.vegetation_indexes import *
 from vision.feature_extractor.stat_tools import *
 from vision.feature_extractor.image_processing import *

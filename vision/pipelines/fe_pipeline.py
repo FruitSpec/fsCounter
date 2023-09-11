@@ -405,7 +405,7 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 if __name__ == '__main__':
     folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
-    folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_15/1"
+    folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
     final_df_output = "/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/cv_features.csv"
     over_write = True

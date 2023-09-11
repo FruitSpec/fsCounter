@@ -208,8 +208,11 @@ def reset_metadata(folder_path="/media/fruitspec-lab/cam175/customers/DEWAGD", c
 
 def modify_calibration_data(file_path, frame_start, frame_end, shift, fixed=False, reset_meta=True):
     # Load the JSON file
-    with open(file_path, 'r') as f:
-        data = json.load(f)
+    if "jai_zed" not in file_path:
+        file_path = os.path.join(file_path, "jai_zed.json")
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            data = json.load(f)
 
     # Modify the values
     for frame in range(frame_start, frame_end+1):
@@ -261,7 +264,19 @@ def delete_files_with_name(starting_directory, file_name):
 if __name__ == "__main__":
     folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423"
     reset_metadata(folder_path)
-    delete_files_with_name(folder_path, "row_features.csv")
-    # data_path = ""
-    # modify_calibration_data(data_path, 0, 0, 0)
+    # delete_files_with_name(folder_path, "row_features.csv")
+    data_path = ""
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/1", 3343, 3385, 2)
+
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/2", 100, 1837, -30)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/2", 3950, 4010, -38)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/2", 4300, 4500, -57)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/2", 4700, 4910, -55)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_15/1", 4100, 4250, 1)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_15/2", 1422, 1460, -2)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_28/1", 4989, 5050, 1)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_28/2", 300, 500, -2)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_46/1", 1276, 4000, -1)
+    # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_46/2", 1500, 4200, 2)
+
     print("Done")

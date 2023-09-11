@@ -37,7 +37,7 @@ drop_trees: ["SHANIR_SUMGLD_R4_S1_T2", "SHANIR_SUMGLD_R4_S1_T4",
 
               # alignment issues (jumpy, not in place)
              "DEWAGD_DWDBNW39_R30_S2_T1", "DEWAGD_DWDBNW40_R46_S2_T1", "DEWAGD_DWDBNW39_R26_S1_T1",
-             "DEWAGD_DWDBNW39_R18_S2_T1",
+             "DEWAGD_DWDBNW39_R18_S2_T1", "LDCBRA_LDC42200_R7_S1_T4",
 
               # need reslice
 #             # resliced - neeed to check if good now

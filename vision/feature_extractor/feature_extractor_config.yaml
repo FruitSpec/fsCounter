@@ -38,8 +38,6 @@ tracker_format: [6, 0, 1, 2, 3, 9, 8, 10, 11, 12] # track_id, x1,y1,x2,y2, pc_x,
 # translation related params
 dets_only: false # whether to use only the detections for the translation between images or the full image
 
-
-
 zed:
   movie_path: /media/fruitspec-lab/cam175/customers_new/MOTCHA/SHAMVATI/060723/row_10/2ZED.svo
   frame_size: [1920, 1080]
@@ -74,7 +72,7 @@ debug:
     apply: false
     preprocess_saving_folder: "/media/fruitspec-lab/easystore/testing_playground"
   3d_space: true
-  3d_animation: true
+  3d_animation: false
 
 logger:
   apply: true
