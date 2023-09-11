@@ -163,8 +163,11 @@ class ADTSBatchLoader:
         if self.block_name == "":
             self.block_name = os.path.basename(os.path.dirname(self.row_path))
         cols_slicer = ["start", "end"]
-        batch_slicer = [self.slicer_results[self.slicer_results["frame_id"] == int(f_id)][cols_slicer].values.tolist()[0]
-                        for f_id in frame_ids]
+        if not self.slicer_results.empty:
+            batch_slicer = [self.slicer_results[self.slicer_results["frame_id"] == int(f_id)][cols_slicer].values.tolist()[0]
+                            for f_id in frame_ids]
+        else:
+            batch_slicer = [(-1, -1) for _ in frame_ids]
         batch_tracker = [self.tracker_results[self.tracker_results["frame"] == int(f_id)].values.tolist()
                          for f_id in frame_ids]
         cols_align = ["x1", "y1", "x2", "y2", "tx", "ty", "frame", "zed_shift"]

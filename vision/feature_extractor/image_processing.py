@@ -8,7 +8,6 @@ except:
 from vision.tools.image_stitching import get_frames_overlap, plot_2_imgs, keep_dets_only
 from cupyx.scipy import ndimage
 import cupy as cp
-
 global fsi_size
 global nir_channel
 global ir975_channel

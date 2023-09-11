@@ -11,8 +11,8 @@ import pickle
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
-repo_dir = get_repo_dir()
-sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
+# repo_dir = get_repo_dir()
+# sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector
