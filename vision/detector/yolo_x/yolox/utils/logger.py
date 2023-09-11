@@ -401,8 +401,9 @@ class WandbLogger(object):
                 continue
             else:
                 for i in range(res_len):
-                    precision = eval['precision'][iou_ind, i, cat_id, 0, 2]
-                    score = eval['scores'][iou_ind, i, cat_id, 0, 2]
+                    #precision = eval['precision'][iou_ind, i, cat_id, 0, 2]
+                    precision = eval['precision'][iou_ind, i, cat_id, 0, -1]
+                    score = eval['scores'][iou_ind, i, cat_id, 0, -1]
                     recall = recall_list[i]
 
                     data_list.append({'precision': precision, "recall": recall, "score": score, 'class': cat_id})

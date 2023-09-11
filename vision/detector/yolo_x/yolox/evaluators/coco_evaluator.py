@@ -313,11 +313,13 @@ class COCOEvaluator:
             try:
                 from yolox.layers import COCOeval_opt as COCOeval
             except ImportError:
-                from pycocotools.cocoeval import COCOeval
+                #from pycocotools.cocoeval import COCOeval
+                from vision.detector.yolo_x.yolox.evaluators.cocoeval import COCOeval
 
                 logger.warning("Use standard COCOeval.")
 
             cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
+            cocoEval.params.maxDets = [300] # todo change to parameter instead haerd coded
             cocoEval.evaluate()
             cocoEval.accumulate()
 

@@ -9,8 +9,8 @@ import copy
 import time
 
 import numpy as np
-from pycocotools.cocoeval import COCOeval
-
+#from pycocotools.cocoeval import COCOeval
+from vision.detector.yolo_x.yolox.evaluators.cocoeval import COCOeval
 from .jit_ops import FastCOCOEvalOp
 
 
