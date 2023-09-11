@@ -18,6 +18,7 @@ class Exp(MyExp):
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.enable_mixup = False
         self.seed = 42
+        self.max_detections = 300
 
         # Define yourself dataset path
         self.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"

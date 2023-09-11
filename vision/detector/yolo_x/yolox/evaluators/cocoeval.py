@@ -473,6 +473,9 @@ class COCOeval:
             return stats
 
         def _summarizeDets2():
+            '''
+            This function is modified _summarizeDets that enables to evaluate at one mexDet instead of a list of maxDets ( for example [300] instead of [1,10,100] )
+            '''
             stats = np.zeros((12,))
             stats[0] = _summarize(1, maxDets=self.params.maxDets[0])
             stats[1] = _summarize(1, iouThr=.5, maxDets=self.params.maxDets[0])
