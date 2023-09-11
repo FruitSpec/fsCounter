@@ -146,7 +146,7 @@ class Exp(BaseExp):
                 json_file=self.train_ann,
                 img_size=self.input_size,
                 preproc=TrainTransform(
-                    max_labels=50,
+                    max_labels=self.max_detections,
                     flip_prob=self.flip_prob,
                     hsv_prob=self.hsv_prob),
                 cache=cache_img,
@@ -157,7 +157,7 @@ class Exp(BaseExp):
             mosaic=not no_aug,
             img_size=self.input_size,
             preproc=TrainTransform(
-                max_labels=120,
+                max_labels=int(self.max_detections * 2.4),
                 flip_prob=self.flip_prob,
                 hsv_prob=self.hsv_prob),
             degrees=self.degrees,
@@ -317,6 +317,7 @@ class Exp(BaseExp):
             nmsthre=self.nmsthre,
             num_classes=self.num_classes,
             testdev=testdev,
+            max_detections = self.max_detections
         )
         return evaluator
 
