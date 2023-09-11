@@ -587,10 +587,10 @@ class DataManager(Module):
 
         def init_network_dict():
             return {
+                    consts.network_sample_timestamp: [],
                     consts.NIC: [],
                     consts.bytes_sent: [],
-                    consts.bytes_recv: [],
-                    consts.network_sample_timestamp: []
+                    consts.bytes_recv: []
                 }
 
         network_dict = init_network_dict()
@@ -605,10 +605,10 @@ class DataManager(Module):
             for interface, stats in net_stats.items():
                 network_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 if stats.bytes_sent > 0 and stats.bytes_recv > 0:
+                    network_dict[consts.network_sample_timestamp].append(network_sample_timestamp)
                     network_dict[consts.NIC].append(interface)
                     network_dict[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
                     network_dict[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
-                    network_dict[consts.network_sample_timestamp].append(network_sample_timestamp)
 
             if len(network_dict[consts.NIC]) % 20 == 0 and len(network_dict[consts.NIC]) > 0:
                 try:
