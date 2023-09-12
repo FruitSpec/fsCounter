@@ -115,8 +115,8 @@ def slice_inside_frames(path_slices_csv, path_translations_csv, frame_width, out
     # slices_df = process_end_pixels(slices_df)
 
     # Call the function to set end pixels and get the updated dataframe
-    slices_df = set_end_pixels(slices_df)
-    updated_df = slices_df.copy()
+    updated_df = set_end_pixels(slices_df)
+    # updated_df = slices_df.copy()
 
     # Reset the index and remove the 'tx' column
     updated_df.reset_index(drop=True, inplace=True)

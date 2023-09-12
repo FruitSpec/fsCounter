@@ -79,7 +79,7 @@ def slice_clip(filepath, output_path, rotate=0, window_thrs=0.4, neighbours_thrs
             break
 
         # Capture frame-by-frame
-        frame, depth, point_cloud = cam.get_zed(index)
+        frame, depth = cam.get_zed(index, exclude_point_cloud=True)
         if not cam.res:  # couldn't get frames
             # Break the loop
             break
@@ -129,7 +129,7 @@ def worker(cam, index):
     b = frame[:, :, 0].copy()
     depth[b > 240] = 0
     # slice frame
-    if is_wide_gap(depth) or is_sturated(frame):
+    if is_wide_gap(depth) or is_saturated(frame):
         index += 1
         return []
     res = slice_frame(depth.astype(np.uint8), window_thrs=window_thrs, neighbours_thrs=neighbours_thrs)

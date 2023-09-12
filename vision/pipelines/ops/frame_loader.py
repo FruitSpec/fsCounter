@@ -168,7 +168,6 @@ class FramesLoader():
         rgb_jai_last_id = rgb_jai_data[2]
 
         if mode == 'sync_mkv':
-            depth_batch = depth_data[0]
             depth_last_id = depth_data[2]
         else:
             depth_last_id = zed_last_id
@@ -265,7 +264,6 @@ class FramesLoader():
 
         return arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index)
 
-        return zed_ids, jai_ids
 
 def arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index=False):
 

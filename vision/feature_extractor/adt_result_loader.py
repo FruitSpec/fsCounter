@@ -3,7 +3,6 @@ import pandas as pd
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import load_json
 import numpy as np
-from vision.pipelines.adt_pipeline import get_depth_to_bboxes_batch
 from vision.pipelines.ops.frame_loader import FramesLoader
 
 class ADTSBatchLoader:
@@ -191,10 +190,10 @@ class ADTSBatchLoader:
             return batch_tracker
         if "depth" in tracker_res_cols:
             return batch_tracker
-        cut_coords = tuple(res[:4] for res in b_align)
-        batch_tracker = get_depth_to_bboxes_batch([zed[:, :, (1, 0, 2)] for zed in batch_zed], batch_fsi, cut_coords,
-                                                  batch_tracker, True, True)
-        return batch_tracker
+        # cut_coords = tuple(res[:4] for res in b_align)
+        # batch_tracker = get_depth_to_bboxes_batch([zed[:, :, (1, 0, 2)] for zed in batch_zed], batch_fsi, cut_coords,
+        #                                           batch_tracker, True, True)
+        # return batch_tracker
 
     def load_batch(self, frame_ids, shift=0):
         """

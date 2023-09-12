@@ -18,7 +18,7 @@ from vision.misc.help_func import validate_output_path
 def run(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode, maxlen=cfg.translation.maxlen)
+    translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     cap = cv2.VideoCapture(args.movie_path)
 

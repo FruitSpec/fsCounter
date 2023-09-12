@@ -369,34 +369,6 @@ class ADTDebugger:
         if "vid_with_dets" in self.methods:
             fsi_vid.release()
 
-    def re_extract_depth(self):
-        """Extracts depth for each track_id from depth map
-
-        """
-        tracks_fix_depth_path = os.path.join(self.row_path, f'tracks_fix_depth.csv')
-        if os.path.exists(tracks_fix_depth_path):
-            print("new tracks already exsits aborting: ", self.row_path)
-            return
-        frame_number, n = 0, self.cap_fsi.get(cv2.CAP_PROP_FRAME_COUNT)
-        new_depths = []
-        while self.cap_fsi.isOpened() and frame_number < n:
-            print(f"\r{frame_number+1}/{n} ({(frame_number-self.s_frame) / (n - self.s_frame) * 100: .2f}%) frames", end="")
-            ret, frame_fsi = self.read_next_fsi()
-            if not ret:
-                break
-            dets = self.tracks_df[self.tracks_df["frame"] == frame_number].to_numpy()
-            if not len(dets):
-                frame_number += 1
-                continue
-            zed, xyz, frame_fsi, resize_factors = self.get_f_id_images(int(frame_number), frame_fsi)
-            new_depths.append(get_depth_to_bboxes(xyz, frame_fsi, [], dets, aligned=True,
-                                                  resize_factors=resize_factors))
-
-            frame_number+=1
-        self.tracks_df["new_depth"] = [fepth[0] for d_list in new_depths for fepth in d_list]
-        self.tracks_df.to_csv(os.path.join(self.row_path, "tracks_fix_depth.csv"), index=False)
-
-
     def get_width_height_cam(self):
         """Get the width and height of the JAI camera.
 
@@ -925,8 +897,6 @@ def debugger_runner_il(row_path, args):
     """
     args.row_path = row_path
     debugger = ADTDebugger(args)
-    if mode == "fix_depth":
-        debugger.re_extract_depth()
     if mode == "analysis":
         debugger.run()
 

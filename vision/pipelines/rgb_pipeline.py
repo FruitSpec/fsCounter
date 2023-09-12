@@ -16,7 +16,7 @@ from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, fi
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
-from vision.tools.camera import is_sturated
+from vision.tools.camera import is_saturated
 from vision.tools.color import get_hue, get_tomato_color
 from vision.tools.video_wrapper import video_wrapper
 
@@ -25,7 +25,7 @@ def run(cfg, args):
     print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode, maxlen=cfg.translation.maxlen)
+    translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 

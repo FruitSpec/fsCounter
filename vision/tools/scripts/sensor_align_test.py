@@ -125,8 +125,7 @@ def init_run_objects(cfg, args):
     """
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode,
-                    maxlen=cfg.translation.maxlen)
+    translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
     sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
     zed_cam, rgb_jai_cam, jai_cam = init_cams(args)
     return detector, results_collector, translation, sensor_aligner, zed_cam, rgb_jai_cam, jai_cam

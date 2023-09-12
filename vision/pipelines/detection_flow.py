@@ -17,7 +17,7 @@ from vision.tracker.fsTracker.fs_tracker import FsTracker
 
 class counter_detection():
 
-    def __init__(self, cfg, args):
+    def __init__(self, cfg, args, tracker_init=True):
 
         self.preprocess = Preprocess(cfg.device, cfg.input_size)
         self.detector, self.decoder_ = self.init_detector(cfg)
@@ -26,7 +26,7 @@ class counter_detection():
         self.num_of_classes = cfg.detector.num_of_classes
         self.fp16 = cfg.detector.fp16
         self.input_size = cfg.input_size
-        self.tracker = self.init_tracker(cfg, args)
+        self.tracker = self.init_tracker(cfg, args, tracker_init)
         self.device = cfg.device
 
     @staticmethod
@@ -76,19 +76,24 @@ class counter_detection():
         return model, decoder_
 
     @staticmethod
-    def init_tracker(cfg, args):
+    def init_tracker(cfg, args, do_init):
 
-        return FsTracker(frame_size=args.frame_size,
-                         minimal_max_distance=cfg.tracker.minimal_max_distance,
-                         score_weights=cfg.tracker.score_weights,
-                         match_type=cfg.tracker.match_type,
-                         det_area=cfg.tracker.det_area,
-                         max_losses=cfg.tracker.max_losses,
-                         translation_size=cfg.tracker.translation_size,
-                         major=cfg.tracker.major,
-                         minor=cfg.tracker.minor,
-                         compile_data=cfg.tracker.compile_data_path,
-                         debug_folder=None)
+        if do_init:
+
+            return FsTracker(frame_size=args.frame_size,
+                             minimal_max_distance=cfg.tracker.minimal_max_distance,
+                             score_weights=cfg.tracker.score_weights,
+                             match_type=cfg.tracker.match_type,
+                             det_area=cfg.tracker.det_area,
+                             max_losses=cfg.tracker.max_losses,
+                             translation_size=cfg.tracker.translation_size,
+                             major=cfg.tracker.major,
+                             minor=cfg.tracker.minor,
+                             compile_data=cfg.tracker.compile_data_path,
+                             debug_folder=None)
+
+        else:
+            return None
 
 
     def detect(self, frames):

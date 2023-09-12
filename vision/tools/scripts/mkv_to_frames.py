@@ -30,25 +30,15 @@ def run(movie_path, output_path,  range=None, rotate=True):
             pbar.update(1)
             if rotate:
                 frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-            BGR, channel_1, channel_2 = jai_to_channels(frame)
-            fsi = np.zeros((frame.shape[0], frame.shape[1], 3), dtype=np.uint8)
-            fsi[:, :, 2] = BGR[:, :, 0]
-            fsi[:, :, 1] = channel_1
-            fsi[:, :, 0] = channel_2
-            fsi = cv2.cvtColor(fsi, cv2.COLOR_RGB2BGR)
+
             if range:
                 if f_id > range[1]:
                     break
                 elif f_id > range[0]:
-                    cv2.imwrite(os.path.join(output_path, f'rgb_{f_id}.jpg'), BGR)
-                    cv2.imwrite(os.path.join(output_path, f'channel_1_{f_id}.jpg'), channel_1)
-                    cv2.imwrite(os.path.join(output_path, f'channel_2_{f_id}.jpg'), channel_2)
-                    cv2.imwrite(os.path.join(output_path, f'fsi_{f_id}.jpg'), fsi)
+
                     cv2.imwrite(os.path.join(output_path, f'frame_{f_id}.jpg'), frame)
             else:
-                cv2.imwrite(os.path.join(output_path, f'rgb_{f_id}.jpg'), BGR)
-                cv2.imwrite(os.path.join(output_path, f'channel_1_{f_id}.jpg'), channel_1)
-                cv2.imwrite(os.path.join(output_path, f'channel_2_{f_id}.jpg'), channel_2)
+
                 cv2.imwrite(os.path.join(output_path, f'frame_{f_id}.jpg'), frame)
 
             f_id += 1
