@@ -3,6 +3,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 from sklearn.metrics import pairwise_distances
 from scipy.sparse import csr_matrix
 from scipy.stats import gaussian_kde
+import pandas as pd
 
 def quantile_trim(data_arr, trim_vals=(0.025, 0.975), keep_size=True):
     """
@@ -147,3 +148,29 @@ def clac_statistic_on_center(arr, statistic=np.nanmean, bandwidth=0.25):
     min_ind = max(0, int(bandwidth*n))
     max_ind = min(n-1, n-int(bandwidth * n))
     return statistic(arr[min_ind:max_ind])
+
+
+def get_mode(data_arr, obs_per_bin=50, kde_mode=True):
+    """
+    :param data_arr: data_array to use
+    :param obs_per_bin: number of observations per bin
+    :param kde_mode: flag to use pdf estimation insted of binning
+    :return: data_array to use
+    """
+    if kde_mode:
+        kde = gaussian_kde(data_arr)
+        min_caliber, max_caliber = np.nanmin(data_arr), np.nanmax(data_arr)
+        num_range = np.nanmax(data_arr) - np.nanmin(data_arr)
+        x_values = np.linspace(min_caliber, max_caliber, num=num_range*16)
+        pdf_estimated_values = kde(x_values)
+        return x_values[np.argmax(pdf_estimated_values)]
+    if len(data_arr) < 250:
+        obs_per_bin = obs_per_bin / 4
+    elif len(data_arr) < 500:
+        obs_per_bin = obs_per_bin / 2
+    n_bins = int(len(data_arr) / obs_per_bin)
+    hist_data = np.histogram(data_arr, n_bins)
+    hist_frame = pd.DataFrame({"count": hist_data[0], 'caliber_in_mm': hist_data[1][:-1]})
+    hist_frame_sorted = hist_frame.sort_values("count", ascending=False)
+    mode_value = hist_frame_sorted.iloc[:3]['caliber_in_mm'].mean()
+    return mode_value
