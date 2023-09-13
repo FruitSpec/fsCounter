@@ -77,11 +77,7 @@ def slice_clip(filepath, output_path, rotate=0, window_thrs=0.4, neighbours_thrs
         # TODO: add validation for start / end row and saturation
         if index > end_frame:
             break
-        ##################
-        # TODO: remove this
-        if index % 30 == 0:
-            index += 1
-        ###################
+
         # Capture frame-by-frame
         frame, depth = cam.get_zed(index, exclude_point_cloud=True)
         if not cam.res:  # couldn't get frames

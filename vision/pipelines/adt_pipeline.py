@@ -54,6 +54,8 @@ def run(cfg, args, metadata=None, n_frames=None):
              adt.logger.iterations += 1
              continue
 
+
+
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
 
         # detect:

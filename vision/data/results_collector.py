@@ -8,7 +8,6 @@ import collections
 
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-#from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper

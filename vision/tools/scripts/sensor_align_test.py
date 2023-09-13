@@ -20,13 +20,18 @@ from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
 from vision.tools.image_stitching import draw_matches
 from vision.pipelines.ops.simulator import get_n_frames, init_cams
+from vision.pipelines.detection_flow import counter_detection
+from vision.kp_matching.infer import lightglue_infer
 
 
-
-def run(cfg, args, n_frames=200):
+def run(cfg, args, n_frames=200, start_frame=30):
+    cfg.batch_size = 1
     print(f'Inferencing on {args.jai.movie_path}\n')
     rc = ResultsCollector(rotate=args.rotate)
     sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
+    lg = lightglue_infer(cfg)
+ #   det = counter_detection(cfg, args)
+    det_outputs = None
     res = []
     frame_loader = FramesLoader(cfg, args)
     crop = [sensor_aligner.x_s, sensor_aligner.y_s, sensor_aligner.x_e, sensor_aligner.y_e]
@@ -37,38 +42,70 @@ def run(cfg, args, n_frames=200):
     validate_output_path(loaded_path)
 
     f_id = 0
-    n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
+    #n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
     pbar = tqdm(total=n_frames)
-    while f_id < n_frames:
-        pbar.update(cfg.batch_size)
+    data = []
+    while f_id < n_frames + start_frame:
+
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id, 0)
+        if f_id < start_frame:
+            f_id += 1
+            continue
+        pbar.update(cfg.batch_size)
+
+        if len(zed_batch) < cfg.batch_size:
+            f_id += cfg.batch_size
+            continue
 
         debug = []
+        output_folder = os.path.join(args.output_folder, 'sa')
+        validate_output_path(output_folder)
         for i in range(cfg.batch_size):
-            debug.append({'output_path': keypoints_path, 'f_id': f_id + i})
+            debug.append({'output_path': output_folder, 'f_id': f_id + i})
         alignment_results = sensor_aligner.align_on_batch(zed_batch, rgb_batch, debug=debug)
-        rc.collect_alignment(alignment_results, f_id)
+        data += post_process_res(alignment_results, f_id, 'sa')
+
+
         for id_ in range(cfg.batch_size):
             save_aligned(zed_batch[id_],
-                         jai_batch[id_],
-                         args.output_folder,
+                         rgb_batch[id_],
+                         output_folder,
                          f_id + id_,
-                         corr=alignment_results[id_][0], sub_folder='roi')
+                         # corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=alignment_results[id_][0], dets=det_outputs)
             save_loaded_images(zed_batch[id_],
-                               jai_batch[id_], f_id + id_, loaded_path, crop)
+                               rgb_batch[id_], f_id + id_, loaded_path, crop)
 
-            res.append(alignment_results[id_])
+        debug = []
+        output_folder = os.path.join(args.output_folder, 'lg')
+        validate_output_path(output_folder)
+        for i in range(cfg.batch_size):
+            debug.append({'output_path': output_folder, 'f_id': f_id + i})
+        lg_results = lg.align_sensors(zed_batch[0], rgb_batch[0], debug=debug)
+        data += post_process_res([lg_results], f_id, 'lg')
+
+
+
+        for id_ in range(cfg.batch_size):
+
+
+            save_aligned(zed_batch[id_],
+                         rgb_batch[id_],
+                         output_folder,
+                         f_id + id_,
+                         #corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=lg_results[0], dets=det_outputs)
+            #save_loaded_images(zed_batch[id_],
+            #                   jai_batch[id_], f_id + id_, loaded_path, crop)
 
         f_id += cfg.batch_size
 
 
     pbar.close()
     frame_loader.close_cameras()
-    output_path = os.path.join(args.output_folder, "alignment.csv")
-    rc.dump_to_csv(output_path, "alignment")
-
-#    res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', 'tx', 'ty', 'sx', 'sy', 'umatches', 'zed_shift'])
-#   res_df.to_csv(os.path.join(args.output_folder, "res.csv"))
+    rc.dump_to_csv(os.path.join(args.output_folder, "alignment"))
+    df = pd.DataFrame(data)
+    df.to_csv(os.path.join(args.output_folder, 'res.csv'))
 
     return
 
@@ -187,11 +224,23 @@ def estimate_M(kp1, kp2, match, ransac=10):
 
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV'):
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None):
     if corr is not None and np.sum(np.isnan(corr)) == 0:
         zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
     zed = cv2.resize(zed, (680, 960))
     jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        dets = np.array(dets)
+        dets[:, 0] = dets[:, 0] * gx
+        dets[:, 2] = dets[:, 2] * gx
+        dets[:, 1] = dets[:, 1] * gy
+        dets[:, 3] = dets[:, 3] * gy
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -276,6 +325,86 @@ def update_args(args, row_dict):
 
     return new_args
 
+def validate_from_files(alignment, tracks, cfg, args, jai_only=False, max_frame=None):
+    dets = track_to_det(tracks)
+    jai_frames = list(dets.keys())
+    a_hash = get_alignment_hash(alignment)
+
+    frame_loader = FramesLoader(cfg, args)
+    frame_loader.batch_size = 1
+
+    if max_frame is None:
+        max_frame = jai_frames[-1]
+
+    for id_ in tqdm(jai_frames):
+        if id_ > max_frame:
+            break
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+        if jai_only:
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=8, text=True)
+            fp = os.path.join(args.output_folder, 'Dets')
+            validate_output_path(fp)
+
+            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), jai)
+        else:
+            save_aligned(zed_batch[0],
+                         jai_batch[0],
+                         args.output_folder,
+                         id_,
+                         corr=a_hash[id_], dets=dets[id_])
+
+
+def track_to_det(tracks_df):
+    dets = {}
+    for i, row in tracks_df.iterrows():
+        if row['frame_id'] in list(dets.keys()):
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']])
+        else:
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']]]
+
+
+    return dets
+
+def get_alignment_hash(alignment):
+    data = alignment.to_numpy()
+    frames = data[:, 6]
+    corr = data[:, :4]
+
+    hash = {}
+    for i in range(len(frames)):
+        hash[frames[i]] = list(corr[i, :])
+
+    return hash
+
+def post_process_res(batch_res, f_id, type='sa'):
+    data = []
+    for i, r in enumerate(batch_res):
+        x1, y1, x2, y2 = r[0]
+        tx = r[1]
+        ty = r[2]
+        matches = r[3]
+
+
+        if type == 'lg':
+            tx = tx * (-1)
+
+        if np.isinf(tx):
+            tx = -999
+            ty = -999
+
+
+        data.append({'x1': x1,
+                     'y1': y1,
+                     'x2': x2,
+                     'y2': y2,
+                     'tx': int(tx),
+                     'ty': int(ty),
+                     'f_id': f_id + i,
+                     'matches': matches,
+                     'type': type})
+
+
+    return data
 
 
 
@@ -286,13 +415,38 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/home/matans/Documents/fruitspec/sandbox/scans_2023-05-22/220523/POMELO00/220523/row_2/1"
-    args.zed.movie_path = os.path.join(folder, "ZED.mkv")
-    args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
-    args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
-    args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
-    args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.log")
-    args.output_folder = os.path.join(folder, 'SA_freeze')
-    validate_output_path(args.output_folder)
+    #folders = ["/media/matans/My Book/FruitSpec/Mehadrin/03602060/200823/row_12/1",
+    #           "/media/matans/My Book/FruitSpec/Mehadrin/02600173/210823/row_12/1",
+    folders = ["/media/matans/My Book/FruitSpec/Mehadrin/02508060/210823/row_12/1",
+               "/media/matans/My Book/FruitSpec/Mehadrin/01800173/210823/row_3/1",
+               "/media/matans/My Book/FruitSpec/Mehadrin/00608060/210823/row_3/1",
+               "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
 
-    run(cfg, args, None)
+    folders = ["/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
+    for folder in folders:
+
+        splited = folder.split('/')
+        res_folder = f"{splited[-4]}_{splited[-3]}_{splited[-2]}"
+        args.zed.movie_path = os.path.join(folder, "ZED.mkv")
+        args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
+        args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+        args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+        args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
+        args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/sandbox/alignment_test", res_folder)
+        validate_output_path(args.output_folder)
+
+        n_frames = 200
+        start_frame = 30
+        run(cfg, args, n_frames, start_frame)
+    #folder = "/media/matans/My Book/FruitSpec/jun6/HC1000XX/060623/row_4/1"
+    #t_p = os.path.join(folder, "tracks.csv")
+    # a_p = os.path.join(folder, "alignment.csv")
+    #t_p = "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/row_10/tracks.csv"
+    #a_p= "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/row_10/alignment.csv"
+
+    # tracks = pd.read_csv(t_p)
+    # alignment = pd.read_csv(a_p)
+    # #args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/Customers_data/Fowler/det_compare/old", 'FREDIANI_170723_row_14')
+    # args.output_folder = "/media/matans/My Book/FruitSpec/distance_slicing/Fowler_OLIVER12_row10_full_T/"
+    # validate_output_path(args.output_folder)
+    # validate_from_files(alignment=alignment, tracks=tracks, cfg=cfg, args=args, jai_only=True, max_frame=300)

@@ -1,12 +1,9 @@
 import pandas as pd
 
 
-def slice_inside_frames(path_slices_csv, path_translations_csv, frame_width, output_path=None):
+#def slice_inside_frames(path_slices_csv, path_translations_csv, frame_width, output_path=None):
+def slice_inside_frames(slices_df, translations_df, frame_width, output_path=None):
     center_x_pixel = int(frame_width / 2)
-
-    # Load data
-    translations_df = pd.read_csv(path_translations_csv)
-    slices_df = pd.read_csv(path_slices_csv, index_col=0)
 
     # todo - remove this, it's a bug fix
     min_len = min( len(slices_df), len(translations_df))
@@ -102,8 +99,8 @@ def slice_inside_frames(path_slices_csv, path_translations_csv, frame_width, out
     slices_df = process_start_pixels(slices_df)
 
     # Call the function to set end pixels and get the updated dataframe
-    updated_df = set_end_pixels(slices_df)
-    # updated_df = slices_df.copy()
+    slices_df = set_end_pixels(slices_df)
+    updated_df = slices_df.copy()
 
     # Reset the index and remove the 'tx' column
     updated_df.reset_index(drop=True, inplace=True)
@@ -120,10 +117,10 @@ if __name__ == "__main__":
     '''
     This script adds pixels coordinates to slices.csv file that was generated automatically by distance
     '''
-    updated_df = slice_inside_frames(path_slices_csv="/vision/trees_slicer/slice_by_distance_using_tx_translations/matan_dist/data_motcha_New_Hall_row_4/slices.csv",
-                                     path_translations_csv="/vision/trees_slicer/slice_by_distance_using_tx_translations/matan_dist/data_motcha_New_Hall_row_4/jai_translations.csv",
+    updated_df = slice_inside_frames(path_slices_csv="/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance/matan_dist/data_motcha_New_Hall_row_4/slices.csv",
+                                     path_translations_csv="/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance/matan_dist/data_motcha_New_Hall_row_4/jai_translations.csv",
                                      frame_width=1535,
-                                     output_path="/vision/trees_slicer/slice_by_distance_using_tx_translations/matan_dist/data_motcha_New_Hall_row_4/all_slices.csv")
+                                     output_path="/home/lihi/FruitSpec/code/lihi/fsCounter/vision/trees_slicer/slice_by_distance/matan_dist/data_motcha_New_Hall_row_4/all_slices.csv")
 
 
     print('Data processing done')
