@@ -1,8 +1,7 @@
+import os
 import cv2
-import time
-import threading
-import queue
 import numpy as np
+
 
 from vision.kp_matching.sp_lg import LightGlue, SuperPoint, DISK
 from vision.kp_matching.sp_lg.utils import load_image, rbd, numpy_image_to_torch
@@ -36,7 +35,6 @@ class lightglue_infer():
 
 
     def match(self, input0, input1):
-        s = time.time()
         feats0 = self.extractor.extract(input0)
         feats1 = self.extractor.extract(input1)
 
@@ -49,7 +47,7 @@ class lightglue_infer():
 
         return points0, points1, matches
 
-    def preprocess_images(self, zed, jai_rgb, downscale=4):
+    def preprocess_images(self, zed, jai_rgb, downscale=4, to_tensor=True):
 
         cropped_zed = zed[self.y_s: self.y_e, self.x_s:self.x_e, :]
         input_zed = cv2.resize(cropped_zed, (int(cropped_zed.shape[1] / self.sx), int(cropped_zed.shape[0] / self.sy)))
@@ -57,10 +55,11 @@ class lightglue_infer():
         input_zed, rz = resize_img(input_zed, input_zed.shape[0] // downscale)
         input_jai, rj = resize_img(jai_rgb, jai_rgb.shape[0] // downscale)
 
-        input_zed = self.to_tensor(input_zed)
-        input_jai = self.to_tensor(input_jai)
+        if to_tensor:
+            input_zed = self.to_tensor(input_zed)
+            input_jai = self.to_tensor(input_jai)
 
-        return input_jai, rj, input_zed, rz
+        return input_zed, rz, input_jai, rj
 
 
     @staticmethod
@@ -98,7 +97,7 @@ class lightglue_infer():
 
             x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
 
-        return (x1, y1, x2, y2), tx, ty
+        return (x1, y1, x2, y2), tx, ty, np.sum(st)
 
     def get_zed_roi(self, tx, ty):
 
@@ -127,7 +126,7 @@ class lightglue_infer():
         return x1, y1, x2, y2
 
 
-    def align_sensors(self, zed, jai_rgb):
+    def align_sensors(self, zed, jai_rgb, debug=None):
 
         zed_input, rz, jai_input, rj = self.preprocess_images(zed, jai_rgb)
 
@@ -138,6 +137,12 @@ class lightglue_infer():
 
         M, st = self.calcaffine(points0, points1)
 
+        if debug is not None:
+            zed_debug, _, jai_debug, _ = self.preprocess_images(zed, jai_rgb, to_tensor=False)
+            out_img = draw_matches(zed_debug, jai_debug, points0, points1)
+            cv2.imwrite(os.path.join(debug[0]['output_path'], f"alignment_f{debug[0]['f_id']}.jpg"),
+                        out_img)
+
         return self.get_tx_ty(M, st, rz)
 
 
@@ -145,4 +150,24 @@ def inference(extractor, image, batch_queue):
     kp = extractor.extract(image)
     batch_queue.put(kp)
     return batch_queue
+
+
+
+
+
+def draw_matches(input0, input1, points0, points1):
+
+    h = max(input0.shape[0], input1.shape[0])
+    w = input0.shape[1] + input1.shape[1] + 1
+    canvas = np.zeros((h, w, 3))
+
+    canvas[:input0.shape[0], :input0.shape[1], :] = input0
+    canvas[:input1.shape[0], input0.shape[1]: input0.shape[1] + input1.shape[1], :] = input1
+
+    for p0, p1 in zip(points0, points1):
+        canvas = cv2.circle(canvas, (int(p0[0]), int(p0[1])), 3, (255, 0, 0))
+        canvas = cv2.circle(canvas, (input0.shape[1] + int(p1[0]), int(p1[1])), 3, (255, 0, 0))
+        canvas = cv2.line(canvas, (int(p0[0]), int(p0[1])), (input0.shape[1] + int(p1[0]), int(p1[1])), (0, 255, 0))
+
+    return canvas
 

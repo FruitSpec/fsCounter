@@ -70,16 +70,6 @@ class SensorAligner:
         :param gray_zed: image of gray_scale_zed
         :return: cropped image
         """
-        zed_mid_h = gray_zed.shape[0] // 2
-        zed_half_height = int(zed_mid_h / (self.zed_angles[0] / 2) * (self.jai_angles[0] / 2))
-        if isinstance(self.y_s, type(None)):
-            self.y_s = zed_mid_h - zed_half_height - 100
-        if isinstance(self.y_e, type(None)):
-            self.y_e = zed_mid_h + zed_half_height + 100
-        if isinstance(self.x_e, type(None)):
-            self.x_e = gray_zed.shape[1]
-        if isinstance(self.x_s, type(None)):
-            self.x_s = 0
         cropped_zed = gray_zed[self.y_s: self.y_e, self.x_s:self.x_e]
         return cropped_zed
 
@@ -133,18 +123,17 @@ class SensorAligner:
 
 
                 else:
-                    results = list(executor.map(self.align_sensors, zed_input, jai_input))
+                    results = list(executor.map(self.align_sensors, zed_input, jai_input, debug))
 
         output = []
         for r in results:
-        #    self.update_zed_shift(r[1])
-            output.append([r[0], r[1], r[2], self.zed_shift])
+            output.append([r[0], r[1], r[2], r[3]])
 
         return output
 
 
 
-    def align_sensors(self, zed_rgb, jai_img, jai_drop=False, zed_drop=False):
+    def align_sensors(self, zed_rgb, jai_img, debug=None):
         """
         aligns both sensors and updates the zed shift
         :param zed_rgb: rgb image
@@ -166,18 +155,24 @@ class SensorAligner:
 
         kp_zed, des_zed = find_keypoints(gray_zed, self.matcher)  # consumes 33% of time
         kp_jai, des_jai = find_keypoints(gray_jai, self.matcher)  # consumes 33% of time
-        M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac,
-                                         self.fixed_scaling)  # consumes 33% of time
+        M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac)  # consumes 33% of time
 
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+        # dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        # dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        # src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        # src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-        deltas = np.array(dst_pts) - np.array(src_pts)
+        if debug is not None:
+            draw_matches(gray_zed, kp_zed, gray_jai, kp_jai, match, st, debug['output_path'], debug['f_id'])
 
-        tx = np.mean(deltas[:,0,0]) / rz * self.sx
-        ty = np.mean(deltas[:,0,1]) / rz * self.sy
+        if M is not None:
+            tx = M[0, 2]
+            ty = M[1, 2]
+            tx = tx / rz * self.sx
+            ty = ty / rz * self.sy
+        else:
+            tx = -999
+            ty = -999
 
         if tx < 0:
             x1 = 0
@@ -203,7 +198,7 @@ class SensorAligner:
 
         self.update_zed_shift(tx)
 
-        return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
+        return (x1, y1, x2, y2), tx, ty, np.sum(st)
 
 
     def convert_translation_to_coors(self, im_zed, im_jai, tx, ty, sx, sy):
@@ -516,12 +511,12 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
         y1 = mid_y - (roi[1] // 2)
         y2 = mid_y + (roi[1] // 2)
     else:
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+        #dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        #dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        #src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        #src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-        deltas = np.array(dst_pts) - np.array(src_pts)
+        #deltas = np.array(dst_pts) - np.array(src_pts)
 
         tx = M[0, 2]
         ty = M[1, 2]
@@ -532,7 +527,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
 
         x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
 
-    return (x1, y1, x2, y2), tx, ty
+    return (x1, y1, x2, y2), tx, ty, np.sum(st)
 
 def get_zed_roi(tx, ty, roi, origin, zed_size):
 
