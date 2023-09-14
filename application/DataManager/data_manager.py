@@ -362,8 +362,8 @@ class DataManager(Module):
 
         tools.log("UPLOADING OLD FILES")
 
-        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
         old_log_paths = tools.get_old_file_paths(tools.FileTypes.log)
+        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
         old_jaized_timestamps_paths = tools.get_old_file_paths(tools.FileTypes.jaized_timestamps)
 
         old_all = [(old_nav_paths, consts.nav_extension)] + \
