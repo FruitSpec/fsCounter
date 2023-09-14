@@ -60,11 +60,11 @@ class DataManager(Module):
         DataManager.receive_data_thread.start()
         DataManager.internet_scan_thread.start()
 
-        if data_conf.network_log:
-            DataManager.network_monitor_thread = threading.Thread(target=DataManager.network_monitor, daemon=True)
-            DataManager.network_monitor_thread.start()
+        if data_conf.debug.mtu_log:
+            DataManager.mtu_monitor_thread = threading.Thread(target=DataManager.mtu_monitor, daemon=True)
+            DataManager.mtu_monitor_thread.start()
 
-        if data_conf.jtop_log:
+        if data_conf.debug.jtop_log:
             jtop_t = threading.Thread(target=DataManager.jtop_logger, daemon=True)
             jtop_t.start()
 
@@ -235,10 +235,11 @@ class DataManager(Module):
                     stop_acquisition()
 
                     # copy syslog to crash dir
-                    if data_conf.crash_syslog:
-                        now = datetime.now().strftime("%d%m%y_%H%M%S")
-                        crash_syslog_filename = f"{conf.counter_number}_{consts.syslog}_{now}.{consts.log_extension}"
-                        crash_syslog_path = os.path.join(consts.crash_dir, crash_syslog_filename)
+                    if conf.debug.crash_syslog:
+                        today = datetime.now().strftime("%d%m%y")
+                        syslog_dirname = os.path.join(consts.log_parent_dir, consts.syslog_dir)
+                        crash_syslog_filename = f"{conf.counter_number}_{consts.syslog}_{today}.{consts.log_extension}"
+                        crash_syslog_path = os.path.join(syslog_dirname, crash_syslog_filename)
                         shutil.copyfile(consts.syslog_path, crash_syslog_path)
 
                     tools.log("ACQUISITION CRASH HANDLING DONE")
@@ -576,7 +577,7 @@ class DataManager(Module):
                 break
 
     @staticmethod
-    def network_monitor():
+    def mtu_monitor():
         def bytes_to_human(_b):
             suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
             index = 0
@@ -585,47 +586,49 @@ class DataManager(Module):
                 index += 1
             return f"{_b:.2f} {suffixes[index]}"
 
-        def init_network_dict():
+        def init_mtu_dict():
             return {
-                    consts.network_sample_timestamp: [],
+                    consts.mtu_sample_timestamp: [],
                     consts.NIC: [],
                     consts.bytes_sent: [],
                     consts.bytes_recv: []
                 }
 
-        network_dict = init_network_dict()
+        mtu_dict = init_mtu_dict()
         today = datetime.now().strftime('%d%m%y')
-        network_log_filename = f"{conf.counter_number}_{consts.network_log}_{today}.{consts.log_extension}"
-        network_log_path = os.path.join(data_conf.output_path, conf.customer_code, network_log_filename)
+        mtu_dirname = os.path.join(consts.log_parent_dir, consts.mtu_dir)
+        mtu_log_filename = f"{conf.counter_number}_{consts.mtu}_{today}.{consts.tabular_log_ext}"
+        mtu_log_path = os.path.join(mtu_dirname, mtu_log_filename)
 
         while not DataManager.shutdown_event.is_set():
             net_stats = psutil.net_io_counters(pernic=True)
 
             # Iterate over network interfaces
             for interface, stats in net_stats.items():
-                network_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                mtu_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 if stats.bytes_sent > 0 and stats.bytes_recv > 0:
-                    network_dict[consts.network_sample_timestamp].append(network_sample_timestamp)
-                    network_dict[consts.NIC].append(interface)
-                    network_dict[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
-                    network_dict[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
+                    mtu_dict[consts.mtu_sample_timestamp].append(mtu_sample_timestamp)
+                    mtu_dict[consts.NIC].append(interface)
+                    mtu_dict[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
+                    mtu_dict[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
 
-            if len(network_dict[consts.NIC]) % 20 == 0 and len(network_dict[consts.NIC]) > 0:
+            if len(mtu_dict[consts.NIC]) % 20 == 0 and len(mtu_dict[consts.NIC]) > 0:
                 try:
-                    is_first = not os.path.exists(network_log_path)
-                    pd.DataFrame(network_dict).to_csv(network_log_path, mode='a+', header=is_first, index=False)
-                    network_dict = init_network_dict()
+                    is_first = not os.path.exists(mtu_log_path)
+                    pd.DataFrame(mtu_dict).to_csv(mtu_log_path, mode='a+', header=is_first, index=False)
+                    mtu_dict = init_mtu_dict()
                 except:
-                    print(network_dict)
+                    print(mtu_dict)
 
-            time.sleep(consts.network_traffic_sleep_duration)
+            time.sleep(consts.mtu_traffic_sleep_duration)
 
     @staticmethod
     def jtop_logger():
         try:
             today = datetime.now().strftime(data_conf.date_format)
-            jtop_log_filename = f"{conf.counter_number}_{consts.jtop_log}_{today}.{consts.log_extension}"
-            jtop_log_path = os.path.join(data_conf.output_path, conf.customer_code, jtop_log_filename)
+            jtop_dirname = os.path.join(consts.log_parent_dir, consts.jtop_dir)
+            jtop_log_filename = f"{conf.counter_number}_{consts.jtop_log}_{today}.{consts.tabular_log_ext}"
+            jtop_log_path = os.path.join(jtop_dirname, jtop_log_filename)
 
             with jtop() as jetson:
                 # Create an empty DataFrame with the same column names as the statistics

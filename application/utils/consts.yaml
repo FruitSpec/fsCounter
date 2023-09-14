@@ -3,23 +3,28 @@ apple: apple
 restart_count_threshold: 3
 restart_time_threshold: 600
 
-crash_dir: "/home/mic-730ai/Desktop/counter_crashes/"
+log_parent_dir: "/home/mic-730ai/Desktop/logs"
 
-syslog_path: "/var/log/syslog"
+log_dir: "counter_logs"
+log_name: "log"
+log_extension: "log"
+tabular_log_ext: "csv"
+
+syslog_orig_path: "/var/log/syslog"
+syslog_dir: "syslog"
 syslog: "syslog"
 
-network_traffic_sleep_duration: 1
+mtu_frequency: 1
 NIC: "NIC"
 bytes_sent: "bytes_sent"
 bytes_recv: "bytes_recv"
-network_sample_timestamp: "network_sample_timestamp"
-network_log: "network"
+mtu_sample_timestamp: "mtu_sample_timestamp"
+mtu_dir: "MTU"
+mtu: "mtu"
 
-jtop_log: "jtop"
+jtop_dir: "jtop"
+jtop: "jtop"
 
-log_dir: "/home/mic-730ai/Desktop/counter_logs/"
-log_name: "log"
-log_extension: "log"
 global_polygon: "global"
 startup_script: "/home/mic-730ai/Desktop/startup_counter.sh"
 

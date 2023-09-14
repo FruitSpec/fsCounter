@@ -1,5 +1,4 @@
 citrus:
-  exposure_log: True
   autonomous_easy_config: true
   default_weather: clear
   default_acquisition_parameters:
@@ -29,7 +28,6 @@ citrus:
   max_batches: 30
 
 apple:
-  exposure_log: True
   autonomous_easy_config: true
   default_weather: clear
   default_acquisition_parameters:
