@@ -150,7 +150,7 @@ def clac_statistic_on_center(arr, statistic=np.nanmean, bandwidth=0.25):
     return statistic(arr[min_ind:max_ind])
 
 
-def get_mode(data_arr, obs_per_bin=50, kde_mode=True):
+def get_mode(data_arr, obs_per_bin=50, kde_mode=True, bins=0):
     """
     :param data_arr: data_array to use
     :param obs_per_bin: number of observations per bin
@@ -164,6 +164,9 @@ def get_mode(data_arr, obs_per_bin=50, kde_mode=True):
         x_values = np.linspace(min_caliber, max_caliber, num=num_range*16)
         pdf_estimated_values = kde(x_values)
         return x_values[np.argmax(pdf_estimated_values)]
+    if bins:
+        counts, vals = np.histogram(data_arr, bins)
+        return vals[np.argmax(counts)]
     if len(data_arr) < 250:
         obs_per_bin = obs_per_bin / 4
     elif len(data_arr) < 500:

@@ -24,7 +24,7 @@ from vision.misc.help_func import validate_output_path
 def run(cfg, args, detector=None):
     if isinstance(detector, type(None)):
         detector = counter_detection(cfg, args)
-    results_collector = ResultsCollector()
+    results_collector = ResultsCollector(mode=cfg.result_collector.mode)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
 
     img_list = os.listdir(args.data_dir)

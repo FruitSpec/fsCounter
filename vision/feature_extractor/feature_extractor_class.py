@@ -293,6 +293,7 @@ class FeatureExtractor:
         self.max_z = args["max_z"]  # for filtering
         self.min_number_of_tracks = args["min_number_of_tracks"]  # for filtering
         self.tree_images, self.slicer_results, self.tracker_results = tree_images, slicer_results, tracker_results
+        self.precent_seen = np.array([])
         self.minimal_frames_params = args["minimal_frames_params"]  # precent of frame to start or end
         self.remove_high_blues = args["remove_high_blues"]
         self.red_green_filter = args["red_green_filter"]
@@ -315,7 +316,7 @@ class FeatureExtractor:
         self.last_frame, self.last_frame_tra, self.last_frame_number, self.last_slice_tra = None, None, 0, 0
         self.ndvis_binary_um, self.ndvis_binary, self.binary_box_imgs = [], [], []
         self.b_nir, self.b_swir_975, self.false_masks, = [], [], []
-        self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_frame_numbers = [], [], [], [], []
+        self.b_fsi, self.b_zed, self.b_jai_rgb, self.b_rgb_zed, self.b_frame_numbers, self.b_ps = [], [], [], [], [], []
         self.b_jai_translation, self.b_slicer, self.b_align, self.b_tracker_results = [], [], [], {}
         self.tree_physical_params = self.init_physical_parmas([])
         self.vegetation_indexes_keys = args["vegetation_indexes"]
@@ -337,6 +338,7 @@ class FeatureExtractor:
         self.pix_size_img_x, self.pix_size_img_y = [], []
         self.min_max_y_from_slice = False
         self.first_frame = True
+        self.tree_full_slice = []
 
     @staticmethod
     def fill_dict(features_list: list, value: object) -> dict:
@@ -615,13 +617,14 @@ class FeatureExtractor:
                 self.b_slicer, self.b_frame_numbers, self.b_jai_translation, self.b_align) = data_lists
 
     def load_batch(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer, b_frame_numbers,
-                   b_align, b_jai_translation):
+                   b_align, b_jai_translation, batch_ps):
         self.b_fsi, self.b_zed, self.b_jai_rgb = b_fsi, [zed[:, :, :3] for zed in b_zed] if b_zed else b_zed, b_jai_rgb
         # pixel_size_imgs = [get_pix_size(zed[:, :, 2]) for zed in self.b_zed]
         # self.pix_size_img_x, self.pix_size_img_y = [img[0] for img in pixel_size_imgs],\
         #     [img[1] for img in pixel_size_imgs]
         self.b_rgb_zed = [zed[:, :, ::-1] for zed in b_rgb_zed]
         self.b_tracker_results = b_tracker_results
+        self.b_ps = batch_ps
         self.reformat_tracker()
         self.b_slicer = [[max(int(res[0]), 0) if res[0] > -1 else 0,
                           min(int(res[1]), b_fsi[0].shape[1]) if res[1] > -1 else b_fsi[0].shape[1]]
@@ -733,7 +736,7 @@ class FeatureExtractor:
         self.tracker_results = {**self.tracker_results, **b_tracker_results}
 
     def remove_starter_pics(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer,
-                      b_frame_numbers, b_align, b_jai_translation):
+                      b_frame_numbers, b_align, b_jai_translation, batch_ps):
         im_width = b_fsi[0].shape[1]
         found_start = False
         for i in range(len(b_slicer)):
@@ -998,11 +1001,36 @@ class FeatureExtractor:
         self.logger.time_and_log(self.calc_batch_fruit_features, "calc_batch_fruit_features")
         return True
 
+    def process_ps(self):
+        b_s_array = np.array([ps for ps in self.b_ps if len(ps) > 0])
+        if not len(self.precent_seen):
+            self.precent_seen = b_s_array
+        elif np.prod(b_s_array.shape) > 0:
+            self.precent_seen = np.concatenate([self.precent_seen, b_s_array])
+        if self.direction == "right":
+            full_x_tree = [slice[0] <= self.max_x_pix*0.1 and slice[1] >= self.max_x_pix*0.9 for slice in
+                           self.b_slicer[:len(b_s_array)]]
+        else:
+            full_x_tree = [(slice[0] == 0 and slice[1] == self.max_x_pix) or
+                           (slice[0] > self.max_x_pix*0.9 and slice[1] == self.max_x_pix) or
+                           (slice[0] == 0 and slice[1] >= self.max_x_pix*0.1)
+                           for slice in self.b_slicer[:len(b_s_array)]]
+        self.tree_full_slice += full_x_tree
+
+    def get_ps(self):
+        if sum(self.tree_full_slice) > 5:
+            mean_res = np.mean(self.precent_seen[self.tree_full_slice], axis=0)
+        else:
+            mid_frame = len(self.precent_seen)//2
+            mean_res = np.mean(self.precent_seen[max(mid_frame-2, 0): min(mid_frame + 3, mid_frame)], axis=0)
+        fields = ["percent_seen",	"percent_h_seen",	"percent_seen_top",	"no_tree_indicator", "full_tree"]
+        return dict(zip(fields, mean_res[1:]))
+
     def process_batch(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer,
-                      b_frame_numbers, b_align, b_jai_translation):
+                      b_frame_numbers, b_align, b_jai_translation, batch_ps):
         self.logger.start_timer("process_batch")
         adts_res = (b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer, b_frame_numbers,
-                    b_align, b_jai_translation)
+                    b_align, b_jai_translation, batch_ps)
         if not len(b_fsi):
             self.logger.stop_timer("process_batch")
             return
@@ -1014,6 +1042,7 @@ class FeatureExtractor:
         self.logger.time_and_log(self.scale_align_batch, "scale_align_batch_fruits", "fruits")
 
         stat_fruit_params = self.process_fruit_params()
+        self.process_ps()
         if not stat_fruit_params or self.cv_only:
             self.logger.time_and_log(self.debug_process_batch, "debug_process")
             return
@@ -1093,11 +1122,12 @@ class FeatureExtractor:
         self.logger.start_timer("close tree")
         self.logger.start_timer("close tree (cv)")
         self.get_cv()
+        ps = self.get_ps()
         if self.cv_only:
             if isinstance(self.min_number_of_tracks, Iterable):
-                return [{f"cv{i}": self.cv_res[f"cv{i}"] for i in self.min_number_of_tracks}]
+                return [{f"cv{i}": self.cv_res[f"cv{i}"] for i in self.min_number_of_tracks}, ps]
             self.logger.stop_timer("close tree (cv)")
-            return self.cv_res["cv"]
+            return self.cv_res["cv"], ps
         self.logger.stop_timer("close tree (cv)")
         self.logger.start_timer("close tree (transform_to_tree_physical_features)")
         physical_features = self.transform_to_tree_physical_features(self.tree_physical_params)
@@ -1113,7 +1143,7 @@ class FeatureExtractor:
         self.logger.stop_timer("close tree (transform_to_vi_features)")
         self.logger.stop_timer("close tree")
         self.logger.dump_log(f"{self.block}_{self.tree_name}")
-        return physical_features, tree_fruit_features, localization_features, vi_features, self.cv_res
+        return physical_features, tree_fruit_features, localization_features, vi_features, self.cv_res, ps
 
 
     def get_ndvis(self, frame_number: int):

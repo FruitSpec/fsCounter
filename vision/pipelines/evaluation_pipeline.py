@@ -21,7 +21,7 @@ from vision.data.COCO_utils import create_images_dict, write_coco_file
 
 
 def run(cfg, args, data_path, test_conf=0.01):
-    results_collector = ResultsCollector(rotate=args.rotate)
+    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
 
     cfg.detector.confidence = test_conf
     detector = counter_detection(cfg, args, False)

@@ -127,7 +127,7 @@ def find_tree_height_limits(depth, fov_slice=7, filter_width=11, noise_thrs=20, 
     depth = cv2.medianBlur(depth, median_kernel)
 
     w = depth.shape[1]
-    h = depth.shape[1]
+    h = depth.shape[0]
     slices = np.arange(0, w, w // fov_slice).astype(np.int16)
     slices = np.append(slices, w)
 

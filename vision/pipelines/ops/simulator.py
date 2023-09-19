@@ -159,7 +159,7 @@ def write_metadata(args, metadata):
 
 def zed_slicing_to_jai(slice_data_path, output_folder, rotate=False):
     slice_data = load_json(slice_data_path)
-    slice_data = ResultsCollector().converted_slice_data(slice_data)
+    slice_data = ResultsCollector(mode=cfg.result_collector.mode).converted_slice_data(slice_data)
     slice_df = post_process(slice_data=slice_data)
     slice_df.to_csv(os.path.join(output_folder, 'all_slices.csv'))
 
@@ -171,7 +171,10 @@ def get_assignments(metadata):
     tree_features = True
     if "tree_features" in metadata.keys():
         tree_features = metadata["tree_features"]
-
-    return align_detect_track, tree_features
+    if "direction" in metadata.keys():
+        direction = metadata["direction"]
+    else:
+        direction = "right"
+    return align_detect_track, tree_features, direction
 
 

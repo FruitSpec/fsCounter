@@ -337,7 +337,7 @@ def validate_jai_zed_json(row_scan_path):
 
 
 def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True, min_slice_len=5, suffix="",
-                        direction="right"):
+                        direction=""):
     """
     Get valid row scan paths for analysis from a master folder.
 
@@ -354,7 +354,9 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
         if np.all([file in files for file in ["alignment.csv", "tracks.csv"]]):
             row_scan_path = os.path.abspath(root)
             metadata, _ = get_metadata(row_scan_path)
-            align_detect_track, tree_features = get_assignments(metadata)
+            align_detect_track, tree_features, direction_new = get_assignments(metadata)
+            if direction == "":
+                direction = direction_new
             try:
                 slices_validation = validate_slice_data(row_scan_path, min_slice_len, direction=direction)
             except:
@@ -373,11 +375,11 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
                 paths_list.append(row_scan_path)
             else:
                 update_processed_data(process_data, row_scan_path, suffix)
-    return paths_list, process_data
+    return paths_list, process_data, direction
 
 
 def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fids=False, run_only_done_adt=False,
-                  min_slice_len=5, cv_only=False, direction="right"):
+                  min_slice_len=5, cv_only=False, direction=""):
     """
     Process all row scans in a master folder.
 
@@ -391,8 +393,8 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     Returns:
         list: List of tree features dictionaries for all row scans.
     """
-    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt, min_slice_len, suffix,
-                                                   direction)
+    paths_list, process_data, direction = get_valid_row_paths(master_folder, over_write, run_only_done_adt,
+                                                              min_slice_len, suffix, direction)
     n = len(paths_list)
     if njobs > 1:
         with ProcessPoolExecutor(max_workers=njobs) as executor:
@@ -403,19 +405,19 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 
 
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
+    folder_path = "/media/fruitspec-lab/cam175/customers_new"
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
-    folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
+    # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/cv_features.csv"
+    final_df_output = "/media/fruitspec-lab/cam175/customers_new/cv_ps_features.csv"
     over_write = True
     njobs = 1
-    suffix = "cv"
+    suffix = "cv_ps"
     print_fids = False
     run_only_done_adt = False
     min_slice_len = 0
-    cv_only = False
-    direction = "left"
+    cv_only = True
+    direction = ""
 
     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
                             cv_only, direction)

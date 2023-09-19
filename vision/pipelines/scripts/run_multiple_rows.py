@@ -37,7 +37,8 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
             continue
         print("starting ", row_runtime_params["jai_movie_path"])
         run_args = args.copy()
-        run_args = update_args_with_row_runtime_params(run_args, cfg, row_runtime_params, block_name, key)
+        run_cfg = cfg.copy()
+        run_args, run_cfg = update_args_with_row_runtime_params(run_args, run_cfg, row_runtime_params, block_name, key)
         validate_output_path(run_args.output_folder)
 
         run_args, metadata = update_arg_with_metadata(run_args)
@@ -47,13 +48,13 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
         metadata['max_cut_frame'] = str(get_max_cut_frame(run_args, slice_data_jai, slice_data_zed, slices_path)+10)
         if not args.last_slice:
             metadata['max_cut_frame'] = np.inf
-        align_detect_track, tree_features = get_assignments(metadata)
+        align_detect_track, tree_features, direction = get_assignments(metadata)
         path_to_row = os.path.dirname(row_runtime_params["jai_movie_path"])
 
         # perform align -> detect -> track
         if align_detect_track or args.overwrite.adt:
             try:
-                rc = adt_run(cfg, run_args, metadata)
+                rc = adt_run(run_cfg, run_args, metadata)
             except:
                 print("adt problem, row failed: ", path_to_row)
             #adt_slice_postprocess(run_args, rc, slice_data_zed, slice_data_jai, all_slices_path)
@@ -65,7 +66,7 @@ def run_on_rows(input_dict, exclude=[], block_name=""):
         try:
             if tree_features or run_args.overwrite.trees:
                 validate_slice_data(run_args["output_folder"], 0)
-                fe_run(path_to_row)
+                fe_run(path_to_row, direction=direction)
         except:
             print("FE problem, row failed: ", path_to_row)
 
@@ -115,6 +116,8 @@ def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_ja
 
 def update_args_with_row_runtime_params(args, cfg, row_runtime_params, block_name, key):
     args.zed.movie_path = row_runtime_params["zed_movie_path"]
+    if not os.path.exists(args.zed.movie_path):
+        cfg.frame_loader.mode = "sync_mkv"
     if cfg.frame_loader.mode == "sync_mkv":
         args.zed.movie_path = row_runtime_params["zed_movie_path"].replace("svo", "mkv")
     args.depth.movie_path = row_runtime_params["depth_movie_path"]
@@ -127,7 +130,9 @@ def update_args_with_row_runtime_params(args, cfg, row_runtime_params, block_nam
     args.sync_data_log_path = row_runtime_params["sync_data_log_path"]
     args.block_name = block_name
     args.row_name = key
-    return args
+    if cfg.frame_loader.mode == "sync_mkv":
+        cfg.result_collector.mode = "depth" if cfg.result_collector.mode != "" else ""
+    return args, cfg
 
 def create_input(block_path, output_path, side=1, row_list=[]):
     if not row_list:
@@ -490,15 +495,15 @@ def run_multi_block(customer_path, use_sliced_rows_only=False, skip_blocks=[], s
 
 if __name__ == "__main__":
     # TODO add here an option to run FE in left mode
-    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
+    customers_folder_path = "/media/fruitspec-lab/cam175/customers_new"
     # customers_folder_path = "/media/fruitspec-lab/TEMP SSD/USA_June/June_15"
     # customer_path = "/media/fruitspec-lab/TEMP SSD/USA_June/BERESG"
-    skip_blocks = []
+    skip_blocks = [""]
     skip_cust = []
 
-    run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1)
-    # run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1,
-    #                     skip_cust=skip_cust)
+    # run_multi_block(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=1)
+    run_multi_customers(customers_folder_path, use_sliced_rows_only=False, skip_blocks=skip_blocks, njobs=2,
+                        skip_cust=skip_cust)
     #run_multi_customers(customers_folder_path, use_sliced_rows_only=True, skip_blocks=skip_blocks, sides=[2])
 
     # skip_blocks_2 = []

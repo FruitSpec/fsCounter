@@ -182,9 +182,25 @@ def run_LROCV_by_block(df_f, cv_col = "cv1", fit_intercept=False):
     df = df_f.reset_index(drop=True).copy()
     for block in df["block_name"].unique():
         logic_vec = df["block_name"] == block
-        X = df[logic_vec][[cv_col]].reset_index(drop=True)
+        if not isinstance(cv_col, list):
+            X = df[logic_vec][[cv_col]].reset_index(drop=True)
+        else:
+            X = df[logic_vec][cv_col].reset_index(drop=True)
         y = df[logic_vec]["F"].reset_index(drop=True)
         model = LinearRegression(fit_intercept=fit_intercept)
         print(cross_validate_with_mean(model, X, y, groups=df[logic_vec]["row"].reset_index(drop=True)))
         model.fit(X, y)
         print(model.coef_)
+
+
+def run_LBOCV_by_block(df_f, cv_col="cv1", fit_intercept=False):
+    df = df_f.reset_index(drop=True).copy()
+    if not isinstance(cv_col, list):
+        X = df[[cv_col]].reset_index(drop=True)
+    else:
+        X = df[cv_col].reset_index(drop=True)
+    y = df["F"].reset_index(drop=True)
+    model = LinearRegression(fit_intercept=fit_intercept)
+    print(cross_validate_with_mean(model, X, y, groups=df["block_name"].reset_index(drop=True)))
+    model.fit(X, y)
+    print(model.coef_)

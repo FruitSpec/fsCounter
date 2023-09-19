@@ -25,7 +25,7 @@ from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.feature_extractor.boxing_tools import xyz_center_of_box, cut_zed_in_jai
 from concurrent.futures import ThreadPoolExecutor
-from vision.feature_extractor.image_processing import get_percent_seen
+from vision.feature_extractor.percent_seen import get_percent_seen
 from vision.feature_extractor.tree_size_tools import stable_euclid_dist, get_pix_size
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 
@@ -47,9 +47,8 @@ def debug_tracks_pc(jai_batch, trk_outputs, f_id):
     cv2.imwrite(f"/media/fruitspec-lab/easystore/debug_pc/{f_id}.png", frame)
 
 def run(cfg, args, metadata=None, n_frames=None):
-
     adt = Pipeline(cfg, args)
-    results_collector = ResultsCollector(rotate=args.rotate)
+    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
 
     print(f'Inferencing on {args.jai.movie_path}\n')
 
@@ -63,6 +62,7 @@ def run(cfg, args, metadata=None, n_frames=None):
     if n_frames is None:
         n_frames = min(len(adt.frames_loader.sync_jai_ids), max_cut_frame)
 
+    n_frames = (n_frames//cfg.batch_size)*cfg.batch_size
     f_id = 0
 
     pbar = tqdm(total=n_frames)
@@ -99,8 +99,13 @@ def run(cfg, args, metadata=None, n_frames=None):
             trk_outputs = get_depth_to_bboxes_batch(pc_batch, jai_batch, alignment_results, trk_outputs)
         # debug_tracks_pc(jai_batch, trk_outputs, f_id)
         # percent of tree seen
-        # percent_seen = adt.get_percent_seen(zed_batch, alignment_results)
-        percent_seen = [1] * len(zed_batch)
+        try:
+            if cfg.frame_loader.mode == "sync_svo":
+                percent_seen = adt.get_percent_seen(zed_batch, pc_batch, alignment_results)
+            else:
+                percent_seen = [[f_id+i, 1, 1, 1, 0, 1] for i in range(cfg.batch_size)]
+        except:
+            print("issue precent_seen")
 
         # collect results:
         results_collector.collect_adt(trk_outputs, alignment_results, percent_seen, f_id, translation_results)
@@ -249,7 +254,7 @@ class Pipeline():
         dump = pd.DataFrame(self.logger.statistics, columns=['id', 'func', 'time'])
         dump.to_csv(os.path.join(args.output_folder, 'log_stats.csv'))
 
-    def get_percent_seen(self, zed_batch, alignment_results):
+    def get_percent_seen(self, zed_batch, pc_batch, alignment_results):
         """
         Calculates the percentage of the scene that is visible in the jai for each input.
         Full field is the Zed
@@ -267,7 +272,7 @@ class Pipeline():
             self.logger.info(f"Function {name} started")
             cut_coords = [res[0] for res in alignment_results]
             with ThreadPoolExecutor(max_workers=len(cut_coords)) as executor:
-                output = list(executor.map(get_percent_seen, zed_batch, cut_coords))
+                output = list(executor.map(get_percent_seen, zed_batch, pc_batch, cut_coords))
             # output = list(map(get_percent_seen, zed_batch, cut_coords))
             self.log_end_func(name, s)
 
@@ -375,7 +380,7 @@ def init_run_objects(cfg, args):
     """
     logger = Logger(args)
     detector = counter_detection(cfg, args)
-    results_collector = ResultsCollector(rotate=args.rotate)
+    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
     sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
 
@@ -410,7 +415,7 @@ def get_frames(zed_cam, jai_cam, rgb_jai_cam, f_id, sensor_aligner):
 
 def zed_slicing_to_jai(slice_data_path, output_folder, rotate=False):
     slice_data = load_json(slice_data_path)
-    slice_data = ResultsCollector().converted_slice_data(slice_data)
+    slice_data = ResultsCollector().converted_slice_data(slice_data, mode=cfg.result_collector.mode)
     slice_df = post_process(slice_data=slice_data)
     slice_df.to_csv(os.path.join(output_folder, 'all_slices.csv'))
 
@@ -491,7 +496,7 @@ def get_xyz_to_bboxes_batch(xyz_batch, jai_batch, cut_coords, dets, pc=False, di
         z_s (list): list of lists with depth to each detection
     """
     n = len(xyz_batch)
-    return list(map(get_depth_to_bboxes, xyz_batch, jai_batch, cut_coords, dets, [pc] * n, [dims] * n))
+    return list(map(get_xyz_to_bboxes, xyz_batch, jai_batch, cut_coords, dets, [pc] * n, [dims] * n))
 
 def get_depth_to_bboxes(depth_frame, jai_frame, cut_coords, dets, factor = 8 / 255):
     """

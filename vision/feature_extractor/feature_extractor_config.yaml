@@ -71,7 +71,7 @@ debug:
   preprocess:
     apply: false
     preprocess_saving_folder: "/media/fruitspec-lab/easystore/testing_playground"
-  3d_space: true
+  3d_space: false
   3d_animation: false
 
 logger:

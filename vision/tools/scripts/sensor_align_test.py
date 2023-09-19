@@ -26,7 +26,7 @@ from vision.pipelines.detection_flow import counter_detection
 
 def run(cfg, args, n_frames=200):
     print(f'Inferencing on {args.jai.movie_path}\n')
-    rc = ResultsCollector(rotate=args.rotate)
+    rc = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
     res = []
     frame_loader = FramesLoader(cfg, args)
@@ -124,7 +124,7 @@ def init_run_objects(cfg, args):
             - jai_cam (JAI_Camera): JAI camera object.
     """
     detector = counter_detection(cfg, args)
-    results_collector = ResultsCollector(rotate=args.rotate)
+    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
     sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
     zed_cam, rgb_jai_cam, jai_cam = init_cams(args)

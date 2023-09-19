@@ -49,7 +49,7 @@ class ADTSBatchLoader:
         # self.cameras = self.init_cameras(row_path, args)
         self.tree_id = tree_id
         self.slicer_results, self.alignment, self.tracker_results = [], [], {}
-        self.jai_translation = pd.DataFrame({})
+        self.jai_translation, self.percent_seen = pd.DataFrame({}), pd.DataFrame({})
         self.load_dfs()
         self.frame_loader = FramesLoader(cfg, args)
 
@@ -114,6 +114,10 @@ class ADTSBatchLoader:
         self.slicer_results = self.slicer_results[self.slicer_results["tree_id"] == self.tree_id]
         self.tracker_results = pd.read_csv(os.path.join(self.row_path, "tracks.csv"))
         self.alignment = pd.read_csv(os.path.join(self.row_path, "alignment.csv"))
+        if os.path.exists(os.path.join(self.row_path, "percen_seen.csv")):
+            self.percent_seen = pd.read_csv(os.path.join(self.row_path, "percen_seen.csv"))
+        else:
+            self.percent_seen = {}
         if os.path.exists(os.path.join(self.row_path, "jai_translations.csv")):
             self.jai_translation = pd.read_csv(os.path.join(self.row_path, "jai_translations.csv"))
         elif os.path.exists(os.path.join(self.row_path, "jai_translation.csv")):
@@ -181,7 +185,16 @@ class ADTSBatchLoader:
             b_jai_translation = self.validate_jai_translation(b_jai_translation, frame_ids)
         else:
             b_jai_translation = [[] for i in range(len(frame_ids))]
-        return batch_slicer, batch_tracker, b_align, b_jai_translation
+        if len(self.percent_seen):
+            try:
+                batch_ps = [self.percent_seen[self.percent_seen["frame"] == int(f_id)].values.tolist()
+                                 for f_id in frame_ids]
+                batch_ps = [ps[0] if len(ps) > 0 else ps for ps in batch_ps]
+            except Exception as e:
+                batch_ps = [[] for i in range(len(frame_ids))]
+        else:
+            batch_ps = [[] for i in range(len(frame_ids))]
+        return batch_slicer, batch_tracker, b_align, b_jai_translation, batch_ps
 
     def tracker_postprocess(self, batch_tracker, b_align, batch_zed, batch_fsi):
         xyz_dims_cols = ["pc_x", "pc_y", "depth", "width", "height"]
@@ -208,7 +221,7 @@ class ADTSBatchLoader:
 
         """
         try:
-            batch_slicer, batch_tracker, b_align, b_jai_translation = self.load_adts(frame_ids)
+            batch_slicer, batch_tracker, b_align, b_jai_translation, batch_ps = self.load_adts(frame_ids)
             batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed = [], [], [], []
             batch_rgb_zed, batch_zed, batch_fsi, batch_jai_rgb = self.frame_loader.get_frames(int(frame_ids[0]),
                                                                                               0)
@@ -219,5 +232,5 @@ class ADTSBatchLoader:
             print("debug")
 
         return (batch_fsi, batch_zed, batch_jai_rgb, batch_rgb_zed, batch_tracker, batch_slicer, frame_ids,
-                b_align, b_jai_translation)
+                b_align, b_jai_translation, batch_ps)
 

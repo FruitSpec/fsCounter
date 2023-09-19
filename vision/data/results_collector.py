@@ -17,7 +17,7 @@ from vision.tools.video_wrapper import video_wrapper
 
 class ResultsCollector():
 
-    def __init__(self, rotate=False):
+    def __init__(self, rotate=False, mode=""):
 
         self.detections = []
         self.detections_header = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "frame_id"]
@@ -36,7 +36,8 @@ class ResultsCollector():
         self.hash = {}
         self.jai_width = 1536
         self.jai_height = 2048
-        self.percent_seen = {}
+        self.percent_seen = []
+        self.mode = mode
 
 
     def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
@@ -54,9 +55,9 @@ class ResultsCollector():
     def collect_percent_seen(self, percent_seen, f_id):
         if isinstance(percent_seen, Iterable):
             for i, frame_percent_seen in enumerate(percent_seen):
-                self.percent_seen[f_id + i] = frame_percent_seen
+                self.percent_seen.append([f_id + i] + list(frame_percent_seen))
         else:
-            self.percent_seen[f_id] = percent_seen
+            self.percent_seen.append([f_id] + list(percent_seen))
 
 
     def collect_detections(self, batch_results, img_id):
@@ -67,10 +68,6 @@ class ResultsCollector():
                     det.append(img_id + i)
                     output.append(det)
                 self.detections += output
-
-    def collect_percent_seen(self, percent_seen_batch, img_id):
-        for i, percent_seen in enumerate(percent_seen_batch):
-            self.percent_seen[img_id + i] = percent_seen
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -147,12 +144,11 @@ class ResultsCollector():
         return [x1, y1, x2, y2, tracker_score, track_id, frame_id]
 
     def get_row_fileds_tracks(self):
-        n_fileds = len(self.tracks[0])
-        if n_fileds == 8:
+        if self.mode == "":
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame"]
-        elif n_fileds == 9:
+        elif self.mode == "depth":
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "depth"]
-        elif n_fileds == 11:
+        elif self.mode == "pc":
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "pc_x", "pc_y",
                       "depth"]
         else:
@@ -161,20 +157,23 @@ class ResultsCollector():
         rows = self.tracks
         return rows, fields
 
+    def get_row_fields_dets(self):
+        n_fileds = len(self.detections[0])
+        if self.mode == "":
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
+        elif self.mode == "depth":
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "depth", "image_id"]
+        elif self.mode == "pc":
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
+                      "image_id"]
+        else:
+            fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
+                      "width", "height", "image_id"]
+        return self.detections, fields
+
     def dump_to_csv(self, output_file_path, type='detections'):
         if type == 'detections':
-            n_fileds = len(self.detections[0])
-            if n_fileds == 8:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "image_id"]
-            elif n_fileds == 9:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "depth", "image_id"]
-            elif n_fileds == 11:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
-                          "image_id"]
-            else:
-                fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_conf", "class_pred", "pc_x", "pc_y", "depth",
-                          "width", "height", "image_id"]
-            rows = self.detections
+            rows, fields = self.get_row_fields_dets()
         elif type == "jai_translations":
             fields = self.jai_translation_header
             rows = self.jai_translation
@@ -185,7 +184,9 @@ class ResultsCollector():
         elif type == "alignment":
             fields = self.alignment_header
             rows = self.alignment
-
+        elif type == "percen_seen":
+            fields = ["frame", "percent_seen", "percent_h_seen", "percent_seen_top", "no_tree_indicator", "full_tree"]
+            rows = self.percent_seen
         else:
             rows, fields = self.get_row_fileds_tracks()
         with open(output_file_path, 'w') as f:
@@ -581,9 +582,7 @@ class ResultsCollector():
 
 
     def dump_state(self, output_path):
-
         write_json(os.path.join(output_path, 'alignment.json'), self.alignment)
-        write_json(os.path.join(output_path, 'percent_seen.json'), self.percent_seen)
 
     def dump_cv_res(self, output_path: str, depth: int = 0) -> None:
         """
@@ -631,6 +630,7 @@ class ResultsCollector():
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
         self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
         self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
+        self.dump_to_csv(os.path.join(output_path, 'percen_seen.csv'), type="percen_seen")
         # self.dump_cv_res(output_path, depth)
 
     def converted_slice_data(self, sliced_data):
@@ -755,7 +755,7 @@ class ResultsCollector():
         :return: None
         """
         if isinstance(percent_seen, str):
-            self.percent_seen = read_json(percent_seen)
+            self.percent_seen = pd.read_csv(percent_seen).tolist()
         else:
             self.percent_seen = percent_seen
 
@@ -775,7 +775,7 @@ class ResultsCollector():
         if "tracks" in parmas:
             self.set_tracks(os.path.join(read_from, 'tracks.csv')) # list of lists
         if "percent_seen" in parmas:
-            self.set_percent_seen("percent_seen.json")
+            self.set_percent_seen(os.path.join(read_from, "percent_seen.csv"))
 
 
 def scale(det_dims, frame_dims):

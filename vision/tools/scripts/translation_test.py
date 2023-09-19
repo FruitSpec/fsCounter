@@ -21,7 +21,7 @@ from vision.tools.translation import translation as T
 def run(cfg, args, n_frames=200):
     cfg.batch_size = 1
     print(f'Inferencing on {args.jai.movie_path}\n')
-    rc = ResultsCollector(rotate=args.rotate)
+    rc = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
 
     frame_loader = FramesLoader(cfg, args)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)

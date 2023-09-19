@@ -15,6 +15,6 @@ from vision.data import COCO_utils
 
 def run(cfg, args):
     detector = counter_detection(cfg)
-    results_collector = ResultsCollector()
+    results_collector = ResultsCollector(mode=cfg.result_collector.mode)
 
     train_dataloader = DataLoader(training_data, batch_size=64, shuffle=True)

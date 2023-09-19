@@ -61,6 +61,8 @@ sensor_aligner:
 frame_loader:
   mode: sync_svo # sync_mkv, async,  sync_svo
 
+result_collector:
+  mode: pc_dims # options "", depth, pc, pc_dims
 
 filters:
   distance:

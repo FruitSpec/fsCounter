@@ -251,7 +251,7 @@ def delete_files_with_name(starting_directory, file_name):
 
 
 if __name__ == "__main__":
-    folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423"
+    folder_path = "/media/fruitspec-lab/cam175/customers_new"
     reset_metadata(folder_path)
     # delete_files_with_name(folder_path, "row_features.csv")
     data_path = ""
