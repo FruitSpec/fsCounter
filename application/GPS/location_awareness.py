@@ -43,7 +43,7 @@ class GPSSampler(Module):
                                                   notify_on_death, death_action)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown)
 
-        LedSettings.turn_off()
+        LedSettings.turn_on(LedColor.RED)
         GPSSampler.last_step_in, GPSSampler.last_step_out = datetime.now(), datetime.now()
         GPSSampler.init_jaized_log_dict()
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))

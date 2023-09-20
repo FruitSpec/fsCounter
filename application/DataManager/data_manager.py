@@ -60,11 +60,11 @@ class DataManager(Module):
         DataManager.receive_data_thread.start()
         DataManager.internet_scan_thread.start()
 
-        if data_conf.debug.mtu_log:
+        if conf.debug.mtu_log:
             DataManager.mtu_monitor_thread = threading.Thread(target=DataManager.mtu_monitor, daemon=True)
             DataManager.mtu_monitor_thread.start()
 
-        if data_conf.debug.jtop_log:
+        if conf.debug.jtop_log:
             jtop_t = threading.Thread(target=DataManager.jtop_logger, daemon=True)
             jtop_t.start()
 
