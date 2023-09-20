@@ -85,7 +85,7 @@ class ResultsCollector():
         for tracking_results in batch_results:
             self.tracks += tracking_results
 
-        #return tracking_results
+        return tracking_results
 
     def collect_results(self, tracking_results, clusters, dimentsions, colors):
 

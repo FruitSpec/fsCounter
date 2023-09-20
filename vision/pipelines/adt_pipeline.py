@@ -361,15 +361,15 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/baseline/Fowler_BLOCK700_200723_new_v8"
+    output_path = "/home/lihi/FruitSpec/debbug"
     validate_output_path(output_path)
 
     #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
-    rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
+    rows_dir = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
 
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
-    rows = ["row_4"]
+    #rows = ["row_4"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 

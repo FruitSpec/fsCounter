@@ -1,5 +1,5 @@
 # config.yaml
-exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_apple.py
+exp_file: /home/lihi/FruitSpec/code/lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 
 ckpt_file: /home/matans/Documents/fruitspec/Weights/citrus/Apple_29_lune_23/best_ckpt.pth  #yolox
 
@@ -35,7 +35,7 @@ tracker:
   match_type:  inter #center #
   det_area: 0.7
   translation_size: 640
-  compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
+  compile_data_path: /home/lihi/FruitSpec/code/tracker_init.pkl
   debug: false
 
 
