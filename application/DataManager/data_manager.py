@@ -242,7 +242,7 @@ class DataManager(Module):
                         syslog_dirname = os.path.join(consts.log_parent_dir, consts.syslog_dir)
                         crash_syslog_filename = f"{conf.counter_number}_{consts.syslog}_{today}.{consts.log_extension}"
                         crash_syslog_path = os.path.join(syslog_dirname, crash_syslog_filename)
-                        shutil.copyfile(consts.syslog_path, crash_syslog_path)
+                        shutil.copyfile(consts.syslog_orig_path, crash_syslog_path)
 
                     tools.log("ACQUISITION CRASH HANDLING DONE")
             elif sender_module == ModulesEnum.Main:
