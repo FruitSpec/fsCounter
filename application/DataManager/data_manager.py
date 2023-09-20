@@ -630,7 +630,7 @@ class DataManager(Module):
         try:
             today = datetime.now().strftime(data_conf.date_format)
             jtop_dirname = os.path.join(consts.log_parent_dir, consts.jtop_dir)
-            jtop_log_filename = f"{conf.counter_number}_{consts.jtop_log}_{today}.{consts.tabular_log_ext}"
+            jtop_log_filename = f"{conf.counter_number}_{consts.jtop}_{today}.{consts.tabular_log_ext}"
             jtop_log_path = os.path.join(jtop_dirname, jtop_log_filename)
 
             with jtop() as jetson:
