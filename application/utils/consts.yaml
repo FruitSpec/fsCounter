@@ -14,7 +14,7 @@ syslog_orig_path: "/var/log/syslog"
 syslog_dir: "syslog"
 syslog: "syslog"
 
-mtu_frequency: 1
+mtu_traffic_sleep_duration: 1
 NIC: "NIC"
 bytes_sent: "bytes_sent"
 bytes_recv: "bytes_recv"
