@@ -26,6 +26,7 @@ class Exp(BaseExp):
         self.width = 1.00
         # activation name. For example, if using "relu", then "silu" will be replaced to "relu".
         self.act = "silu"
+        self.max_detections = 300
 
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
