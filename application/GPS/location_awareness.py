@@ -159,35 +159,40 @@ class GPSSampler(Module):
 
     @staticmethod
     def sample_gps():
+
+        def init_serial_port():
+            while not GPSSampler.shutdown_event.is_set():
+                try:
+                    _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
+                    _ser.flushOutput()
+                    _ser.flushInput()
+                    tools.log(f"SERIAL PORT INIT - SUCCESS")
+                    return _ser
+                except (serial.SerialException, TimeoutError) as e:
+                    tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
+                    time.sleep(5)
+                except Exception:
+                    tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
+                    time.sleep(5)
+
         tools.log("START")
+        err_count = sample_count = 0
         parser = NavParser("", is_file=False)
-        ser = None
-        while not GPSSampler.shutdown_event.is_set():
-            try:
-                ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
-                ser.flushOutput()
-                ser.flushInput()
-                tools.log(f"SERIAL PORT INIT - SUCCESS")
-                break
-            except (serial.SerialException, TimeoutError) as e:
-                tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
-                time.sleep(5)
-            except Exception:
-                tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
-                time.sleep(5)
-        err_count = 0
-        sample_count = 0
+        ser = init_serial_port()
         GPSSampler.gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
                 LedSettings.turn_on(LedColor.RED)
                 continue
+
+            # read NMEA data from the serial port
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
+
             timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
                 parser.read_string(data)
@@ -203,6 +208,7 @@ class GPSSampler(Module):
 
                 sample_count += 1
 
+                # send the jaized_timestamps to the DataManager
                 if sample_count % 20 == 0 and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
                     GPSSampler.send_data(
                         action=ModuleTransferAction.JAIZED_TIMESTAMPS,

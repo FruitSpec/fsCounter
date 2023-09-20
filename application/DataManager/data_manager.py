@@ -61,10 +61,12 @@ class DataManager(Module):
         DataManager.internet_scan_thread.start()
 
         if conf.debug.mtu_log:
+            tools.log("RECORDING MTU LOG")
             DataManager.mtu_monitor_thread = threading.Thread(target=DataManager.mtu_monitor, daemon=True)
             DataManager.mtu_monitor_thread.start()
 
         if conf.debug.jtop_log:
+            tools.log("RECORDING JTOP LOG")
             jtop_t = threading.Thread(target=DataManager.jtop_logger, daemon=True)
             jtop_t.start()
 
@@ -617,6 +619,7 @@ class DataManager(Module):
                     is_first = not os.path.exists(mtu_log_path)
                     pd.DataFrame(mtu_dict).to_csv(mtu_log_path, mode='a+', header=is_first, index=False)
                     mtu_dict = init_mtu_dict()
+                    tools.log("MTU LOG WRITE")
                 except:
                     print(mtu_dict)
 
@@ -641,6 +644,7 @@ class DataManager(Module):
                         is_first = not os.path.exists(jtop_log_path)
                         jtop_df.to_csv(jtop_log_path, mode='a+', header=is_first, index=False)
                         jtop_df = pd.DataFrame(columns=stats.keys())
+                        tools.log("JTOP LOG WRITE")
 
         except JtopException as e:
             print(e)
