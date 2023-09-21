@@ -9,6 +9,7 @@ from vision.tools.translation import translation as T
 import os
 import cv2
 from vision.data.results_collector import ResultsCollector
+from vision.misc.help_func import validate_output_path
 
 
 def compute_mot_metrics(ground_truth_df, predictions_df, max_iou=0.5):
@@ -28,6 +29,7 @@ def compute_mot_metrics(ground_truth_df, predictions_df, max_iou=0.5):
     acc = mm.MOTAccumulator(auto_id=True)
 
     for frame in ground_truth_df['frame'].unique():
+        print (frame)
         gt_frame = ground_truth_df[ground_truth_df['frame'] == frame]
         pred_frame = predictions_df[predictions_df['frame'] == frame]
 
@@ -37,8 +39,8 @@ def compute_mot_metrics(ground_truth_df, predictions_df, max_iou=0.5):
         distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=max_iou)
 
         acc.update(
-            gt_frame['track_id'].values,  # Ground truth objects in this frame
-            pred_frame['track_id'].values,  # Predicted objects in this frame
+            gt_frame['track_id'].values.astype('int'),  # Ground truth objects in this frame
+            pred_frame['track_id'].values.astype('int'),  # Predicted objects in this frame
             distances)
 
     # Compute a comprehensive set of MOT metrics
@@ -107,7 +109,7 @@ def track(tracker, outputs, translations, frame_id=None):
                 id_ = frame_id + i
             else:
                 id_ = None
-            online_targets, track_windows = tracker.tracker.update(frame_output, tx, ty, id_)
+            online_targets, track_windows = tracker.update(frame_output, tx, ty, id_)
             tracking_results = []
             for target in online_targets:
                 target.append(id_)
@@ -154,16 +156,24 @@ def eval_tracker_from_tracks_csv(path_ground_truth, path_predicted_tracks, max_i
 
 if __name__ == '__main__':
 
+    # from vision.tools.utils_general import download_s3_files
+    # s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/batch2e/'
+    # output_path = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
+    #
+    # download_s3_files (s3_path, output_path, string_param=None, suffix='.jpg', skip_existing=True)
+#######################################################################################################
     # Evaluation of Tracker + detector from tracks.csv:
-    PATH_gt_tracks = r'/home/lihi/FruitSpec/Data/tracker/batch_1_e/batch1e.json'
-    PATH_predicted_tracks = r'/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723/row_2/1/tracks.csv'
+    PATH_gt_tracks = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/batch2e.json'
+    # PATH_predicted_tracks = r'/home/fruitspec-lab-3/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723/row_2/1/tracks.csv'
+    OUTPUT_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e'
 
-    tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_gt_tracks, PATH_predicted_tracks, max_iou=0.5)
+
+    # tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_gt_tracks, PATH_predicted_tracks, max_iou=0.5)
 
     ##################################################################################
 
     # Evaluation of Tracker only from coco ground truth json file:
-    DIR_IMAGES  = '/home/lihi/FruitSpec/Data/tracker/batch_1_e/frames'
+    DIR_IMAGES  = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
 
     cfg = OmegaConf.load(get_repo_dir() + "/vision/pipelines/config/pipeline_config.yaml")
     args = OmegaConf.load(get_repo_dir() + "/vision/pipelines/config/dual_runtime_config.yaml")
@@ -201,14 +211,20 @@ if __name__ == '__main__':
             translation_results = translation.batch_translation(batch=jai_batch, detections=det_outputs)
 
             trk_outputs, trk_windows  = track(tracker=tracker, outputs = det_outputs, translations=translation_results, frame_id=f_id)
-            tracking_results = results_collector.collect_tracks(trk_outputs)
+            results_collector.collect_tracks(trk_outputs)
 
             # reset batch:
             jai_batch = []
             det_outputs = []
 
-    res = tracking_results
-    # TODO: get all tracks results and evaluate them
+    res = pd.DataFrame(results_collector.tracks, columns = results_collector.tracks_header[:-1])
+    validate_output_path(OUTPUT_DIR)
+    output_path = os.path.join(OUTPUT_DIR, 'tracks_from_gt_dets.csv')
+    res.to_csv(output_path, index=False)
+
+    print('done')
+
+    tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_gt_tracks, output_path, max_iou=0.5)
 
 
     print ('ok')
