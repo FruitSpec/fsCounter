@@ -10,6 +10,7 @@ import os
 import cv2
 from vision.data.results_collector import ResultsCollector
 from vision.misc.help_func import validate_output_path
+from vision.tools.utils_general import download_s3_files, find_subdirs_with_file
 
 
 def compute_mot_metrics(ground_truth_df, predictions_df, max_iou=0.5):
@@ -204,29 +205,175 @@ def extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_gt_tracks, OUTPUT_DIR
     return res, output_path
 
 
+# def compute_mot_metrics_by_video(ground_truth_dict, predictions_dict, max_iou=0.5):
+#     """
+#     Computes a comprehensive set of MOT metrics for multiple videos using py-motmetrics.
+#
+#     Args:
+#     - ground_truth_dict (dict): A dictionary where keys are video names and values are corresponding ground truth dataframes.
+#     - predictions_dict (dict): A dictionary where keys are video names and values are corresponding predicted dataframes.
+#     - max_iou (float): The IoU threshold for considering bounding boxes as a match.
+#
+#     Returns:
+#     - pd.DataFrame: A consolidated DataFrame with MOT metrics for each video and aggregate metrics.
+#     """
+#
+#     all_results = []
+#     global_acc = mm.MOTAccumulator(auto_id=True)  # For computing aggregate metrics
+#
+#     for video_name, ground_truth_df in ground_truth_dict.items():
+#         predictions_df = predictions_dict[video_name]
+#
+#         # Create an accumulator for this video
+#         acc = mm.MOTAccumulator(auto_id=True)
+#
+#         for frame in ground_truth_df['frame'].unique():
+#             gt_frame = ground_truth_df[ground_truth_df['frame'] == frame]
+#             pred_frame = predictions_df[predictions_df['frame'] == frame]
+#
+#             gt_boxes = gt_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
+#             pred_boxes = pred_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
+#
+#             distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=max_iou)
+#
+#             acc.update(
+#                 gt_frame['track_id'].values.astype('int'),
+#                 pred_frame['track_id'].values.astype('int'),
+#                 distances
+#             )
+#
+#             # Update the global accumulator
+#             global_acc.update(
+#                 gt_frame['track_id'].values.astype('int'),
+#                 pred_frame['track_id'].values.astype('int'),
+#                 distances
+#             )
+#
+#         # Compute MOT metrics for this video
+#         mh = mm.metrics.create()
+#         summary = mh.compute(acc)
+#         summary['video_name'] = video_name
+#         all_results.append(summary)
+#
+#     # Compute aggregate MOT metrics across all videos
+#     mh_global = mm.metrics.create()
+#     global_summary = mh_global.compute(global_acc)
+#     global_summary['video_name'] = 'aggregate'
+#     all_results.append(global_summary)
+#
+#     return pd.concat(all_results, axis=0).reset_index(drop=True)
+
+
+def eval_single_video(df_gt, df_pred, video_name, global_acc=None, max_iou=0.5):
+    # Create an accumulator for this video
+    acc = mm.MOTAccumulator(auto_id=True)
+
+    for frame in df_gt['frame'].unique():
+        gt_frame = df_gt[df_gt['frame'] == frame]
+        pred_frame = df_pred[df_pred['frame'] == frame]
+
+        gt_boxes = gt_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
+        pred_boxes = pred_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
+
+        distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=max_iou)
+
+        acc.update(
+            gt_frame['track_id'].values.astype('int'),
+            pred_frame['track_id'].values.astype('int'),
+            distances)
+
+        # Update the global accumulator
+        if global_acc is not None:
+            global_acc.update(
+                gt_frame['track_id'].values.astype('int'),
+                pred_frame['track_id'].values.astype('int'),
+                distances)
+
+    # Compute MOT metrics for this video
+    mh = mm.metrics.create()
+    summary = mh.compute(acc)
+    summary['video_name'] = video_name
+    return summary, global_acc
+
+
 
 if __name__ == '__main__':
 
-###### Download images from s3:  ######################################################################
+    ###### Download files from s3:  ######################################################################
 
-    # from vision.tools.utils_general import download_s3_files
-    # s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/batch2e/'
-    # output_path = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
-    # download_s3_files (s3_path, output_path, string_param=None, suffix='.jpg', skip_existing=True)
+    s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/'
+    output_path = '/home/lihi/FruitSpec/Data/tracker'
+    # download_s3_files (s3_path, output_path, string_param=None, suffix='', skip_existing=True)
 
-####### Evaluation of Tracker + detector from tracks.csv:################################################
+    ####### Evaluation of Tracker + detector from tracks.csv:################################################
+    procude_tracks_csv_from_GT_detections = False
 
-    PATH_GT_TRACKS = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/batch2e.json'
-    DIR_IMAGES = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
-    OUTPUT_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e'
+    all_results = []
+    global_acc = mm.MOTAccumulator(auto_id=True)  # For computing aggregate metrics
 
-    # Extract tracks.csv from GT detections COCO format (json file):
-    df_predicted_tracks, path_predicted_tracks = extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_GT_TRACKS, OUTPUT_DIR)
+    # Itterate video dirs:
+    subdirs = [f.path for f in os.scandir(output_path) if f.is_dir()]
+    for subdir in subdirs:
 
-    # Evaluate tracker from tracks.csv:
-    tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_GT_TRACKS, path_predicted_tracks, max_iou=0.5)
+        video_name = os.path.basename(os.path.normpath(subdir))
+        # Get GT file path:
+        path_df_gt = find_subdirs_with_file(folder_path=subdir, file_name = '.json', return_dirs=False, single_file=True)
+        df_gt = convert_coco_to_mot_format(path_df_gt)
+
+        df_predicted_tracks, path_predicted_tracks = extract_tracks_csv_from_GT_detections(DIR_IMAGES = subdir, PATH_gt_tracks = path_df_gt, OUTPUT_DIR = subdir)
+        df_pred = convert_fs_tracks_csv_to_mot_format(path_predicted_tracks)
+
+        summary , global_acc = eval_single_video(df_gt, df_pred, video_name, global_acc, max_iou=0.5)
+        all_results.append(summary)
+
+    # Compute aggregate MOT metrics across all videos
+    mh_global = mm.metrics.create()
+    global_summary = mh_global.compute(global_acc)
+    global_summary['video_name'] = 'aggregate'
+    all_results.append(global_summary)
+
+    res = pd.concat(all_results, axis=0).reset_index(drop=True)
+
+    # save results:
+    validate_output_path(output_path)
+    output_path = os.path.join(output_path, 'tracker_eval_results.csv')
+    res.to_csv(output_path, index=False)
+    print(f"Saved: {output_path}")
+    print ('Done')
 
 
-    print ('ok')
+
+#     ###############################33
+#     PATH_GT_TRACKS = r'/home/lihi/FruitSpec/Data/tracker/batch_1_e/batch1e.json'
+#     path_pred = r'/home/lihi/FruitSpec/Data/tracker/batch_1_e/tracks_from_gt_dets.csv'
+#     df_gt = convert_coco_to_mot_format(PATH_GT_TRACKS)
+#     df_pred = convert_fs_tracks_csv_to_mot_format(path_pred)
+#
+#     ground_truth_data = {
+#         'video1': df_gt
+#     }
+#
+#     predictions_data = {
+#         'video1': df_pred
+#     }
+#
+#     results = compute_mot_metrics_by_video(ground_truth_data, predictions_data,  max_iou=0.5)
+#
+#     print('ok')
+# ##################################################################################
+#
+#
+#     PATH_GT_TRACKS = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/batch2e.json'
+#     DIR_IMAGES = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
+#     OUTPUT_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e'
+#
+#     # Extract tracks.csv from GT detections COCO format (json file):
+#     df_predicted_tracks, path_predicted_tracks = extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_GT_TRACKS, OUTPUT_DIR)
+#
+#     # Evaluate tracker from tracks.csv:
+#     tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_GT_TRACKS, path_predicted_tracks, max_iou=0.5)
+#
+#
+
 
 
