@@ -152,28 +152,7 @@ def eval_tracker_from_tracks_csv(path_ground_truth, path_predicted_tracks, max_i
     tracker_eval_summary = compute_mot_metrics(df_gt, df_pred, max_iou=max_iou)
     return tracker_eval_summary
 
-
-
-if __name__ == '__main__':
-
-    # from vision.tools.utils_general import download_s3_files
-    # s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/batch2e/'
-    # output_path = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
-    #
-    # download_s3_files (s3_path, output_path, string_param=None, suffix='.jpg', skip_existing=True)
-#######################################################################################################
-    # Evaluation of Tracker + detector from tracks.csv:
-    PATH_gt_tracks = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/batch2e.json'
-    # PATH_predicted_tracks = r'/home/fruitspec-lab-3/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723/row_2/1/tracks.csv'
-    OUTPUT_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e'
-
-
-    # tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_gt_tracks, PATH_predicted_tracks, max_iou=0.5)
-
-    ##################################################################################
-
-    # Evaluation of Tracker only from coco ground truth json file:
-    DIR_IMAGES  = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
+def extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_gt_tracks, OUTPUT_DIR):
 
     cfg = OmegaConf.load(get_repo_dir() + "/vision/pipelines/config/pipeline_config.yaml")
     args = OmegaConf.load(get_repo_dir() + "/vision/pipelines/config/dual_runtime_config.yaml")
@@ -221,10 +200,31 @@ if __name__ == '__main__':
     validate_output_path(OUTPUT_DIR)
     output_path = os.path.join(OUTPUT_DIR, 'tracks_from_gt_dets.csv')
     res.to_csv(output_path, index=False)
+    print(f"Saved: {output_path}")
+    return res, output_path
 
-    print('done')
 
-    tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_gt_tracks, output_path, max_iou=0.5)
+
+if __name__ == '__main__':
+
+###### Download images from s3:  ######################################################################
+
+    # from vision.tools.utils_general import download_s3_files
+    # s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/batch2e/'
+    # output_path = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
+    # download_s3_files (s3_path, output_path, string_param=None, suffix='.jpg', skip_existing=True)
+
+####### Evaluation of Tracker + detector from tracks.csv:################################################
+
+    PATH_GT_TRACKS = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/batch2e.json'
+    DIR_IMAGES = '/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e/frames'
+    OUTPUT_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tracker/batch_2_e'
+
+    # Extract tracks.csv from GT detections COCO format (json file):
+    df_predicted_tracks, path_predicted_tracks = extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_GT_TRACKS, OUTPUT_DIR)
+
+    # Evaluate tracker from tracks.csv:
+    tracker_eval_summary = eval_tracker_from_tracks_csv(PATH_GT_TRACKS, path_predicted_tracks, max_iou=0.5)
 
 
     print ('ok')
