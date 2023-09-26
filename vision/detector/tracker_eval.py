@@ -205,65 +205,6 @@ def extract_tracks_csv_from_GT_detections(DIR_IMAGES, PATH_gt_tracks, OUTPUT_DIR
     return res, output_path
 
 
-# def compute_mot_metrics_by_video(ground_truth_dict, predictions_dict, max_iou=0.5):
-#     """
-#     Computes a comprehensive set of MOT metrics for multiple videos using py-motmetrics.
-#
-#     Args:
-#     - ground_truth_dict (dict): A dictionary where keys are video names and values are corresponding ground truth dataframes.
-#     - predictions_dict (dict): A dictionary where keys are video names and values are corresponding predicted dataframes.
-#     - max_iou (float): The IoU threshold for considering bounding boxes as a match.
-#
-#     Returns:
-#     - pd.DataFrame: A consolidated DataFrame with MOT metrics for each video and aggregate metrics.
-#     """
-#
-#     all_results = []
-#     global_acc = mm.MOTAccumulator(auto_id=True)  # For computing aggregate metrics
-#
-#     for video_name, ground_truth_df in ground_truth_dict.items():
-#         predictions_df = predictions_dict[video_name]
-#
-#         # Create an accumulator for this video
-#         acc = mm.MOTAccumulator(auto_id=True)
-#
-#         for frame in ground_truth_df['frame'].unique():
-#             gt_frame = ground_truth_df[ground_truth_df['frame'] == frame]
-#             pred_frame = predictions_df[predictions_df['frame'] == frame]
-#
-#             gt_boxes = gt_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
-#             pred_boxes = pred_frame[['bb_left', 'bb_top', 'bb_width', 'bb_height']].values
-#
-#             distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=max_iou)
-#
-#             acc.update(
-#                 gt_frame['track_id'].values.astype('int'),
-#                 pred_frame['track_id'].values.astype('int'),
-#                 distances
-#             )
-#
-#             # Update the global accumulator
-#             global_acc.update(
-#                 gt_frame['track_id'].values.astype('int'),
-#                 pred_frame['track_id'].values.astype('int'),
-#                 distances
-#             )
-#
-#         # Compute MOT metrics for this video
-#         mh = mm.metrics.create()
-#         summary = mh.compute(acc)
-#         summary['video_name'] = video_name
-#         all_results.append(summary)
-#
-#     # Compute aggregate MOT metrics across all videos
-#     mh_global = mm.metrics.create()
-#     global_summary = mh_global.compute(global_acc)
-#     global_summary['video_name'] = 'aggregate'
-#     all_results.append(global_summary)
-#
-#     return pd.concat(all_results, axis=0).reset_index(drop=True)
-
-
 def eval_single_video(df_gt, df_pred, video_name, global_acc=None, max_iou=0.5):
     # Create an accumulator for this video
     acc = mm.MOTAccumulator(auto_id=True)
@@ -291,8 +232,8 @@ def eval_single_video(df_gt, df_pred, video_name, global_acc=None, max_iou=0.5):
 
     # Compute MOT metrics for this video
     mh = mm.metrics.create()
-    summary = mh.compute(acc)
-    summary['video_name'] = video_name
+    summary = mh.compute(acc, name=video_name)
+    summary.insert(0,'video_name', video_name)
     return summary, global_acc
 
 
@@ -302,11 +243,11 @@ if __name__ == '__main__':
     ###### Download files from s3:  ######################################################################
 
     s3_path = 's3://fruitspec.dataset/tagging/JAI TRACKING/'
-    output_path = '/home/lihi/FruitSpec/Data/tracker'
+    output_path = '/home/fruitspec-lab-3/FruitSpec/Data/tracker'
     # download_s3_files (s3_path, output_path, string_param=None, suffix='', skip_existing=True)
 
     ####### Evaluation of Tracker + detector from tracks.csv:################################################
-    procude_tracks_csv_from_GT_detections = False
+    # procude_tracks_csv_from_GT_detections = False
 
     all_results = []
     global_acc = mm.MOTAccumulator(auto_id=True)  # For computing aggregate metrics
@@ -323,14 +264,19 @@ if __name__ == '__main__':
         df_predicted_tracks, path_predicted_tracks = extract_tracks_csv_from_GT_detections(DIR_IMAGES = subdir, PATH_gt_tracks = path_df_gt, OUTPUT_DIR = subdir)
         df_pred = convert_fs_tracks_csv_to_mot_format(path_predicted_tracks)
 
-        summary , global_acc = eval_single_video(df_gt, df_pred, video_name, global_acc, max_iou=0.5)
-        all_results.append(summary)
+        try:
+            summary , global_acc = eval_single_video(df_gt, df_pred, video_name, global_acc, max_iou=0.5)
+            all_results.append(summary)
+
+        except Exception:
+            print (f'Skipping, error encountered at {subdir}' )
+
 
     # Compute aggregate MOT metrics across all videos
     mh_global = mm.metrics.create()
-    global_summary = mh_global.compute(global_acc)
-    global_summary['video_name'] = 'aggregate'
-    all_results.append(global_summary)
+    global_summary = mh_global.compute(global_acc, name='aggregate')
+    global_summary.insert(0, 'video_name', 'aggregate')
+    #all_results.append(global_summary) # todo - there is a bug in the accumulated results since that in each video the objectID is starting from 1 again.
 
     res = pd.concat(all_results, axis=0).reset_index(drop=True)
 
