@@ -5,6 +5,7 @@ import shutil
 from vision.tools.scripts.adjust_roboflow import align_iamges
 from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
+from vision.tools.utils_general import get_s3_file_paths, download_s3_files
 
 
 def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
@@ -35,8 +36,8 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
         for ann in cur_ann:
             new_ann = {"id": ann_id,
                        "image_id": old_img_id_to_new[ann['image_id']],
-                       #"category_id": ann["category_id"],
-                       "category_id": 0,
+                       "category_id": ann["category_id"],
+                       #"category_id": 0,
                        "bbox": ann["bbox"],
                        "area": ann['area'],
                        "segmentation": [],
@@ -136,11 +137,23 @@ def copy_images(coco_images, input_folder, output_folder):
 
 
 
-
-
 if __name__ == "__main__":
-    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/jsons"
-    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
+
+    #Download GT files from s3:
+
+    path_s3_json_gt = 's3://fruitspec.dataset/tagging/JAI FSI/disk/jsons'
+    gt_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons'
+    download_s3_files(path_s3_json_gt, output_path=gt_local_dir, string_param='batch9_frames', suffix='.json', skip_existing=True)
+
+    # Download images from s3:
+    path_s3_images = 's3://fruitspec.dataset/tasq.ai/batch9.tasq/'
+    images_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/images/all_images'
+    download_s3_files(path_s3_images, output_path=images_local_dir, string_param='', suffix='.jpg',skip_existing=False)
+
+    #############################################################
+
+    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923"
     categories = ['fruit']
     ver = 1
 

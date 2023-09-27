@@ -50,7 +50,7 @@ def s3_full_path_to_bucket_and_prefix(s3_path):
     return bucket_name, prefix
 
 
-def get_s3_file_paths(s3_path, string_param=None, suffix='.json'):
+def get_s3_file_paths(s3_path, string_param=None, suffix='.json', include_bucket = False):
 
     """
     Retrieves S3 file paths that match a specific string parameter and suffix.
@@ -73,7 +73,10 @@ def get_s3_file_paths(s3_path, string_param=None, suffix='.json'):
     for obj in bucket.objects.filter(Prefix=prefix):
         key = obj.key
         if key.endswith(suffix) and (string_param is None or string_param in key):
-            files.append(key)
+            if include_bucket:
+                files.append(f's3://{bucket_name}/{key}')
+            else:
+                files.append(key)
             print(key)
 
     return files
@@ -108,7 +111,7 @@ def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', s
             for obj in page['Contents']:
                 key = obj['Key']
                 if key.endswith(suffix) and (string_param is None or string_param in key):
-                    local_file_path = os.path.join(local_output_path, key.replace(prefix.lstrip('/'), ''))
+                    local_file_path = os.path.join(local_output_path, (key.replace(prefix.lstrip('/'), '')).strip('/'))
                     local_file_dir = os.path.dirname(local_file_path)
                     os.makedirs(local_file_dir, exist_ok=True)  # Create local directories if they don't exist
                     if skip_existing and os.path.exists(local_file_path):
