@@ -121,7 +121,8 @@ class counter_detection():
                     depth = dets_depth[i]
                 else:
                     depth = None
-
+                if id_ == 114:
+                    a = 1
                 online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_, depth)
                 tracking_results = []
                 for target in online_targets:

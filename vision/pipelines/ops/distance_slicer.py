@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from math import atan2, cos, radians, sin, sqrt
 from vision.pipelines.ops.frame_loader import arrange_ids
-from vision.pipelines.ops.slice_inside_frames import slice_inside_frames
+#from vision.pipelines.ops.slice_inside_frames import slice_inside_frames
 
 class DistanceGPS:
 

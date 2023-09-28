@@ -39,6 +39,9 @@ class FsTracker():
         self.history_close_std = deque(maxlen=10)
         self.history_far = deque(maxlen=10)
         self.history_far_std = deque(maxlen=10)
+        self.history_mid_not_updated = 0
+        self.history_close_not_updated = 0
+        self.history_far_not_updated = 0
         self.not_coupled_ratio = 1
         self.box_far_size_threshold = 250
         self.box_mid_size_threshold = 400
@@ -101,16 +104,16 @@ class FsTracker():
                                                                           dets_depth,
                                                                           track_depth)
 
+        """ update adapdive distance"""
+        self.not_coupled_ratio = len(not_coupled_dets) / len(detections)
+        self.update_adaptive_distance()
+
         """ remove lost tracks"""
         self.update_accumulated_dist()
 
         """ add new dets tracks"""
         for det_id in not_coupled_dets:
             self.add_track(detections, det_id, dets_depth)
-
-        """ update adapdive distance"""
-        self.not_coupled_ratio = len(not_coupled_dets) / len(detections)
-        self.update_adaptive_distance()
 
         online_track = [t.output() for t in self.tracklets if t.is_activated]
 
@@ -231,7 +234,7 @@ class FsTracker():
             print(f"not coupled ratio: {self.not_coupled_ratio}")
             #if self.not_coupled_ratio < 0.6 and len(self.history_mid) > 5 and  len(self.history_close) > 5:
             mean_mid, mean_close, mean_far, use_adaptive = self.get_adaptive_distances(search_window)
-            range_, frame_type = self.is_close_scene(dets_depth)
+            range_, frame_type = self.is_close_scene(dets_depth, 1.1)
 
             txs = []
             tx_ms = []
@@ -240,13 +243,15 @@ class FsTracker():
             type_ = []
 
             for bbox in tracklets_bboxes:
-                if range_ == 'close':
-                    box_range, box_type = self.update_box_type_in_close_scene(bbox)
-                else:
-                    box_range = 'mid'
-                    box_type = 1
+                box_range, box_type = self.update_box_type_in_close_scene(bbox, range_)
+                # if range_ == 'close':
+                #     box_range, box_type = self.update_box_type_in_close_scene(bbox, range_)
+                # else:
+                #     box_range = 'mid'
+                #     box_type = 1
 
                 if use_adaptive:
+                    #print('using adaptive')
                     if box_type == 2:
                         tx = mean_far
                     if box_type == 1:
@@ -263,8 +268,8 @@ class FsTracker():
                 type_.append(box_type)
         return np.array(txs), np.array(tx_ms), np.array(tys), np.array(ty_ms), np.array(type_)
 
-    def get_adaptive_distances(self, search_window):
-        if len(self.history_mid) > 5:
+    def get_adaptive_distances(self, search_window, not_coupled_ratio_thrshold=0.8):
+        if len(self.history_mid) > 5 and self.not_coupled_ratio < not_coupled_ratio_thrshold:
             use_adaptive = True
             mean_mid = np.mean(self.history_mid)
             if len(self.history_far) > 0:
@@ -286,7 +291,7 @@ class FsTracker():
 
 
 
-    def update_box_type_in_close_scene(self, bbox):
+    def update_box_type_in_close_scene(self, bbox, range_):
         size = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
         if size < self.box_far_size_threshold:
             box_range = 'far'
@@ -294,9 +299,12 @@ class FsTracker():
         elif size < self.box_mid_size_threshold:
             box_range = 'mid'
             box_type = 1
-        else:
+        elif range_ == 'close':
             box_range = 'close'
             box_type = 0
+        else:
+            box_range = 'mid'
+            box_type = 1
 
         return box_range, box_type
     @staticmethod
@@ -572,8 +580,8 @@ class FsTracker():
                     track.bbox[2] -= mean_dist
                     #track.bbox[1] -= mean_height
                     #track.bbox[3] -= mean_height
-                    track.bbox[1] -= self.y_distance
-                    track.bbox[3] -= self.y_distance
+                    #track.bbox[1] -= self.y_distance
+                    #track.bbox[3] -= self.y_distance
 
                     valid = self.validate_track_location(track, self.frame_size[1])
                     if valid:
@@ -627,13 +635,13 @@ class FsTracker():
         # if np.abs(self.max_distance) < self.minimal_max_distance:
         #     self.max_distance = self.minimal_max_distance
 
-    def update_adaptive_distance(self):
+    def update_adaptive_distance(self, min_samples=4):
 
         close = []
         mid = []
         far = []
         for tracklet in self.tracklets:
-            if tracklet._count > 3:
+            if (tracklet._count > 3) and (tracklet.lost_counter == 0):
                 last_distance = tracklet.accumulated_dist[-1]
                 type_ = tracklet.type
 
@@ -644,17 +652,40 @@ class FsTracker():
                 elif type_ == 2:
                     far.append(last_distance)
 
-        if len(mid) > 0:
+        if len(mid) > min_samples:
             self.history_mid.append(np.mean(mid))
             self.history_mid_std.append(np.std(mid))
+            self.history_mid_not_updated = 0
+        else:
+            self.history_mid_not_updated += 1
 
-        if len(close) > 0:
+        if len(close) > min_samples:
             self.history_close.append(np.mean(close))
             self.history_close_std.append(np.std(close))
+            self.history_close_not_updated = 0
+        else:
+            self.history_close_not_updated += 1
 
-        if len(far) > 0:
+        if len(far) > min_samples:
             self.history_far.append(np.mean(far))
             self.history_far_std.append(np.std(far))
+            self.history_far_not_updated = 0
+        else:
+            self.history_far_not_updated += 1
+
+
+        if self.history_mid_not_updated > 5:
+            self.history_mid.clear()
+            self.history_mid_std.clear()
+
+
+        if self.history_close_not_updated > 5:
+            self.history_close.clear()
+            self.history_close_std.clear()
+
+        if self.history_far_not_updated > 5:
+            self.history_far.clear()
+            self.history_far_std.clear()
 
 
 

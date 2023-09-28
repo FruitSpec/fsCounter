@@ -4,19 +4,18 @@ from omegaconf import OmegaConf
 from vision.misc.help_func import get_repo_dir, validate_output_path
 from vision.pipelines.adt_pipeline import run
 from vision.pipelines.ops.distance_slicer import slice_row
-from vision.pipelines.fe_pipeline import run as run_fe
-from vision.pipelines.fe_pipeline import update_run_args
+
 
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
-    fe_config = "/vision/feature_extractor/feature_extractor_config.yaml"
+    #fe_config = "/vision/feature_extractor/feature_extractor_config.yaml"
 
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
-    fe_args = OmegaConf.load(repo_dir + fe_config)
+#    fe_args = OmegaConf.load(repo_dir + fe_config)
 
     zed_name = "ZED.mkv"
     depth_name = "DEPTH.mkv"
@@ -24,11 +23,11 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    nav_folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/nav"
+    nav_folder = "/media/matans/My Book/FruitSpec/tracker/medharin"
     nav_list = os.listdir(nav_folder)
-    output_path = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily"
+    output_path = "/media/matans/My Book/FruitSpec/tracker/medharin"
     validate_output_path(output_path)
-    plots_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily"
+    plots_dir = "/media/matans/My Book/FruitSpec/Mehadrin"
     plots = os.listdir(plots_dir)
     #rows = ["/home/matans/Documents/fruitspec/sandbox/NWFM/val"]
     for plot in plots:
@@ -81,23 +80,23 @@ if __name__ == "__main__":
                             try:
                                  if not os.path.exists(os.path.join(cur_output, 'tracks.csv')):
 
-                                     rc = run(cfg, args)
+                                     rc = run(cfg, args, n_frames=150)
                                      rc.dump_feature_extractor(args.output_folder)
                                  else:
                                      # Done running on the row in previous run, skip
                                      print(f'tracks exist. skipping row {row}')
 
-                                 if (nav_path is not None) and \
-                                        (not os.path.exists(os.path.join(cur_output, 'slices.csv'))) \
-                                        and (os.path.exists(os.path.join(row_folder, "jai_translation.csv"))):
-
-                                 #if (nav_path is not None) and \
-                                 #        (os.path.exists(os.path.join(row_folder, "jai_translation.csv"))):
-                                     slices_df = slice_row(row_folder, nav_path)
-                                     slices_df.to_csv(os.path.join(cur_output, 'slices.csv'))
-                                     print('Done Slicing')
-                                 else:
-                                     print('Slices exist')
+                                 # if (nav_path is not None) and \
+                                 #        (not os.path.exists(os.path.join(cur_output, 'slices.csv'))) \
+                                 #        and (os.path.exists(os.path.join(row_folder, "jai_translation.csv"))):
+                                 #
+                                 # #if (nav_path is not None) and \
+                                 # #        (os.path.exists(os.path.join(row_folder, "jai_translation.csv"))):
+                                 #     slices_df = slice_row(row_folder, nav_path)
+                                 #     slices_df.to_csv(os.path.join(cur_output, 'slices.csv'))
+                                 #     print('Done Slicing')
+                                 # else:
+                                 #     print('Slices exist')
 
                                 #if not os.path.exists(os.path.join(cur_output, 'features.csv')):
                                 #    fe_args, adt_args, slices = update_run_args(fe_args, args, row_folder)

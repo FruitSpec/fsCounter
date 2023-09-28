@@ -56,10 +56,7 @@ def run(cfg, args, metadata=None, n_frames=None):
              continue
 
 
-        s = time.time()
         alignment_results = adt.align_cameras(zed_batch, jai_batch)
-        e = time.time()
-        print(f'alignment time:{e-s:.4f}')
 
         # detect:
         det_outputs = adt.detect(jai_batch)
@@ -71,10 +68,7 @@ def run(cfg, args, metadata=None, n_frames=None):
         depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
 
         # track:
-        s = time.time()
         trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id, depth_results)
-        e = time.time()
-        print(f'tracking time:{e - s:.4f}')
 
 
         trk_outputs = append_to_trk(trk_outputs, depth_results)
