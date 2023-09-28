@@ -67,8 +67,8 @@ class DataManager(Module):
 
         if conf.debug.jtop_log:
             tools.log("RECORDING JTOP LOG")
-            jtop_t = threading.Thread(target=DataManager.jtop_logger, daemon=True)
-            jtop_t.start()
+            DataManager.jtop_logger_thread = threading.Thread(target=DataManager.jtop_logger, daemon=True)
+            DataManager.jtop_logger_thread.start()
 
         DataManager.internet_scan_thread.join()
 
@@ -166,14 +166,7 @@ class DataManager(Module):
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
             elif sender_module == ModulesEnum.Analysis:
-                if action == ModuleTransferAction.FRUITS_DATA:
-                    tools.log(f"FRUIT DATA RECEIVED")
-                    for k, v in data.items():
-                        try:
-                            DataManager.fruits_data[k] += v
-                        except KeyError:
-                            DataManager.fruits_data[k] = v
-                elif action == ModuleTransferAction.ANALYZED_DATA:
+                if action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
                         _data_key = _name
                         _headers_key = f"{_name}_header"
@@ -275,7 +268,7 @@ class DataManager(Module):
             except Exception:
                 tools.log("UNKNOWN HANDLED EXCEPTION: ", logging.ERROR, exc_info=True)
             t0 = time.time()
-            if upload_speed_in_kbps > 10:
+            if upload_speed_in_kbps > data_conf.minimum_bandwidth_in_kbps:
                 timeout = data_conf.upload_interval - 30
 
                 # upload nav file once every {nav_upload_interval} seconds

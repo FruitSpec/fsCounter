@@ -18,3 +18,4 @@ max_disk_occupancy: 70
 min_disk_occupancy: 35
 storage_cleanup_min_files: 3
 storage_cleanup_size_threshold: 100
+minimum_bandwidth_in_kbps: 10
