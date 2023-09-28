@@ -11,7 +11,7 @@ thop
 ninja
 tabulate
 lap
-motmetrics
+git+https://github.com/FruitSpec/py-motmetrics.git
 filterpy
 h5py
 omegaconf

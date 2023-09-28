@@ -356,7 +356,7 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     zed_name = "ZED.mkv"
-    depth_name = "DEPTH.mkv"
+    depth_name = "ZED_Y.mkv" #"DEPTH.mkv"
     fsi_name = "Result_FSI.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
-    rows = ["row_4"]
+    #rows = ["row_4"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 

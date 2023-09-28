@@ -5,15 +5,11 @@ import shutil
 from vision.tools.scripts.adjust_roboflow import align_iamges
 from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
+from vision.tools.utils_general import get_s3_file_paths, download_s3_files
 
 
-def aggraegate_coco_files(jsons_folder, images_folder, output_folder, categories=['fruit'], ver=1, type='jai'):
-    expected_dims = [2048, 1536] if type=='jai' else [1920, 1080]
-
-    # x_factor = expected_dims[1] / expected_dims[0]
-    # y_factor = expected_dims[0] / expected_dims[1]
-
-    files = os.listdir(jsons_folder)
+def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
+    files = os.listdir(folder)
     img_id = 0
     ann_id = 0
     images = []
@@ -27,46 +23,28 @@ def aggraegate_coco_files(jsons_folder, images_folder, output_folder, categories
         old_img_id_to_new = {}
 
         for image in cur_images:
-            path_to_image = os.path.join(images_folder, image['file_name'])
-            if os.path.exists(path_to_image):
-                res = align_image(path_to_image, expected_dims, 'counterclockwise')
-                if res:
-                    aligned.append(image['id'])
-
-                old_img_id_to_new[image['id']] = img_id
-                new_image = {"id": img_id,
-                         "license": 1,
-                         "file_name": image['file_name'],
-                         "height": expected_dims[0],
-                         "width": expected_dims[1]
-                         }
-                img_id += 1
-                images.append(new_image)
-            else:
-                not_existing.append(image['id'])
+            old_img_id_to_new[image['id']] = img_id
+            new_image = {"id": img_id,
+                     "license": 1,
+                     "file_name": image['file_name'],
+                     "height": image['height'],
+                     "width": image['width']
+                     }
+            img_id += 1
+            images.append(new_image)
 
         for ann in cur_ann:
-            bbox = ann["bbox"].copy()
-            if ann['image_id'] in not_existing:
-                continue
-            if ann['image_id'] in aligned:  # need to rotate coordinates
- #               # for counterclock wise
-                old_bbox = bbox.copy()
-                bbox[0] = old_bbox[0] / expected_dims[0] * expected_dims[1]
-                bbox[1] = old_bbox[1] / expected_dims[1] * expected_dims[0]
- #               bbox[2] = old_bbox[3]
- #               bbox[3] = old_bbox[2]
-
             new_ann = {"id": ann_id,
                        "image_id": old_img_id_to_new[ann['image_id']],
-                       "category_id": 0,
-                       "bbox": bbox,
+                       "category_id": ann["category_id"],
+                       #"category_id": 0,
+                       "bbox": ann["bbox"],
                        "area": ann['area'],
                        "segmentation": [],
                        "iscrowd": 0}
             ann_id += 1
             annotations.append(new_ann)
-
+        #cat = cur_coco['categories']
     info = {"year": 2022,
             "version": ver,
             "description": "FruitSpec data from tasq",
@@ -97,6 +75,8 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
     train_images = []
     val_images = []
     for i, image in enumerate(orig_imgs):
+        if not os.path.exists(os.path.join(images_folder, image['file_name'])):
+            continue
         if i in train_ids:
             train_images.append(image)
         else:
@@ -157,25 +137,37 @@ def copy_images(coco_images, input_folder, output_folder):
 
 
 
-
-
 if __name__ == "__main__":
-    folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files"
-    output_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files"
+
+    #Download GT files from s3:
+
+    path_s3_json_gt = 's3://fruitspec.dataset/tagging/JAI FSI/disk/jsons'
+    gt_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons'
+    download_s3_files(path_s3_json_gt, output_path=gt_local_dir, string_param='batch9_frames', suffix='.json', skip_existing=True)
+
+    # Download images from s3:
+    path_s3_images = 's3://fruitspec.dataset/tasq.ai/batch9.tasq/'
+    images_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/images/all_images'
+    download_s3_files(path_s3_images, output_path=images_local_dir, string_param='', suffix='.jpg',skip_existing=False)
+
+    #############################################################
+
+    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923"
     categories = ['fruit']
     ver = 1
 
-    #aggraegate_coco_files(folder, output_folder, categories, ver)
+    aggraegate_coco_files(folder, output_folder, categories, ver)
 
-    coco_fp = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/coco_files/coco.json"
-    images_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data/images"
-    output_folder = "/home/yotam/FruitSpec/Data/Syngenta/tomatoes_tasq_data"
-    #split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1)
+    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/coco.json"
+    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/images"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
+    split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.15)
 
-    expected_dims = [1920, 1080]
-    rotation = 'clockwise'
-    align_iamges("/home/yotam/FruitSpec/Data/Syngenta/VEG_RGB_Tasq_V2_coco/train2017", expected_dims, rotation)
-    align_iamges("/home/yotam/FruitSpec/Data/Syngenta/VEG_RGB_Tasq_V2_coco/val2017", expected_dims, rotation)
+    expected_dims = [2048, 1536]
+    rotation = 'counterclockwise'
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/train2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017", expected_dims, rotation)
 
 
 
