@@ -125,14 +125,10 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def stop_acquisition():
-        print("$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
         AcquisitionManager.analyzer.stop_acquisition()
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
         AcquisitionManager.jz_recorder.stop_acquisition()
-        print("####################################################################################")
         # with AcquisitionManager.healthcheck_lock:
         AcquisitionManager.running = False
-        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
 
     @staticmethod
     def get_row_number(row_name):

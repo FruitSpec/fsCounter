@@ -209,7 +209,8 @@ class GPSSampler(Module):
                 sample_count += 1
 
                 # send the jaized_timestamps to the DataManager
-                if sample_count % 20 == 0 and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                if sample_count % GPS_conf.sample_count_threshold == 0 \
+                        and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
                     GPSSampler.send_data(
                         action=ModuleTransferAction.JAIZED_TIMESTAMPS,
                         data=GPSSampler.jaized_log_dict,
@@ -227,7 +228,7 @@ class GPSSampler(Module):
                     }
                 )
 
-                if sample_count % 20 == 0 and GPSSampler.gps_data:
+                if sample_count % GPS_conf.sample_count_threshold == 0 and GPSSampler.gps_data:
                     GPSSampler.send_data(
                         action=ModuleTransferAction.NAV,
                         data=GPSSampler.gps_data,
@@ -275,8 +276,8 @@ class GPSSampler(Module):
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
                     tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
-                # release the last detected block into Global if it is over 300 sec without GPS
-                if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
+                # release the last detected block into Global if it is over no_gps_in_plot_limit seconds without GPS
+                if err_count > GPS_conf.no_gps_in_plot_limit and GPSSampler.current_plot != consts.global_polygon:
                     GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
@@ -294,7 +295,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_in():
-        if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
+        if GPSSampler.last_step_out + timedelta(seconds=GPS_conf.minimal_time_in_state) < datetime.now():
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             tools.log(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
@@ -306,7 +307,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_out():
-        if GPSSampler.last_step_in + timedelta(seconds=3) < datetime.now():
+        if GPSSampler.last_step_in + timedelta(seconds=GPS_conf.minimal_time_in_state) < datetime.now():
             tools.log(f"STEP OUT {GPSSampler.previous_plot}")
 
             GPSSampler.last_step_out = datetime.now()
