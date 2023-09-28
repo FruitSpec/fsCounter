@@ -13,7 +13,6 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from vision.misc.help_func import get_repo_dir
-
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
@@ -129,16 +128,14 @@ if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
 
-    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_trees_debug_lihi.py"
+    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_mixup.py"
     args.batch_size = 16
-    args.experiment_name = 'trees_lihi_debug_040723'
+    args.experiment_name = 'detector_apples_train_120923_40_epoch_mosaic1_hsv1'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
-    args.ckpt = '/home/fruitspec-lab/FruitSpec/weights/pre_trained/yolox_tiny.pth'
+    args.ckpt = '/home/fruitspec-lab-3/FruitSpec/weights/pre_trained/yolox_tiny.pth'
     args.logger = 'wandb'
     args.opts = ['wandb-project', 'Counter_detector', 'wandb-name', args.experiment_name]
-
-
 
 
     exp = get_exp(args.exp_file, args.name)

@@ -97,6 +97,7 @@ class COCOEvaluator:
         confthre: float,
         nmsthre: float,
         num_classes: int,
+        max_detections: int,
         testdev: bool = False,
         per_class_AP: bool = False,
         per_class_AR: bool = False,
@@ -120,6 +121,7 @@ class COCOEvaluator:
         self.testdev = testdev
         self.per_class_AP = per_class_AP
         self.per_class_AR = per_class_AR
+        self.max_detections = max_detections
 
     def evaluate(
         self, model, distributed=False, half=False, trt_file=None,
@@ -313,11 +315,13 @@ class COCOEvaluator:
             try:
                 from yolox.layers import COCOeval_opt as COCOeval
             except ImportError:
-                from pycocotools.cocoeval import COCOeval
+                #from pycocotools.cocoeval import COCOeval
+                from vision.detector.yolo_x.yolox.evaluators.cocoeval import COCOeval
 
                 logger.warning("Use standard COCOeval.")
 
             cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
+            cocoEval.params.maxDets = [self.max_detections]
             cocoEval.evaluate()
             cocoEval.accumulate()
 

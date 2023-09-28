@@ -18,26 +18,28 @@ class Exp(MyExp):
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.enable_mixup = False
         self.seed = 42
+        self.max_detections = 300
 
         # Define yourself dataset path
-        self.data_dir = "/home/fruitspec-lab/FruitSpec/Data/JAI_FSI_V6x_COCO_with_zoom"
+        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.output_dir = '/home/mic-730ai/Documents/Expriments/weights/Run_2_7_oct/'
+        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter'
         self.num_classes = 1
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5
         self.max_epoch = 150
         self.warmup_lr = 0.0005
-        self.basic_lr_per_img = 0.01 / 32.0
+        self.basic_lr_per_img = 0.01 / 16.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 25
         self.min_lr_ratio = 0.3
         self.ema = True
         self.weight_decay = 5e-4
         self.momentum = 0.9
+        self.save_history_ckpt = False   # If set to False, yolox will only save latest and best ckpt.
 
         # --------------- transform config ----------------- #
         # prob of applying mosaic aug
@@ -60,8 +62,8 @@ class Exp(MyExp):
         self.shear = 2.0
 
         self.data_num_workers = 4
-        self.eval_interval = 10
-        self.train_interval = 10
+        self.eval_interval = 1
+        self.train_interval = 1
 
         # -----------------  testing config ------------------ #
         # confidence threshold during evaluation/test,

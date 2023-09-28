@@ -12,6 +12,11 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+import sys
+from vision.misc.help_func import get_repo_dir
+repo_dir = get_repo_dir()
+sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
+
 from yolox.core import launch
 from yolox.exp import get_exp
 from yolox.utils import (
@@ -27,7 +32,7 @@ from yolox.utils import (
 def make_parser():
     parser = argparse.ArgumentParser("yoloX Eval")
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)
-    parser.add_argument("-n", "--name", type=str, default=None, help="model name")
+    parser.add_argument("-n", "--name", type=str, default="yolox_tiny", help="model name")
 
     # distributed
     parser.add_argument(
@@ -39,7 +44,7 @@ def make_parser():
         type=str,
         help="url used to set up distributed training",
     )
-    parser.add_argument("-b", "--batch-size", type=int, default=64, help="batch size")
+    parser.add_argument("-b", "--batch-size", type=int, default=1, help="batch size")
     parser.add_argument(
         "-d", "--devices", default=None, type=int, help="device for training"
     )
@@ -52,7 +57,7 @@ def make_parser():
     parser.add_argument(
         "-f",
         "--exp_file",
-        default=None,
+        default='/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py',
         type=str,
         help="please input your experiment description file",
     )
@@ -64,14 +69,14 @@ def make_parser():
     parser.add_argument(
         "--fp16",
         dest="fp16",
-        default=False,
+        default=True,
         action="store_true",
         help="Adopting mix precision evaluating.",
     )
     parser.add_argument(
         "--fuse",
         dest="fuse",
-        default=False,
+        default=True,
         action="store_true",
         help="Fuse conv and bn for testing.",
     )
