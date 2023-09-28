@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 
 
-from vision.kp_matching.sp_lg import LightGlue, SuperPoint, DISK
-from vision.kp_matching.sp_lg.utils import load_image, rbd, numpy_image_to_torch
+from vision.pipelines.ops.kp_matching.sp_lg import LightGlue, SuperPoint, DISK
+from vision.pipelines.ops.kp_matching.sp_lg.utils import rbd, numpy_image_to_torch
 from vision.tools.image_stitching import resize_img
 
 
@@ -28,6 +28,8 @@ class lightglue_infer():
         self.roix = cfg.sensor_aligner.roix
         self.roiy = cfg.sensor_aligner.roiy
         self.zed_size = [1920, 1080]
+        self.batch_size = cfg.batch_size
+        self.last_feat = None
 
     def to_tensor(self, image):
 
@@ -97,7 +99,7 @@ class lightglue_infer():
 
             x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
 
-        return (x1, y1, x2, y2), tx, ty, np.sum(st)
+        return (x1, y1, x2, y2), tx, ty, int(np.sum(st))
 
     def get_zed_roi(self, tx, ty):
 
@@ -145,7 +147,134 @@ class lightglue_infer():
 
         return self.get_tx_ty(M, st, rz)
 
+    def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
+        if False:#len(zed_batch) < 1:
+            corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
+            results = [[corr, tx, ty]]
+        else:
+            zed_input = []
+            jai_input = []
+            streams = []
+            for z, j in zip(zed_batch, jai_batch):
+                if z is not None and j is not None:
+                    zed_input.append(z)
+                    jai_input.append(j)
+                    #streams.append(cv2.cuda_Stream())
+            if debug is None:
+                debug = [None] * self.batch_size
+            results = list(map(self.align_sensors, zed_input, jai_input, debug))
 
+
+        output = []
+        for r in results:
+            output.append([r[0], r[1], r[2], r[3]])
+
+        return output
+
+
+    def batch_translation(self, batch):
+
+        inputs, rs = self.preprocess_batch(batch)
+        feats_batch = list(map(self.extractor.extract, inputs))
+
+        matcher_output = self.batch_matcher(feats_batch)
+        txs, tys = self.get_tx_ty_from_outputs(matcher_output, rs)
+
+        res = self.pack_results(txs, tys, len(batch))
+
+        return res
+
+    @staticmethod
+    def pack_results(txs, tys, batch_size):
+        if len(txs) < batch_size: # last_feats is None
+            txs = [None] + txs
+            tys = [None] + tys
+
+        res = []
+        for tx, ty in zip(txs, tys):
+            res.append((tx, ty))
+
+        return res
+
+
+
+    def preprocess_batch(self, batch, downscale=4, to_tensor=True):
+
+        downscale_list = [img.shape[0] // downscale for img in batch]
+        results = list(map(resize_img, batch, downscale_list))
+
+        if to_tensor:
+            imgs = [result[0] for result in results]
+            output = list(map(self.to_tensor, imgs))
+        else:
+            output = [result[0] for result in results]
+
+        rs = [result[1] for result in results]
+
+        return output, rs
+
+
+    def batch_matcher(self, feats_batch):
+
+        inputs = self.batch_to_feats_inputs(feats_batch)
+        if inputs:
+            outputs = list(map(self.execute_matcher, inputs))
+        else:
+            outputs = []
+
+        self.last_feat = feats_batch[-1]
+
+        return outputs
+
+
+    def get_tx_ty_from_outputs(self, outputs, rs):
+
+        txs = []
+        tys = []
+        if outputs:
+            for output, r in zip(outputs, rs):
+                M, st = self.calcaffine(output[0], output[1])
+
+                if len(st) == 0 or np.sum(st) <= 5:
+                    print('failed to align, using center default')
+                    txs.append(-999)
+                    tys.append(-999)
+                else:
+
+                    txs.append((-1) * M[0, 2] / r)
+                    tys.append((-1) * M[1, 2] / r)
+                    #txs.append(M[0, 2] / r)
+                    #tys.append(M[1, 2] / r)
+
+        return txs, tys
+
+
+
+
+
+    def execute_matcher(self, input_):
+        matches01 = self.matcher(input_)
+        feats0, feats1, matches01 = [rbd(x) for x in [input_['image0'], input_['image1'], matches01]]  # remove batch dimension
+        matches = matches01['matches']  # indices with shape (K,2)
+        points0 = feats0['keypoints'][matches[..., 0]]  # coordinates in image #0, shape (K,2)
+        points1 = feats1['keypoints'][matches[..., 1]]
+
+        points0 = points0.cpu().numpy()
+        points1 = points1.cpu().numpy()
+
+        return points0, points1, matches
+
+
+
+    def batch_to_feats_inputs(self, feats_batch):
+
+        input_ = []
+        if self.last_feat is not None:
+            input_.append({'image0': self.last_feat, 'image1': feats_batch[0]})
+        for i in range(1, len(feats_batch)):
+            input_.append({'image0': feats_batch[i-1], 'image1': feats_batch[i]})
+
+        return input_
 def inference(extractor, image, batch_queue):
     kp = extractor.extract(image)
     batch_queue.put(kp)

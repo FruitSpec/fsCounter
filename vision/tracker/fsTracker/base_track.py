@@ -75,7 +75,7 @@ class Track:
     #
     #     return x1, y1, x2, y2
 
-    def add(self, det, depth, id_, frame_size):
+    def add(self, det, depth, id_, frame_size, track_dist_type=None):
         self.track_id = id_
         self.bbox = [det[0], det[1], det[2], det[3]]
         self.is_activated = True
@@ -85,11 +85,12 @@ class Track:
         self.frame_size = frame_size
         self.lost_counter = 0
         self.depth = depth
+        self.type = track_dist_type
         #self.state = TrackState.New
 
 
 
-    def update(self, det, depth):
+    def update(self, det, depth, track_dist_type=None):
         bbox = [det[0], det[1], det[2], det[3]]
         self.accumulated_dist.append(self.bbox[0] - bbox[0])
         self.accumulated_height.append(self.bbox[1] - bbox[1])
@@ -102,13 +103,21 @@ class Track:
         self.score = det[4] * det[5]
         self.cls = det[6]
         self._count += 1
+        self.type = track_dist_type
         #self.state = TrackState.Tracked
         self.lost_counter = 0
         if not isinstance(depth, type(None)):
             if not np.isnan(depth):
                 self.depth = depth
     def output(self):
-        return [self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3], self.score, self.cls, self.track_id]
+        return [self.bbox[0],
+                self.bbox[1],
+                self.bbox[2],
+                self.bbox[3],
+                self.score,
+                self.cls,
+                self.track_id,
+                self.depth]
 
     def copy(self):
         return copy.deepcopy(self)

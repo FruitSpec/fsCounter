@@ -1,13 +1,12 @@
 import os
 import cv2
 import numpy as np
-import pandas as pd
 import time
 
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from vision.kp_matching.infer import lightglue_infer
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.misc.help_func import validate_output_path, get_repo_dir
 

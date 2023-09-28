@@ -198,7 +198,7 @@ class SensorAligner:
 
         self.update_zed_shift(tx)
 
-        return (x1, y1, x2, y2), tx, ty, np.sum(st)
+        return (x1, y1, x2, y2), tx, ty, int(np.sum(st))
 
 
     def convert_translation_to_coors(self, im_zed, im_jai, tx, ty, sx, sy):

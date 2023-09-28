@@ -7,7 +7,7 @@ import threading
 import queue
 #from cython_bbox import bbox_overlaps as bbox_ious
 
-@jit(nopython=True, cache=True, nogil=True)
+#@jit(nopython=True, cache=True, nogil=True)
 def compute_ratios(trk_windows: np.array, dets: np.array) -> np.array:
     trk_area = (trk_windows[:, 2] - trk_windows[:, 0]) * (trk_windows[:, 3] - trk_windows[:, 1])
     det_area = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
@@ -267,7 +267,7 @@ def get_intersection(bboxes1, bboxes2):  # matches
     inter_aera = []
 
     if len(bboxes1) > 0 and len(bboxes2) > 0:
-        inter_aera = calc_intersection(np.array(bboxes1), np.array(bboxes2))
+        inter_aera = calc_intersection(np.array(bboxes1)[:, :4], np.array(bboxes2)[:, :4])
 
     return inter_aera
 
@@ -341,7 +341,7 @@ def thread_get_features(bboxes, relatives, result_queue, name='get_features'):
 
 
 def thread_get_features_GPU(bboxes, relatives, result_queue, name='get_features'):
-    t_bboxes = torch.tensor(bboxes).to('cuda')
+    t_bboxes = torch.tensor(bboxes.astype(np.float32)).to('cuda')
     thread_results = get_features_GPU(t_bboxes, relatives)
     result_queue.put({name: thread_results})
 

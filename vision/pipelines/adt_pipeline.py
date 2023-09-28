@@ -24,6 +24,7 @@ from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_ca
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 
 def run(cfg, args, metadata=None, n_frames=None):
 
@@ -55,8 +56,10 @@ def run(cfg, args, metadata=None, n_frames=None):
              continue
 
 
-
-        alignment_results = adt.align_cameras(zed_batch, rgb_batch)
+        s = time.time()
+        alignment_results = adt.align_cameras(zed_batch, jai_batch)
+        e = time.time()
+        print(f'alignment time:{e-s:.4f}')
 
         # detect:
         det_outputs = adt.detect(jai_batch)
@@ -64,11 +67,16 @@ def run(cfg, args, metadata=None, n_frames=None):
         # find translation
         translation_results = adt.get_translation(jai_batch, det_outputs)
 
-        # track:
-        trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
-
         # depth:
-        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
+        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
+
+        # track:
+        s = time.time()
+        trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id, depth_results)
+        e = time.time()
+        print(f'tracking time:{e - s:.4f}')
+
+
         trk_outputs = append_to_trk(trk_outputs, depth_results)
 
         #collect results:
@@ -100,7 +108,8 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
+        #self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
+        self.sensor_aligner = lightglue_infer(cfg)
         self.batch_size = cfg.batch_size
 
 
@@ -109,7 +118,8 @@ class Pipeline():
             name = self.frames_loader.get_frames.__name__
             s = time.time()
             self.logger.debug(f"Function {name} started")
-            output = self.frames_loader.get_frames(f_id, self.sensor_aligner.zed_shift)
+            #output = self.frames_loader.get_frames(f_id, self.sensor_aligner.zed_shift)
+            output = self.frames_loader.get_frames(f_id, 0)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
@@ -158,12 +168,12 @@ class Pipeline():
             self.logger.exception("Exception occurred")
             raise
 
-    def track(self, inputs, translations, f_id):
+    def track(self, inputs, translations, f_id, dets_depth=None):
         try:
             name = self.detector.track.__name__
             s = time.time()
             self.logger.debug(f"Function {name} started")
-            output = self.detector.track(inputs, translations, f_id)
+            output = self.detector.track(inputs, translations, f_id, dets_depth)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -181,6 +191,7 @@ class Pipeline():
             s = time.time()
             self.logger.debug(f"Function {name} started")
             output = self.translation.batch_translation(frames, det_outputs)
+            #output = self.sensor_aligner.batch_translation(frames)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -208,7 +219,7 @@ class Pipeline():
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
-            self.logger.debug(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
+            #self.logger.debug(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -363,15 +374,18 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/baseline/Fowler_BLOCK700_200723_new_v8"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/depth/Fowler_BLOCK700_200723_row4_depth_ada5_ref1"
+    #output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/depth/Fowler_FREDIANI_210723_row7_depth_piv1"
     validate_output_path(output_path)
 
-    #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
     rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
+    #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
+
 
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
     rows = ["row_4"]
+    #rows = ["row_7"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
@@ -384,5 +398,5 @@ if __name__ == "__main__":
 
         validate_output_path(args.output_folder)
 
-        rc = run(cfg, args, n_frames=300)
+        rc = run(cfg, args, n_frames=150)
         rc.dump_results(args.output_folder)

@@ -5,8 +5,6 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import time
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
@@ -21,7 +19,7 @@ from vision.tools.sensors_alignment import SensorAligner
 from vision.tools.image_stitching import draw_matches
 from vision.pipelines.ops.simulator import get_n_frames, init_cams
 from vision.pipelines.detection_flow import counter_detection
-from vision.kp_matching.infer import lightglue_infer
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 
 
 def run(cfg, args, n_frames=200, start_frame=30):

@@ -15,6 +15,7 @@ sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 
 
 
@@ -25,6 +26,7 @@ def run(cfg, args, n_frames=200):
 
     frame_loader = FramesLoader(cfg, args)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    lg = lightglue_infer(cfg)
 
     f_id = 0
     n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
@@ -47,11 +49,14 @@ def run(cfg, args, n_frames=200):
         if f_id == 131:
             a = 1
         res = translation.batch_translation(jai_batch, [[],[],[],[]], debug)
-
-        data.append({'tx': res[0][0], 'ty': res[0][1]})
+        data.append({'tx': res[0][0], 'ty': res[0][1], 'type':"tempMatch", 'f_id': f_id})
+        print(f'translation: tx - {res[0][0]}, ty - {res[0][1]}')
+        res_lg = lg.batch_translation(jai_batch)
+        data.append({'tx': res_lg[0][0], 'ty': res_lg[0][1], 'type':"lg", 'f_id': f_id})
+        print(f'lg: tx - {res_lg[0][0]}, ty - {res_lg[0][1]}')
         f_id += 1
 
-    df = pd.DataFrame(data, columns=['tx', 'ty', 'score'])
+    df = pd.DataFrame(data, columns=['tx', 'ty', 'type', 'f_id'])
     df.to_csv(os.path.join(args.output_folder, 'translation.csv'))
 
 if __name__ == "__main__":
@@ -62,17 +67,17 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     #folder = "/media/matans/My Book/FruitSpec/NWFMXX/G10000XX/070623/row_12/1"
-    #folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723/row_5/1"
-    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"
-    output = "/home/matans/Documents/fruitspec/sandbox/translation"
+    folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723/row_5/1"
+    #folder = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"
+    output = "/home/matans/Documents/fruitspec/sandbox/translation1"
     validate_output_path(output)
     args.zed.movie_path = os.path.join(folder, "ZED.mkv")
     args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
     args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
     args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    #args.output_folder = os.path.join(output, 'FREDIANI_210723_row_5_1_all_image')
-    args.output_folder = os.path.join(output, 'BLOCK700_row_4_recovery')
+    args.output_folder = os.path.join(output, 'FREDIANI_210723_row_5')
+    #args.output_folder = os.path.join(output, 'BLOCK700_row_4_recovery')
     validate_output_path(args.output_folder)
 
     run(cfg, args, 200)
