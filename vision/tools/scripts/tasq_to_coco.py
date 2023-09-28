@@ -44,7 +44,7 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
                        "iscrowd": 0}
             ann_id += 1
             annotations.append(new_ann)
-        #cat = cur_coco['categories']
+        cat = cur_coco['categories']
     info = {"year": 2022,
             "version": ver,
             "description": "FruitSpec data from tasq",
