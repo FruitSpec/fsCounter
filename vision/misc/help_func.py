@@ -182,6 +182,15 @@ def reset_tree_features(folder_path="/media/fruitspec-lab/cam175/customers/DEWAG
             metadata["tree_features"] = True
             write_json(metadata_path, metadata)
 
+def reset_direction(folder_path="/media/fruitspec-lab/cam175/customers/DEWAGD", direction=""):
+    for root, dirs, files in os.walk(folder_path):
+        if "metadata.json" in files:
+            metadata_path = os.path.join(root, "metadata.json")
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            metadata["direction"] = direction
+            write_json(metadata_path, metadata)
+
 
 def reset_metadata(folder_path="/media/fruitspec-lab/cam175/customers/DEWAGD", complete=False):
     if complete:
@@ -252,7 +261,7 @@ def delete_files_with_name(starting_directory, file_name):
 
 if __name__ == "__main__":
     folder_path = "/media/fruitspec-lab/cam175/customers_new"
-    reset_metadata(folder_path)
+    reset_tree_features(folder_path="/media/fruitspec-lab/cam175/customers_new")
     # delete_files_with_name(folder_path, "row_features.csv")
     data_path = ""
     # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/1", 3343, 3385, 2)

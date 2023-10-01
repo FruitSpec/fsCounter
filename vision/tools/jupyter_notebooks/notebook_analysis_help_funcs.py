@@ -178,6 +178,7 @@ class MaxLinearRegressor(LinearRegression):
         predicted_values = super().predict(X)
         return np.array([max(p, 0) for p in predicted_values])
 
+
 def run_LROCV_by_block(df_f, cv_col = "cv1", fit_intercept=False):
     df = df_f.reset_index(drop=True).copy()
     for block in df["block_name"].unique():

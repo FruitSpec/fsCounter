@@ -1018,12 +1018,14 @@ class FeatureExtractor:
         self.tree_full_slice += full_x_tree
 
     def get_ps(self):
+        fields = ["percent_seen", "percent_h_seen", "percent_seen_top", "no_tree_indicator", "full_tree"]
         if sum(self.tree_full_slice) > 5:
             mean_res = np.mean(self.precent_seen[self.tree_full_slice], axis=0)
-        else:
+        elif sum(self.tree_full_slice):
             mid_frame = len(self.precent_seen)//2
             mean_res = np.mean(self.precent_seen[max(mid_frame-2, 0): min(mid_frame + 3, mid_frame)], axis=0)
-        fields = ["percent_seen",	"percent_h_seen",	"percent_seen_top",	"no_tree_indicator", "full_tree"]
+        else:
+            return dict(zip(fields, [0]*5))
         return dict(zip(fields, mean_res[1:]))
 
     def process_batch(self, b_fsi, b_zed, b_jai_rgb, b_rgb_zed, b_tracker_results, b_slicer,

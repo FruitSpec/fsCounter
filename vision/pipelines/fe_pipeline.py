@@ -174,7 +174,7 @@ def run_on_row_cv(row_scan_path, direction="right"):
 
 
 
-def run_on_row(row_scan_path, suffix="", print_fids=False, cv_only=False, direction="right"):
+def run_on_row(row_scan_path, suffix="", print_fids=False, cv_only=False, direction=""):
     """
     Process a row scan.
 
@@ -192,6 +192,9 @@ def run_on_row(row_scan_path, suffix="", print_fids=False, cv_only=False, direct
     row_tree_features = []
     adts_loader = None
     sucess = True
+    if direction == "":
+        metadata, _ = get_metadata(row_scan_path)
+        _, _, direction = get_assignments(metadata)
     for tree_id in trees:
         if tree_id == -1:
             continue
@@ -355,8 +358,6 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
             row_scan_path = os.path.abspath(root)
             metadata, _ = get_metadata(row_scan_path)
             align_detect_track, tree_features, direction_new = get_assignments(metadata)
-            if direction == "":
-                direction = direction_new
             try:
                 slices_validation = validate_slice_data(row_scan_path, min_slice_len, direction=direction)
             except:
@@ -375,7 +376,7 @@ def get_valid_row_paths(master_folder, over_write=False, run_only_done_adt=True,
                 paths_list.append(row_scan_path)
             else:
                 update_processed_data(process_data, row_scan_path, suffix)
-    return paths_list, process_data, direction
+    return paths_list, process_data
 
 
 def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fids=False, run_only_done_adt=False,
@@ -393,7 +394,7 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     Returns:
         list: List of tree features dictionaries for all row scans.
     """
-    paths_list, process_data, direction = get_valid_row_paths(master_folder, over_write, run_only_done_adt,
+    paths_list, process_data = get_valid_row_paths(master_folder, over_write, run_only_done_adt,
                                                               min_slice_len, suffix, direction)
     n = len(paths_list)
     if njobs > 1:
@@ -409,10 +410,24 @@ if __name__ == '__main__':
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/cam175/customers_new/cv_ps_features.csv"
-    over_write = True
+    final_df_output = "/media/fruitspec-lab/cam175/customers_new/features_with_ps.csv"
+    over_write = False
     njobs = 1
-    suffix = "cv_ps"
+    suffix = "ps_fruit_dim"
+    print_fids = False
+    run_only_done_adt = False
+    min_slice_len = 0
+    cv_only = False
+    direction = ""
+
+    folder_path = "/media/fruitspec-lab/cam175/Aq_Test"
+    # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
+    # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
+    # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
+    final_df_output = "/media/fruitspec-lab/cam175/Aq_Test/cv_features.csv"
+    over_write = False
+    njobs = 1
+    suffix = "cv"
     print_fids = False
     run_only_done_adt = False
     min_slice_len = 0

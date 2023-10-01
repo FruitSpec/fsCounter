@@ -20,9 +20,6 @@ from vision.misc.help_func import validate_output_path
 from MHS.models import models
 from sklearn.pipeline import Pipeline
 
-
-
-
 class F_model(BaseEstimator, TransformerMixin):
     def __init__(self, F_model_cfg: object, model_cfg: object, model_name: str = ""):
         model = self.get_model_from_conf(F_model_cfg, model_name)

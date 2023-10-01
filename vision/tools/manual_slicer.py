@@ -656,7 +656,7 @@ def update_border_data(border_data, loc, frame_id, tree_id):
 
 
 def get_state(loc, direction):
-    if direction == 'right':
+    if direction == 'right' or direction == "":
         state = right_direction_states(loc)
     else:
         state = left_direction_states(loc)
@@ -754,9 +754,9 @@ if __name__ == "__main__":
     #             print("problem with", sub_folder)
     # this part is for fixing bad slicing
     # filepath = "/media/fruitspec-lab/cam175/DEWAGB_test/190123/DWDBLE33/R59B/Result_FSI_1.mkv"
-    filepath = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/220823/row_2/1/Result_FSI.mkv"
+    filepath = "/media/fruitspec-lab/cam175/Aq_Test/Or2009/Morning/210923/row_18/1/Result_FSI.mkv"
     output_path = os.path.dirname(filepath)
-    manual_slicer(filepath, output_path, rotate=True, index=0, flip_channels=False)
+    manual_slicer(filepath, output_path, rotate=True, index=580, flip_channels=False)
     # "Result_FSI_1_slice_data_R46A.json"
     # customer_folder = "/media/fruitspec-lab/cam175/DEWAGD"
     # for root, dirs, files in os.walk(customer_folder):
