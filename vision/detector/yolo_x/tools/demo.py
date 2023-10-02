@@ -11,6 +11,11 @@ import cv2
 
 import torch
 
+import sys
+from vision.misc.help_func import get_repo_dir
+repo_dir = get_repo_dir()
+sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
+
 from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
