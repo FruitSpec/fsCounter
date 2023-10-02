@@ -4,3 +4,9 @@ autonomous_acquisition: true
 customer_code: "MOTCHA"
 crop: citrus
 collect_data: true
+debug:
+  # if 'is_active' is set to 'False' then all other values are automatically set to 'False' as well.
+  is_active: True
+  crash_syslog: True
+  mtu_log: True
+  jtop_log: True

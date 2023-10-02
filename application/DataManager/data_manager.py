@@ -1,10 +1,12 @@
 import os.path
+import shutil
 import threading
 import traceback
+
+from jtop import jtop, JtopException
 from builtins import staticmethod
 import time
-from datetime import datetime, timedelta
-import signal
+from datetime import datetime
 import psutil
 import logging
 import boto3
@@ -57,6 +59,16 @@ class DataManager(Module):
 
         DataManager.receive_data_thread.start()
         DataManager.internet_scan_thread.start()
+
+        if conf.debug.mtu_log:
+            tools.log("RECORDING MTU LOG")
+            DataManager.mtu_monitor_thread = threading.Thread(target=DataManager.mtu_monitor, daemon=True)
+            DataManager.mtu_monitor_thread.start()
+
+        if conf.debug.jtop_log:
+            tools.log("RECORDING JTOP LOG")
+            DataManager.jtop_logger_thread = threading.Thread(target=DataManager.jtop_logger, daemon=True)
+            DataManager.jtop_logger_thread.start()
 
         DataManager.internet_scan_thread.join()
 
@@ -154,14 +166,7 @@ class DataManager(Module):
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
             elif sender_module == ModulesEnum.Analysis:
-                if action == ModuleTransferAction.FRUITS_DATA:
-                    tools.log(f"FRUIT DATA RECEIVED")
-                    for k, v in data.items():
-                        try:
-                            DataManager.fruits_data[k] += v
-                        except KeyError:
-                            DataManager.fruits_data[k] = v
-                elif action == ModuleTransferAction.ANALYZED_DATA:
+                if action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
                         _data_key = _name
                         _headers_key = f"{_name}_header"
@@ -221,7 +226,17 @@ class DataManager(Module):
                     stop_acquisition()
                 elif action == ModuleTransferAction.ACQUISITION_CRASH:
                     tools.log("HANDLING ACQUISITION CRASH")
+
                     stop_acquisition()
+
+                    # copy syslog to crash dir
+                    if conf.debug.crash_syslog:
+                        today = datetime.now().strftime("%d%m%y")
+                        syslog_dirname = os.path.join(consts.log_parent_dir, consts.syslog_dir)
+                        crash_syslog_filename = f"{conf.counter_number}_{consts.syslog}_{today}.{consts.log_extension}"
+                        crash_syslog_path = os.path.join(syslog_dirname, crash_syslog_filename)
+                        shutil.copyfile(consts.syslog_orig_path, crash_syslog_path)
+
                     tools.log("ACQUISITION CRASH HANDLING DONE")
             elif sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
@@ -229,7 +244,7 @@ class DataManager(Module):
                         action=ModuleTransferAction.MONITOR,
                         data=None,
                         receiver=ModulesEnum.Main,
-                        log_option=tools.LogOptions.LOG
+                        log_option=tools.LogOptions.NONE
                     )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
@@ -253,7 +268,7 @@ class DataManager(Module):
             except Exception:
                 tools.log("UNKNOWN HANDLED EXCEPTION: ", logging.ERROR, exc_info=True)
             t0 = time.time()
-            if upload_speed_in_kbps > 10:
+            if upload_speed_in_kbps > data_conf.minimum_bandwidth_in_kbps:
                 timeout = data_conf.upload_interval - 30
 
                 # upload nav file once every {nav_upload_interval} seconds
@@ -342,8 +357,8 @@ class DataManager(Module):
 
         tools.log("UPLOADING OLD FILES")
 
-        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
         old_log_paths = tools.get_old_file_paths(tools.FileTypes.log)
+        old_nav_paths = tools.get_old_file_paths(tools.FileTypes.nav)
         old_jaized_timestamps_paths = tools.get_old_file_paths(tools.FileTypes.jaized_timestamps)
 
         old_all = [(old_nav_paths, consts.nav_extension)] + \
@@ -555,3 +570,75 @@ class DataManager(Module):
             except:
                 tools.log("", logging.ERROR, exc_info=True)
                 break
+
+    @staticmethod
+    def mtu_monitor():
+        def bytes_to_human(_b):
+            suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+            index = 0
+            while _b >= 1024 and index < len(suffixes) - 1:
+                _b /= 1024.0
+                index += 1
+            return f"{_b:.2f} {suffixes[index]}"
+
+        def init_mtu_dict():
+            return {
+                    consts.mtu_sample_timestamp: [],
+                    consts.NIC: [],
+                    consts.bytes_sent: [],
+                    consts.bytes_recv: []
+                }
+
+        mtu_dict = init_mtu_dict()
+        today = datetime.now().strftime('%d%m%y')
+        mtu_dirname = os.path.join(consts.log_parent_dir, consts.mtu_dir)
+        mtu_log_filename = f"{conf.counter_number}_{consts.mtu}_{today}.{consts.tabular_log_ext}"
+        mtu_log_path = os.path.join(mtu_dirname, mtu_log_filename)
+
+        while not DataManager.shutdown_event.is_set():
+            net_stats = psutil.net_io_counters(pernic=True)
+
+            # Iterate over network interfaces
+            for interface, stats in net_stats.items():
+                mtu_sample_timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                if stats.bytes_sent > 0 and stats.bytes_recv > 0:
+                    mtu_dict[consts.mtu_sample_timestamp].append(mtu_sample_timestamp)
+                    mtu_dict[consts.NIC].append(interface)
+                    mtu_dict[consts.bytes_sent].append(bytes_to_human(stats.bytes_sent))
+                    mtu_dict[consts.bytes_recv].append(bytes_to_human(stats.bytes_recv))
+
+            if len(mtu_dict[consts.NIC]) % 20 == 0 and len(mtu_dict[consts.NIC]) > 0:
+                try:
+                    is_first = not os.path.exists(mtu_log_path)
+                    pd.DataFrame(mtu_dict).to_csv(mtu_log_path, mode='a+', header=is_first, index=False)
+                    mtu_dict = init_mtu_dict()
+                    tools.log("MTU LOG WRITE")
+                except:
+                    print(mtu_dict)
+
+            time.sleep(consts.mtu_traffic_sleep_duration)
+
+    @staticmethod
+    def jtop_logger():
+        try:
+            today = datetime.now().strftime(data_conf.date_format)
+            jtop_dirname = os.path.join(consts.log_parent_dir, consts.jtop_dir)
+            jtop_log_filename = f"{conf.counter_number}_{consts.jtop}_{today}.{consts.tabular_log_ext}"
+            jtop_log_path = os.path.join(jtop_dirname, jtop_log_filename)
+
+            with jtop() as jetson:
+                # Create an empty DataFrame with the same column names as the statistics
+                stats = jetson.stats
+                jtop_df = pd.DataFrame(columns=stats.keys())
+
+                while jetson.ok():
+                    jtop_df = jtop_df.append(jetson.stats, ignore_index=True)
+                    if len(jtop_df) % 20 == 0:
+                        is_first = not os.path.exists(jtop_log_path)
+                        jtop_df.to_csv(jtop_log_path, mode='a+', header=is_first, index=False)
+                        jtop_df = pd.DataFrame(columns=stats.keys())
+                        tools.log("JTOP LOG WRITE")
+
+        except JtopException as e:
+            print(e)
+

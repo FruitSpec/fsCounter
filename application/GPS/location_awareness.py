@@ -43,7 +43,7 @@ class GPSSampler(Module):
                                                   notify_on_death, death_action)
         super(GPSSampler, GPSSampler).set_signals(GPSSampler.shutdown)
 
-        LedSettings.turn_off()
+        LedSettings.turn_on(LedColor.RED)
         GPSSampler.last_step_in, GPSSampler.last_step_out = datetime.now(), datetime.now()
         GPSSampler.init_jaized_log_dict()
         GPSSampler.s3_client = boto3.client('s3', config=Config(retries={"total_max_attempts": 1}))
@@ -152,42 +152,47 @@ class GPSSampler(Module):
                         action=ModuleTransferAction.MONITOR,
                         data=None,
                         receiver=ModulesEnum.Main,
-                        log_option=tools.LogOptions.LOG
+                        log_option=tools.LogOptions.NONE
                     )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()
 
     @staticmethod
     def sample_gps():
+
+        def init_serial_port():
+            while not GPSSampler.shutdown_event.is_set():
+                try:
+                    _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
+                    _ser.flushOutput()
+                    _ser.flushInput()
+                    tools.log(f"SERIAL PORT INIT - SUCCESS")
+                    return _ser
+                except (serial.SerialException, TimeoutError) as e:
+                    tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
+                    time.sleep(5)
+                except Exception:
+                    tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
+                    time.sleep(5)
+
         tools.log("START")
+        err_count = sample_count = 0
         parser = NavParser("", is_file=False)
-        ser = None
-        while not GPSSampler.shutdown_event.is_set():
-            try:
-                ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
-                ser.flushOutput()
-                ser.flushInput()
-                tools.log(f"SERIAL PORT INIT - SUCCESS")
-                break
-            except (serial.SerialException, TimeoutError) as e:
-                tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
-                time.sleep(5)
-            except Exception:
-                tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
-                time.sleep(5)
-        err_count = 0
-        sample_count = 0
+        ser = init_serial_port()
         GPSSampler.gps_data = []
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
                 LedSettings.turn_on(LedColor.RED)
                 continue
+
+            # read NMEA data from the serial port
             data = ""
             while ser.in_waiting > 0:
                 data += ser.readline().decode('utf-8')
             if not data:
                 continue
+
             timestamp = datetime.now().strftime(data_conf.timestamp_format)
             try:
                 parser.read_string(data)
@@ -203,7 +208,9 @@ class GPSSampler(Module):
 
                 sample_count += 1
 
-                if sample_count % 20 == 0 and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                # send the jaized_timestamps to the DataManager
+                if sample_count % GPS_conf.sample_count_threshold == 0 \
+                        and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
                     GPSSampler.send_data(
                         action=ModuleTransferAction.JAIZED_TIMESTAMPS,
                         data=GPSSampler.jaized_log_dict,
@@ -221,7 +228,7 @@ class GPSSampler(Module):
                     }
                 )
 
-                if sample_count % 20 == 0 and GPSSampler.gps_data:
+                if sample_count % GPS_conf.sample_count_threshold == 0 and GPSSampler.gps_data:
                     GPSSampler.send_data(
                         action=ModuleTransferAction.NAV,
                         data=GPSSampler.gps_data,
@@ -269,8 +276,8 @@ class GPSSampler(Module):
                 err_count += 1
                 if err_count in {1, 10, 30} or err_count % 60 == 0:
                     tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
-                # release the last detected block into Global if it is over 300 sec without GPS
-                if err_count > 300 and GPSSampler.current_plot != consts.global_polygon:
+                # release the last detected block into Global if it is over no_gps_in_plot_limit seconds without GPS
+                if err_count > GPS_conf.no_gps_in_plot_limit and GPSSampler.current_plot != consts.global_polygon:
                     GPSSampler.current_plot = consts.global_polygon
                     GPSSampler.step_out()
                 LedSettings.turn_on(LedColor.RED)
@@ -288,7 +295,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_in():
-        if GPSSampler.last_step_out + timedelta(seconds=3) < datetime.now():
+        if GPSSampler.last_step_out + timedelta(seconds=GPS_conf.minimal_time_in_state) < datetime.now():
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             tools.log(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
@@ -300,7 +307,7 @@ class GPSSampler(Module):
 
     @staticmethod
     def step_out():
-        if GPSSampler.last_step_in + timedelta(seconds=3) < datetime.now():
+        if GPSSampler.last_step_in + timedelta(seconds=GPS_conf.minimal_time_in_state) < datetime.now():
             tools.log(f"STEP OUT {GPSSampler.previous_plot}")
 
             GPSSampler.last_step_out = datetime.now()
