@@ -202,6 +202,15 @@ def main(exp, args, num_gpu):
 if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
+
+    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_mixup.py"
+    args.batch_size = 1
+    args.experiment_name = "tomato6_fsi_280923_pretrained_coco_single_class"
+    args.name = "yolox_tiny"  # "yolox_s"
+    args.ckpt = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_tomato_fsi_train/tomato6_fsi_280923_pretrained_coco_single_class/best_ckpt.pth'
+    args.nms = 0.65
+
+
     exp = get_exp(args.exp_file, args.name)
     exp.merge(args.opts)
 
