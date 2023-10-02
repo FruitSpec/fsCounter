@@ -60,3 +60,6 @@ process_not_responding: "PROCESS_NOT_RESPONDING"
 s3_nav_folder: "counter_navs"
 s3_log_folder: "counter_logs"
 s3_jaized_folder: "counter_jaized"
+
+alc_vertical_areas: ["High", "MidHigh", "MidLow", "Low"]
+alc_horizontal_areas: ["Left", "MidLeft", "MidRight", "Right"]
