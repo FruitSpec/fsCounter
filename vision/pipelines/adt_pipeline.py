@@ -356,20 +356,21 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     zed_name = "ZED.mkv"
-    depth_name = "ZED_Y.mkv" #"DEPTH.mkv"
+    depth_name = "DEPTH.mkv" #"DEPTH.mkv"
     fsi_name = "Result_FSI.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/baseline/Fowler_BLOCK700_200723_new_v8"
+    output_path = "/media/matans/My Book/FruitSpec/tracker/baseline_medharin"
     validate_output_path(output_path)
 
     #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
     rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
 
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
-    rows = os.listdir(rows_dir)
-    #rows = ["row_4"]
+    #rows = os.listdir(rows_dir)
+    rows = ["row_4"]
+    #rows = ["row_7"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
@@ -382,5 +383,5 @@ if __name__ == "__main__":
 
         validate_output_path(args.output_folder)
 
-        rc = run(cfg, args, n_frames=300)
+        rc = run(cfg, args, n_frames=150)
         rc.dump_results(args.output_folder)

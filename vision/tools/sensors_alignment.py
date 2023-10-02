@@ -168,15 +168,15 @@ class SensorAligner:
         kp_jai, des_jai = find_keypoints(gray_jai, self.matcher)  # consumes 33% of time
         M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac) # consumes 33% of time
 
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
+        if len(st) == 0 or np.sum(st) <= 5:
+            tx = -999
+            ty = -999
 
-        deltas = np.array(dst_pts) - np.array(src_pts)
-
-        tx = np.mean(deltas[:,0,0]) / rz * self.sx
-        ty = np.mean(deltas[:,0,1]) / rz * self.sy
+        else:
+            tx = M[0, 2]
+            ty = M[1, 2]
+            tx = tx / rz * self.sx
+            ty = ty / rz * self.sy
 
         if tx < 0:
             x1 = 0
