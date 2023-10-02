@@ -92,6 +92,9 @@ def run(cfg, args, metadata=None, n_frames=None):
 
     update_metadata(metadata, args)
 
+    t_df = pd.DataFrame(adt.detector.tracker_score, columns=['f_id', 'score'])
+    t_df.to_csv(os.path.join(args.output_folder, 'tracker_score.csv'))
+
     return results_collector
 
 
@@ -368,18 +371,19 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/depth/Fowler_BLOCK700_200723_row4_depth_ada5_ref1"
+    output_path = "/media/matans/My Book/FruitSpec/sandbox/tracker/depth_adaptive"
     #output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/depth/Fowler_FREDIANI_210723_row7_depth_piv1"
     validate_output_path(output_path)
 
     rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
     #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
+    rows_dir = "/media/matans/My Book/FruitSpec/NWFMXX/RV1BLK27/130623"
 
 
     #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
     rows = os.listdir(rows_dir)
-    rows = ["row_4"]
-    #rows = ["row_7"]
+    #rows = ["row_4"]
+    rows = ["row_7"]
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 

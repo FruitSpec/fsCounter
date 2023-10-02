@@ -30,15 +30,16 @@ tracker:
   minimal_max_distance: 10
   major: 1.5 #3
   minor: 1 #2.5
+  close_frame: 0.9
   ranges:
     close:
       dist: 1.2
-      major: 1.5 #2
-      minor: 0.8 #1.2
+      major: 2.2 #1.5 #2
+      minor: 1.2 #0.8 #1.2
     far:
       dist: 3.2
       major: 1.2 # 1.1
-      minor: 0.65 # 0.65
+      minor: 0.4 # 0.65
     mid:
       dist: 2 # not in use
       major: 1.5 #1.5

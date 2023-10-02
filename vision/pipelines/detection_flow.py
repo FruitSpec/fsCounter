@@ -29,6 +29,8 @@ class counter_detection():
         self.tracker = self.init_tracker(cfg, args, tracker_init)
         self.device = cfg.device
 
+        self.tracker_score = []
+
     @staticmethod
     def init_detector(cfg):
         exp = get_exp(cfg.exp_file)
@@ -124,6 +126,7 @@ class counter_detection():
                 if id_ == 114:
                     a = 1
                 online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_, depth)
+                self.tracker_score.append({'f_id': id_, 'score': self.tracker.not_coupled_ratio})
                 tracking_results = []
                 for target in online_targets:
                     target.append(id_)

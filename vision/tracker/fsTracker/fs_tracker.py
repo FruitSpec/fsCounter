@@ -29,6 +29,7 @@ class FsTracker():
         self.det_area = cfg.tracker.det_area
         self.max_losses = cfg.tracker.max_losses
         self.ranges = cfg.tracker.ranges
+        self.close_frame = cfg.tracker.close_frame
 
         self.score_weights = cfg.tracker.score_weights
         self.frame_size = args.frame_size
@@ -234,7 +235,7 @@ class FsTracker():
             print(f"not coupled ratio: {self.not_coupled_ratio}")
             #if self.not_coupled_ratio < 0.6 and len(self.history_mid) > 5 and  len(self.history_close) > 5:
             mean_mid, mean_close, mean_far, use_adaptive = self.get_adaptive_distances(search_window)
-            range_, frame_type = self.is_close_scene(dets_depth, 1.1)
+            range_, frame_type = self.is_close_scene(dets_depth, self.close_frame)
 
             txs = []
             tx_ms = []
@@ -293,15 +294,16 @@ class FsTracker():
 
     def update_box_type_in_close_scene(self, bbox, range_):
         size = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
-        if size < self.box_far_size_threshold:
-            box_range = 'far'
-            box_type = 2
-        elif size < self.box_mid_size_threshold:
-            box_range = 'mid'
-            box_type = 1
-        elif range_ == 'close':
-            box_range = 'close'
-            box_type = 0
+        if range_ == 'close':
+            if size < self.box_far_size_threshold:
+                box_range = 'far'
+                box_type = 2
+            elif size < self.box_mid_size_threshold:
+                box_range = 'mid'
+                box_type = 1
+            else:
+                box_range = 'close'
+                box_type = 0
         else:
             box_range = 'mid'
             box_type = 1

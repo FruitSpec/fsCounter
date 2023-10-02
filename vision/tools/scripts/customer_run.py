@@ -23,9 +23,9 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    nav_folder = "/media/matans/My Book/FruitSpec/tracker/medharin"
+    nav_folder = "/media/matans/My Book/FruitSpec/sandbox/tracker/depth_adaptive"
     nav_list = os.listdir(nav_folder)
-    output_path = "/media/matans/My Book/FruitSpec/tracker/medharin"
+    output_path = "/media/matans/My Book/FruitSpec/sandbox/tracker/depth_adaptive"
     validate_output_path(output_path)
     plots_dir = "/media/matans/My Book/FruitSpec/Mehadrin"
     plots = os.listdir(plots_dir)
