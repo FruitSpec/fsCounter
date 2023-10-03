@@ -433,17 +433,15 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folders = [
-               "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/2",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/3",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/4",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/5",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/6",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/10",
-    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/12"]
+    tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP"
+    folders = []
+    for type in os.listdir(tomato_folder):
+        type_path = os.path.join(tomato_folder, type)
+        for scan_number in os.listdir(type_path):
+            scan_path = os.path.join(type_path, scan_number)
+            folders.append(scan_path)
 
-    n_frames = 500
+    n_frames = 800
     start_frame = 35
     zed_shift = 2
 

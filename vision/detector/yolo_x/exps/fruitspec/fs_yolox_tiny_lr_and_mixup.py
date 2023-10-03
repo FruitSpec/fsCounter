@@ -4,7 +4,7 @@
 
 import os
 
-from yolox.exp import Exp as MyExp
+from vision.detector.yolo_x.yolox.exp import Exp as MyExp
 
 
 class Exp(MyExp):
@@ -23,7 +23,7 @@ class Exp(MyExp):
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.num_classes = 3
+        self.num_classes = 2
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5

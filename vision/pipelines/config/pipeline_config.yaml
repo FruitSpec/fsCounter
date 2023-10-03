@@ -1,8 +1,11 @@
-exp_file: /home/fruitspec-lab/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file_tomato: /home/fruitspec-lab/FruitSpec/Code/roi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_and_mixup.py
+
 #exp_file: /home/yotam/FruitSpec/Code/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr.py
 
 #ckpt_file: /home/fruitspec-lab/FruitSpec/Sandbox/Run_2_7_oct_2022/best_ckpt.pth
-ckpt_file: /home/fruitspec-lab/FruitSpec/weights/Apples_1_29_June_23/best_ckpt.pth
+ckpt_file: /home/fruitspec-lab/FruitSpec/weights/counter/Apples_1_29_June_23/best_ckpt.pth
+ckpt_file_tomato: /home/fruitspec-lab/FruitSpec/weights/counter/Tomato_fsi_28_sep_23/best_ckpt.pth
 #ckpt_file: /home/yotam/FruitSpec/weights/fs_yolox_tiny_lr/best_ckpt.pth
 
 
@@ -59,7 +62,7 @@ sensor_aligner:
     homography: false
 
 frame_loader:
-  mode: async # sync_mkv, async,  sync_svo
+  mode: sync_svo # sync_mkv, async,  sync_svo
 
 result_collector:
   mode: pc_dims # options "", depth, pc, pc_dims

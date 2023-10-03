@@ -14,6 +14,7 @@ def get_color(det_crop, saturation_threshold=100, precentile=0.5):
 
     return b[i]
 
+
 def get_tomato_color(rgb_crop):
     """
     Determines the color of a tomato based on an RGB image crop of the tomato.

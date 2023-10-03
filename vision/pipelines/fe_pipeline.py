@@ -406,18 +406,18 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 
 
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/cam175/customers_new"
+    folder_path = "/media/fruitspec-lab/cam175/customers_new/LIMONE24"
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/cam175/customers_new/features_with_ps.csv"
+    final_df_output = "/media/fruitspec-lab/cam175/customers_new/LIMONE24/LIMONE24_features.csv"
     over_write = False
     njobs = 1
-    suffix = "ps_fruit_dim"
+    suffix = "cv_features"
     print_fids = False
     run_only_done_adt = False
     min_slice_len = 0
-    cv_only = False
+    cv_only = True
     direction = ""
 
     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
@@ -429,6 +429,5 @@ if __name__ == '__main__':
     #                     "/media/fruitspec-lab/cam175/customers_new/MOTCHA/BEERAMU0/220823/row_113/1"]:
     #     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
     #                             cv_only, direction)
-
 
     print("Done")

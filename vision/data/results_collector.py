@@ -268,10 +268,10 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
-    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
+    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6, det_colors=None):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = self.draw_dets(frame, dets, t_index=t_index)
+        frame = self.draw_dets(frame, dets, t_index=t_index, det_colors=det_colors)
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
@@ -282,12 +282,15 @@ class ResultsCollector():
             self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
 
     @staticmethod
-    def draw_dets(frame, dets, t_index=6, text=True):
+    def draw_dets(frame, dets, t_index=6, text=True, det_colors=None):
 
-        for det in dets:
+        for i, det in enumerate(dets):
             track_id = det[t_index]
             color_id = int(track_id) % 15  # 15 is the number of colors in list
-            color = get_color(color_id)
+            if det_colors is not None:
+                color = det_colors[i]
+            else:
+                color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
             if text:
@@ -310,32 +313,40 @@ class ResultsCollector():
 
         return hash
 
-    def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None):
+    def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None,
+                    det_colors=None):
         for i in range(len(trk_outputs)):
             f_id = batch_id + i
             f_depth = depth[i] if depth is not None else None
             f_windows = trk_windows[i] if trk_windows is not None else None
-            self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows)
+            f_det_colors = det_colors[i] if det_colors is not None else None
+            self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows,
+                       det_colors=f_det_colors)
 
 
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None, det_colors=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
             validate_output_path(os.path.join(args.output_folder, 'trk_results'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'))
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'),
+                               det_colors=det_colors)
         if args.debug.det_results:
             validate_output_path(os.path.join(args.output_folder, 'det_results'))
-            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'))
+            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'),
+                               det_colors=det_colors)
         if args.debug.raw_frame:
             validate_output_path(os.path.join(args.output_folder, 'frames'))
-            self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+            self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'),
+                               det_colors=det_colors)
         if args.debug.depth and depth is not None:
             validate_output_path(os.path.join(args.output_folder, 'depth'))
-            self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
+            self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'),
+                               det_colors=det_colors)
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5,
+                               det_colors=det_colors)
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
