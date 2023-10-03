@@ -26,7 +26,7 @@ class Exp(MyExp):
         self.val_ann = "instances_val.json"
 
         self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter'
-        self.num_classes = 1
+        self.num_classes = 2
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5

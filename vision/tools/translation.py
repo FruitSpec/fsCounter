@@ -162,7 +162,7 @@ class translation():
     def find_frame_translation(self, frame, r):
 
         if self.mode == 'match':
-            tx, ty = self.find_match_translation(self.last_frame, frame, r)
+            tx, ty, _ = self.find_match_translation(self.last_frame, frame, r)
             self.last_frame = frame.copy()
         elif self.mode == 'keypoints':
             tx, ty, kp, des = self.find_keypoint_translation(frame, r, last_kp=self.last_kp, last_des=self.last_des)

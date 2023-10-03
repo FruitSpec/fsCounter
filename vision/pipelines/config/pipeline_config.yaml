@@ -1,7 +1,9 @@
 # config.yaml
-exp_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+#exp_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
 
-ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_290623/Apples_1_29_June_23/best_ckpt.pth  #yolox
+#ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train_290623/Apples_1_29_June_23/best_ckpt.pth  #yolox
+ckpt_file: /home/matans/Documents/fruitspec/Weights/tomatos_jai/best_ckpt.pth
 
 #ckpt_file: /home/matans/Documents/fruitspec/weights/v8/best.pt
 
@@ -10,7 +12,7 @@ ckpt_file: /home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/detector_apples_train
 device: cuda
 
 input_size: [1024, 1024]
-batch_size: 4
+batch_size: 1
 
 detector:
   detector_type: yolox # implemented: yolox, yolov8
@@ -49,7 +51,7 @@ tracker:
   match_type:  inter #center #
   det_area: 1
   translation_size: 640
-  compile_data_path: /home/fruitspec-lab-3/FruitSpec/Code/Matan/tracker_init.pkl
+  compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
   debug: false
 
 

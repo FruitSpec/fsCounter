@@ -6,13 +6,14 @@ import numpy as np
 import collections
 
 from vision.misc.help_func import get_repo_dir, validate_output_path, copy_configs
-from vision.depth.zed.svo_operations import get_frame, get_depth, get_point_cloud, get_dimensions, sl_get_dimensions, measure_depth
+from vision.depth.zed.svo_operations import get_dimensions, measure_depth
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
-from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
+from vision.pipelines.ops.fruit_cluster import FruitCluster
+#from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
 from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
@@ -22,12 +23,16 @@ from vision.tools.video_wrapper import video_wrapper
 
 
 def run(cfg, args):
-    print(f'Inferencing on {args.movie_path}\n')
+    #print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate)
-    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    #fs = FruitCluster(cfg.clusters.max_single_fruit_dist,
+    #                  cfg.clusters.range_diff_threshold,
+    #                  cfg.clusters.max_losses)
 
-    cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
+    #cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
+    cam = video_wrapper(args.jai.movie_path, args.jai.rotate)
 
     # Read until video is completed
     number_of_frames = cam.get_number_of_frames()
@@ -36,8 +41,9 @@ def run(cfg, args):
     pbar = tqdm(total=number_of_frames)
     while True:
         pbar.update(1)
-        frame, depth, point_cloud = cam.get_zed()
-        if not cam.res:  # couldn't get frames
+        #frame, depth, point_cloud = cam.get_zed()
+        res, frame = cam.get_frame()
+        if not res:  # couldn't get frames
             # Break the loop
             break
 
@@ -46,43 +52,47 @@ def run(cfg, args):
             continue
 
         # detect:
-        det_outputs = detector.detect(frame)
+        det_outputs = detector.detect([frame])
 
         # filter by size:
-        filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
+        #filtered_outputs = filter_by_size(det_outputs, cfg.filters.size.size_threshold)
 
-        outputs_depth = measure_depth(filtered_outputs, point_cloud)
+        #outputs_depth = measure_depth(filtered_outputs, point_cloud)
 
         # find translation
-        tx, ty = translation.get_translation(frame, filtered_outputs)
+        #tx, ty = translation.get_translation(frame, filtered_outputs)
+        tx, ty = translation.get_translation(frame, det_outputs[0])
 
         # track:
-        trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
+        #trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
+        trk_outputs, trk_windows = detector.track(det_outputs, [(tx, ty)], f_id, None)
 
         # filter by distance:
-        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+        #filtered_outputs, ranges = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+
+        # clutser:
+        #filtered_outputs = fs.cluster(filtered_outputs, ranges)
 
         # measure:
-        colors, hists_hue = get_colors(filtered_outputs, frame)
-        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
-        dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
-        # dimensions = sl_get_dimensions(trk_outputs, cam)
+        #colors, hists_hue = get_colors(filtered_outputs, frame)
+        #dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
 
-        if args.debug.is_debug:
-            depth = None
-            results_collector.debug(f_id, args, frame_results, det_outputs, frame, hists_hue, depth, trk_windows)
+        #frame_results = results_collector.collect_results(filtered_outputs, dimensions, colors)
+
+        #if args.debug.is_debug:
+        #      depth = None
+            #results_collector.debug(f_id, args, frame_results, det_outputs, frame, hists_hue, depth, trk_windows)
+        results_collector.debug_batch(f_id, args, trk_outputs, det_outputs, [frame], trk_windows=trk_windows)
+
 
         f_id += 1
 
     # When everything done, release the video capture object
     cam.close()
-    filter_suffix = f'{"_hue" if cfg.filters.hue else ""}{"_depth" if cfg.filters.depth else ""}'
-    out_name = f'measures_{cfg.dim_method}_{str(cfg.margin).split(".")[-1]}{filter_suffix}.csv'
-    results_collector.dump_to_csv(os.path.join(args.output_folder, out_name), type='measures')
+    results_collector.dump_to_csv(os.path.join(args.output_folder, 'measures.csv'), type='measures')
     #detector.release()
 
 
@@ -100,7 +110,7 @@ def get_colors(trk_results, frame):
     colors = []
     hists = []
     for res in trk_results:
-        rgb_crop = frame[max(res[1], 0):res[3], max(res[0], 0):res[2], :]
+        rgb_crop = frame[max(int(res[1]), 0):int(res[3]), max(int(res[0]), 0):int(res[2]), :]
         h, b = get_hue(rgb_crop)
         mean = np.sum(b[:-1] * h) / np.sum(h)
         std = np.sqrt(np.sum(((mean - b[:-1]) ** 2) * h) / np.sum(h))
@@ -157,12 +167,18 @@ def get_clusters(trk_results, max_single_fruit_dist=200):
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     pipeline_config = os.path.join(repo_dir, "vision/pipelines/config/pipeline_config.yaml")
-    runtime_config = os.path.join(repo_dir, "vision/pipelines/config/runtime_config.yaml")
+    runtime_config = os.path.join(repo_dir, "/home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/pipelines/config/dual_runtime_config.yaml")
     cfg = OmegaConf.load(pipeline_config)
     args = OmegaConf.load(runtime_config)
 
-    validate_output_path(args.output_folder)
-    copy_configs(pipeline_config, runtime_config, args.output_folder)
+
+    row_folder = "/media/matans/My Book/FruitSpec/sandbox/syngenta/pre_200323_row15"
+    output_folder = "/media/matans/My Book/FruitSpec/sandbox/syngenta/pre_200323_row15_res"
+    validate_output_path(output_folder)
+
+    args.output_folder = output_folder
+    args.jai.movie_path = os.path.join(row_folder, 'Result_FSI_1.mkv')
+    #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
     run(cfg, args)
 
