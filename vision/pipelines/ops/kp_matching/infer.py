@@ -90,7 +90,7 @@ class lightglue_infer():
         else:
 
 
-            tx = M[0, 2]
+            tx = M[0, 2] * (-1)
             ty = M[1, 2]
             tx = tx / rz * self.sx
             ty = ty / rz * self.sy
@@ -148,21 +148,18 @@ class lightglue_infer():
         return self.get_tx_ty(M, st, rz)
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
-        if False:#len(zed_batch) < 1:
-            corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
-            results = [[corr, tx, ty]]
-        else:
-            zed_input = []
-            jai_input = []
-            streams = []
-            for z, j in zip(zed_batch, jai_batch):
-                if z is not None and j is not None:
-                    zed_input.append(z)
-                    jai_input.append(j)
-                    #streams.append(cv2.cuda_Stream())
-            if debug is None:
-                debug = [None] * self.batch_size
-            results = list(map(self.align_sensors, zed_input, jai_input, debug))
+
+        zed_input = []
+        jai_input = []
+
+        for z, j in zip(zed_batch, jai_batch):
+            if z is not None and j is not None:
+                zed_input.append(z)
+                jai_input.append(j)
+                #streams.append(cv2.cuda_Stream())
+        if debug is None:
+            debug = [None] * self.batch_size
+        results = list(map(self.align_sensors, zed_input, jai_input, debug))
 
 
         output = []

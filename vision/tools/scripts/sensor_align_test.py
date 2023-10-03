@@ -383,8 +383,8 @@ def post_process_res(batch_res, f_id, type='sa'):
         matches = r[3]
 
 
-        if type == 'lg':
-            tx = tx * (-1)
+        #if type == 'lg':
+        #    tx = tx * (-1)
 
         if np.isinf(tx):
             tx = -999
@@ -413,14 +413,17 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    #folders = ["/media/matans/My Book/FruitSpec/Mehadrin/03602060/200823/row_12/1",
-    #           "/media/matans/My Book/FruitSpec/Mehadrin/02600173/210823/row_12/1",
-    folders = ["/media/matans/My Book/FruitSpec/Mehadrin/02508060/210823/row_12/1",
-               "/media/matans/My Book/FruitSpec/Mehadrin/01800173/210823/row_3/1",
-               "/media/matans/My Book/FruitSpec/Mehadrin/00608060/210823/row_3/1",
-               "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
+    output_folder = "/media/matans/My Book/FruitSpec/sandbox/alignment_test_val_1"
+    validate_output_path(output_folder)
 
-    folders = ["/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
+    folders = ["/media/matans/My Book/FruitSpec/Mehadrin/03602060/200823/row_12/1",
+               "/media/matans/My Book/FruitSpec/Mehadrin/02600173/210823/row_12/1"]#,
+#    folders = ["/media/matans/My Book/FruitSpec/Mehadrin/02508060/210823/row_12/1",
+ #              "/media/matans/My Book/FruitSpec/Mehadrin/01800173/210823/row_3/1",
+ #              "/media/matans/My Book/FruitSpec/Mehadrin/00608060/210823/row_3/1",
+ #              "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
+
+    #folders = ["/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723/row_4/1"]
     for folder in folders:
 
         splited = folder.split('/')
@@ -430,7 +433,7 @@ if __name__ == "__main__":
         args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
         args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
         args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-        args.output_folder = os.path.join("/media/matans/My Book/FruitSpec/sandbox/alignment_test", res_folder)
+        args.output_folder = os.path.join(output_folder, res_folder)
         validate_output_path(args.output_folder)
 
         n_frames = 200
