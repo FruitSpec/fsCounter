@@ -111,30 +111,32 @@ class GPSSampler(Module):
                 if action == ModuleTransferAction.START_GPS:
                     GPSSampler.start_sample_event.set()
                 if action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+                    is_recording, jaized_data = data
+                    if is_recording or conf.debug.constant_jaized:
+                        row_state = GPSSampler.get_row_state(
+                            angular_velocity_x=jaized_data[consts.IMU_angular_velocity][0],
+                            lat=GPSSampler.current_lat,
+                            long=GPSSampler.current_long,
+                            imu_timestamp=jaized_data[consts.ZED_timestamp],
+                            gps_timestamp=GPSSampler.current_timestamp,
+                            depth_score=jaized_data[consts.depth_score]
+                        )
 
-                    row_state = GPSSampler.get_row_state(
-                        angular_velocity_x=data[consts.IMU_angular_velocity][0],
-                        lat=GPSSampler.current_lat,
-                        long=GPSSampler.current_long,
-                        imu_timestamp=data[consts.ZED_timestamp],
-                        gps_timestamp=GPSSampler.current_timestamp,
-                        depth_score=data[consts.depth_score]
-                    )
+                        angular_velocity = jaized_data[consts.IMU_angular_velocity]
+                        linear_acceleration = jaized_data[consts.IMU_linear_acceleration]
 
-                    angular_velocity = data[consts.IMU_angular_velocity]
-                    linear_acceleration = data[consts.IMU_linear_acceleration]
-
-                    GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
-                    GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestamp])
-                    GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
-                    GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
-                    GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
-                    GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
-                    GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
-                    GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
-                    GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
-                    GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
-                    GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
+                        GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(jaized_data[consts.JAI_frame_number])
+                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(jaized_data[consts.JAI_timestamp])
+                        GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(jaized_data[consts.ZED_frame_number])
+                        GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(jaized_data[consts.ZED_timestamp])
+                        GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
+                        GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
+                        GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
+                        GPSSampler.jaized_log_dict[consts.is_recording].append(is_recording)
+                        GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
+                        GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
+                        GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
+                        GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
 
                 if action == ModuleTransferAction.ACQUISITION_CRASH:
                     GPSSampler.start_sample_event.clear()

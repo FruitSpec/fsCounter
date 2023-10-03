@@ -10,3 +10,4 @@ debug:
   crash_syslog: True
   mtu_log: True
   jtop_log: True
+  constant_jaized: False

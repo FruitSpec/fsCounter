@@ -17,6 +17,7 @@ class Batcher:
     _frames_queue = None
     _batches_queue = None
     _drop_next_zed = False
+    _is_recording = False
     _batch_push_event = threading.Event()
     _shutdown_event = threading.Event()
     _acquisition_start_event = threading.Event()
@@ -92,7 +93,7 @@ class Batcher:
 
             self._send_data(
                 ModuleTransferAction.JAIZED_TIMESTAMPS,
-                self._timestamp_log_dict,
+                (self._is_recording, self._timestamp_log_dict),
                 ModulesEnum.GPS,
                 log_option=tools.LogOptions.NONE
             )
@@ -114,6 +115,12 @@ class Batcher:
 
     def start_acquisition(self):
         self._acquisition_start_event.set()
+
+    def start_recording(self):
+        self._is_recording = True
+
+    def stop_recording(self):
+        self._is_recording = False
 
     def stop_acquisition(self):
         try:

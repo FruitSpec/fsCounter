@@ -41,6 +41,7 @@ IMU_angular_velocity: "IMU_angular_velocity"
 IMU_linear_acceleration: "IMU_linear_acceleration"
 depth_score: "depth_score"
 row_state: "row_state"
+is_recording: "is_recording"
 
 alignment: "alignment"
 jai_translation: "jai_translation"
