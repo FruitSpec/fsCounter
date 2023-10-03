@@ -552,11 +552,21 @@ class FeatureExtractor:
                       "green": cp.asarray(green),
                       "blue": cp.asarray(blue), "swir_975": cp.asarray(swir_975)}
 
-        if not isinstance(mask, type(None)):
-            mask = mask.astype(bool)
-            input_dict = {key: item[mask] for key, item in input_dict.items()}
-        clean_arr = {key: cp.asnumpy(vi_functions[key](**input_dict).flatten())
-                     for key in vegetation_indexes_keys}
+        try:
+            if not isinstance(mask, type(None)):
+                mask = mask.astype(bool)
+                input_dict = {key: item[mask] for key, item in input_dict.items()}
+            clean_arr = {key: cp.asnumpy(vi_functions[key](**input_dict).flatten())
+                         for key in vegetation_indexes_keys}
+        except Exception as e:
+            input_dict = {"nir": cp.asnumpy(nir), "red": cp.asnumpy(red),
+                          "green": cp.asnumpy(green),
+                          "blue": cp.asnumpy(blue), "swir_975": cp.asnumpy(swir_975)}
+            if not isinstance(mask, type(None)):
+                mask = mask.astype(bool)
+                input_dict = {key: item[mask] for key, item in input_dict.items()}
+            clean_arr = {key: cp.asnumpy(vi_functions[key](**input_dict).flatten())
+                         for key in vegetation_indexes_keys}
         return {**clean_arr}
 
     @staticmethod

@@ -136,7 +136,7 @@ class SensorAligner:
 
         output = []
         for r in results:
-        #    self.update_zed_shift(r[1])
+            self.update_zed_shift(r[1])
             output.append([r[0], r[1], r[2], self.zed_shift])
 
         return output
@@ -154,12 +154,15 @@ class SensorAligner:
         gray_zed = cv2.cvtColor(zed_rgb, cv2.COLOR_RGB2GRAY)
         gray_jai = cv2.cvtColor(jai_img, cv2.COLOR_RGB2GRAY)
 
+        h, w = gray_zed.shape
+        zed_size = [w, h]
+
         # adjust zed scale to be the same as jai using calibrated scale x and y
         gray_zed = self.crop_zed_roi(gray_zed)
         gray_zed = cv2.resize(gray_zed, (int(gray_zed.shape[1] / self.sx), int(gray_zed.shape[0] / self.sy)))
 
-        gray_zed, rz = resize_img(gray_zed, gray_zed.shape[0] // 3)
-        gray_jai, rj = resize_img(gray_jai, gray_jai.shape[0] // 3)
+        gray_zed, rz = resize_img(gray_zed, gray_zed.shape[0] // 4)
+        gray_jai, rj = resize_img(gray_jai, gray_jai.shape[0] // 4)
 
         kp_zed, des_zed = find_keypoints(gray_zed, self.matcher)  # consumes 33% of time
         kp_jai, des_jai = find_keypoints(gray_jai, self.matcher)  # consumes 33% of time
@@ -172,9 +175,6 @@ class SensorAligner:
 
         deltas = np.array(dst_pts) - np.array(src_pts)
 
-        tx = np.mean(deltas[:,0,0]) / rz * self.sx
-        ty = np.mean(deltas[:,0,1]) / rz * self.sy
-
         if len(st) == 0 or np.sum(st) <= 5:
             tx = -999
             ty = -999
@@ -185,28 +185,15 @@ class SensorAligner:
             x2 = mid_y + (roi[0] // 2)
             y1 = mid_y - (roi[1] // 2)
             y2 = mid_y + (roi[1] // 2)
-
-        if tx < 0:
-            x1 = 0
-            x2 = self.roix
-        elif tx + self.roix > zed_rgb.shape[1]:
-            x2 = zed_rgb.shape[1]
-            x1 = zed_rgb.shape[1] - self.roix
         else:
-            x1 = tx
-            x2 = tx + self.roix
-
-        if ty < 0:
-            y1 = self.y_s
-            y2 = self.y_s + self.roiy
-        elif ty + self.roiy > (self.y_e - self.y_s):
-            y2 = self.y_e
-            y1 = self.y_e - self.roiy
-        else:
-            y1 = self.y_s + ty
-            y2 = self.y_s + ty + self.roiy
-
-        self.update_zed_shift(tx)
+            # tx = M[0, 2]
+            # ty = M[1, 2]
+            # tx = tx / rz * self.sx
+            # ty = ty / rz * self.sy
+            tx = np.mean(deltas[:, 0, 0]) / rz * self.sx
+            ty = np.mean(deltas[:, 0, 1]) / rz * self.sy
+            x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
+        # self.update_zed_shift(tx)
 
         return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
 
@@ -285,7 +272,7 @@ class SensorAligner:
             return
         if tx < 20:
             self.consec_less_threshold += 1
-        elif tx > 120:
+        elif tx > 1080-self.roix -10:
             self.consec_more_threshold += 1
         else:
             self.consec_less_threshold = max(self.consec_less_threshold - 1, 0)
@@ -527,12 +514,12 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
 
         deltas = np.array(dst_pts) - np.array(src_pts)
 
-        tx = M[0, 2]
-        ty = M[1, 2]
-        tx = tx / rz * sx
-        ty = ty / rz * sy
-        #tx = np.mean(deltas[:, 0, 0]) / rz * sx
-        #ty = np.mean(deltas[:, 0, 1]) / rz * sy
+        # tx = M[0, 2]
+        # ty = M[1, 2]
+        # tx = tx / rz * sx
+        # ty = ty / rz * sy
+        tx = np.mean(deltas[:, 0, 0]) / rz * sx
+        ty = np.mean(deltas[:, 0, 1]) / rz * sy
 
         x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
 

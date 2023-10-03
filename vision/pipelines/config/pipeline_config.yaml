@@ -59,7 +59,7 @@ sensor_aligner:
     homography: false
 
 frame_loader:
-  mode: sync_svo # sync_mkv, async,  sync_svo
+  mode: async # sync_mkv, async,  sync_svo
 
 result_collector:
   mode: pc_dims # options "", depth, pc, pc_dims

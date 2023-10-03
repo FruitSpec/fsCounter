@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+import torch
 
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 
@@ -18,16 +19,20 @@ from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.sensors_alignment import SensorAligner
-from vision.tools.image_stitching import draw_matches
+from vision.tools.image_stitching import draw_matches, plot_2_imgs
 from vision.pipelines.ops.simulator import get_n_frames, init_cams
 from vision.pipelines.detection_flow import counter_detection
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 
 
-
-def run(cfg, args, n_frames=200):
+def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0):
+    cfg.batch_size = 1
     print(f'Inferencing on {args.jai.movie_path}\n')
     rc = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
+    lg = lightglue_infer(cfg)
+ #   det = counter_detection(cfg, args)
+    det_outputs = None
     res = []
     frame_loader = FramesLoader(cfg, args)
     crop = [sensor_aligner.x_s, sensor_aligner.y_s, sensor_aligner.x_e, sensor_aligner.y_e]
@@ -39,41 +44,79 @@ def run(cfg, args, n_frames=200):
     loaded_path_uncropped = os.path.join(args.output_folder, 'loaded_uncropped')
     validate_output_path(loaded_path_uncropped)
 
-    f_id = 0
-    n_frames = frame_loader.jai_cam.get_number_of_frames() if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
+    f_id = start_frame
+    #n_frames = len(frame_loader.sync_zed_ids) if n_frames is None else min(n_frames, len(frame_loader.sync_zed_ids))
     pbar = tqdm(total=n_frames)
-    while f_id < n_frames:
+    data = []
+    if frame_loader.mode == "async":
+        sensor_aligner.zed_shift = zed_shift
+    while f_id < n_frames + start_frame:
+        zed_shift = sensor_aligner.zed_shift
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id, zed_shift)
+        if len(zed_batch) == 0:
+            break
+        if f_id < start_frame:
+            f_id += 1
+            continue
         pbar.update(cfg.batch_size)
-        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id, 0)
+
+        if len(zed_batch) < cfg.batch_size:
+            f_id += cfg.batch_size
+            continue
 
         debug = []
+        output_folder = os.path.join(args.output_folder, 'sa')
+        validate_output_path(output_folder)
         for i in range(cfg.batch_size):
-            debug.append({'output_path': keypoints_path, 'f_id': f_id + i})
+            debug.append({'output_path': output_folder, 'f_id': f_id + i})
         alignment_results = sensor_aligner.align_on_batch(zed_batch, rgb_batch, debug=debug)
         rc.collect_alignment(alignment_results, f_id)
+        data += post_process_res(alignment_results, f_id, 'sa')
+
         for id_ in range(cfg.batch_size):
             save_aligned(zed_batch[id_],
                          jai_batch[id_],
-                         args.output_folder,
+                         output_folder,
                          f_id + id_,
-                         corr=alignment_results[id_][0], sub_folder='roi')
+                         # corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=alignment_results[id_][0], dets=det_outputs)
             save_loaded_images(zed_batch[id_],
                                jai_batch[id_], f_id + id_, loaded_path, crop)
             save_loaded_images(zed_batch[id_],
                                jai_batch[id_], f_id + id_, loaded_path_uncropped, crop, draw_rec=True)
 
-            res.append(alignment_results[id_])
+            # res.append(alignment_results[id_])
+
+        debug = []
+        output_folder = os.path.join(args.output_folder, 'lg')
+        validate_output_path(output_folder)
+        for i in range(cfg.batch_size):
+            debug.append({'output_path': output_folder, 'f_id': f_id + i})
+        lg_results = lg.align_sensors(zed_batch[0], rgb_batch[0], debug=debug)
+        data += post_process_res([lg_results], f_id, 'lg')
+
+
+
+        for id_ in range(cfg.batch_size):
+
+
+            save_aligned(zed_batch[id_],
+                         rgb_batch[id_][:,:,::-1],
+                         output_folder,
+                         f_id + id_,
+                         #corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=lg_results[0], dets=det_outputs)
+            #save_loaded_images(zed_batch[id_],
+            #                   jai_batch[id_], f_id + id_, loaded_path, crop)
 
         f_id += cfg.batch_size
 
 
     pbar.close()
     frame_loader.close_cameras()
-    output_path = os.path.join(args.output_folder, "alignment.csv")
-    rc.dump_to_csv(output_path, "alignment")
-
-#    res_df = pd.DataFrame(data=res, columns=['x1', 'y1', 'x2', 'y2', 'tx', 'ty', 'sx', 'sy', 'umatches', 'zed_shift'])
-#   res_df.to_csv(os.path.join(args.output_folder, "res.csv"))
+    rc.dump_to_csv(os.path.join(args.output_folder, "alignment"), "alignment")
+    df = pd.DataFrame(data)
+    df.to_csv(os.path.join(args.output_folder, 'res.csv'))
 
     return
 
@@ -197,11 +240,23 @@ def estimate_M(kp1, kp2, match, ransac=10):
 
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV'):
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None):
     if corr is not None and np.sum(np.isnan(corr)) == 0:
         zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
     zed = cv2.resize(zed, (680, 960))
     jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        dets = np.array(dets)
+        dets[:, 0] = dets[:, 0] * gx
+        dets[:, 2] = dets[:, 2] * gx
+        dets[:, 1] = dets[:, 1] * gy
+        dets[:, 3] = dets[:, 3] * gy
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -210,11 +265,6 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV'):
     fp = os.path.join(output_folder, sub_folder)
     validate_output_path(fp)
     cv2.imwrite(os.path.join(fp, f"aligned_f{f_id}.jpg"), canvas)
-
-
-
-
-
 
 
 def zed_slicing_to_jai(slice_data_path, output_folder, rotate=False):
@@ -230,6 +280,7 @@ def get_number_of_frames(jai_max_frames, metadata=None):
 
     return n_frames
 
+
 def match(zed_frame, rgb_frame, draw_output=None):
     kp1, des1, kp2, des2 = get_sift_des(zed_frame, rgb_frame)
     match = match_des(des1, des2)
@@ -241,11 +292,13 @@ def match(zed_frame, rgb_frame, draw_output=None):
 
     return used_matches
 
+
 def loftr_preprocess(zed_frame, rgb_frame, size=(360, 520)):
     z_frame = preprocess_frame(zed_frame, size)
     r_frame = preprocess_frame(rgb_frame, size)
 
     return z_frame, r_frame
+
 
 def loftr_match(z_frame, r_frame, matcher):
     input_dict = {"image0": torch.unsqueeze(z_frame, dim=0),  # LofTR works on grayscale images only
@@ -257,6 +310,7 @@ def loftr_match(z_frame, r_frame, matcher):
     mkpts1 = correspondences['keypoints1'].cpu().numpy()
 
     return mkpts0, mkpts1
+
 
 def preprocess_frame(frame, size):
     out_frame = cv2.resize(frame, size)
@@ -287,33 +341,46 @@ def update_args(args, row_dict):
     return new_args
 
 
-def validate_from_files(alignment, tracks, cfg, args):
+def validate_from_files(alignment, tracks, cfg, args, jai_only=False, max_frame=None):
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
     a_hash = get_alignment_hash(alignment)
 
     frame_loader = FramesLoader(cfg, args)
     frame_loader.batch_size = 1
-    for id_ in tqdm(jai_frames):
-        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
 
-        save_aligned(zed_batch[0],
-                     jai_batch[0],
-                     args.output_folder,
-                     id_,
-                     corr=a_hash[id_], dets=dets[id_])
+    if max_frame is None:
+        max_frame = jai_frames[-1]
+
+    for id_ in tqdm(jai_frames):
+        if id_ > max_frame:
+            break
+        zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
+        if jai_only:
+            jai = ResultsCollector.draw_dets(jai_batch[0], dets[id_], t_index=8, text=True)
+            fp = os.path.join(args.output_folder, 'Dets')
+            validate_output_path(fp)
+
+            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), jai)
+        else:
+            save_aligned(zed_batch[0],
+                         jai_batch[0],
+                         args.output_folder,
+                         id_,
+                         corr=a_hash[id_], dets=dets[id_])
 
 
 def track_to_det(tracks_df):
     dets = {}
     for i, row in tracks_df.iterrows():
         if row['frame_id'] in list(dets.keys()):
-            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']])
         else:
-            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0, row['track_id']]]
 
 
     return dets
+
 
 def get_alignment_hash(alignment):
     data = alignment.to_numpy()
@@ -327,6 +394,38 @@ def get_alignment_hash(alignment):
     return hash
 
 
+def post_process_res(batch_res, f_id, type='sa'):
+    data = []
+    for i, r in enumerate(batch_res):
+        x1, y1, x2, y2 = r[0]
+        tx = r[1]
+        ty = r[2]
+        matches = r[3]
+
+
+        # if type == 'lg':
+        #     tx = tx * (-1)
+
+        if np.isinf(tx):
+            tx = -999
+            ty = -999
+
+
+        data.append({'x1': x1,
+                     'y1': y1,
+                     'x2': x2,
+                     'y2': y2,
+                     'tx': int(tx),
+                     'ty': int(ty),
+                     'f_id': f_id + i,
+                     'matches': matches,
+                     'type': type})
+
+
+    return data
+
+
+
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
@@ -335,23 +434,27 @@ if __name__ == "__main__":
     args = OmegaConf.load(repo_dir + runtime_config)
 
     folders = [
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLAYNEY0/170723/row_12/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCK700/170723/row_2/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCK700/170723/row_4/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCKDX0/row_3/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/BLOCKDX0/row_9/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/FREDIANI/170723/row_15/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/MAZMANI2/170723/row_21/1",
-               "/media/fruitspec-lab/cam175/customers_new/FOWLER/OLIVER55/170723/row_7/1",
-               "/media/fruitspec-lab/cam175/FOWLER/OLIVER12/180723/row_11/1"]
+               "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/2",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/3",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/4",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/5",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/6",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/10",
+    "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/12"]
+
+    n_frames = 500
+    start_frame = 35
+    zed_shift = 2
 
     for folder in folders:
         try:
-            args.zed.movie_path = os.path.join(folder, "ZED.svo")
+            args.zed.movie_path = os.path.join(folder, "ZED_1.svo")
             args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
-            args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
-            args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+            args.jai.movie_path = os.path.join(folder, "Result_FSI_1.mkv")
+            args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB_1.mkv")
             args.sync_data_log_path = os.path.join(folder, "jai_zed.json")
+            # args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
             scan = os.path.basename(folder)
             row = os.path.basename(os.path.dirname(folder))
             block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
@@ -359,7 +462,7 @@ if __name__ == "__main__":
                                               f"{block}_{row}_S{scan}")
             validate_output_path(args.output_folder)
 
-            run(cfg, args, None)
+            run(cfg, args, n_frames, start_frame, zed_shift)
         except:
             print("not finisehd")
 

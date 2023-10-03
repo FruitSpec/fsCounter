@@ -88,15 +88,13 @@ class FramesLoader():
                 break
             if cam.mode == 'svo':
                 if id_ == 0 and f_id != self.zed_last_id + self.batch_size:
-                    cam.grab(f_id)
-                else:
-                    cam.grab()
+                    cam.grab(f_id-1)
                 self.zed_last_id = f_id
                 frame, point_cloud = cam.get_zed(exclude_depth=True)
                 batch.append(frame)
                 pc_batch.append(point_cloud)
             else:
-                _, frame = cam.get_frame()
+                _, frame = cam.get_frame(f_id)
                 batch.append(frame)
 
         return batch, pc_batch
@@ -249,6 +247,8 @@ class FramesLoader():
     @staticmethod
     def get_sync_from_json(log_fp):
         jai_zed = read_json(log_fp) #load_json
+        if not len(jai_zed):
+            return list(range(10000)), list(range(10000))
         zed_frames = [int(item) for item in list(jai_zed.values())]
         jai_frames = [int(item) for item in list(jai_zed.keys())]
         add_frames_start = list(range(int(jai_frames[0])))

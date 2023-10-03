@@ -420,20 +420,6 @@ if __name__ == '__main__':
     cv_only = False
     direction = ""
 
-    folder_path = "/media/fruitspec-lab/cam175/Aq_Test"
-    # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
-    # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
-    # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/cam175/Aq_Test/cv_features.csv"
-    over_write = False
-    njobs = 1
-    suffix = "cv"
-    print_fids = False
-    run_only_done_adt = False
-    min_slice_len = 0
-    cv_only = True
-    direction = ""
-
     results = run_on_folder(folder_path, over_write, njobs, suffix, print_fids, run_only_done_adt, min_slice_len,
                             cv_only, direction)
     pd.DataFrame(results).to_csv(final_df_output)

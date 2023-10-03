@@ -1,17 +1,30 @@
 import numpy as np
 import cupy as cp
 
+
 def num_deno_nan_divide(numerator, denominator, return_numpy=True):
-    if isinstance(numerator, type(np.array([]))):
-        numerator = cp.array(numerator)
-        denominator = cp.array(denominator)
-    result = cp.empty(numerator.shape)
-    denominator_no_0 = cp.not_equal(denominator, 0)
-    result[denominator_no_0] = cp.divide(numerator[denominator_no_0], denominator[denominator_no_0])
-    result[1-denominator_no_0] = cp.nan
-    if return_numpy:
-        return cp.asnumpy(result)
-    else:
+    try:
+        if isinstance(numerator, type(np.array([]))):
+            numerator = cp.array(numerator)
+            denominator = cp.array(denominator)
+        result = cp.empty(numerator.shape)
+        denominator_no_0 = cp.not_equal(denominator, 0)
+        result[denominator_no_0] = cp.divide(numerator[denominator_no_0], denominator[denominator_no_0])
+        result[1-denominator_no_0] = cp.nan
+        if return_numpy:
+            return cp.asnumpy(result)
+        else:
+            return result
+    except Exception as e:
+        print("num_deno_nan_divide failed running using numpy")
+        numerator = cp.asnumpy(numerator)
+        denominator = cp.asnumpy(denominator)
+
+        result = np.empty(numerator.shape)
+        denominator_no_0 = denominator != 0
+
+        result[denominator_no_0] = numerator[denominator_no_0] / denominator[denominator_no_0]
+        result[~denominator_no_0] = np.nan
         return result
 
 
