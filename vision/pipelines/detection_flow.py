@@ -29,6 +29,8 @@ class counter_detection():
         self.tracker = self.init_tracker(cfg, args, tracker_init)
         self.device = cfg.device
 
+        self.tracker_score = []
+
     @staticmethod
     def init_detector(cfg):
         exp = get_exp(cfg.exp_file)
@@ -80,17 +82,7 @@ class counter_detection():
 
         if do_init:
 
-            return FsTracker(frame_size=args.frame_size,
-                             minimal_max_distance=cfg.tracker.minimal_max_distance,
-                             score_weights=cfg.tracker.score_weights,
-                             match_type=cfg.tracker.match_type,
-                             det_area=cfg.tracker.det_area,
-                             max_losses=cfg.tracker.max_losses,
-                             translation_size=cfg.tracker.translation_size,
-                             major=cfg.tracker.major,
-                             minor=cfg.tracker.minor,
-                             compile_data=cfg.tracker.compile_data_path,
-                             debug_folder=None)
+            return FsTracker(cfg, args, debug_folder=None)
 
         else:
             return None
@@ -116,7 +108,7 @@ class counter_detection():
         # Output ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         return output
 
-    def track(self, outputs, translations, frame_id=None):
+    def track(self, outputs, translations, frame_id=None, dets_depth=None):
 
         batch_results = []
         batch_windows = []
@@ -127,7 +119,14 @@ class counter_detection():
                     id_ = frame_id + i
                 else:
                     id_ = None
-                online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_)
+                if dets_depth is not None:
+                    depth = dets_depth[i]
+                else:
+                    depth = None
+                if id_ == 114:
+                    a = 1
+                online_targets, track_windows = self.tracker.update(frame_output, tx, ty, id_, depth)
+                self.tracker_score.append({'f_id': id_, 'score': self.tracker.not_coupled_ratio})
                 tracking_results = []
                 for target in online_targets:
                     target.append(id_)

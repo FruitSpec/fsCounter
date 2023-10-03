@@ -383,8 +383,8 @@ def post_process_res(batch_res, f_id, type='sa'):
         matches = r[3]
 
 
-        if type == 'lg':
-            tx = tx * (-1)
+        #if type == 'lg':
+        #    tx = tx * (-1)
 
         if np.isinf(tx):
             tx = -999

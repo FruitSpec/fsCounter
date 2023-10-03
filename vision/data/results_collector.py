@@ -8,7 +8,6 @@ import collections
 
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-#from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper
@@ -305,7 +304,14 @@ class ResultsCollector():
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
         for w in trk_windows:
-            canvas = cv2.rectangle(canvas, (int(w[0]), int(w[1])), (int(w[2]), int(w[3])), (255, 0, 0),
+            if w[4] == 0: # close
+                color = (153, 0, 153) # purple
+            elif w[4] == 1: # mid
+                color = (51, 255, 255) # turquoise
+            else: # far
+                color = (102, 204, 0) # light green
+
+            canvas = cv2.rectangle(canvas, (int(w[0]), int(w[1])), (int(w[2]), int(w[3])), color,
                                    thickness=-1)
         for t in trk_outputs:
             canvas = cv2.rectangle(canvas, (int(t[0]), int(t[1])), (int(t[2]), int(t[3])), (0, 0, 255),
