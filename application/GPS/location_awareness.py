@@ -3,7 +3,9 @@ import threading
 import traceback
 from builtins import staticmethod
 from botocore.config import Config
+import sys
 
+sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
 import boto3
 import fscloudutils.exceptions
 
@@ -20,6 +22,7 @@ import serial
 from application.GPS.GPS_locator import GPSLocator
 from application.utils.settings import set_logger
 from application.GPS.led_settings import LedSettings, LedColor
+import pandas as pd
 
 
 class GPSSampler(Module):
@@ -36,6 +39,7 @@ class GPSSampler(Module):
     s3_client = None
     analysis_ongoing = False
     last_step_in, last_step_out = None, None
+
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
@@ -180,7 +184,14 @@ class GPSSampler(Module):
         parser = NavParser("", is_file=False)
         ser = init_serial_port()
         GPSSampler.gps_data = []
-        while not GPSSampler.shutdown_event.is_set():
+
+        ##! SIm usage:
+        try:
+            df = pd.read_csv('filename.csv')
+        except FileNotFoundError as f:
+            df = pd.DataFrame()
+
+        while (len(df.index)>0): ##! This ensures that this would work regardless, as the dataframe is initialized as {} in the worst case
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
                 LedSettings.turn_on(LedColor.RED)
@@ -193,13 +204,17 @@ class GPSSampler(Module):
             if not data:
                 continue
 
-            timestamp = datetime.now().strftime(data_conf.timestamp_format)
+            # timestamp = datetime.now().strftime(data_conf.timestamp_format)
+            timestamp = df.head(1)['time stamp']
             try:
                 parser.read_string(data)
                 point = parser.get_most_recent_point()
-                lat, long = point.get_lat(), point.get_long()
+                
+                # lat, long = point.get_lat(), point.get_long()
+                lat, long = df.head(1)['latitude'], df.head(1)['longitude']
                 GPSSampler.previous_plot = GPSSampler.current_plot
-                plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                # plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                plot = df.head(1)['plot code']
 
                 GPSSampler.current_plot = plot
                 GPSSampler.current_lat = lat
@@ -207,6 +222,7 @@ class GPSSampler(Module):
                 GPSSampler.current_timestamp = timestamp
 
                 sample_count += 1
+                df = df.tail(-1)
 
                 # send the jaized_timestamps to the DataManager
                 if sample_count % GPS_conf.sample_count_threshold == 0 \
@@ -263,7 +279,8 @@ class GPSSampler(Module):
             except fscloudutils.exceptions.InputError:
                 GPSSampler.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
             except ValueError as e:
-                timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                ##! Stop the redefinition of this
+                # timestamp = datetime.now().strftime(data_conf.timestamp_format)
                 GPSSampler.gps_data.append(
                     {
                         consts.GPS_timestamp: timestamp,
