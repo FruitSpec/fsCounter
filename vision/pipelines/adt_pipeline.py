@@ -132,8 +132,10 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
+        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size, len_size=cfg.len_size)
         self.batch_size = cfg.batch_size
+        self.len_size = cfg.len_size
+
 
 
     def get_frames(self, f_id):
@@ -150,6 +152,7 @@ class Pipeline():
         except:
             self.logger.exception("Exception occurred")
             raise
+
 
 
     def is_saturated(self, frame, f_id, percentile=0.4, cam_name='JAI'):
@@ -382,7 +385,7 @@ def init_run_objects(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-    sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
+    sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift, len_size=cfg.len_size)
 
     return detector, results_collector, translation, sensor_aligner, logger
 

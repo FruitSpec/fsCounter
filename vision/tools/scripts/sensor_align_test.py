@@ -29,8 +29,9 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0):
     cfg.batch_size = 1
     print(f'Inferencing on {args.jai.movie_path}\n')
     rc = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
-    sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size)
-    lg = lightglue_infer(cfg)
+    sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size,
+    len_size=cfg.len_size)
+    lg = lightglue_infer(cfg, len_size=cfg.len_size)
  #   det = counter_detection(cfg, args)
     det_outputs = None
     res = []
@@ -169,7 +170,7 @@ def init_run_objects(cfg, args):
     detector = counter_detection(cfg, args)
     results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
     translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-    sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift)
+    sensor_aligner = SensorAligner(args=args.sensor_aligner, zed_shift=args.zed_shift, len_size=cfg.len_size)
     zed_cam, rgb_jai_cam, jai_cam = init_cams(args)
     return detector, results_collector, translation, sensor_aligner, zed_cam, rgb_jai_cam, jai_cam
 
@@ -433,7 +434,7 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP"
+    tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR"
     folders = []
     for type in os.listdir(tomato_folder):
         type_path = os.path.join(tomato_folder, type)
@@ -441,7 +442,7 @@ if __name__ == "__main__":
             scan_path = os.path.join(type_path, scan_number)
             folders.append(scan_path)
 
-    n_frames = 800
+    n_frames = 500
     start_frame = 35
     zed_shift = 2
 
@@ -456,7 +457,7 @@ if __name__ == "__main__":
             scan = os.path.basename(folder)
             row = os.path.basename(os.path.dirname(folder))
             block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
-            args.output_folder = os.path.join(os.path.join("/media/fruitspec-lab/easystore/transloation_test"),
+            args.output_folder = os.path.join(os.path.join("/media/fruitspec-lab/easystore/transloation_test_83"),
                                               f"{block}_{row}_S{scan}")
             validate_output_path(args.output_folder)
 

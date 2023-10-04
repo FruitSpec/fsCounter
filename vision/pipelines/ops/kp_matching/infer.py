@@ -10,7 +10,7 @@ from vision.tools.image_stitching import resize_img
 
 class lightglue_infer():
 
-    def __init__(self, cfg, type='superpoint'):
+    def __init__(self, cfg, type='superpoint', len_size=61):
         """
         type can be 'superpoint' or 'disk'
         """
@@ -20,13 +20,13 @@ class lightglue_infer():
             self.extractor = DISK(max_num_keypoints=512).eval().cuda()  # load the extractor
 
         self.matcher = LightGlue(features=type, depth_confidence=0.9, width_confidence=0.95).eval().cuda()  # load the matcher
-
-        self.y_s, self.y_e, self.x_s, self.x_e = cfg.sensor_aligner.zed_roi_params.values()
+        self.zed_roi_params = cfg.sensor_aligner.zed_roi_params if len_size == 61 else cfg.sensor_aligner.zed_roi_params_83
+        self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.size = cfg.sensor_aligner.size
-        self.sx = cfg.sensor_aligner.sx
-        self.sy = cfg.sensor_aligner.sy
-        self.roix = cfg.sensor_aligner.roix
-        self.roiy = cfg.sensor_aligner.roiy
+        self.sx = cfg.sensor_aligner.sx if len_size == 61 else cfg.sensor_aligner.sx_83
+        self.sy = cfg.sensor_aligner.sy if len_size == 61 else cfg.sensor_aligner.sy_83
+        self.roix = cfg.sensor_aligner.roix if len_size == 61 else cfg.sensor_aligner.roix_83
+        self.roiy = cfg.sensor_aligner.roiy if len_size == 61 else cfg.sensor_aligner.roiy_83
         self.zed_size = [1920, 1080]
         self.batch_size = cfg.batch_size
         self.last_feat = None

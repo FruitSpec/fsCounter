@@ -10,7 +10,7 @@ from vision.tools.sensors_alignment import SensorAligner
 from vision.tools.sensors_alignment import align_sensors_cuda
 
 def downsample_by_log(log_fp, zed_fp, jai_fp, jai_rgb_fp, output_movie_fp, alignment_output_fp, cfg):
-    sa = SensorAligner(cfg.sensor_aligner)
+    sa = SensorAligner(cfg.sensor_aligner, len_size=cfg.len_size)
     log_df = pd.read_csv(log_fp)
     jai_frame_ids = list(log_df['JAI_frame_number'])
     zed_frame_ids = list(log_df['ZED_frame_number'])

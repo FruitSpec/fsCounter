@@ -20,8 +20,8 @@ class SensorAligner:
     """
     this class is for aligning the zed and jai cameras
     """
-    def __init__(self, cfg, zed_shift=0, batch_size=1):
-        self.zed_roi_params = cfg.zed_roi_params
+    def __init__(self, cfg, zed_shift=0, batch_size=1, len_size=61):
+        self.zed_roi_params = cfg.zed_roi_params if len_size == 61 else cfg.zed_roi_params_83
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.debug = cfg.debug
         self.zed_shift, self.consec_less_threshold, self.consec_more_threshold = zed_shift, 0, 0
@@ -30,10 +30,10 @@ class SensorAligner:
         self.ransac = cfg.ransac
         self.matcher = self.init_matcher(cfg)
         self.batch_size = batch_size
-        self.sx = cfg.sx #0.6102498372395834
-        self.sy = cfg.sy#0.6136618198110134
-        self.roix = cfg.roix#930 #937
-        self.roiy = cfg.roiy
+        self.sx = cfg.sx if len_size == 61 else cfg.sx_83#0.6102498372395834
+        self.sy = cfg.sy if len_size == 61 else cfg.sy_83#0.6136618198110134
+        self.roix = cfg.roix if len_size == 61 else cfg.roix_83 #930 #937
+        self.roiy = cfg.roiy if len_size == 61 else cfg.roiy_83
         self.use_cuda = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False
 
         if self.batch_size > -1:
@@ -119,7 +119,7 @@ class SensorAligner:
                 debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
-                if cv2.cuda.getCudaEnabledDeviceCount():
+                if self.use_cuda:
                     results = list(executor.map(align_sensors_cuda,
                                                 zed_input,
                                                 jai_input,

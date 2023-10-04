@@ -13,6 +13,7 @@ class FramesLoader():
         self.mode = cfg.frame_loader.mode
         self.zed_cam, self.rgb_jai_cam, self.jai_cam, self.depth_cam = init_cams(args, self.mode)
         self.batch_size = cfg.batch_size
+        self.len_size = cfg.len_size
         self.zed_last_id = 0
         self.depth_last_id = 0
         self.jai_last_id = 0
@@ -20,6 +21,13 @@ class FramesLoader():
 
         if self.mode in ['sync_svo', 'sync_mkv']:
             self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
+    @staticmethod
+    def postprocess_83(output):
+        zed_batch, pc_batch, jai_batch, rgb_batch = output
+        jai_batch = [img[0:-180, 265: 1285, :] for img in jai_batch]
+        rgb_batch = [img[0:-180:, 265: 1285, :] for img in rgb_batch]
+        output = [zed_batch, pc_batch, jai_batch, rgb_batch]
+        return output
 
     def get_frames(self, f_id, zed_shift):
         if self.mode == 'async':
@@ -28,6 +36,9 @@ class FramesLoader():
             output = self.get_frames_batch_sync_svo(f_id)
         if self.mode == 'sync_mkv':
             output = self.get_frames_batch_sync_mkv(f_id)
+
+        if self.len_size == 83:
+            output = self.postprocess_83(output)
 
         return output
 
