@@ -256,7 +256,6 @@ class DataManager(Module):
 
     @staticmethod
     def internet_scan():
-        upload_today = False
         while not DataManager.shutdown_event.is_set():
             upload_speed_in_kbps = 0
             try:
@@ -271,18 +270,13 @@ class DataManager(Module):
             if upload_speed_in_kbps > data_conf.minimum_bandwidth_in_kbps:
                 timeout = data_conf.upload_interval - 30
 
-                # upload nav file only if it is the first time in the last hour
+                # upload nav file only if it is the first time in the last 30 minutes
                 # for example, if the time is 12:03 and upload_interval = 300 (seconds)
                 # then current_minute = 3 < 5 = 300 / 60, and therefore it will upload
                 # otherwise, if the time is 12:28 then 28 > 5 hence it will not upload
-                # Also, if an upload was supposed to happen - but it didn't succeed
-                # then it will keep trying until success every {upload_interval} time.
                 current_minute = datetime.now().minute
-                if upload_today or current_minute < (data_conf.upload_interval / 60):
+                if current_minute % 30 < (data_conf.upload_interval / 60):
                     is_successful, timeout = DataManager.upload_today_files(upload_speed_in_kbps, timeout=timeout)
-                    upload_today = not is_successful
-                else:
-                    print()
                 timeout = DataManager.upload_old_files(upload_speed_in_kbps, timeout=timeout)
                 DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
                 tools.log(f"INTERNET SCAN - END")
