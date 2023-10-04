@@ -50,6 +50,7 @@ class AcquisitionManager(Module):
         AcquisitionManager.receive_data_t.start()
 
         AcquisitionManager.connect_cameras()
+        time.sleep(1)
         AcquisitionManager.start_acquisition()
 
         AcquisitionManager.analyzer.start_analysis()
@@ -58,6 +59,7 @@ class AcquisitionManager(Module):
 
     @staticmethod
     def connect_cameras():
+        tools.log("CONNECTING CAMERAS")
         AcquisitionManager.debug_mode = True
         cam_status = AcquisitionManager.jz_recorder.connect_cameras(AcquisitionManager.debug_mode)
         AcquisitionManager.jai_connected, AcquisitionManager.zed_connected = cam_status
@@ -68,6 +70,8 @@ class AcquisitionManager(Module):
         else:
             AcquisitionManager.send_data(ModuleTransferAction.START_GPS, None, ModulesEnum.GPS)
 
+        tools.log("CAMERAS CONNECTION ESTABLISHED")
+
     @staticmethod
     def start_acquisition():
         AcquisitionManager.set_acquisition_parameters()
@@ -75,8 +79,8 @@ class AcquisitionManager(Module):
         running = AcquisitionManager.jz_recorder.start_acquisition(
             AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
             AcquisitionManager.exposure_975, AcquisitionManager.transfer_data,
-            AcquisitionManager.alc_true_areas, AcquisitionManager.alc_false_areas
-        )
+            AcquisitionManager.pass_clahe_stream, AcquisitionManager.alc_true_areas,
+            AcquisitionManager.alc_false_areas)
 
         AcquisitionManager.running = running
         AcquisitionManager.analyzer.start_acquisition()
@@ -84,16 +88,27 @@ class AcquisitionManager(Module):
     @staticmethod
     def start_recording(recording_parameters, from_gps):
         AcquisitionManager.set_recording_parameters(recording_parameters=recording_parameters, from_gps=from_gps)
+
+        recording = AcquisitionManager.jz_recorder.start_recording(
+            AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
+            AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb,
+            AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
+            AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc)
+
+        AcquisitionManager.recording = recording
         AcquisitionManager.analyzer.start_recording()
 
     @staticmethod
     def stop_recording():
-
-        pass
+        AcquisitionManager.analyzer.stop_recording()
+        AcquisitionManager.jz_recorder.stop_recording()
+        AcquisitionManager.recording = False
 
     @staticmethod
     def stop_acquisition():
-        pass
+        AcquisitionManager.analyzer.stop_acquisition()
+        AcquisitionManager.jz_recorder.stop_acquisition()
+        AcquisitionManager.running = False
 
     @staticmethod
     def disconnect_cameras():
@@ -102,12 +117,6 @@ class AcquisitionManager(Module):
             AcquisitionManager.jz_recorder.disconnect_cameras()
         except:
             traceback.print_exc()
-
-    @staticmethod
-    def stop_acquisition():
-        AcquisitionManager.analyzer.stop_acquisition()
-        AcquisitionManager.jz_recorder.stop_acquisition()
-        AcquisitionManager.running = False
 
     @staticmethod
     def get_row_number(row_name):
@@ -122,6 +131,7 @@ class AcquisitionManager(Module):
         AcquisitionManager.exposure_800 = int(analysis_conf.acquisition_parameters['IntegrationTime800'])
         AcquisitionManager.exposure_975 = int(analysis_conf.acquisition_parameters['IntegrationTime975'])
         AcquisitionManager.transfer_data = True
+        AcquisitionManager.pass_clahe_stream = False
 
     @staticmethod
     def set_recording_parameters(recording_parameters, from_gps=False):
@@ -170,7 +180,6 @@ class AcquisitionManager(Module):
         AcquisitionManager.output_zed_gray = 'zed_gray' in output_types
         AcquisitionManager.output_zed_depth = 'zed_depth' in output_types
         AcquisitionManager.output_zed_pc = 'zed_pc' in output_types
-        AcquisitionManager.pass_clahe_stream = False
         AcquisitionManager.debug_mode = True
 
         alc_areas = [

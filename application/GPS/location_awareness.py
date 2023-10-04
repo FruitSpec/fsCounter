@@ -96,6 +96,7 @@ class GPSSampler(Module):
             consts.IMU_angular_velocity: [],
             consts.IMU_linear_acceleration: [],
             consts.row_state: [],
+            consts.is_recording: [],
             consts.GPS_timestamp: [],
             consts.GPS_latitude: [],
             consts.GPS_longitude: [],
