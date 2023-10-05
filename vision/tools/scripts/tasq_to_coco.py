@@ -7,6 +7,7 @@ from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
 from vision.tools.utils_general import get_s3_file_paths, download_s3_files
 from vision.misc.help_func import get_data_dir
+import json
 
 
 def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
@@ -38,7 +39,6 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
             new_ann = {"id": ann_id,
                        "image_id": old_img_id_to_new[ann['image_id']],
                        "category_id": ann["category_id"],
-                       #"category_id": 0,
                        "bbox": ann["bbox"],
                        "area": ann['area'],
                        "segmentation": [],
@@ -46,15 +46,16 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
             ann_id += 1
             annotations.append(new_ann)
         cat = cur_coco['categories']
-    info = {"year": 2022,
+    info = {"year": 2023,
             "version": ver,
             "description": "FruitSpec data from tasq",
             "contributor": "",
             "date_created": ""}
 
     new_coco = {'info': info, 'categories': cat, 'images': images, 'annotations': annotations}
-    coco_output_path = os.path.join(output_folder, 'coco.json')
+    coco_output_path = os.path.join(output_folder,'annotations', 'coco_all.json')
     write_coco_file(new_coco, coco_output_path)
+    print (f'Saved: {coco_output_path}')
     return coco_output_path
 
 def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
@@ -101,7 +102,9 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
     copy_images(val_images, images_folder, os.path.join(output_folder, 'val2017'))
 
     write_coco_file(train_coco, os.path.join(output_folder, 'annotations','train_coco.json'))
+    print(f'Saved: {os.path.join(output_folder, "annotations","train_coco.json")}')
     write_coco_file(val_coco, os.path.join(output_folder, 'annotations', 'val_coco.json'))
+    print(f'Saved: {os.path.join(output_folder, "annotations", "val_coco.json")}')
 
 def create_subset(subset_images, orig_anns):
 
@@ -161,14 +164,45 @@ def s3_download_jsons_images_tasq(batch):
 
     return local_jsons_folder, local_images_folder
 
+def modify_coco_category_id_to_0(coco_file_path):
+    '''
+    Change the category_id of all annotations to 0 in a COCO annotations file.
+    '''
+
+    # Load the COCO annotations JSON file
+    with open(coco_file_path, 'r') as f:
+        data = json.load(f)
+
+    # Modify the categories list
+    data["categories"] = [{"id": 0, "name": "fruit"}]
+
+    # Change the category_id of all annotations to 0
+    for annotation in data["annotations"]:
+        annotation["category_id"] = 0
+
+
+    # Save the modified data to a new JSON file
+    with open(coco_file_path, 'w') as f:
+        json.dump(data, f, indent=4)
+
+    print(f'Saved: {coco_file_path}')
+
+
 if __name__ == "__main__":
 
     BATCH = 'batch7'
 
+    # Get tasq jsons and images from s3, merge them to one json and split to train and val:
     local_jsons_folder, local_images_folder = s3_download_jsons_images_tasq(BATCH)
-    aggregated_json_path = aggraegate_coco_files(local_jsons_folder, local_jsons_folder, categories= ['fruit'], ver=1)
+    aggregated_json_path = aggraegate_coco_files(local_jsons_folder, os.path.dirname(local_jsons_folder), categories= ['fruit'], ver=1)
     output_folder = os.path.join(get_data_dir(), 'Counter', 'temp', BATCH)
     split_to_train_val(aggregated_json_path, local_images_folder, output_folder, val_size=0.15)
+
+    # Convert category_id from 1 to 0:
+    coco_train_path = os.path.join(output_folder, 'annotations', 'train_coco.json')
+    modify_coco_category_id_to_0(coco_train_path)
+    coco_val_path = os.path.join(output_folder, 'annotations', 'val_coco.json')
+    modify_coco_category_id_to_0(coco_val_path)
 
     ###############################
     expected_dims = [2048, 1536]

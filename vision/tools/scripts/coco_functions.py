@@ -38,33 +38,7 @@ def modify_coco_category_based_on_type_position(original_path: str, output_path:
     return output_path
 
 
-def modify_coco_category_id_to_0(coco_file_path):
-    '''
-    Change the category_id of all annotations to 0 in a COCO annotations file.
-    '''
 
-    # Load the COCO annotations JSON file
-    with open(coco_file_path, 'r') as f:
-        data = json.load(f)
-
-    # Modify the categories list
-    data["categories"] = [{"id": 0, "name": "fruit"}]
-
-    # Change the category_id of all annotations to 0
-    for annotation in data["annotations"]:
-        annotation["category_id"] = 0
-
-    # Define the path to save the modified annotations
-    base_name = os.path.basename(coco_file_path).split('.')[0]
-    dir_name = os.path.dirname(coco_file_path)
-    new_file_name = f"{base_name}_class0.json"
-    new_file_path = os.path.join(dir_name, new_file_name)
-
-    # Save the modified data to a new JSON file
-    with open(new_file_path, 'w') as f:
-        json.dump(data, f, indent=4)
-
-    print(f'Saved: {new_file_path}')
 
 
 def count_objects_in_coco(annotations_file_path):
@@ -153,8 +127,7 @@ if __name__ == "__main__":
     #########################################################################
     path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
     # change category_id to 0 for all annotations in a COCO annotations file
-    modify_coco_category_id_to_0('/home/lihi/FruitSpec/Data/counter/Apples_train_041023/annotations/instances_val.json',
-                            '/home/lihi/FruitSpec/Data/counter/Apples_train_041023/annotations/instances_val_new.json')
+
     #######################################################################
     # Call the function
     path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
