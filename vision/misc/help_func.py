@@ -47,6 +47,12 @@ def get_repo_dir():
 
     return repo_dir
 
+def get_data_dir():
+    repo_dir = get_repo_dir()
+    base_path = os.path.abspath(os.path.join(repo_dir, "../../.."))
+    data_dir_path = os.path.join(base_path, 'Data')
+    return data_dir_path
+
 
 def validate_output_path(output_folder, flag=1):
     if flag == 0:

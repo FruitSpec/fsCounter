@@ -6,6 +6,7 @@ from vision.tools.scripts.adjust_roboflow import align_iamges
 from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
 from vision.tools.utils_general import get_s3_file_paths, download_s3_files
+from vision.misc.help_func import get_data_dir
 
 
 def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
@@ -136,19 +137,29 @@ def copy_images(coco_images, input_folder, output_folder):
         shutil.copy(img_input, img_output)
 
 
+def s3_download_jsons_images_tasq(batch):
+    """
+    Download tasq jsons and images from s3 to local folder
+    :param batch: batch name
+    """
+    data_dir = get_data_dir()
+    output_folder = os.path.join(data_dir, 'Counter', 'temp', batch)
+
+    # Download GT files from s3:
+    path_s3_json_gt = 's3://fruitspec.dataset/tagging/JAI FSI/disk/jsons'
+    download_s3_files(path_s3_json_gt, output_path=os.path.join(output_folder, 'tasq_jsons'), string_param=batch,
+                      suffix='.json', skip_existing=True, save_flat=True)
+
+    # Download images from s3:
+    path_s3_images = f's3://fruitspec.dataset/tasq.ai/{batch}.tasq/'
+    download_s3_files(path_s3_images, output_path=os.path.join(output_folder, 'all_images'), string_param='',
+                      suffix='.jpg', skip_existing=True, save_flat=True)
+
 
 if __name__ == "__main__":
 
-    #Download GT files from s3:
-
-    path_s3_json_gt = 's3://fruitspec.dataset/tagging/JAI FSI/disk/jsons'
-    gt_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons'
-    download_s3_files(path_s3_json_gt, output_path=gt_local_dir, string_param='batch9_frames', suffix='.json', skip_existing=True)
-
-    # Download images from s3:
-    path_s3_images = 's3://fruitspec.dataset/tasq.ai/batch9.tasq/'
-    images_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/images/all_images'
-    download_s3_files(path_s3_images, output_path=images_local_dir, string_param='', suffix='.jpg',skip_existing=False)
+    batch = 'batch7'
+    s3_download_jsons_images_tasq(batch)
 
     #############################################################
 
