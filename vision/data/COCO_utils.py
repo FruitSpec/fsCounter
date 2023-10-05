@@ -1,9 +1,8 @@
 import os
 import json
 import shutil
-
 import numpy as np
-
+from vision.misc.help_func import validate_output_path
 
 def convert_to_coco_format(outputs, class_ids, type_='dets', data_label=None):
     data_list = []
@@ -82,6 +81,7 @@ def generate_coco_format(outputs, info_imgs, ids, img_size,
 
 
 def write_coco_file(coco_data, output_path):
+    validate_output_path(output_path)
     with open(output_path, "w") as f:
         json.dump(coco_data, f)
 

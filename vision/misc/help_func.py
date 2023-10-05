@@ -51,8 +51,16 @@ def get_repo_dir():
 def validate_output_path(output_folder, flag=1):
     if flag == 0:
         return
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    # if output_folder is dir path:
+    if not os.path.splitext(output_folder)[1]:
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+    # if output_folder is file path, ensure its parent directory exists:
+    else:
+        parent_dir = os.path.dirname(output_folder)
+        if not os.path.exists(parent_dir):
+            os.makedirs(parent_dir)
 
 def copy_configs(pipeline_config, runtime_config, output_path):
     shutil.copy(pipeline_config, os.path.join(output_path, "pipeline_config.yaml"))
