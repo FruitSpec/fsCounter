@@ -53,7 +53,9 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
             "date_created": ""}
 
     new_coco = {'info': info, 'categories': cat, 'images': images, 'annotations': annotations}
-    write_coco_file(new_coco, os.path.join(output_folder, 'coco.json'))
+    coco_output_path = os.path.join(output_folder, 'coco.json')
+    write_coco_file(new_coco, coco_output_path)
+    return coco_output_path
 
 def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
 
@@ -98,8 +100,8 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
 
     copy_images(val_images, images_folder, os.path.join(output_folder, 'val2017'))
 
-    write_coco_file(train_coco, os.path.join(output_folder, 'train_coco.json'))
-    write_coco_file(val_coco, os.path.join(output_folder, 'val_coco.json'))
+    write_coco_file(train_coco, os.path.join(output_folder, 'annotations','train_coco.json'))
+    write_coco_file(val_coco, os.path.join(output_folder, 'annotations', 'val_coco.json'))
 
 def create_subset(subset_images, orig_anns):
 
@@ -147,34 +149,28 @@ def s3_download_jsons_images_tasq(batch):
 
     # Download GT files from s3:
     path_s3_json_gt = 's3://fruitspec.dataset/tagging/JAI FSI/disk/jsons'
-    download_s3_files(path_s3_json_gt, output_path=os.path.join(output_folder, 'tasq_jsons'), string_param=batch,
+    local_jsons_folder = os.path.join(output_folder, 'tasq_jsons')
+    download_s3_files(path_s3_json_gt, output_path=local_jsons_folder, string_param=batch,
                       suffix='.json', skip_existing=True, save_flat=True)
 
     # Download images from s3:
     path_s3_images = f's3://fruitspec.dataset/tasq.ai/{batch}.tasq/'
-    download_s3_files(path_s3_images, output_path=os.path.join(output_folder, 'all_images'), string_param='',
+    local_images_folder = os.path.join(output_folder, 'all_images')
+    download_s3_files(path_s3_images, output_path= local_images_folder, string_param='',
                       suffix='.jpg', skip_existing=True, save_flat=True)
 
+    return local_jsons_folder, local_images_folder
 
 if __name__ == "__main__":
 
-    batch = 'batch7'
-    s3_download_jsons_images_tasq(batch)
+    BATCH = 'batch7'
 
-    #############################################################
+    local_jsons_folder, local_images_folder = s3_download_jsons_images_tasq(BATCH)
+    aggregated_json_path = aggraegate_coco_files(local_jsons_folder, local_jsons_folder, categories= ['fruit'], ver=1)
+    output_folder = os.path.join(get_data_dir(), 'Counter', 'temp', BATCH)
+    split_to_train_val(aggregated_json_path, local_images_folder, output_folder, val_size=0.15)
 
-    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons"
-    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923"
-    categories = ['fruit']
-    ver = 1
-
-    aggraegate_coco_files(folder, output_folder, categories, ver)
-
-    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/coco.json"
-    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/images"
-    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
-    split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.15)
-
+    ###############################
     expected_dims = [2048, 1536]
     rotation = 'counterclockwise'
     align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/train2017", expected_dims, rotation)
