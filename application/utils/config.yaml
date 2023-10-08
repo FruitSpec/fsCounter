@@ -7,7 +7,7 @@ collect_data: true
 use_cuda_streams: True
 debug:
   # if 'is_active' is set to 'False' then all other values are automatically set to 'False' as well.
-  is_active: True
+  is_active: False
   crash_syslog: True
   mtu_log: True
   jtop_log: True
