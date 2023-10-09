@@ -183,6 +183,7 @@ class GPSSampler(Module):
         parser = NavParser("", is_file=False)
         ser = init_serial_port()
         GPSSampler.gps_data = []
+
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:

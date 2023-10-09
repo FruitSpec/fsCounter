@@ -26,11 +26,13 @@ def set_logger():
                 os.makedirs(p)
 
     log_dirname = os.path.join(consts.log_parent_dir, consts.log_dir)
+    nav_dirname = os.path.join(consts.log_parent_dir, consts.nav_dir)
+    jaized_dirname = os.path.join(consts.log_parent_dir, consts.jaized_dir)
     syslog_dirname = os.path.join(consts.log_parent_dir, consts.syslog_dir)
     mtu_dirname = os.path.join(consts.log_parent_dir, consts.mtu_dir)
     jtop_dirname = os.path.join(consts.log_parent_dir, consts.jtop_dir)
 
-    _mkpaths(log_dirname, syslog_dirname, mtu_dirname, jtop_dirname)
+    _mkpaths(log_dirname, nav_dirname, jaized_dirname, syslog_dirname, mtu_dirname, jtop_dirname)
 
     today = datetime.now().strftime('%d%m%y')
     log_basename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"

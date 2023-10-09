@@ -121,19 +121,11 @@ class Batcher:
 
     def stop_recording(self):
         self._is_recording = False
+        self._send_data(
+            ModuleTransferAction.STOP_RECORDING,
+            None,
+            ModulesEnum.DataManager
+        )
 
     def stop_acquisition(self):
-        try:
-            self._acquisition_start_event.clear()
-            self._send_data(
-                ModuleTransferAction.STOP_ACQUISITION,
-                None,
-                ModulesEnum.DataManager
-            )
-        except:
-            tools.log(
-                "PROBLEM WITH STOP_ACQUISITION",
-                log_level=logging.ERROR,
-                exc_info=True
-            )
-            exit(1)
+        self._acquisition_start_event.clear()

@@ -10,6 +10,10 @@ log_name: "log"
 log_extension: "log"
 tabular_log_ext: "csv"
 
+nav_dir: "counter_navs"
+jaized_dir: "counter_jaized"
+
+
 syslog_orig_path: "/var/log/syslog"
 syslog_dir: "syslog"
 syslog: "syslog"
