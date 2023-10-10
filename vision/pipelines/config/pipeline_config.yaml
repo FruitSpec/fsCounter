@@ -13,7 +13,7 @@ device: cuda
 
 input_size: [1024, 1024]
 batch_size: 4
-len_size: 83
+len_size: 61
 
 detector:
   confidence: 0.381
@@ -56,11 +56,12 @@ sensor_aligner:
   sy: 0.6133919843597263 # 0.6133919843597263
   roix: 970 #970 #930 #937
   roiy: 1255
-  roiy_83: 1870
-  roix_83: 1000
+  roiy_83: 1800
+  roix_83: 1010
   sx_83: 1
   sy_83: 1
-  zed_roi_params_83: {y_s: 0, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed
+  zed_roi_params_83: {y_s: 50, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed
+  apply_zed_shift: false
   debug:
     preprocess: false
     keypoints: false
@@ -71,7 +72,7 @@ frame_loader:
   mode: sync_svo # sync_mkv, async,  sync_svo
 
 result_collector:
-  mode: pc_dims # options "", depth, pc, pc_dims
+  mode: pc_dims_tomato # options: "", depth, pc, pc_dims; suffix tomato is necessery in tomato mode
 
 filters:
   distance:

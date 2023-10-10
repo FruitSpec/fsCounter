@@ -25,6 +25,7 @@ class SensorAligner:
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.debug = cfg.debug
         self.zed_shift, self.consec_less_threshold, self.consec_more_threshold = zed_shift, 0, 0
+        self.apply_zed_shift = cfg.apply_zed_shift
         self.r_jai, self.r_zed = 1, 1
         self.size = cfg.size
         self.ransac = cfg.ransac
@@ -193,7 +194,7 @@ class SensorAligner:
             tx = np.mean(deltas[:, 0, 0]) / rz * self.sx
             ty = np.mean(deltas[:, 0, 1]) / rz * self.sy
             x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
-        # self.update_zed_shift(tx)
+        self.update_zed_shift(tx)
 
         return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
 
@@ -266,6 +267,8 @@ class SensorAligner:
         :param tx: translation in x axis
         :return:
         """
+        if not self.apply_zed_shift:
+            return
         if isinstance(tx, type(None)):
             return
         if np.isnan(tx):
@@ -352,31 +355,6 @@ def get_coordinates_in_zed(gray_zed, gray_jai, tx, ty, sx, sy):
         y1 = - ty
         y2 = jai_in_zed_height - ty
     return x1, y1, x2, y2
-
-
-def update_zed_shift(tx, zed_shift, consec_less_threshold, consec_more_threshold):
-    if isinstance(tx, type(None)):
-        return zed_shift, consec_less_threshold, consec_more_threshold
-    if np.isnan(tx):
-        return zed_shift, consec_less_threshold, consec_more_threshold
-    if tx < 20:
-        consec_less_threshold += 1
-    else:
-        consec_less_threshold = 0
-    if consec_less_threshold > 5:
-        zed_shift -= 1
-        consec_less_threshold = 0
-        consec_more_threshold = 0
-    if tx > 120:
-        consec_more_threshold += 1
-    else:
-        consec_more_threshold = 0
-    if consec_more_threshold > 5:
-        zed_shift += 1
-        consec_less_threshold = 0
-        consec_more_threshold = 0
-    return zed_shift, consec_less_threshold, consec_more_threshold
-
 
 def plot_kp(zed_rgb, kp_zed, jai_rgb, kp_jai, y_s, y_e):
     """
@@ -540,15 +518,19 @@ def get_zed_roi(tx, ty, roi, origin, zed_size):
     if ty < 0:
         y1 = ty + origin[1]
         y2 = y1 + roi[1]
+        # y2 = origin[3] - ty
+        # y1 = origin[3] - ty - roi[1]
         if y1 < 0:
-            y1 = origin[1]
-            y2 = origin[3]
+            y1 = 0
+            y2 = y1 + roi[1]
     elif ty + roi[1] > zed_size[1]:
         y2 = origin[3]
         y1 = y2 - roi[1]
     else:
         y1 = origin[1] + ty
         y2 = y1 + roi[1]
+        # y2 = origin[3] - ty
+        # y1 = origin[3] - ty -roi[1]
 
     return x1, y1, x2, y2
 

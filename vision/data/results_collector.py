@@ -43,7 +43,8 @@ class ResultsCollector():
     def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
         self.collect_tracks(trk_outputs)
         self.collect_alignment(alignment_results, f_id)
-        self.collect_percent_seen(percent_seen, f_id)
+        if not isinstance(percent_seen, type(None)):
+            self.collect_percent_seen(percent_seen, f_id)
         self.collect_jai_translation(jai_translation_results, f_id)
 
     def collect_jai_translation(self, jai_translation_results, f_id):
@@ -144,16 +145,18 @@ class ResultsCollector():
         return [x1, y1, x2, y2, tracker_score, track_id, frame_id]
 
     def get_row_fileds_tracks(self):
-        if self.mode == "":
+        if self.mode in ["", "tomato"]:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame"]
-        elif self.mode == "depth":
+        elif self.mode in ["depth", "depth_tomato"]:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "depth"]
-        elif self.mode == "pc":
+        elif self.mode in ["pc", "pc_tomato"]:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "pc_x", "pc_y",
                       "depth"]
         else:
             fields = ["x1", "y1", "x2", "y2", "obj_conf", "class_pred", "track_id", "frame", "pc_x", "pc_y",
                       "depth", "width", "height"]
+        if self.mode.endswith("tomato"):
+            fields += ["color"]
         rows = self.tracks
         return rows, fields
 
@@ -314,17 +317,19 @@ class ResultsCollector():
         return hash
 
     def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None,
-                    det_colors=None):
+                    det_colors=None, zed_frames=None, alignment_results=None):
         for i in range(len(trk_outputs)):
             f_id = batch_id + i
             f_depth = depth[i] if depth is not None else None
             f_windows = trk_windows[i] if trk_windows is not None else None
             f_det_colors = det_colors[i] if det_colors is not None else None
+            zed_frame = zed_frames[i] if zed_frames is not None else None
+            f_alignment_results = alignment_results[i] if alignment_results is not None else None
             self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows,
-                       det_colors=f_det_colors)
+                       det_colors=f_det_colors, zed_frame=zed_frame, alignment_results=f_alignment_results)
 
-
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None, det_colors=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None, det_colors=None,
+              zed_frame=None, alignment_results=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
@@ -347,6 +352,10 @@ class ResultsCollector():
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5,
                                det_colors=det_colors)
+        if args.debug.alignment:
+            validate_output_path(os.path.join(args.output_folder, 'alignment'))
+            save_aligned(zed_frame, frame, args.output_folder, f_id, corr=alignment_results[0], sub_folder='alignment',
+                         dets=trk_outputs)
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
@@ -884,6 +893,61 @@ def get_slicer_data(slice_path, max_w, tree_id=-1):
     sliced_data = dict(zip(sliced_data["frame_id"].apply(str),
                            tuple(zip(sliced_data["start"].apply(int), sliced_data["end"].apply(int)))))
     return sliced_data
+
+
+def save_loaded_images(zed_frame, jai_frame, f_id, output_fp, crop=[], draw_rec=False):
+    if len(crop) > 0:
+        x1 = crop[0]
+        y1 = crop[1]
+        x2 = crop[2]
+        y2 = crop[3]
+        if not draw_rec:
+            cropped = zed_frame[int(y1):int(y2), int(x1):int(x2)]
+            cropped = cv2.resize(cropped, (480, 640))
+        else:
+            cropped = zed_frame.copy()
+            cropped = cv2.rectangle(cropped, (x1, y1), (x2, y2), (255, 0, 0), 3)
+            cropped = cv2.resize(cropped, (480, 640))
+    else:
+        cropped = cv2.resize(zed_frame, (480, 640))
+
+    jai_frame = cv2.resize(jai_frame, (480, 640))
+
+    canvas = np.zeros((700, 1000, 3), dtype=np.uint8)
+    canvas[10:10 + cropped.shape[0], 10:10 + cropped.shape[1], :] = cropped
+    canvas[10:10 + jai_frame.shape[0], 510:510 + jai_frame.shape[1], :] = jai_frame
+
+    file_name = os.path.join(output_fp, f"frame_{f_id}.jpg")
+    cv2.imwrite(file_name, canvas)
+
+
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV', dets=None):
+    if corr is not None and np.sum(np.isnan(corr)) == 0:
+        zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
+    zed = cv2.resize(zed, (680, 960))
+    jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        dets = np.array(dets)
+        dets[:, 0] = dets[:, 0] * gx
+        dets[:, 2] = dets[:, 2] * gx
+        dets[:, 1] = dets[:, 1] * gy
+        dets[:, 3] = dets[:, 3] * gy
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False)
+
+    canvas = np.zeros((960, 680 * 2, 3))
+    canvas[:, :680, :] = zed
+    canvas[:, 680:, :] = jai
+
+    fp = os.path.join(output_folder, sub_folder)
+    validate_output_path(fp)
+    cv2.imwrite(os.path.join(fp, f"aligned_f{f_id}.jpg"), canvas)
+
+
 
 if __name__ == "__main__":
     slice_data_path = "/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/DWDBCN51_test/200123/DWDBCN51/R13/ZED_1_slice_data.json"
