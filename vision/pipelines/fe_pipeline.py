@@ -26,7 +26,11 @@ def get_row_name(row_scan_path):
         str: The row name in the format "R<row_number>_S<scan_number>".
     """
     scan_number = os.path.basename(row_scan_path)
-    row_number = os.path.basename(os.path.dirname(row_scan_path)).split("_")[1]
+    row = os.path.basename(os.path.dirname(row_scan_path))
+    if "_" in row:
+        row_number = row.split("_")[1]
+    else:
+        row_number = row
     return f"R{row_number}_S{scan_number}"
 
 
@@ -406,11 +410,11 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
 
 
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/cam175/customers_new/LIMONE24"
+    folder_path = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1"
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/cam175/customers_new/LIMONE24/LIMONE24_features.csv"
+    final_df_output = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1/cv_features.csv"
     over_write = False
     njobs = 1
     suffix = "cv_features"

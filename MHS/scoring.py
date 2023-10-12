@@ -43,7 +43,7 @@ def naive_score(data, frames=False):
 
 
 def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret_preds=False, use_log1p=False,
-                             random_state=43, use_pandas=False, ret_all_res=False):
+                             random_state=43, use_pandas=False, ret_all_res=False, sum_as_mean=False):
     """
     cross validate the model with mean value per row (oe fake row, meaning a random group of instances)
     :param model: model to predict with
@@ -82,13 +82,16 @@ def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret
         else:
             model.fit(x_train, y_train)
             y_pred = model.predict(x_test)
-        y_true_sum = y_test[~np.isnan(y_pred)].sum()
-        results.append(abs(np.nansum(y_pred) - y_true_sum)/(y_true_sum))
+        y_true_sum = y_test[~np.isnan(y_pred)].sum() if not sum_as_mean else y_test[~np.isnan(y_pred)].mean()
+        if not sum_as_mean:
+            results.append(abs(np.nansum(y_pred) - y_true_sum)/(y_true_sum))
+        else:
+            results.append(abs(np.nanmean(y_pred) - y_true_sum) / (y_true_sum))
         tree_res.append(np.nanmean(abs(y_pred-y_test)/(y_test)))
         test_group = ""
         if not isinstance(groups,type(None)):
             test_group = f"({groups[test_index[0]]})"
-        y_pred_sum = np.nansum(y_pred)
+        y_pred_sum = np.nansum(y_pred) if not sum_as_mean else np.nanmean(y_pred)
         acc = np.abs(y_true_sum-y_pred_sum)/y_true_sum
         all_preds[test_index] = y_pred
         print(F"true: {y_true_sum},    pred: {y_pred_sum}. ({acc*100 :.2f} %) {test_group}" )

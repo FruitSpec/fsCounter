@@ -260,8 +260,8 @@ class FramesLoader():
         jai_zed = read_json(log_fp) #load_json
         if not len(jai_zed):
             return list(range(10000)), list(range(10000))
-        zed_frames = [int(item) for item in list(jai_zed.values())]
-        jai_frames = [int(item) for item in list(jai_zed.keys())]
+        zed_frames = [int(float(item)) for item in list(jai_zed.values())]
+        jai_frames = [int(float(item)) for item in list(jai_zed.keys())]
         add_frames_start = list(range(int(jai_frames[0])))
         return add_frames_start + zed_frames, add_frames_start + jai_frames
 

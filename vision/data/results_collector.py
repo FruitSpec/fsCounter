@@ -70,6 +70,13 @@ class ResultsCollector():
                     output.append(det)
                 self.detections += output
 
+
+    def dump_jai_zed_json(self, output_path):
+        alignment = np.array(self.alignment)
+        zed_frame_id = alignment[:, -2] + alignment[:, -1]
+        jai_zed_json = dict(zip(alignment[:, -2], zed_frame_id))
+        write_json(os.path.join(output_path, 'jai_zed.json'), jai_zed_json)
+
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
 

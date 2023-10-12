@@ -31,6 +31,8 @@ from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
 from vision.pipelines.adt_pipeline import Pipeline, update_metadata
 from vision.tools.color import get_tomato_color
 from vision.pipelines.ops.simulator import update_arg_with_metadata
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
+
 
 def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
     adt = Pipeline(cfg, args)
@@ -48,11 +50,13 @@ def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
     pbar = tqdm(total=n_frames)
     if adt.frames_loader.mode == "async":
         adt.sensor_aligner.zed_shift = zed_shift
+    lg = lightglue_infer(cfg, len_size=cfg.len_size)
     while f_id < n_frames:
         pbar.update(adt.batch_size)
         zed_batch, pc_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
         # rgb_batch = [img[:,:, ::-1] for img in rgb_batch] # turn to BGR
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
+        # alignment_results = [lg.align_sensors(zed_batch[0], rgb_batch[0])]
         # detect:
         det_outputs = adt.detect(jai_batch)
         # find translation
@@ -82,7 +86,49 @@ def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
     update_metadata(metadata, args)
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'tracks.csv'), type="tracks")
     results_collector.dump_to_csv(os.path.join(args.output_folder, 'alignment.csv'), type="alignment")
+    if adt.frames_loader.mode == "async":
+        results_collector.dump_jai_zed_json(args.output_folder)
     return results_collector
+
+
+def tomato_size_2_weight(widths, heights):
+    valid_indexes = np.all([np.isfinite(widths), np.isfinite(heights)], axis=0)
+    v_widths, v_heights = widths[valid_indexes], heights[valid_indexes]
+    weights = 115.17 -2.10475268*v_widths -4.29288158*v_heights + 0.10813299*v_widths*v_heights
+    return weights
+
+
+def width_height_2_avg_mm(witdths, heights):
+    return np.nanmean([np.round(witdths*100, 2), np.round(heights*100, 2)], axis=0)
+
+
+def track2color(tracks):
+    return tracks.groupby("track_id")["color"].mean().round()
+
+
+def tracks2harvest(tracks, min_samp=2):
+    if isinstance(tracks, str):
+        tracks = pd.read_csv(tracks)
+    uniq, counts = np.unique(tracks["track_id"], return_counts=True)
+    valid_tracks = uniq[counts > min_samp]
+    tracks_cleaned = tracks[np.isin(tracks["track_id"], valid_tracks)]
+    count = len(np.unique(tracks_cleaned["track_id"]))
+    bins = np.histogram(track2color(tracks_cleaned), list(range(1, 7)))[0]
+    # filter only whole fruits
+    tracks_cleaned = tracks_cleaned[tracks_cleaned['class_pred'] == 0]
+    avg_mm = width_height_2_avg_mm(tracks_cleaned["width"], tracks_cleaned["height"])
+    avg_mm = avg_mm[np.isfinite(avg_mm)]
+    size_avg_mm, size_std = np.nanmean(avg_mm), np.nanstd(avg_mm)
+    weights = tomato_size_2_weight(tracks_cleaned["width"], tracks_cleaned["height"])
+    total_weights, avg_weight, weight_std = np.sum(weights), np.mean(weights), np.std(weights)
+    return {"count": count,
+            **{f"bin{bin_i+1}": bins[bin_i] for bin_i in range(5)},
+            "total_weight_kg": total_weights/1000,
+            "weight_avg_gr": avg_weight,
+            "weight_std": weight_std,
+            "size_avg_mm": size_avg_mm,
+            "size_std": size_std}
+
 
 
 def get_trks_colors(rgb_img, trk_outputs, zed_img=None, align_res=None):
@@ -125,6 +171,7 @@ def tomato_color_class_to_rgb(colors):
 
 
 if __name__ == "__main__":
+    tracks2harvest("/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/1/tracks.csv", min_samp=2)
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
@@ -134,10 +181,12 @@ if __name__ == "__main__":
     validate_output_path(args.output_folder)
     #copy_configs(pipeline_config, runtime_config, args.output_folder)
 
-    tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR"
+    tomato_folder = "/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf"
     folders = []
     for phenotype in os.listdir(tomato_folder):
         type_path = os.path.join(tomato_folder, phenotype)
+        if not os.path.isdir(type_path):
+            continue
         for scan_number in os.listdir(type_path):
             scan_path = os.path.join(type_path, scan_number)
             folders.append(scan_path)
@@ -149,8 +198,10 @@ if __name__ == "__main__":
     cfg.detector.confidence = 0.3
     cfg.detector.nms = 0.3
     cfg.detector.max_detections = 300
+    cfg.detector.num_of_classes = 2
     cfg.sensor_aligner.apply_zed_shift = True
-    f_id = 65
+    overwrite = False
+    f_id = 0
     for folder in folders:
         try:
             args.zed.movie_path = os.path.join(folder, "ZED_1.svo")
@@ -164,6 +215,9 @@ if __name__ == "__main__":
             row = os.path.basename(os.path.dirname(folder))
             block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
             args.output_folder = folder
+            if not metadata.get("align_detect_track", True) and not overwrite:
+                print("skipping: ", folder)
+                continue
             rc = run(cfg, args, zed_shift=metadata.get('zed_shift', 0), f_id=f_id)
         except:
             print("failed: ", folder)

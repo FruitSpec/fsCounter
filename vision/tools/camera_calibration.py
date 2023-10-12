@@ -122,7 +122,7 @@ def update_index(k, params):
 
 
 def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_rotate=2, jai_rotate=1,
-                       index=0, draw_start=None, draw_end=None, size=1440, zed_shift=0):
+                       index=0, draw_start=None, draw_end=None, size=1440, zed_shift=0, jai_83=False):
     """
     this is where the magic happens, plays the video
     """
@@ -157,6 +157,8 @@ def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_r
         zed_cam.grab(max(params["index"] + zed_shift,1))
         _, zed_frame = zed_cam.get_frame()
         ret, jai_frame = jai_cam.get_frame(params["index"])
+        if jai_83:
+            jai_frame = jai_frame[0:-180, 265: 1285, :]
         if not ret and not zed_cam.res:  # couldn't get frames
             break
 
@@ -228,11 +230,13 @@ def write_json(params, real_coords=False):
         json.dump(params['data'], fp)
 
 
-def check_correctness(zed_path, jai_path, data):
+def check_correctness(zed_path, jai_path, data, jai_83=False):
     zed = cv2.imread(zed_path)[:, :, ::-1]
     jai = cv2.imread(jai_path)[:, :, ::-1]
     zed = zed.astype(np.uint8)
     jai = jai.astype(np.uint8)
+    if jai_83:
+        jai = jai[0:-180, 265: 1285, :]
     for id_, sample in data.items():
         left_x = sample['left']['x']
         left_y = sample['left']['y']
@@ -286,27 +290,27 @@ def write_coords(params, zed_frame, jai_frame):
 
 
 if __name__ == "__main__":
-    jai_im_path = "/media/fruitspec-lab/easystore/ch_st/jai_rgb/channel_RGB_frame_100.jpg"
-    zed_im_path = "/media/fruitspec-lab/easystore/ch_st/zed_rgb/frame_100.jpg"
-    # row = '/media/fruitspec-lab/cam175/customers/LDCBRA/190423/LDC42200/R46B'
-    # side = 1 if row.endswith("A") else 2
-    # zed_fp = os.path.join(row, f'ZED_{side}.svo')
-    # jai_fp = os.path.join(row, f'Result_FSI_{side}.mkv')
-    output_path = '/media/fruitspec-lab/easystore'
-    json_path = "/media/fruitspec-lab/easystore/ch_st/calibration_data.json"
-    json_path_real = "/media/fruitspec-lab/easystore/ch_st/calibration_data_real.json"
+    jai_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/jai_frame_67.jpg"
+    zed_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/zed_frame_67.jpg"
+    row = '/media/fruitspec-lab/TEMP SSD/Tomato/Size/PRE/90Rep1'
+    side = 1
+    zed_fp = os.path.join(row, f'ZED_{side}.svo')
+    jai_fp = os.path.join(row, f'Result_FSI_{side}.mkv')
+    output_path = row
+    json_path = "/media/fruitspec-lab/TEMP SSD/Tomato/FCountDeleaf/window_trail/10_5_post/Result_FSI_1.mkv"
+    json_path_real = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR/pre/1/calibration_data_real.json"
+    jai_83 = False
     # #
     # with open(json_path) as json_file:
     #     data = json.load(json_file)
     # data = {int(key): value for key, value in data.items()}
-
-    # manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1, index=10, zed_shift=0)
+    manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1, index=65, zed_shift=0, jai_83=jai_83)
 
     with open(json_path_real) as json_file_real:
         real_data = json.load(json_file_real)
     real_data = {int(key): value for key, value in real_data.items()}
 
-    zed_w_chess, jai_w_chess = check_correctness(zed_im_path, jai_im_path, real_data)
+    zed_w_chess, jai_w_chess = check_correctness(zed_im_path, jai_im_path, real_data, jai_83=jai_83)
     validate_output_path(output_path)
     zed = cv2.imread(zed_im_path)[:, :, ::-1]
     jai = cv2.imread(jai_im_path)[:, :, ::-1]
@@ -326,8 +330,8 @@ if __name__ == "__main__":
 
     plot_2_imgs(cv2.resize(zed[y1:y2, x1:x2], (600, 900)), cv2.resize(jai, (600, 900)))
     plot_2_imgs(cv2.resize(zed_wrapped[y1_wr:y2_wr, x1_wr:x2_wr], (600, 900)), cv2.resize(jai, (600, 900)))
-    plot_2_imgs(cv2.resize(cut_black(cv2.warpAffine(zed, M, zed.shape[:2][::-1])), (600, 900)),
-                cv2.resize(jai, (600, 900)))
-    plot_2_imgs(cut_black(cv2.warpAffine(zed, M, zed.shape[:2][::-1])), zed)
+    # plot_2_imgs(cv2.resize(cut_black(cv2.warpAffine(zed, M, zed.shape[:2][::-1])), (600, 900)),
+    #             cv2.resize(jai, (600, 900)))
+    # plot_2_imgs(cut_black(cv2.warpAffine(zed, M, zed.shape[:2][::-1])), zed)
     #manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1)
 

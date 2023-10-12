@@ -138,18 +138,19 @@ def get_n_tracks_full_cv(tracks_path, max_depth=5):
         uniq[counts > 4]), n_dets, n_dropped
 
 
-def plot_F_cv(df, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True):
+def plot_F_cv(df, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True,
+              y="F", order=1):
     if col == "":
         col = f"cv{min_samp}"
-    max_val = np.min(np.max(df[[col, "F"]].values, axis=0))
+    max_val = np.min(np.max(df[[col, y]].values, axis=0))
     plt.figure(figsize=figsize)
-    ax = sns.lmplot(data=df, x=col, y="F", hue=hue)
-    sns.regplot(data=df, x=col, y="F", scatter_kws={'s': 2}, order=1, ci=0, ax=ax.axes[0, 0],
+    ax = sns.lmplot(data=df, x=col, y=y, hue=hue)
+    sns.regplot(data=df, x=col, y=y, scatter_kws={'s': 2}, order=order, ci=0, ax=ax.axes[0, 0],
                 x_ci=0, color="black", line_kws={"ls": "--"}, scatter=False)
     if add_xy_line:
         plt.plot([0, max_val], [0, max_val], color='grey')
     plt.xlim(0, np.max(df[col] * 1.1))  # Adjust x-axis limits
-    plt.ylim(0, np.max(df["F"] * 1.1))  # Adjust y-axis limits
+    plt.ylim(0, np.max(df[y] * 1.1))  # Adjust y-axis limits
     plt.title(title)
     plt.show()
 
