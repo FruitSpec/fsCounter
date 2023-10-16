@@ -64,7 +64,7 @@ def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
         f_dir = os.path.join(consts.log_parent_dir, consts.log_dir)
     elif f_type == FileTypes.jaized_timestamps:
         filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
-        f_dir = os.path.join(data_conf.log_parent_dir, consts.jaized_dir)
+        f_dir = os.path.join(consts.log_parent_dir, consts.jaized_dir)
     else:
         raise ValueError("Wrong file type")
 
