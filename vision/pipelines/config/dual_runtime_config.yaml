@@ -54,6 +54,7 @@ debug:
   align_graph: false
   alignment: true
   run_type: RGB_siftv1_kp_equalize # align graph naming
+  raw_frame_zed: true
 
 adt_debugger:
   scan_type: "multi_scans"

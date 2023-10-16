@@ -434,17 +434,18 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR"
-    folders = []
-    for type in os.listdir(tomato_folder):
-        type_path = os.path.join(tomato_folder, type)
-        for scan_number in os.listdir(type_path):
-            scan_path = os.path.join(type_path, scan_number)
-            folders.append(scan_path)
+    # tomato_folder = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR"
+    # folders = []
+    # for type in os.listdir(tomato_folder):
+    #     type_path = os.path.join(tomato_folder, type)
+    #     for scan_number in os.listdir(type_path):
+    #         scan_path = os.path.join(type_path, scan_number)
+    #         folders.append(scan_path)
 
-    n_frames = 500
-    start_frame = 35
+    n_frames = 1000
+    start_frame = 100
     zed_shift = 2
+    folders = ["/media/fruitspec-lab/TEMP SSD/Tomato/Size/PRE/90Rep1"]
 
     for folder in folders:
         try:

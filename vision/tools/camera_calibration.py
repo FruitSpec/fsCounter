@@ -292,19 +292,19 @@ def write_coords(params, zed_frame, jai_frame):
 if __name__ == "__main__":
     jai_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/jai_frame_67.jpg"
     zed_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/zed_frame_67.jpg"
-    row = '/media/fruitspec-lab/TEMP SSD/Tomato/Size/PRE/90Rep1'
+    row = '/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/14'
     side = 1
     zed_fp = os.path.join(row, f'ZED_{side}.svo')
     jai_fp = os.path.join(row, f'Result_FSI_{side}.mkv')
     output_path = row
     json_path = "/media/fruitspec-lab/TEMP SSD/Tomato/FCountDeleaf/window_trail/10_5_post/Result_FSI_1.mkv"
     json_path_real = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_BYER_COLOR/pre/1/calibration_data_real.json"
-    jai_83 = False
+    jai_83 = True
     # #
     # with open(json_path) as json_file:
     #     data = json.load(json_file)
     # data = {int(key): value for key, value in data.items()}
-    manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1, index=65, zed_shift=0, jai_83=jai_83)
+    manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1, index=10, zed_shift=0, jai_83=jai_83)
 
     with open(json_path_real) as json_file_real:
         real_data = json.load(json_file_real)

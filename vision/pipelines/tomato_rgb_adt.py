@@ -54,6 +54,8 @@ def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
     while f_id < n_frames:
         pbar.update(adt.batch_size)
         zed_batch, pc_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
+        if not len(zed_batch) or not len(jai_batch):
+            break
         # rgb_batch = [img[:,:, ::-1] for img in rgb_batch] # turn to BGR
         alignment_results = adt.align_cameras(zed_batch, rgb_batch)
         # alignment_results = [lg.align_sensors(zed_batch[0], rgb_batch[0])]
@@ -194,7 +196,7 @@ if __name__ == "__main__":
     cfg.ckpt_file = cfg.ckpt_file_tomato
     cfg.exp_file = cfg.exp_file_tomato
     cfg.batch_size = 1
-    cfg.len_size = 83
+    len_size = 83
     cfg.detector.confidence = 0.3
     cfg.detector.nms = 0.3
     cfg.detector.max_detections = 300
@@ -215,6 +217,7 @@ if __name__ == "__main__":
             row = os.path.basename(os.path.dirname(folder))
             block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
             args.output_folder = folder
+            cfg.len_size = metadata.get("len_size", len_size)
             if not metadata.get("align_detect_track", True) and not overwrite:
                 print("skipping: ", folder)
                 continue

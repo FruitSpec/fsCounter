@@ -349,12 +349,13 @@ class ResultsCollector():
                                det_colors=det_colors)
         if args.debug.raw_frame:
             validate_output_path(os.path.join(args.output_folder, 'frames'))
-            self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'),
-                               det_colors=det_colors)
+            self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+        if args.debug.raw_frame_zed:
+            validate_output_path(os.path.join(args.output_folder, 'frames_zed'))
+            self.draw_and_save(zed_frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames_zed'))
         if args.debug.depth and depth is not None:
             validate_output_path(os.path.join(args.output_folder, 'depth'))
-            self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'),
-                               det_colors=det_colors)
+            self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
             self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5,
@@ -938,13 +939,14 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV', det
     jai = cv2.resize(jai, (680, 960))
 
     if dets is not None:
-        dets = np.array(dets)
-        dets[:, 0] = dets[:, 0] * gx
-        dets[:, 2] = dets[:, 2] * gx
-        dets[:, 1] = dets[:, 1] * gy
-        dets[:, 3] = dets[:, 3] * gy
-        jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False)
-        zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False)
+        if len(dets) > 0:
+            dets = np.array(dets)
+            dets[:, 0] = dets[:, 0] * gx
+            dets[:, 2] = dets[:, 2] * gx
+            dets[:, 1] = dets[:, 1] * gy
+            dets[:, 3] = dets[:, 3] * gy
+            jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False)
+            zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False)
 
     canvas = np.zeros((960, 680 * 2, 3))
     canvas[:, :680, :] = zed

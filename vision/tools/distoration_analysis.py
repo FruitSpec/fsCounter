@@ -50,7 +50,7 @@ def findChessboardCorners_wresize(gray, n_cols, n_rows):
     return ret, corners
 
 
-def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1080, 0, 1920),
+def draw_chess_board(folder_path, n_rows=7, n_cols=10, cut_img=(0, 1920, 0, 1080),
                      show_plots=True, with_valid=False):
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     objp, objpoints, imgpoints = init_objp(n_rows-1, n_cols-1)
@@ -188,10 +188,10 @@ if __name__ == "__main__":
 
     folder_path_zed = "/media/fruitspec-lab/easystore/ch_st/zed_rgb"
     folder_path_jai = "/media/fruitspec-lab/easystore/ch_st/jai_rgb"
-    folder_path_zed = "/home/fruitspec-lab/Downloads/wetransfer_camera-calibration-test_2023-02-16_1430/1/zed_imgs"
-    folder_path_jai = "/home/fruitspec-lab/Downloads/wetransfer_camera-calibration-test_2023-02-16_1430/1/jai_imgs"
+    folder_path_zed = "/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/frames_ZED"
+    folder_path_jai = "/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/frames_RGB"
     M = chess_board_2_cameras_translation(folder_path_jai, folder_path_zed, n_rows=9, n_cols=6,
-                            cut_img_zed=(0, 2048, 0, 1536), cut_img_jai=(0, 1920, 0, 1080))
+                            cut_img_zed=(0, 2048-180, 265, 1285), cut_img_jai=(0, 1920, 0, 1080))
     tx, ty, sx, sy = affine_to_values(M) # (29, 379, 0.5988012493806433, 0.5985438828810826) ## (-255, 384, 0.6028659991474947, 0.598818198428677)
     # x1,y1,x2,y2 = (29, 379, 949, 1605) ###### (-101, 384, 825, 1610)
     # folder_path = "/home/fruitspec-lab/Documents/ZED/calibaration"

@@ -49,7 +49,7 @@ class lightglue_infer():
 
         return points0, points1, matches
 
-    def preprocess_images(self, zed, jai_rgb, downscale=4, to_tensor=True):
+    def preprocess_images(self, zed, jai_rgb, downscale=1, to_tensor=True):
 
         cropped_zed = zed[self.y_s: self.y_e, self.x_s:self.x_e, :]
         input_zed = cv2.resize(cropped_zed, (int(cropped_zed.shape[1] / self.sx), int(cropped_zed.shape[0] / self.sy)))

@@ -20,7 +20,7 @@ class SensorAligner:
     """
     this class is for aligning the zed and jai cameras
     """
-    def __init__(self, cfg, zed_shift=0, batch_size=1, len_size=61):
+    def __init__(self, cfg, zed_shift=0, batch_size=1, len_size=61, lg=None):
         self.zed_roi_params = cfg.zed_roi_params if len_size == 61 else cfg.zed_roi_params_83
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.debug = cfg.debug
@@ -36,6 +36,7 @@ class SensorAligner:
         self.roix = cfg.roix if len_size == 61 else cfg.roix_83 #930 #937
         self.roiy = cfg.roiy if len_size == 61 else cfg.roiy_83
         self.use_cuda = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False
+        self.lg = lg
 
         if self.batch_size > -1:
             self.init_for_batch()
@@ -120,7 +121,10 @@ class SensorAligner:
                 debug = [None] * self.batch_size
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 #sx, sy, origin, roi, ransac
-                if self.use_cuda:
+                if self.lg is not None:
+                    results = list(executor.map(self.lg.align_sensors, zed_input, jai_input, debug))
+
+                elif self.use_cuda:
                     results = list(executor.map(align_sensors_cuda,
                                                 zed_input,
                                                 jai_input,
@@ -130,6 +134,7 @@ class SensorAligner:
                                                 self.rois,
                                                 self.ransacs,
                                                 debug))
+
 
 
                 else:
@@ -416,7 +421,7 @@ def plot_homography(zed_rgb, M_homography):
     plt.show()
     print(M_homography)
 
-def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4 ):
+def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4):
     """
     aligns both sensors and updates the zed shift
     :param zed_rgb: rgb image
@@ -449,7 +454,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
                                         stream=stream2)
 
     zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // scale_factor, stream2)
-    jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)
+    jai_GPU, rj = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)
 
     kp_zed, des_zed_GPU = find_keypoints_cuda(zed_GPU)  # consumes 33% of time
     kp_jai, des_jai_GPU = find_keypoints_cuda(jai_GPU)  # consumes 33% of time
@@ -502,6 +507,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
         x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
 
     return (x1, y1, x2, y2), tx, ty
+
 
 def get_zed_roi(tx, ty, roi, origin, zed_size):
 

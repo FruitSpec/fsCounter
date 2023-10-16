@@ -28,6 +28,8 @@ from concurrent.futures import ThreadPoolExecutor
 from vision.feature_extractor.percent_seen import get_percent_seen
 from vision.feature_extractor.tree_size_tools import stable_euclid_dist, get_pix_size
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
+
 
 
 
@@ -132,7 +134,9 @@ class Pipeline():
         self.frames_loader = FramesLoader(cfg, args)
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
-        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size, len_size=cfg.len_size)
+        lg = lightglue_infer(cfg, len_size=cfg.len_size)
+        self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size, len_size=cfg.len_size,
+                                            lg=lg if cfg.light_glue else None)
         self.batch_size = cfg.batch_size
         self.len_size = cfg.len_size
 

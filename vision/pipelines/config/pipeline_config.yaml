@@ -14,6 +14,7 @@ device: cuda
 input_size: [1024, 1024]
 batch_size: 4
 len_size: 61
+light_glue: false
 
 detector:
   confidence: 0.381
@@ -48,19 +49,19 @@ translation:
 
 
 sensor_aligner:
-  zed_roi_params: {y_s: 355, y_e: 1635, x_s: 0, x_e: 1080} # jai search region in zed
-  size: 640 #what size to resize image to
+  zed_roi_params: {y_s: 405, y_e: 1685, x_s: 0, x_e: 1080} # {y_s: 355, y_e: 1635, x_s: 0, x_e: 1080} # jai search region in zed
+  size: 480 #what size to resize image to
   affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
   ransac: 20
   sx: 0.60546875 #0.6315104 #0.60546875
   sy: 0.6133919843597263 # 0.6133919843597263
   roix: 970 #970 #930 #937
   roiy: 1255
-  roiy_83: 1800
-  roix_83: 1010
-  sx_83: 1
-  sy_83: 1
-  zed_roi_params_83: {y_s: 50, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed
+  roiy_83: 1750
+  roix_83: 1000
+  sx_83: 0.897 #0.897
+  sy_83: 0.896 #0.896
+  zed_roi_params_83: {y_s: 50, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed #(143, 90, 0.897, 0.896)
   apply_zed_shift: false
   debug:
     preprocess: false

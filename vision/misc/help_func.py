@@ -261,7 +261,7 @@ def delete_files_with_name(starting_directory, file_name):
 
 if __name__ == "__main__":
     folder_path = "/media/fruitspec-lab/cam175/customers_new"
-    reset_tree_features(folder_path="/media/fruitspec-lab/cam175/customers_new")
+    reset_metadata(folder_path="/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre")
     # delete_files_with_name(folder_path, "row_features.csv")
     data_path = ""
     # modify_calibration_data("/media/fruitspec-lab/cam175/customers_new/LDCBRA/LDC42200/190423/row_7/1", 3343, 3385, 2)

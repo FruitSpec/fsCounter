@@ -156,6 +156,7 @@ def mkv_to_fsi_and_rgb(folder, output_path, suffix="", write_images=False):
     cap_975.release()
 
 
+
 def get_frame_by_index(cap, index_):
     cap.set(cv2.CAP_PROP_POS_FRAMES, index_)
     ret, frame = cap.read()
@@ -164,6 +165,8 @@ def get_frame_by_index(cap, index_):
     return frame
 
 if __name__ == "__main__":
+    slice_to_frames("/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/ZED.mkv",
+                    "/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/frames_ZED")
     mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4",
                        "/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_4", write_images=True)
     mkv_to_fsi_and_rgb("/home/fruitspec-lab/FruitSpec/Sandbox/Run_9_nov/row_3",
