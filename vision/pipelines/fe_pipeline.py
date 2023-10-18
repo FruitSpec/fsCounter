@@ -13,6 +13,10 @@ from vision.tools.manual_slicer import slice_to_trees_df
 from vision.pipelines.ops.frame_loader import FramesLoader
 from tqdm import tqdm
 from vision.feature_extractor.boxing_tools import filter_outside_tree_boxes
+from vision.data.results_collector import ResultsCollector
+from vision.pipelines.ops.simulator import load_json
+from vision.tools.manual_slicer import post_process as post_process_slice_zed
+
 
 
 def get_row_name(row_scan_path):
@@ -293,6 +297,7 @@ def validate_slice_data(row_scan_path, min_slice_len=5, direction="right"):
     all_slices_path = os.path.join(row_scan_path, "all_slices.csv")
     slice_data_jai = os.path.join(row_scan_path, "Result_FSI_slice_data.json")
     slice_data_rgb = os.path.join(row_scan_path, "Result_RGB_slice_data.json")
+    zed_slice_path = os.path.join(row_scan_path, "ZED_slice_data.json")
     if os.path.exists(slices_path):
         slice_df = pd.read_csv(slices_path)
         slice_df = post_process_slice_df(slice_df)
@@ -306,6 +311,8 @@ def validate_slice_data(row_scan_path, min_slice_len=5, direction="right"):
             slice_df = slice_to_trees_df(slice_data_jai, row_scan_path, direction=direction)
     elif os.path.exists(slice_data_rgb):
         slice_df = slice_to_trees_df(slice_data_rgb, row_scan_path, direction=direction)
+    elif os.path.exists(zed_slice_path):
+        slice_df = zed_slicing_2_jai_slicing(zed_slice_path, direction=direction)
     else:
         return False
     slice_df = post_process_slice_df(slice_df)
@@ -409,12 +416,28 @@ def run_on_folder(master_folder, over_write=False, njobs=1, suffix="", print_fid
     return list(chain.from_iterable(res + process_data))
 
 
+def zed_slicing_2_jai_slicing(zed_slice_path, direction="right"):
+    if not os.path.exists(zed_slice_path):
+        return
+    repo_dir = get_repo_dir()
+    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
+    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    args = OmegaConf.load(repo_dir + runtime_config)
+    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
+    results_collector.set_self_params(os.path.dirname(zed_slice_path), parmas=["alignment", "jai_zed"])
+    slice_data_zed = load_json(zed_slice_path)
+    slice_data_zed = results_collector.converted_slice_data(slice_data_zed)
+    slice_df = post_process_slice_zed(slice_data_zed, os.path.dirname(zed_slice_path), save_csv=True,
+                                      direction=direction)
+    return slice_df
+
 if __name__ == '__main__':
-    folder_path = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1"
+    folder_path = "/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre"
     # "/media/fruitspec-lab/cam175/customers_new/MOTCHA/OR2009"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/LDCBRA"
     # folder_path = "/media/fruitspec-lab/cam175/customers_new/MOTCHA/MEIRAVHA"
-    final_df_output = "/media/fruitspec-lab/TEMP SSD/TOMATO_SA_EXP/pre/1/cv_features.csv"
+    final_df_output = "/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/tomato_cv_features.csv"
     over_write = False
     njobs = 1
     suffix = "cv_features"

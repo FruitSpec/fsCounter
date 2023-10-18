@@ -343,6 +343,34 @@ def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536, d
     df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return df_out
 
+
+def post_process(slice_data, output_path=None, save_csv=False, save_csv_trees=False, direction="right"):
+
+    trees_data, _ = parse_data_to_trees(slice_data, direction)
+    #hash = {}
+    #for tree_id, frames in trees_data.items():
+    #    for frame in frames:
+    #        if frame['frame_id'] in list(hash.keys()):
+    #            hash[frame['frame_id']].append(frame)
+    #        else:
+    #            hash[frame['frame_id']] = [frame]
+
+    df_all = []
+    for tree_id, tree in trees_data.items():
+        df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
+        df['frame_id'] =df['frame_id'].apply(lambda x: int(float(x)))
+        df = df.fillna(-1)
+        if save_csv_trees:
+            df.to_csv(os.path.join(output_path, f"T{tree_id}_slices.csv"))
+        df_all.append(df)
+
+    df_all = pd.concat(df_all)
+    if save_csv:
+        df_all.to_csv(os.path.join(output_path, f"slices.csv"), index=False)
+
+    return df_all
+
+
 def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)

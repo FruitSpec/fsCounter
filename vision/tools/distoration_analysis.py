@@ -186,20 +186,20 @@ if __name__ == "__main__":
 
 
 
-    folder_path_zed = "/media/fruitspec-lab/easystore/ch_st/zed_rgb"
-    folder_path_jai = "/media/fruitspec-lab/easystore/ch_st/jai_rgb"
+    # folder_path_zed = "/media/fruitspec-lab/easystore/ch_st/zed_rgb"
+    # folder_path_jai = "/media/fruitspec-lab/easystore/ch_st/jai_rgb"
     folder_path_zed = "/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/frames_ZED"
     folder_path_jai = "/media/fruitspec-lab/TEMP SSD/calibration_83/chess/row_4/1/frames_RGB"
-    M = chess_board_2_cameras_translation(folder_path_jai, folder_path_zed, n_rows=9, n_cols=6,
-                            cut_img_zed=(0, 2048-180, 265, 1285), cut_img_jai=(0, 1920, 0, 1080))
-    tx, ty, sx, sy = affine_to_values(M) # (29, 379, 0.5988012493806433, 0.5985438828810826) ## (-255, 384, 0.6028659991474947, 0.598818198428677)
+    # M = chess_board_2_cameras_translation(folder_path_jai, folder_path_zed, n_rows=9, n_cols=6,
+    #                         cut_img_zed=(0, 2048-180, 265, 1285), cut_img_jai=(0, 1920, 0, 1080))
+    # tx, ty, sx, sy = affine_to_values(M) # (29, 379, 0.5988012493806433, 0.5985438828810826) ## (-255, 384, 0.6028659991474947, 0.598818198428677)
     # x1,y1,x2,y2 = (29, 379, 949, 1605) ###### (-101, 384, 825, 1610)
-    # folder_path = "/home/fruitspec-lab/Documents/ZED/calibaration"
-    # objpoints, imgpoints, gray, img = draw_chess_board(folder_path)
-    # ret, mtx, dist, rvecs, tvecs = get_calibration_params(objpoints, imgpoints, gray)
-    # w, h = img.shape[1], img.shape[0]
-    # for image in listdir(folder_path):
-    #     file_path = path.join(folder_path, image)
-    #     img = cv2.imread(file_path)[:1080, :1920]
-    #     undistord_img(img, mtx, dist, w, h, title=image)
-    # print("done")
+    folder_path = folder_path_jai
+    objpoints, imgpoints, gray, img = draw_chess_board(folder_path, n_rows=9, n_cols=6, cut_img=(0,2048,0,1536))
+    ret, mtx, dist, rvecs, tvecs = get_calibration_params(objpoints, imgpoints, gray)
+    w, h = img.shape[1], img.shape[0]
+    for image in listdir(folder_path)[:5]:
+        file_path = path.join(folder_path, image)
+        img = cv2.imread(file_path) # [:1080, :1920]
+        undistord_img(img, mtx, dist, w, h, title=image)
+    print("done")

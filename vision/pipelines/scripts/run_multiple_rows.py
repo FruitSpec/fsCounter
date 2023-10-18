@@ -99,8 +99,7 @@ def adt_slice_postprocess(args, results_collector, slice_data_zed, slice_data_ja
             """this function depends on how we sliced (before or after slicing bug)"""
             slice_df = slice_to_trees_df(args.jai_slice_data_path, args.output_folder, resize_factor=3, h=2048, w=1536)
         elif slice_data_zed:
-            slice_data_zed = results_collector.converted_slice_data(
-                slice_data_zed)  # convert from zed coordinates to jai
+            slice_data_zed = results_collector.converted_slice_data( slice_data_zed)  # convert from zed coordinates to jai
             slice_df = post_process(slice_data_zed, args.output_folder, save_csv=True)
         else:
             slice_df = pd.read_csv(all_slices_path)

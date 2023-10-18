@@ -24,8 +24,8 @@ class FramesLoader():
     @staticmethod
     def postprocess_83(output):
         zed_batch, pc_batch, jai_batch, rgb_batch = output
-        jai_batch = [img[0:-180, 265: 1285, :] for img in jai_batch]
-        rgb_batch = [img[0:-180:, 265: 1285, :] for img in rgb_batch]
+        jai_batch = [img[0:-180, 300: 1320, :] for img in jai_batch]
+        rgb_batch = [img[0:-180:, 300: 1320, :] for img in rgb_batch]
         output = [zed_batch, pc_batch, jai_batch, rgb_batch]
         return output
 

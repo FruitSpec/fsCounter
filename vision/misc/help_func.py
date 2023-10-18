@@ -104,6 +104,8 @@ def post_process_slice_df(slice_df):
     Returns:
         (pd.DataFrame): A post process dataframe
     """
+    slice_df['frame_id'] = slice_df['frame_id'].apply(lambda x: int(float(x)))
+    df = slice_df.fillna(-1)
     row_to_add = []
     for tree_id in slice_df["tree_id"].unique():
         temp_df = slice_df[slice_df["tree_id"] == tree_id]

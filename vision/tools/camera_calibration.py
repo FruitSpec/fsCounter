@@ -292,7 +292,7 @@ def write_coords(params, zed_frame, jai_frame):
 if __name__ == "__main__":
     jai_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/jai_frame_67.jpg"
     zed_im_path = "/media/fruitspec-lab/TEMP SSD/83_alignemt_calibration/zed_frame_67.jpg"
-    row = '/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/14'
+    row = '/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/21'
     side = 1
     zed_fp = os.path.join(row, f'ZED_{side}.svo')
     jai_fp = os.path.join(row, f'Result_FSI_{side}.mkv')

@@ -150,13 +150,15 @@ def post_process(slice_data, output_path=None, save_csv=False, save_csv_trees=Fa
     df_all = []
     for tree_id, tree in trees_data.items():
         df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
+        df['frame_id'] =df['frame_id'].apply(lambda x: int(float(x)))
+        df = df.fillna(-1)
         if save_csv_trees:
             df.to_csv(os.path.join(output_path, f"T{tree_id}_slices.csv"))
         df_all.append(df)
 
     df_all = pd.concat(df_all)
     if save_csv:
-        df_all.to_csv(os.path.join(output_path, f"slices.csv"))
+        df_all.to_csv(os.path.join(output_path, f"slices.csv"), index=False)
 
     return df_all
 

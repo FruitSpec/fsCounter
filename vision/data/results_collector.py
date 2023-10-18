@@ -679,14 +679,18 @@ class ResultsCollector():
             if len(slice_coor) == 0:
                 continue
             factor = self.jai_width / (zed_coor[1] - zed_coor[0])
-            new_slice_cor = []
-            for slice in slice_coor:
-                if slice < zed_coor[0]:  # outside roi
-                    new_slice_cor.append(10)  # put slice at frame start
+            new_slice_cor = {}
+            for key, slice in slice_coor.items():
+                if key in ['left_clusters', 'right_clusters']:
+                    new_slice_cor[key] = slice
+                elif slice is None:
+                    new_slice_cor[key] = None
+                elif slice < zed_coor[0]:  # outside roi
+                    new_slice_cor[key] = 1  # put slice at frame start
                 elif slice > zed_coor[1]:
-                    new_slice_cor.append(self.jai_width - 10) # put slice at frame end
+                    new_slice_cor[key] = self.jai_width - 1 # put slice at frame end
                 else:
-                    new_slice_cor.append((slice - tx) * factor)
+                    new_slice_cor[key] = (slice - tx) * factor
             converted_sliced_data[jai_frame_id] = new_slice_cor
 
         return converted_sliced_data
@@ -733,7 +737,11 @@ class ResultsCollector():
         :return: None
         """
         if isinstance(alignment, str):
-            self.alignment = read_json(alignment)
+            if alignment.endswith(".json"):
+                self.alignment = read_json(alignment)
+            else:
+                self.alignment = pd.read_csv(alignment)
+                self.alignment = self.alignment.to_dict(orient="records")
         else:
             self.alignment = alignment
 
@@ -745,6 +753,7 @@ class ResultsCollector():
         """
         if isinstance(jai_zed, str):
             self.jai_zed = read_json(jai_zed)
+            self.jai_zed = {str(int(float(key))): int(float(val)) for key, val in self.jai_zed.items()}
         else:
             self.jai_zed = jai_zed
 
@@ -795,7 +804,7 @@ class ResultsCollector():
         :return:
         """
         if "alignment" in parmas:
-            self.set_alignment(os.path.join(read_from, 'alignment.json')) # list of dicts
+            self.set_alignment(os.path.join(read_from, 'alignment.csv')) # list of dicts
         if "jai_zed" in parmas:
             self.set_jai_zed(os.path.join(read_from, 'jai_zed.json')) # dict
         if "detections" in parmas:

@@ -5,7 +5,7 @@ frame_drop_path: /media/fruitspec-lab/cam175/customers_new/DEWAGD/DWDBLE43/19012
 debug_folder: /media/fruitspec-lab/easystore/testing_playground
 rotate: false
 zed_shift: 0 # default 0
-max_z: 5
+max_z: 2
 overwrite:
   adt: false
   trees: false

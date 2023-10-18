@@ -172,6 +172,7 @@ def tomato_color_class_to_rgb(colors):
     return colors_out
 
 
+
 if __name__ == "__main__":
     tracks2harvest("/media/fruitspec-lab/TEMP SSD/Tomato/PackoutDataNondealeaf/pre/1/tracks.csv", min_samp=2)
     repo_dir = get_repo_dir()
@@ -206,10 +207,10 @@ if __name__ == "__main__":
     f_id = 0
     for folder in folders:
         try:
-            args.zed.movie_path = os.path.join(folder, "ZED_1.svo")
+            args.zed.movie_path = os.path.join(folder, "ZED.svo")
             args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
-            args.jai.movie_path = os.path.join(folder, "Result_FSI_1.mkv")
-            args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB_1.mkv")
+            args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+            args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
             args.sync_data_log_path = os.path.join(folder, "jai_zed.json")
             args, metadata = update_arg_with_metadata(args)
             # args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
@@ -221,7 +222,7 @@ if __name__ == "__main__":
             if not metadata.get("align_detect_track", True) and not overwrite:
                 print("skipping: ", folder)
                 continue
-            rc = run(cfg, args, zed_shift=metadata.get('zed_shift', 0), f_id=f_id)
+            rc = run(cfg, args, metadata, zed_shift=metadata.get('zed_shift', 0), f_id=f_id)
         except:
             print("failed: ", folder)
 
