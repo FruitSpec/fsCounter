@@ -47,6 +47,16 @@ def get_repo_dir():
 
     return repo_dir
 
+def get_repo_dir(key = 'fsCounter'):
+    cwd = os.getcwd()
+    splited = cwd.split('/')
+    ind = splited.index(key)
+    repo_dir = '/'
+    for s in splited[1:ind + 1]:
+        repo_dir = os.path.join(repo_dir, s)
+
+    return repo_dir
+
 def get_data_dir():
     repo_dir = get_repo_dir()
     base_path = os.path.abspath(os.path.join(repo_dir, "../../.."))
