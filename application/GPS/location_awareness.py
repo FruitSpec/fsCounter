@@ -302,7 +302,8 @@ class GPSSampler(Module):
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             tools.log(f"STEP IN {GPSSampler.current_plot}")
             GPSSampler.last_step_in = datetime.now()
-            GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
+            if not conf.GUI:  # don't do the following when GUI is used
+                GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
             return True
         else:
             tools.log(f"DID NOT STEP IN {GPSSampler.current_plot}")
@@ -314,17 +315,17 @@ class GPSSampler(Module):
             tools.log(f"STEP OUT {GPSSampler.previous_plot}")
 
             GPSSampler.last_step_out = datetime.now()
+            if not conf.GUI: # don't do the following when GUI is used
+                if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                    GPSSampler.send_data(
+                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                        data=GPSSampler.jaized_log_dict,
+                        receiver=ModulesEnum.DataManager
+                    )
 
-            if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
-                GPSSampler.send_data(
-                    action=ModuleTransferAction.JAIZED_TIMESTAMPS,
-                    data=GPSSampler.jaized_log_dict,
-                    receiver=ModulesEnum.DataManager
-                )
+                    GPSSampler.init_jaized_log_dict()
 
-                GPSSampler.init_jaized_log_dict()
-
-            GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
+                GPSSampler.send_data(ModuleTransferAction.EXIT_PLOT, None, ModulesEnum.Acquisition)
             return True
         else:
             return False
