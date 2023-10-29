@@ -58,13 +58,13 @@ def get_file_path(f_type: FileTypes, with_s3_path=False, s3_folder_name=None):
     today = datetime.now().strftime(data_conf.date_format)
     if f_type == FileTypes.nav:
         filename = f"{conf.counter_number}_{today}.{consts.nav_extension}"
-        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+        f_dir = os.path.join(consts.log_parent_dir, consts.nav_dir)
     elif f_type == FileTypes.log:
         filename = f"{conf.counter_number}_{consts.log_name}_{today}.{consts.log_extension}"
         f_dir = os.path.join(consts.log_parent_dir, consts.log_dir)
     elif f_type == FileTypes.jaized_timestamps:
         filename = f"{conf.counter_number}_{consts.jaized_timestamps}_{today}.{consts.log_extension}"
-        f_dir = os.path.join(data_conf.output_path, conf.customer_code)
+        f_dir = os.path.join(consts.log_parent_dir, consts.jaized_dir)
     else:
         raise ValueError("Wrong file type")
 

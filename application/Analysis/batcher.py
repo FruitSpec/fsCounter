@@ -118,11 +118,11 @@ class Batcher:
     def stop_acquisition(self):
         try:
             self._acquisition_start_event.clear()
-            self._send_data(
-                ModuleTransferAction.STOP_ACQUISITION,
-                None,
-                ModulesEnum.DataManager
-            )
+            #self._send_data(
+            #    ModuleTransferAction.STOP_ACQUISITION,
+            #    None,
+            #    ModulesEnum.DataManager
+            #)
         except:
             tools.log(
                 "PROBLEM WITH STOP_ACQUISITION",
