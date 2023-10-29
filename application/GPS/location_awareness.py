@@ -318,7 +318,7 @@ class GPSSampler(Module):
             if not conf.GUI: # don't do the following when GUI is used
                 if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
                     GPSSampler.send_data(
-                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                        action=ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
                         data=GPSSampler.jaized_log_dict,
                         receiver=ModulesEnum.DataManager
                     )
@@ -338,16 +338,12 @@ class GPSSampler(Module):
 
         if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
             GPSSampler.send_data(
-                action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                action=ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
                 data=GPSSampler.jaized_log_dict,
                 receiver=ModulesEnum.DataManager
             )
 
-            GPSSampler.init_jaized_log_dict()
-
-            return True
-        else:
-            return False
+        GPSSampler.init_jaized_log_dict()
 
     @staticmethod
     def get_row_state(angular_velocity_x, lat, long, imu_timestamp, gps_timestamp, depth_score):

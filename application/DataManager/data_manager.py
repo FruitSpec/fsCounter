@@ -165,6 +165,9 @@ class DataManager(Module):
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
+                    jaized_timestamps()
+                    stop_acquisition()
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):

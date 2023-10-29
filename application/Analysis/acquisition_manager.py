@@ -127,6 +127,7 @@ class AcquisitionManager(Module):
     @staticmethod
     def stop_acquisition():
         AcquisitionManager.analyzer.stop_acquisition()
+        time.sleep(0.1)
         AcquisitionManager.jz_recorder.stop_acquisition()
         # with AcquisitionManager.healthcheck_lock:
         AcquisitionManager.running = False
