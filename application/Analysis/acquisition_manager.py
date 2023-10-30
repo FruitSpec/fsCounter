@@ -32,6 +32,7 @@ class AcquisitionManager(Module):
     output_zed_gray, output_zed_depth, output_zed_pc = False, False, False
     view, debug_mode = False, False
     transfer_data, pass_clahe_stream = False, False
+    alc_false_areas, alc_true_areas = [], []
 
     @staticmethod
     def init_module(in_qu, out_qu, main_pid, module_name, communication_queue, notify_on_death, death_action):
@@ -114,7 +115,7 @@ class AcquisitionManager(Module):
             AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
             AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc,
             AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
-            AcquisitionManager.debug_mode
+            AcquisitionManager.debug_mode, AcquisitionManager.alc_true_areas, AcquisitionManager.alc_false_areas
         )
         if from_healthcheck:
             AcquisitionManager.running = running
@@ -126,6 +127,7 @@ class AcquisitionManager(Module):
     @staticmethod
     def stop_acquisition():
         AcquisitionManager.analyzer.stop_acquisition()
+        time.sleep(0.1)
         AcquisitionManager.jz_recorder.stop_acquisition()
         # with AcquisitionManager.healthcheck_lock:
         AcquisitionManager.running = False
@@ -166,13 +168,8 @@ class AcquisitionManager(Module):
                 AcquisitionManager.folder_index = "1"
                 AcquisitionManager.output_dir = os.path.join(row_path, AcquisitionManager.folder_index)
 
-                if analysis_conf.autonomous_easy_config:
-                    weather = analysis_conf.default_weather
-                    camera_data = analysis_conf.default_acquisition_parameters[weather]
-                    output_types = analysis_conf.default_acquisition_parameters.output_types
-                else:
-                    camera_data = analysis_conf.custom_acquisition_parameters
-                    output_types = camera_data["default output types"]
+                acquisition_parameters = analysis_conf.acquisition_parameters
+                output_types = acquisition_parameters.output_types
             else:
                 today = datetime.now().strftime("%d%m%y")
                 AcquisitionManager.plot = data["plot"]
@@ -184,19 +181,18 @@ class AcquisitionManager(Module):
                 AcquisitionManager.output_dir = os.path.join(row_path, str(AcquisitionManager.folder_index))
 
                 if 'Default' in data['configType']:
-                    weather = data['weather']
-                    camera_data = analysis_conf.default_acquisition_parameters[weather]
-                    output_types = analysis_conf.default_acquisition_parameters.output_types
+                    acquisition_parameters = analysis_conf.acquisition_parameters
+                    output_types = acquisition_parameters.output_types
                 else:
-                    camera_data = data["Cameras"]
-                    output_types = camera_data["outputTypes"]
+                    acquisition_parameters = data["Cameras"]
+                    output_types = acquisition_parameters["outputTypes"]
 
             output_types = [ot.lower() for ot in output_types]
 
-            AcquisitionManager.fps = int(camera_data['FPS'])
-            AcquisitionManager.exposure_rgb = int(camera_data['IntegrationTimeRGB'])
-            AcquisitionManager.exposure_800 = int(camera_data['IntegrationTime800'])
-            AcquisitionManager.exposure_975 = int(camera_data['IntegrationTime975'])
+            AcquisitionManager.fps = int(acquisition_parameters['FPS'])
+            AcquisitionManager.exposure_rgb = int(acquisition_parameters['IntegrationTimeRGB'])
+            AcquisitionManager.exposure_800 = int(acquisition_parameters['IntegrationTime800'])
+            AcquisitionManager.exposure_975 = int(acquisition_parameters['IntegrationTime975'])
             AcquisitionManager.output_clahe_fsi = 'clahe' in output_types or 'fsi' in output_types
             AcquisitionManager.output_equalize_hist_fsi = 'equalize_hist' in output_types or 'fsi' in output_types
             AcquisitionManager.output_rgb = 'rgb' in output_types
@@ -210,6 +206,14 @@ class AcquisitionManager(Module):
             AcquisitionManager.transfer_data = True
             AcquisitionManager.pass_clahe_stream = False
             AcquisitionManager.debug_mode = True
+
+            alc_areas = [
+                f"{v}{h}"
+                for v in consts.alc_vertical_areas
+                for h in consts.alc_horizontal_areas
+            ]
+            AcquisitionManager.alc_true_areas = acquisition_parameters.alc_true_areas
+            AcquisitionManager.alc_false_areas = [a for a in alc_areas if a not in AcquisitionManager.alc_true_areas]
 
             AcquisitionManager.analyzer.set_output_dir(AcquisitionManager.output_dir)
 

@@ -165,6 +165,9 @@ class DataManager(Module):
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
+                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
+                    jaized_timestamps()
+                    stop_acquisition()
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
@@ -256,7 +259,6 @@ class DataManager(Module):
 
     @staticmethod
     def internet_scan():
-        last_nav_upload = time.time()
         while not DataManager.shutdown_event.is_set():
             upload_speed_in_kbps = 0
             try:
@@ -271,18 +273,18 @@ class DataManager(Module):
             if upload_speed_in_kbps > data_conf.minimum_bandwidth_in_kbps:
                 timeout = data_conf.upload_interval - 30
 
-                # upload nav file once every {nav_upload_interval} seconds
-                # if not uploaded successfully, keep trying every 5 minutes
-                now = time.time()
-                if (now - last_nav_upload) > data_conf.nav_upload_interval:
+                # upload nav file only if it is the first time in the last 30 minutes
+                # for example, if the time is 12:03 and upload_interval = 300 (seconds)
+                # then current_minute = 3 < 5 = 300 / 60, and therefore it will upload
+                # otherwise, if the time is 12:28 then 28 > 5 hence it will not upload
+                current_minute = datetime.now().minute
+                if current_minute % 30 < (data_conf.upload_interval / 60):
                     is_successful, timeout = DataManager.upload_today_files(upload_speed_in_kbps, timeout=timeout)
-                    if is_successful:
-                        last_nav_upload = time.time()
-                else:
-                    print()
                 timeout = DataManager.upload_old_files(upload_speed_in_kbps, timeout=timeout)
                 DataManager.scan_analyzed(upload_speed_in_kbps, timeout)
                 tools.log(f"INTERNET SCAN - END")
+            else:
+                tools.log("INTERNET SPEED IS TOO LOW - NOT UPLOADING")
             t1 = time.time()
             next_execution_time = max(10, data_conf.upload_interval - (t1 - t0))
             if DataManager.shutdown_event.wait(next_execution_time):
