@@ -137,7 +137,13 @@ def safe_read_csv(file_path: str) -> pd.DataFrame:
     """
     if not os.path.exists(file_path):
         return pd.DataFrame({})
-    return pd.read_csv(file_path)
+
+    try:
+        return pd.read_csv(file_path)
+    except Exception as e:
+        # print the exception for debugging purposes
+        print(f"Error reading file: {e}")
+        return pd.DataFrame({})
 
 
 def pop_list_drom_dict(x_dict: dict, pop_list: list) -> dict:
