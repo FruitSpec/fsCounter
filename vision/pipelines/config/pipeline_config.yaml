@@ -23,6 +23,7 @@ detector:
   fp16: true
   fuse: false
   trt: false
+  classic_full_partial_classification: false
 
 classes:
   full: 0
