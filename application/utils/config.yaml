@@ -1,6 +1,6 @@
 counter_number: 4
-GUI: false
-autonomous_acquisition: true
+GUI: true
+autonomous_acquisition: false
 customer_code: "MOTCHA"
 crop: citrus
 collect_data: true
