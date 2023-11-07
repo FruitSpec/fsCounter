@@ -15,7 +15,7 @@ batch_size: 4
 detector:
   detector_type: yolox # implemented: yolox, yolov8
   confidence: 0.3
-  nms: 0.3
+  nms: 0.45
   num_of_classes: 1
   max_detections: 300
   fp16: true
