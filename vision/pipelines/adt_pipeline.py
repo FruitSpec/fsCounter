@@ -39,9 +39,9 @@ def run(cfg, args, metadata=None, shutdown_event=None):
 
     f_id = 0
 
-    pbar = tqdm(total=n_frames)
+    #pbar = tqdm(total=n_frames)
     while f_id < n_frames and not shutdown_event.is_set():
-        pbar.update(adt.batch_size)
+        #pbar.update(adt.batch_size)
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
 
@@ -81,7 +81,7 @@ def run(cfg, args, metadata=None, shutdown_event=None):
         f_id += adt.batch_size
         adt.logger.iterations += 1
 
-    pbar.close()
+    #pbar.close()
     adt.frames_loader.zed_cam.close()
     adt.frames_loader.jai_cam.close()
     adt.frames_loader.rgb_jai_cam.close()

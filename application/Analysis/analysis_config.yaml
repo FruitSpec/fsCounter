@@ -4,18 +4,18 @@ citrus:
   acquisition_parameters:
     FPS: 10
     IntegrationTimeRGB: 1500
-    IntegrationTime800: 800
-    IntegrationTime975: 5000
+    IntegrationTime800: 1000
+    IntegrationTime975: 3500
 
-    # options: 'clahe', 'equalize_hist', 'RGB', '800', '975', 'zed_gray', 'zed_depth', 'zed_pc', 'svo'
-    output_types: ["equalize_hist", "clahe", "RGB", "zed_gray", "zed_depth", "svo", "800", "975", "frames"]
+    # options: 'clahe', 'equalize_hist', 'RGB', '800', '975', 'zed_gray', 'zed_depth', 'zed_pc', 'svo', 'frames'
+    output_types: ["equalize_hist", "clahe", "RGB", "zed_gray", "zed_depth", "svo"]
 
     # The image is split into 16 areas such that there are 4 vertical areas and 4 horizontal
     # The vertical areas names are: High, MidHigh, MidLow, Low
     # The horizontal areas names are: Left, MidLeft, Right MidRight, 
     # any combination of 1 vertical are and 1 horizontal area points to 1 of the 16 areas of the screen
     # for example, "HighMidLeft" will point at the cell on the top row, second column from left
-    alc_true_areas: ["HighMidRight", "LowMidRight", "MidHighMidRight", "MidLowMidRight", "HighMidLeft", "LowMidLeft", "MidHighMidLeft", "MidLowMidLeft"]
+    alc_true_areas: ["MidHighMidRight", MidLowMidRight"]
 
   batch_size: 4
   max_batches: 30
