@@ -8,8 +8,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pickle
-
-from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
+from vision.misc.help_func import get_repo_dir, load_json, validate_output_path, get_subpath_from_dir
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -352,11 +351,15 @@ def append_to_trk(trk_batch_res, results):
 
 
 if __name__ == "__main__":
-    repo_dir = get_repo_dir()
+    repo_dir = get_repo_dir('fsCounter')
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
+
+    cfg.exp_file = os.path.join(repo_dir, get_subpath_from_dir(cfg.exp_file, 'fsCounter', include_dir=False))
+    cfg.ckpt_file = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.ckpt_file, 'FruitSpec', include_dir=False))
+    cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
 
     zed_name = "ZED.mkv"
     depth_name = "DEPTH.mkv" #"DEPTH.mkv"
@@ -364,16 +367,14 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/media/matans/My Book/FruitSpec/tracker/baseline_medharin"
+    output_path = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
     validate_output_path(output_path)
 
-    #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
-    rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
+    rows_dir = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
 
-    #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
-    #rows = os.listdir(rows_dir)
-    rows = ["row_4"]
-    #rows = ["row_7"]
+    rows = os.listdir(rows_dir)
+
+
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 

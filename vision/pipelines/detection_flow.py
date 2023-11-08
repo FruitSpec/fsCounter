@@ -100,7 +100,7 @@ class counter_detection():
                 output = self.decoder_(output, dtype=output.type())
 
         # Filter results below confidence threshold and nms threshold
-        output = postprocess(output, self.num_of_classes, self.confidence_threshold)
+        output = postprocess(output, self.num_of_classes, self.confidence_threshold, self.nms_threshold)
 
         # Scale bboxes to orig image coordinates
         output = self.scale_output(output, frames[0].shape)
