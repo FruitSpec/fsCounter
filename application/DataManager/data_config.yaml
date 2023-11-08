@@ -11,6 +11,7 @@ use_feather: false
 request_timeout: 10
 service_endpoint: "https://counter-api.intgr.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-temp-counter
+upload_bucket_name_sim : fruitspec-temp-sim-counter
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
 date_format: "%d%m%y"
 routine_delete_time_hours: 72

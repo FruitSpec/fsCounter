@@ -21,6 +21,9 @@ import application.utils.tools as tools
 from application.utils.settings import set_logger
 import speedtest
 
+#! Sim imports
+import GPS.key_variables as kv
+
 
 class DataManager(Module):
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
@@ -292,30 +295,60 @@ class DataManager(Module):
 
     @staticmethod
     def upload_to_s3(path, s3_path, upload_speed_in_kbps, timeout, extension=None):
-        filename = os.path.basename(path)
-        try:
-            _size_in_kb = os.path.getsize(path) / 1024
-            if _size_in_kb >= upload_speed_in_kbps * timeout:
-                tools.log(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
-                return
-            DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name, s3_path)
-            if extension:
-                path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
-                os.rename(path, path_uploaded)
-            tools.log(f"UPLOAD {filename} TO S3 - SUCCESS")
-            return True
-        except FileNotFoundError:
-            tools.log(f"UPLOAD {filename} - FILE NOT EXIST")
-            return False
-        except EndpointConnectionError:
-            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO INTERNET CONNECTION", logging.WARNING)
-            return False
-        except S3UploadFailedError:
-            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM", logging.WARNING)
-            return False
-        except Exception:
-            tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO AN ERROR - {path}", logging.ERROR, exc_info=True)
-            return False
+
+        if(kv.sim_status==True):
+            filename = os.path.basename(path)
+            try:
+                _size_in_kb = os.path.getsize(path) / 1024
+                if _size_in_kb >= upload_speed_in_kbps * timeout:
+                    tools.log(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
+                    return
+                ##! Change the bucket where the file is uploaded
+                DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name_sim, s3_path)
+                if extension:
+                    path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
+                    os.rename(path, path_uploaded)
+                tools.log(f"UPLOAD {filename} TO S3 - SUCCESS")
+                return True
+            except FileNotFoundError:
+                tools.log(f"UPLOAD {filename} - FILE NOT EXIST")
+                return False
+            except EndpointConnectionError:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO INTERNET CONNECTION", logging.WARNING)
+                return False
+            except S3UploadFailedError:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM", logging.WARNING)
+                return False
+            except Exception:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO AN ERROR - {path}", logging.ERROR, exc_info=True)
+                return False
+        else:
+            filename = os.path.basename(path)
+            try:
+                _size_in_kb = os.path.getsize(path) / 1024
+                if _size_in_kb >= upload_speed_in_kbps * timeout:
+                    tools.log(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
+                    return
+                ##! This uploades to the usual location, fruitspec-temp-counter
+                DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name, s3_path)
+                if extension:
+                    path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
+                    os.rename(path, path_uploaded)
+                tools.log(f"UPLOAD {filename} TO S3 - SUCCESS")
+                return True
+            except FileNotFoundError:
+                tools.log(f"UPLOAD {filename} - FILE NOT EXIST")
+                return False
+            except EndpointConnectionError:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO INTERNET CONNECTION", logging.WARNING)
+                return False
+            except S3UploadFailedError:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO S3 RELATED PROBLEM", logging.WARNING)
+                return False
+            except Exception:
+                tools.log(f"UPLOAD {filename} TO S3 - FAILED DUE TO AN ERROR - {path}", logging.ERROR, exc_info=True)
+                return False
+
 
     @staticmethod
     def upload_today_files(upload_speed_in_kbps, timeout=10):
