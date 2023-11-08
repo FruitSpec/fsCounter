@@ -6,7 +6,10 @@ from botocore.config import Config
 import sys
 import key_variables as kv
 
+##! This might prove to be an issue
 sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
+
+
 import boto3
 import fscloudutils.exceptions
 
@@ -165,151 +168,290 @@ class GPSSampler(Module):
     @staticmethod
     def sample_gps():
 
-        def init_serial_port():
-            while not GPSSampler.shutdown_event.is_set():
-                try:
-                    _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
-                    _ser.flushOutput()
-                    _ser.flushInput()
-                    tools.log(f"SERIAL PORT INIT - SUCCESS")
-                    return _ser
-                except (serial.SerialException, TimeoutError) as e:
-                    tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
-                    time.sleep(5)
-                except Exception:
-                    tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
-                    time.sleep(5)
+        if(kv.sim_status==True):
+            ##! Check if the machine is in Sim_Mode
+            def init_serial_port():
+                while not GPSSampler.shutdown_event.is_set():
+                    try:
+                        _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
+                        _ser.flushOutput()
+                        _ser.flushInput()
+                        tools.log(f"SERIAL PORT INIT - SUCCESS")
+                        return _ser
+                    except (serial.SerialException, TimeoutError) as e:
+                        tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
+                        time.sleep(5)
+                    except Exception:
+                        tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
+                        time.sleep(5)
 
-        tools.log("START")
-        err_count = sample_count = 0
-        parser = NavParser("", is_file=False)
-        ser = init_serial_port()
-        GPSSampler.gps_data = []
+            tools.log("START")
+            err_count = sample_count = 0
+            parser = NavParser("", is_file=False)
+            ser = init_serial_port()
+            GPSSampler.gps_data = []
 
-        ##! SIm usage, only if the value passess
-        try:
-            df = pd.read_csv('filename.csv')
-        except FileNotFoundError as f:
-            df = pd.DataFrame()
-
-        while (len(df.index)>0): ##! This ensures that this would work regardless, as the dataframe is initialized as {} in the worst case
-            is_start_sample = GPSSampler.start_sample_event.wait(10)
-            if not is_start_sample:
-                LedSettings.turn_on(LedColor.RED)
-                continue
-
-            # read NMEA data from the serial port
-            data = ""
-            while ser.in_waiting > 0:
-                data += ser.readline().decode('utf-8')
-            if not data:
-                continue
-
-            # timestamp = datetime.now().strftime(data_conf.timestamp_format)
-            timestamp = df.head(1)['time stamp']
+            ##! SIm usage, only if the value passess
             try:
-                parser.read_string(data)
-                point = parser.get_most_recent_point()
-                
-                # lat, long = point.get_lat(), point.get_long()
-                lat, long = df.head(1)['latitude'], df.head(1)['longitude']
-                GPSSampler.previous_plot = GPSSampler.current_plot
-                # plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
-                plot = df.head(1)['plot code']
+                df = pd.read_csv(kv.file_name)
+            except Exception as f:
+                ##! In any case just declare a new one
+                df = pd.DataFrame()
 
-                GPSSampler.current_plot = plot
-                GPSSampler.current_lat = lat
-                GPSSampler.current_long = long
-                GPSSampler.current_timestamp = timestamp
+            while (len(df.index)>0): ##! This ensures that this would work regardless, as the dataframe is initialized as {} in the worst case
+                is_start_sample = GPSSampler.start_sample_event.wait(10)
+                if not is_start_sample:
+                    LedSettings.turn_on(LedColor.RED)
+                    continue
 
-                sample_count += 1
-                df = df.tail(-1)
+                # read NMEA data from the serial port
+                data = ""
+                while ser.in_waiting > 0:
+                    data += ser.readline().decode('utf-8')
+                if not data:
+                    continue
 
-                # send the jaized_timestamps to the DataManager
-                if sample_count % GPS_conf.sample_count_threshold == 0 \
-                        and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
-                    GPSSampler.send_data(
-                        action=ModuleTransferAction.JAIZED_TIMESTAMPS,
-                        data=GPSSampler.jaized_log_dict,
-                        receiver=ModulesEnum.DataManager
-                    )
-
-                    GPSSampler.init_jaized_log_dict()
-
-                GPSSampler.gps_data.append(
-                    {
-                        consts.GPS_timestamp: timestamp,
-                        consts.GPS_latitude: lat,
-                        consts.GPS_longitude: long,
-                        consts.GPS_plot: GPSSampler.current_plot
-                    }
-                )
-
-                if sample_count % GPS_conf.sample_count_threshold == 0 and GPSSampler.gps_data:
-                    GPSSampler.send_data(
-                        action=ModuleTransferAction.NAV,
-                        data=GPSSampler.gps_data,
-                        receiver=ModulesEnum.DataManager,
-                        log_option=tools.LogOptions.LOG
-                    )
-                    GPSSampler.gps_data = []
-
-                if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
-                    # stepped into new block
-                    if GPSSampler.previous_plot == consts.global_polygon:
-                        GPSSampler.is_in_plot = GPSSampler.step_in()
-                    else:
-                        GPSSampler.is_in_plot = GPSSampler.step_out()
-                        if GPSSampler.is_in_plot:
-                            GPSSampler.current_plot = consts.global_polygon
-
-                    if not GPSSampler.is_in_plot:
-                        GPSSampler.current_plot = GPSSampler.previous_plot
-
-                # check if in global
-                if GPSSampler.current_plot == consts.global_polygon:
-                    if GPSSampler.analysis_ongoing:
-                        LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
-                    else:
-                        LedSettings.turn_on(LedColor.ORANGE)
-                else:
-                    LedSettings.turn_on(LedColor.GREEN)
-
-                err_count = 0
-
-            except fscloudutils.exceptions.InputError:
-                GPSSampler.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
-            except ValueError as e:
-                ##! Stop the redefinition of this
                 # timestamp = datetime.now().strftime(data_conf.timestamp_format)
-                GPSSampler.gps_data.append(
-                    {
-                        consts.GPS_timestamp: timestamp,
-                        consts.GPS_latitude: None,
-                        consts.GPS_longitude: None,
-                        consts.GPS_plot: GPSSampler.current_plot
-                    }
-                )
-                sample_count += 1
-                err_count += 1
-                if err_count in {1, 10, 30} or err_count % 60 == 0:
-                    tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
-                # release the last detected block into Global if it is over no_gps_in_plot_limit seconds without GPS
-                if err_count > GPS_conf.no_gps_in_plot_limit and GPSSampler.current_plot != consts.global_polygon:
-                    GPSSampler.current_plot = consts.global_polygon
-                    GPSSampler.step_out()
-                LedSettings.turn_on(LedColor.RED)
-            except Exception:
-                tools.log("SAMPLE UNEXPECTED EXCEPTION", logging.ERROR, exc_info=True)
-                LedSettings.turn_on(LedColor.RED)
+                timestamp = df.head(1)['time stamp']
+                try:
+                    parser.read_string(data)
+                    point = parser.get_most_recent_point()
+                    
+                    # lat, long = point.get_lat(), point.get_long()
+                    lat, long = df.head(1)['latitude'], df.head(1)['longitude']
+                    GPSSampler.previous_plot = GPSSampler.current_plot
+                    # plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                    plot = df.head(1)['plot code']
 
-        try:
-            ser.close()
-        except AttributeError:
-            pass
+                    GPSSampler.current_plot = plot
+                    GPSSampler.current_lat = lat
+                    GPSSampler.current_long = long
+                    GPSSampler.current_timestamp = timestamp
 
-        tools.log("END")
-        LedSettings.turn_on(LedColor.RED)
+                    sample_count += 1
+                    df = df.tail(-1)
+
+                    # send the jaized_timestamps to the DataManager
+                    if sample_count % GPS_conf.sample_count_threshold == 0 \
+                            and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                        GPSSampler.send_data(
+                            action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                            data=GPSSampler.jaized_log_dict,
+                            receiver=ModulesEnum.DataManager
+                        )
+
+                        GPSSampler.init_jaized_log_dict()
+
+                    GPSSampler.gps_data.append(
+                        {
+                            consts.GPS_timestamp: timestamp,
+                            consts.GPS_latitude: lat,
+                            consts.GPS_longitude: long,
+                            consts.GPS_plot: GPSSampler.current_plot
+                        }
+                    )
+
+                    if sample_count % GPS_conf.sample_count_threshold == 0 and GPSSampler.gps_data:
+                        GPSSampler.send_data(
+                            action=ModuleTransferAction.NAV,
+                            data=GPSSampler.gps_data,
+                            receiver=ModulesEnum.DataManager,
+                            log_option=tools.LogOptions.LOG
+                        )
+                        GPSSampler.gps_data = []
+
+                    if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                        # stepped into new block
+                        if GPSSampler.previous_plot == consts.global_polygon:
+                            GPSSampler.is_in_plot = GPSSampler.step_in()
+                        else:
+                            GPSSampler.is_in_plot = GPSSampler.step_out()
+                            if GPSSampler.is_in_plot:
+                                GPSSampler.current_plot = consts.global_polygon
+
+                        if not GPSSampler.is_in_plot:
+                            GPSSampler.current_plot = GPSSampler.previous_plot
+
+                    # check if in global
+                    if GPSSampler.current_plot == consts.global_polygon:
+                        if GPSSampler.analysis_ongoing:
+                            LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
+                        else:
+                            LedSettings.turn_on(LedColor.ORANGE)
+                    else:
+                        LedSettings.turn_on(LedColor.GREEN)
+
+                    err_count = 0
+
+                except fscloudutils.exceptions.InputError:
+                    GPSSampler.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
+                except ValueError as e:
+                    ##! Stop the redefinition of this
+                    # timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                    GPSSampler.gps_data.append(
+                        {
+                            consts.GPS_timestamp: timestamp,
+                            consts.GPS_latitude: None,
+                            consts.GPS_longitude: None,
+                            consts.GPS_plot: GPSSampler.current_plot
+                        }
+                    )
+                    sample_count += 1
+                    err_count += 1
+                    if err_count in {1, 10, 30} or err_count % 60 == 0:
+                        tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
+                    # release the last detected block into Global if it is over no_gps_in_plot_limit seconds without GPS
+                    if err_count > GPS_conf.no_gps_in_plot_limit and GPSSampler.current_plot != consts.global_polygon:
+                        GPSSampler.current_plot = consts.global_polygon
+                        GPSSampler.step_out()
+                    LedSettings.turn_on(LedColor.RED)
+                except Exception:
+                    tools.log("SAMPLE UNEXPECTED EXCEPTION", logging.ERROR, exc_info=True)
+                    LedSettings.turn_on(LedColor.RED)
+
+            try:
+                ser.close()
+            except AttributeError:
+                pass
+
+            tools.log("END")
+            LedSettings.turn_on(LedColor.RED)
+
+        ##! If the Sim Mode is not on:
+        else:
+            def init_serial_port():
+                while not GPSSampler.shutdown_event.is_set():
+                    try:
+                        _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
+                        _ser.flushOutput()
+                        _ser.flushInput()
+                        tools.log(f"SERIAL PORT INIT - SUCCESS")
+                        return _ser
+                    except (serial.SerialException, TimeoutError) as e:
+                        tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
+                        time.sleep(5)
+                    except Exception:
+                        tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
+                        time.sleep(5)
+
+            tools.log("START")
+            err_count = sample_count = 0
+            parser = NavParser("", is_file=False)
+            ser = init_serial_port()
+            GPSSampler.gps_data = []
+            while not GPSSampler.shutdown_event.is_set():
+                is_start_sample = GPSSampler.start_sample_event.wait(10)
+                if not is_start_sample:
+                    LedSettings.turn_on(LedColor.RED)
+                    continue
+
+                # read NMEA data from the serial port
+                data = ""
+                while ser.in_waiting > 0:
+                    data += ser.readline().decode('utf-8')
+                if not data:
+                    continue
+
+                timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                try:
+                    parser.read_string(data)
+                    point = parser.get_most_recent_point()
+                    lat, long = point.get_lat(), point.get_long()
+                    GPSSampler.previous_plot = GPSSampler.current_plot
+                    plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+
+                    GPSSampler.current_plot = plot
+                    GPSSampler.current_lat = lat
+                    GPSSampler.current_long = long
+                    GPSSampler.current_timestamp = timestamp
+
+                    sample_count += 1
+
+                    # send the jaized_timestamps to the DataManager
+                    if sample_count % GPS_conf.sample_count_threshold == 0 \
+                            and GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+                        GPSSampler.send_data(
+                            action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                            data=GPSSampler.jaized_log_dict,
+                            receiver=ModulesEnum.DataManager
+                        )
+
+                        GPSSampler.init_jaized_log_dict()
+
+                    GPSSampler.gps_data.append(
+                        {
+                            consts.GPS_timestamp: timestamp,
+                            consts.GPS_latitude: lat,
+                            consts.GPS_longitude: long,
+                            consts.GPS_plot: GPSSampler.current_plot
+                        }
+                    )
+
+                    if sample_count % GPS_conf.sample_count_threshold == 0 and GPSSampler.gps_data:
+                        GPSSampler.send_data(
+                            action=ModuleTransferAction.NAV,
+                            data=GPSSampler.gps_data,
+                            receiver=ModulesEnum.DataManager,
+                            log_option=tools.LogOptions.LOG
+                        )
+                        GPSSampler.gps_data = []
+
+                    if GPSSampler.current_plot != GPSSampler.previous_plot:  # Switched to another block
+                        # stepped into new block
+                        if GPSSampler.previous_plot == consts.global_polygon:
+                            GPSSampler.is_in_plot = GPSSampler.step_in()
+                        else:
+                            GPSSampler.is_in_plot = GPSSampler.step_out()
+                            if GPSSampler.is_in_plot:
+                                GPSSampler.current_plot = consts.global_polygon
+
+                        if not GPSSampler.is_in_plot:
+                            GPSSampler.current_plot = GPSSampler.previous_plot
+
+                    # check if in global
+                    if GPSSampler.current_plot == consts.global_polygon:
+                        if GPSSampler.analysis_ongoing:
+                            LedSettings.start_blinking(LedColor.ORANGE, LedColor.BLINK_TRANSPARENT)
+                        else:
+                            LedSettings.turn_on(LedColor.ORANGE)
+                    else:
+                        LedSettings.turn_on(LedColor.GREEN)
+
+                    err_count = 0
+
+                except fscloudutils.exceptions.InputError:
+                    GPSSampler.send_data(ModuleTransferAction.RESTART_APP, None, ModulesEnum.Main)
+                except ValueError as e:
+                    timestamp = datetime.now().strftime(data_conf.timestamp_format)
+                    GPSSampler.gps_data.append(
+                        {
+                            consts.GPS_timestamp: timestamp,
+                            consts.GPS_latitude: None,
+                            consts.GPS_longitude: None,
+                            consts.GPS_plot: GPSSampler.current_plot
+                        }
+                    )
+                    sample_count += 1
+                    err_count += 1
+                    if err_count in {1, 10, 30} or err_count % 60 == 0:
+                        tools.log(f"{err_count} SECONDS WITH NO GPS (CONSECUTIVE)", logging.ERROR)
+                    # release the last detected block into Global if it is over no_gps_in_plot_limit seconds without GPS
+                    if err_count > GPS_conf.no_gps_in_plot_limit and GPSSampler.current_plot != consts.global_polygon:
+                        GPSSampler.current_plot = consts.global_polygon
+                        GPSSampler.step_out()
+                    LedSettings.turn_on(LedColor.RED)
+                except Exception:
+                    tools.log("SAMPLE UNEXPECTED EXCEPTION", logging.ERROR, exc_info=True)
+                    LedSettings.turn_on(LedColor.RED)
+
+            try:
+                ser.close()
+            except AttributeError:
+                pass
+
+            tools.log("END")
+            LedSettings.turn_on(LedColor.RED)
+
 
     @staticmethod
     def step_in():
