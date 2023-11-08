@@ -138,7 +138,7 @@ class SensorAligner:
 
 
                 else:
-                    results = list(executor.map(self.align_sensors, zed_input, jai_input, self.origins, self.rois))
+                    results = list(executor.map(self.align_sensors, zed_input, jai_input, debug))
 
         output = []
         for r in results:
@@ -147,7 +147,9 @@ class SensorAligner:
 
         return output
 
-    def align_sensors(self, zed_rgb, jai_img, origin, roi, jai_drop=False, zed_drop=False):
+
+
+    def align_sensors(self, zed_rgb, jai_img, debug=None):
         """
         aligns both sensors and updates the zed shift
         :param zed_rgb: rgb image
@@ -167,41 +169,55 @@ class SensorAligner:
         gray_zed = self.crop_zed_roi(gray_zed)
         gray_zed = cv2.resize(gray_zed, (int(gray_zed.shape[1] / self.sx), int(gray_zed.shape[0] / self.sy)))
 
-        gray_zed, rz = resize_img(gray_zed, gray_zed.shape[0] // 4)
-        gray_jai, rj = resize_img(gray_jai, gray_jai.shape[0] // 4)
+        gray_zed, rz = resize_img(gray_zed, gray_zed.shape[0] // 3)
+        gray_jai, rj = resize_img(gray_jai, gray_jai.shape[0] // 3)
 
         kp_zed, des_zed = find_keypoints(gray_zed, self.matcher)  # consumes 33% of time
         kp_jai, des_jai = find_keypoints(gray_jai, self.matcher)  # consumes 33% of time
         M, st, match = get_affine_matrix(kp_zed, kp_jai, des_zed, des_jai, self.ransac)  # consumes 33% of time
 
-        dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
-        dst_pts = dst_pts[np.array(st).reshape(-1).astype(np.bool_)]
-        src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
-        src_pts = src_pts[np.array(st).reshape(-1).astype(np.bool_)]
+        # dst_pts = np.float32([kp_zed[m.queryIdx].pt for m in match]).reshape(-1, 1, 2)
+        # dst_pts = dst_pts[st.reshape(-1).astype(np.bool_)]
+        # src_pts = np.float32([kp_jai[m.trainIdx].pt for m in match]).reshape(-1, 1, 2)
+        # src_pts = src_pts[st.reshape(-1).astype(np.bool_)]
 
-        deltas = np.array(dst_pts) - np.array(src_pts)
+        if debug is not None:
+            draw_matches(gray_zed, kp_zed, gray_jai, kp_jai, match, st, debug['output_path'], debug['f_id'])
 
-        if len(st) == 0 or np.sum(st) <= 5:
+        if M is not None:
+            tx = M[0, 2]
+            ty = M[1, 2]
+            tx = tx / rz * self.sx
+            ty = ty / rz * self.sy
+        else:
             tx = -999
             ty = -999
-            # roi in frame center
-            mid_x = (origin[0] + origin[2]) // 2
-            mid_y = (origin[1] + origin[3]) // 2
-            x1 = mid_x - (roi[0] // 2)
-            x2 = mid_y + (roi[0] // 2)
-            y1 = mid_y - (roi[1] // 2)
-            y2 = mid_y + (roi[1] // 2)
+
+        if tx < 0:
+            x1 = 0
+            x2 = self.roix
+        elif tx + self.roix > zed_rgb.shape[1]:
+            x2 = zed_rgb.shape[1]
+            x1 = zed_rgb.shape[1] - self.roix
         else:
-            # tx = M[0, 2]
-            # ty = M[1, 2]
-            # tx = tx / rz * self.sx
-            # ty = ty / rz * self.sy
-            tx = np.mean(deltas[:, 0, 0]) / rz * self.sx
-            ty = np.mean(deltas[:, 0, 1]) / rz * self.sy
-            x1, y1, x2, y2 = get_zed_roi(tx, ty, roi, origin, zed_size)
+            x1 = tx
+            x2 = tx + self.roix
+
+        if ty < 0:
+            y1 = self.y_s + ty
+            if y1 < 0:
+                y1 = self.y_s
+            y2 = self.y_s + self.roiy
+        elif ty + self.roiy > (self.y_e - self.y_s):
+            y2 = self.y_e
+            y1 = self.y_e - self.roiy
+        else:
+            y1 = self.y_s + ty
+            y2 = self.y_s + ty + self.roiy
+
         self.update_zed_shift(tx)
 
-        return (x1, y1, x2, y2), tx, ty, kp_zed, kp_jai, gray_zed, gray_jai, match, st
+        return (x1, y1, x2, y2), tx, ty, int(np.sum(st))
 
 
     def convert_translation_to_coors(self, im_zed, im_jai, tx, ty, sx, sy):

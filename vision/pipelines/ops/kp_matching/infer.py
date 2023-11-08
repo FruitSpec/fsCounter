@@ -27,7 +27,9 @@ class lightglue_infer():
         self.sy = cfg.sensor_aligner.sy if len_size == 61 else cfg.sensor_aligner.sy_83
         self.roix = cfg.sensor_aligner.roix if len_size == 61 else cfg.sensor_aligner.roix_83
         self.roiy = cfg.sensor_aligner.roiy if len_size == 61 else cfg.sensor_aligner.roiy_83
+        self.len_size = len_size
         self.zed_size = [1920, 1080]
+        self.jai_size = [2048, 1536]
         self.batch_size = cfg.batch_size
         self.last_feat = None
 
@@ -51,8 +53,13 @@ class lightglue_infer():
 
     def preprocess_images(self, zed, jai_rgb, downscale=1, to_tensor=True):
 
-        cropped_zed = zed[self.y_s: self.y_e, self.x_s:self.x_e, :]
-        input_zed = cv2.resize(cropped_zed, (int(cropped_zed.shape[1] / self.sx), int(cropped_zed.shape[0] / self.sy)))
+        if self.len_size != 83:
+            cropped_zed = zed[self.y_s: self.y_e, self.x_s:self.x_e, :]
+        else:
+            cropped_zed = zed
+        #input_zed = cv2.resize(cropped_zed, int(cropped_zed.shape[1] / self.sx), int(cropped_zed.shape[0] / self.sy)))
+        input_zed = zed
+
 
         input_zed, rz = resize_img(input_zed, input_zed.shape[0] // downscale)
         input_jai, rj = resize_img(jai_rgb, jai_rgb.shape[0] // downscale)
@@ -90,15 +97,22 @@ class lightglue_infer():
         else:
 
 
-            tx = M[0, 2]
-            ty = M[1, 2]
-            tx = tx / rz * self.sx
-            ty = ty / rz * self.sy
-            # tx = np.mean(deltas[:, 0, 0]) / rz * sx
-            # ty = np.mean(deltas[:, 0, 1]) / rz * sy
 
-            x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
+            if self.len_size != 83:
+                tx = M[0, 2] * (-1)
+                ty = M[1, 2] * (-1)
+                tx = tx / rz * self.sx
+                ty = ty / rz * self.sy
+                # tx = np.mean(deltas[:, 0, 0]) / rz * sx
+                # ty = np.mean(deltas[:, 0, 1]) / rz * sy
 
+                x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
+            else:
+                tx = M[0, 2] / rz * (-1)
+                ty = M[1, 2] / rz * (-1)
+                sx = M[0, 0]
+                sy = M[1, 1]
+                x1, y1, x2, y2 = self.get_jai_roi(tx, ty, sx ,sy)
         return (x1, y1, x2, y2), tx, ty, int(np.sum(st))
 
     def get_zed_roi(self, tx, ty):
@@ -127,17 +141,82 @@ class lightglue_infer():
 
         return x1, y1, x2, y2
 
+    def get_jai_roi(self, tx, ty, sx, sy):
 
-    def align_sensors(self, zed, jai_rgb, debug=None, method = "delta"):
+        roix = self.zed_size[1] * sx
+        full_roiy = self.zed_size[0] * sy
+
+        roiy = min(self.jai_size[0], full_roiy)
+        #x1 = (self.jai_size[1] // 2) + tx - (self.roix // 2)
+        x1 = tx
+
+        if x1 < 0:
+            x1 = 0
+            #x2 = self.roix
+            x2 = roix
+        else:
+            #x2 = x1 + self.roix
+            x2 = x1 + roix
+            if x2 > self.jai_size[1]:
+                x2 = self.jai_size[1]
+                #x1 = x2 - self.roix
+                x1 = x2 - roix
+
+        #y1 = (self.jai_size[0] // 2) + ty - (self.roiy // 2)
+        y1 = (self.jai_size[0] // 2) + ty - (full_roiy // 2)
+
+        if y1 < 0:
+            y1 = 0
+            #y2 = self.roiy
+            y2 = roiy
+        else:
+            #y2 = y1 + self.roiy
+            y2 = y1 + roiy
+            if y2 > self.jai_size[0]:
+                y2 = self.jai_size[0]
+                #y1 = y2 - self.roiy
+                y1 = y2 - roiy
+
+
+        #if tx < 0:
+        #    x1 = (self.jai_size[1] // 2) + tx - (self.roix // 2)
+        #    x2 = x1 + self.roix
+        #elif tx + self.roix > self.jai_size[1]:
+        #    x2 = self.jai_size[1]
+        #    x1 = self.jai_size[1] - self.roix
+        #else:
+        #    x1 = (self.jai_size[1] // 2) + tx
+        #    x2 = tx + self.roix
+
+        #if ty < 0:
+        #    y1 = 0
+        #    y2 = y1 + self.roiy
+        #elif ty + self.roiy > self.jai_size[0]:
+        #    y2 = self.jai_size[0]
+        #    y1 = y2 - self.roiy
+        #else:
+        #    y1 = ty
+        #    y2 = ty + self.roiy
+
+        return x1, y1, x2, y2
+
+
+
+    def align_sensors(self, zed, jai_rgb, debug=None, method = "affine"):
 
         zed_input, rz, jai_input, rj = self.preprocess_images(zed, jai_rgb)
+
+        #zed_input = zed_input[:,50:1700,:]
 
         points0, points1, matches = self.match(zed_input, jai_input)
 
         points0 = points0.cpu().numpy()
         points1 = points1.cpu().numpy()
 
-        M, st = self.calcaffine(points0, points1)
+        if self.len_size != 83:
+            M, st = self.calcaffine(points0, points1)
+        else:
+            M, st = self.calcaffine(points1, points0)
 
         if debug is not None:
             zed_debug, _, jai_debug, _ = self.preprocess_images(zed, jai_rgb, to_tensor=False)
@@ -151,7 +230,22 @@ class lightglue_infer():
             x1, y1, x2, y2 = self.get_zed_roi(tx, ty)
             return (x1, y1, x2, y2), tx, ty, int(np.sum(st))
 
-        return self.get_tx_ty(M, st, rz)
+        if self.len_size != 83:
+
+            return self.get_tx_ty(M, st, rz)
+
+        else:
+            rgb_output = cv2.warpAffine(jai_rgb, M, [self.zed_size[1], self.zed_size[0]])
+            #valid_rgb = remove_black_area(rgb_output)
+            h, w, c = jai_rgb.shape
+            corners = np.array([[0, 0, 1], [w, 0, 1], [0, h, 1], [w, h, 1]], dtype=np.float32)
+            transformed_corners = np.dot(M, corners.T).T
+
+            h, w, _ = rgb_output.shape
+            corners1 = np.array([[0, 0, 1], [w, 0, 1], [0, h, 1], [w, h, 1]], dtype=np.float32)
+            transformed_corners1 = np.dot(M, corners1.T).T
+
+            print(transformed_corners)
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
         if False:#len(zed_batch) < 1:
