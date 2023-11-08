@@ -13,6 +13,7 @@ import psutil
 import shutil
 import time
 import sys
+import GPS.key_variables as kv
 
 sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
@@ -20,6 +21,8 @@ from application.utils.settings import set_logger
 
 global logger_date
 logger_date = set_logger()
+
+
 
 from GPS.location_awareness import GPSSampler
 from DataManager.data_manager import DataManager
@@ -347,6 +350,14 @@ def transfer_data(startup_count, startup_time):
 
 def main():
     global manager, communication_queue, process_monitor_events
+
+    ##! Ensure that the system runs in Sim Mode
+    response = input("Do you want to run this in Sim Mode? (Y/N)")
+    if(response.casefold() == 'Y'.casefold()):
+        kv.sim_status = True
+        kv.file_name = input("Please enter the name of the file (Eg: filename.nav)")
+        print("\nPlease ensure that the file is in the same GPS directory!")
+
 
     try:
         startup_count = int(sys.argv[1])

@@ -4,6 +4,7 @@ import traceback
 from builtins import staticmethod
 from botocore.config import Config
 import sys
+import key_variables as kv
 
 sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
 import boto3
@@ -185,7 +186,7 @@ class GPSSampler(Module):
         ser = init_serial_port()
         GPSSampler.gps_data = []
 
-        ##! SIm usage:
+        ##! SIm usage, only if the value passess
         try:
             df = pd.read_csv('filename.csv')
         except FileNotFoundError as f:
