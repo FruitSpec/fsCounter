@@ -189,41 +189,42 @@ class GPSSampler(Module):
 
             tools.log("START")
             err_count = sample_count = 0
-            parser = NavParser("", is_file=False)
-            ser = init_serial_port()
+            # parser = NavParser("", is_file=False)
+            # ser = init_serial_port()
             GPSSampler.gps_data = []
 
             ##! SIm usage, only if the value passess
             try:
-                df = pd.read_csv(kv.file_name)
+                df = pd.read_csv('/home/mic-730ai/fruitspec/fsCounter/application/GPS/4_081123.nav')
             except Exception as f:
                 ##! In any case just declare a new one
                 df = pd.DataFrame()
 
             while (len(df.index)>0): ##! This ensures that this would work regardless, as the dataframe is initialized as {} in the worst case
                 is_start_sample = GPSSampler.start_sample_event.wait(10)
+                time.sleep(1)
                 if not is_start_sample:
                     LedSettings.turn_on(LedColor.RED)
                     continue
 
                 # read NMEA data from the serial port
-                data = ""
-                while ser.in_waiting > 0:
-                    data += ser.readline().decode('utf-8')
-                if not data:
-                    continue
+                # data = ""
+                # while ser.in_waiting > 0:
+                #     data += ser.readline().decode('utf-8')
+                # if not data:
+                #     continue
 
                 # timestamp = datetime.now().strftime(data_conf.timestamp_format)
-                timestamp = df.head(1)['time stamp']
+                timestamp = df.head(1)['GPS_timestamp']
                 try:
-                    parser.read_string(data)
-                    point = parser.get_most_recent_point()
+                    # parser.read_string(data)
+                    # point = parser.get_most_recent_point()
                     
                     # lat, long = point.get_lat(), point.get_long()
                     lat, long = df.head(1)['latitude'], df.head(1)['longitude']
                     GPSSampler.previous_plot = GPSSampler.current_plot
-                    # plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
-                    plot = df.head(1)['plot code']
+                    plot = GPSSampler.locator.find_containing_polygon(lat=lat, long=long)
+                    # plot = df.head(1)['plot']
 
                     GPSSampler.current_plot = plot
                     GPSSampler.current_lat = lat
@@ -311,10 +312,10 @@ class GPSSampler(Module):
                     tools.log("SAMPLE UNEXPECTED EXCEPTION", logging.ERROR, exc_info=True)
                     LedSettings.turn_on(LedColor.RED)
 
-            try:
-                ser.close()
-            except AttributeError:
-                pass
+            # try:
+            #     ser.close()
+            # except AttributeError:
+            #     pass
 
             tools.log("END")
             LedSettings.turn_on(LedColor.RED)
