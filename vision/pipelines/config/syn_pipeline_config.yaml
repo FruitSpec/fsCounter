@@ -1,0 +1,121 @@
+batch_size: 4
+len_size: 83
+light_glue: true
+jai:
+  exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_and_mixup.py
+  ckpt_file: /home/matans/Documents/fruitspec/Weights/tomatos_jai/best_ckpt.pth
+  device: cuda
+  input_size: [1024, 1024]
+  batch_size: 4
+  light_glue: false
+  calibration_path: /media/matans/My Book/FruitSpec/target/calibration.npz
+
+  detector:
+    confidence: 0.381
+    nms: 0.65
+    num_of_classes: 2
+    fp16: true
+    fuse: false
+    trt: false
+
+  classes:
+    full: 0
+    partial: 1
+
+  tracker:
+    minimal_max_distance: 10
+    major: 1.5 #3
+    minor: 0.75 #2.5
+    max_losses: 5  # 10
+    score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]
+    match_type:  inter #center #
+    det_area: 0.7
+    translation_size: 640
+    compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
+    debug: false
+
+zed:
+  exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
+  ckpt_file: /home/matans/Documents/fruitspec/Weights/tomato_zed/Nov_12_23_1Class_ZED_RGB/best_ckpt.pth
+  device: cuda
+  input_size: [ 1024, 1024 ]
+  batch_size: 4
+  light_glue: false
+  calibration_path: /media/matans/My Book/FruitSpec/target/zed/calibration.npz
+
+  detector:
+    confidence: 0.381
+    nms: 0.65
+    num_of_classes: 2
+    fp16: true
+    fuse: false
+    trt: false
+
+  classes:
+    full: 0
+    partial: 1
+
+  tracker:
+    minimal_max_distance: 10
+    major: 1.5 #3
+    minor: 0.75 #2.5
+    max_losses: 5  # 10
+    score_weights: [ 0.25, 1.0, 0.25, 0.0 ]  # [0.25, 1.0, 0.25, 1]
+    match_type: inter #center #
+    det_area: 0.7
+    translation_size: 640
+    compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
+    debug: false
+
+translation:
+  translation_size: 480
+  mode: match # match: use template matching, keypoints: use keypoints detection
+  dets_only: false # true: perfrom on detections only, false: on entire image
+  maxlen: 0 # max memory length, if 0 will not change negetive tx based on memory
+
+
+sensor_aligner:
+  zed_roi_params: {y_s: 405, y_e: 1685, x_s: 0, x_e: 1080} # {y_s: 355, y_e: 1635, x_s: 0, x_e: 1080} # jai search region in zed
+  size: 480 #what size to resize image to
+  affine_method: keypoints # keypoints will use keypoints, loftr will use loftr
+  ransac: 20
+  sx: 0.60546875 #0.6315104 #0.60546875
+  sy: 0.6133919843597263 # 0.6133919843597263
+  roix: 970 #970 #930 #937
+  roiy: 1255
+  roiy_83: 1800 #1603
+  roix_83: 1000 #917
+  sx_83: 1.1776077 #0.897
+  sy_83: 1.1976394 #0.896
+  zed_roi_params_83: {y_s: 0, y_e: 1920, x_s: 0, x_e: 1080} # {y_s: 50, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed #(143, 90, 0.897, 0.896)
+  apply_zed_shift: false
+  debug:
+    preprocess: false
+    keypoints: false
+    kde: false
+    homography: false
+
+frame_loader:
+  mode: sync_svo # sync_mkv, async,  sync_svo
+
+result_collector:
+  mode: pc_dims_tomato # options: "", depth, pc, pc_dims; suffix tomato is necessery in tomato mode
+
+filters:
+  distance:
+    threshold: 1
+  duplicates:
+    iou_threshold: 0.6
+  size:
+    size_threshold: 2500
+  height:
+    bias: -100
+    y_crop: 200
+  hue: true # flag for using hue filter
+  depth: true # flag for using dynamic depth filter
+
+clusters:
+  max_single_fruit_dist: 150
+  range_diff_threshold: 0.05
+  max_losses: 5
+

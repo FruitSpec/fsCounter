@@ -20,21 +20,23 @@ class SensorAligner:
     """
     this class is for aligning the zed and jai cameras
     """
-    def __init__(self, cfg, zed_shift=0, batch_size=1):
-        self.zed_roi_params = cfg.zed_roi_params
+    def __init__(self, cfg, zed_shift=0, batch_size=1, len_size=61, lg=None):
+        self.zed_roi_params = cfg.zed_roi_params if len_size == 61 else cfg.zed_roi_params_83
         self.y_s, self.y_e, self.x_s, self.x_e = self.zed_roi_params.values()
         self.debug = cfg.debug
         self.zed_shift, self.consec_less_threshold, self.consec_more_threshold = zed_shift, 0, 0
+        self.apply_zed_shift = cfg.apply_zed_shift
         self.r_jai, self.r_zed = 1, 1
         self.size = cfg.size
         self.ransac = cfg.ransac
         self.matcher = self.init_matcher(cfg)
         self.batch_size = batch_size
-        self.sx = cfg.sx #0.6102498372395834
-        self.sy = cfg.sy#0.6136618198110134
-        self.roix = cfg.roix#930 #937
-        self.roiy = cfg.roiy
+        self.sx = cfg.sx if len_size == 61 else cfg.sx_83#0.6102498372395834
+        self.sy = cfg.sy if len_size == 61 else cfg.sy_83#0.6136618198110134
+        self.roix = cfg.roix if len_size == 61 else cfg.roix_83 #930 #937
+        self.roiy = cfg.roiy if len_size == 61 else cfg.roiy_83
         self.use_cuda = True if cv2.cuda.getCudaEnabledDeviceCount() > 0 else False
+        self.lg = lg
 
         if self.batch_size > -1:
             self.init_for_batch()
@@ -441,7 +443,7 @@ def plot_homography(zed_rgb, M_homography):
     plt.show()
     print(M_homography)
 
-def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4 ):
+def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None, scale_factor=4):
     """
     aligns both sensors and updates the zed shift
     :param zed_rgb: rgb image
@@ -474,7 +476,7 @@ def align_sensors_cuda(zed_rgb, jai_img, sx, sy, origin, roi, ransac, debug=None
                                         stream=stream2)
 
     zed_GPU, rz = resize_img_cuda(zed_GPU, zed_GPU.size()[1] // scale_factor, stream2)
-    jai_GPU, rz = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)
+    jai_GPU, rj = resize_img_cuda(jai_GPU, jai_GPU.size()[1] // scale_factor, stream1)
 
     kp_zed, des_zed_GPU = find_keypoints_cuda(zed_GPU)  # consumes 33% of time
     kp_jai, des_jai_GPU = find_keypoints_cuda(jai_GPU)  # consumes 33% of time
@@ -535,10 +537,10 @@ def get_zed_roi(tx, ty, roi, origin, zed_size):
         x2 = roi[0]
     elif tx + roi[0] > zed_size[0]:
         x2 = zed_size[0]
-        x1 = zed_size[0] - roi[0]
+        x1 = x2 - roi[0]
     else:
         x1 = tx
-        x2 = tx + roi[0]
+        x2 = x1 + roi[0]
 
     if ty < 0:
         y1 = origin[1] + ty

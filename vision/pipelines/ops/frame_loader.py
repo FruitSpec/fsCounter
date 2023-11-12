@@ -3,6 +3,7 @@ import time
 import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
+from vision.misc.help_func import read_json
 
 from vision.pipelines.ops.simulator import init_cams
 
@@ -12,6 +13,7 @@ class FramesLoader():
         self.mode = cfg.frame_loader.mode
         self.zed_cam, self.rgb_jai_cam, self.jai_cam, self.depth_cam = init_cams(args, self.mode)
         self.batch_size = cfg.batch_size
+        self.len_size = cfg.len_size
         self.zed_last_id = 0
         self.depth_last_id = 0
         self.jai_last_id = 0
@@ -27,6 +29,10 @@ class FramesLoader():
             output = self.get_frames_batch_sync_svo(f_id)
         if self.mode == 'sync_mkv':
             output = self.get_frames_batch_sync_mkv(f_id)
+
+        if self.len_size == 83:
+            #output = self.postprocess_83(output)
+            pass
 
         return output
 
@@ -87,9 +93,7 @@ class FramesLoader():
                 break
             if cam.mode == 'svo':
                 if id_ == 0 and f_id != self.zed_last_id + self.batch_size:
-                    cam.grab(f_id)
-                else:
-                    cam.grab()
+                    cam.grab(f_id-1)
                 self.zed_last_id = f_id
                 frame, point_cloud = cam.get_zed(exclude_depth=True)
                 batch.append(frame)
@@ -104,7 +108,7 @@ class FramesLoader():
     @staticmethod
     def get_camera_frame_sync(cam, f_ids, last_fid):
         batch = []
-        depth_batch = []
+        pc_batch = []
         max_frame_number = cam.get_number_of_frames()
         for f_id in f_ids:
             if f_id >= max_frame_number:
@@ -117,8 +121,9 @@ class FramesLoader():
                 cam.grab()
                 last_fid = f_id
                 _, frame = cam.get_frame()
+                point_cloud = cam.get_point_cloud()
                 batch.append(frame)
-                depth_batch.append(cam.get_depth())
+                pc_batch.append(point_cloud)
             else:
                 if f_id > last_fid + 1:
                     while f_id > last_fid + 1:
@@ -128,7 +133,7 @@ class FramesLoader():
                 _, frame = cam.get_frame()
                 batch.append(frame)
 
-        return batch, depth_batch, last_fid
+        return batch, pc_batch, last_fid
 
     @staticmethod
     def get_batch_results_sync(results, mode):
@@ -144,7 +149,10 @@ class FramesLoader():
             rgb_jai_data = results[3]
 
         zed_batch = zed_data[0]
-        depth_batch = zed_data[1]
+        if mode == 'sync_svo':
+            pc_batch = zed_data[1]
+        else:
+            pc_batch = depth_data[0]
         zed_last_id = zed_data[2]
 
         jai_batch = jai_data[0]
@@ -154,12 +162,11 @@ class FramesLoader():
         rgb_jai_last_id = rgb_jai_data[2]
 
         if mode == 'sync_mkv':
-            depth_batch = depth_data[0]
             depth_last_id = depth_data[2]
         else:
             depth_last_id = zed_last_id
 
-        return zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id
+        return zed_batch, zed_last_id, pc_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id
 
 
     def get_frames_batch_sync_svo(self, f_id):
@@ -170,13 +177,13 @@ class FramesLoader():
         with ThreadPoolExecutor(max_workers=3) as executor:
             results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids, last_ids))
 
-        zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
+        zed_batch, zed_last_id, pc_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
             results, self.mode)
         self.zed_last_id = zed_last_id
         self.jai_last_id = jai_last_id
         self.rgb_jai_last_id = rgb_jai_last_id
 
-        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
+        return zed_batch, pc_batch, jai_batch, rgb_jai_batch
 
     def get_frames_batch_sync_mkv(self, f_id):
         cams = [self.zed_cam, self.depth_cam, self.jai_cam, self.rgb_jai_cam]
@@ -193,7 +200,7 @@ class FramesLoader():
         with ThreadPoolExecutor(max_workers=4) as executor:
             results = list(executor.map(self.get_camera_frame_sync, cams, batch_ids, last_ids))
 
-        zed_batch, zed_last_id, depth_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
+        zed_batch, zed_last_id, pc_batch, depth_last_id, jai_batch, jai_last_id, rgb_jai_batch, rgb_jai_last_id = self.get_batch_results_sync(
             results, self.mode)
 
         self.zed_last_id = zed_last_id
@@ -201,18 +208,18 @@ class FramesLoader():
         self.rgb_jai_last_id = rgb_jai_last_id
         self.depth_last_id = depth_last_id
 
-        zed_batch, depth_batch, jai_batch, rgb_jai_batch = self.validate_batch_length(zed_batch,
-                                                                                      depth_batch,
+        zed_batch, pc_batch, jai_batch, rgb_jai_batch = self.validate_batch_length(zed_batch,
+                                                                                      pc_batch,
                                                                                       jai_batch,
                                                                                       rgb_jai_batch)
 
-        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
+        return zed_batch, pc_batch, jai_batch, rgb_jai_batch
 
-    def validate_batch_length(self, zed_batch, depth_batch, jai_batch, rgb_jai_batch):
+    def validate_batch_length(self, zed_batch, pc_batch, jai_batch, rgb_jai_batch):
         is_full_batch = True
         if len(zed_batch) < self.batch_size:
             is_full_batch = False
-        if len(depth_batch) < self.batch_size:
+        if len(pc_batch) < self.batch_size:
             is_full_batch = False
         if len(jai_batch) < self.batch_size:
             is_full_batch = False
@@ -220,9 +227,9 @@ class FramesLoader():
             is_full_batch = False
 
         if not is_full_batch:
-            zed_batch, depth_batch, jai_batch, rgb_jai_batch = [], [], [], []
+            zed_batch, pc_batch, jai_batch, rgb_jai_batch = [], [], [], []
             print('Not full batch')
-        return zed_batch, depth_batch, jai_batch, rgb_jai_batch
+        return zed_batch, pc_batch, jai_batch, rgb_jai_batch
 
 
     def close_cameras(self):
@@ -234,14 +241,24 @@ class FramesLoader():
 
 
     @staticmethod
-    def get_cameras_sync_data(log_fp):
-        zed_ids = []
-        jai_ids = []
+    def get_sync_from_json(log_fp):
+        jai_zed = read_json(log_fp) #load_json
+        if not len(jai_zed):
+            return list(range(10000)), list(range(10000))
+        zed_frames = [int(float(item)) for item in list(jai_zed.values())]
+        jai_frames = [int(float(item)) for item in list(jai_zed.keys())]
+        add_frames_start = list(range(int(jai_frames[0])))
+        return add_frames_start + zed_frames, add_frames_start + jai_frames
+
+    @staticmethod
+    def get_cameras_sync_data(log_fp, ret_start_index=False):
+        if log_fp.endswith(".json"):
+            return FramesLoader.get_sync_from_json(log_fp)
         log_df = pd.read_csv(log_fp)
         jai_frame_ids = list(log_df['JAI_frame_number'])
         zed_frame_ids = list(log_df['ZED_frame_number'])
 
-        zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
+        return arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index)
 
         return zed_ids, jai_ids
 

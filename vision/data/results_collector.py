@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import collections
-
+from collections.abc import Iterable
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
+from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper
@@ -38,10 +39,9 @@ class ResultsCollector():
         self.percent_seen = {}
 
 
-    def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
+    def collect_adt(self, trk_outputs, alignment_results, f_id, jai_translation_results=[]):
         self.collect_tracks(trk_outputs)
-        self.collect_alignment(alignment_results, f_id)
-        self.collect_percent_seen(percent_seen, f_id)
+        #self.collect_alignment(alignment_results, f_id)
         self.collect_jai_translation(jai_translation_results, f_id)
 
     def collect_jai_translation(self, jai_translation_results, f_id):
@@ -49,6 +49,13 @@ class ResultsCollector():
             return
         for i, translations in enumerate(jai_translation_results):
             self.jai_translation.append(list(translations) + [f_id+i])
+
+    def collect_percent_seen(self, percent_seen, f_id):
+        if isinstance(percent_seen, Iterable):
+            for i, frame_percent_seen in enumerate(percent_seen):
+                self.percent_seen.append([f_id + i] + list(frame_percent_seen))
+        else:
+            self.percent_seen.append([f_id] + list(percent_seen))
 
 
     def collect_detections(self, batch_results, img_id):
@@ -60,6 +67,12 @@ class ResultsCollector():
                     output.append(det)
                 self.detections += output
 
+
+    def dump_jai_zed_json(self, output_path):
+        alignment = np.array(self.alignment)
+        zed_frame_id = alignment[:, -2] + alignment[:, -1]
+        jai_zed_json = dict(zip(alignment[:, -2], zed_frame_id))
+        write_json(os.path.join(output_path, 'jai_zed.json'), jai_zed_json)
 
     @staticmethod
     def map_det_2_trck(t2d_mapping, number_of_detections):
@@ -149,7 +162,9 @@ class ResultsCollector():
         elif type == "alignment":
             fields = self.alignment_header
             rows = self.alignment
-
+        elif type == "percen_seen":
+            fields = ["frame", "percent_seen", "percent_h_seen", "percent_seen_top", "no_tree_indicator", "full_tree"]
+            rows = self.percent_seen
         else:
             fields = self.tracks_header
             rows = self.tracks
@@ -232,10 +247,10 @@ class ResultsCollector():
 
             self.draw_and_save(frame, dets, id_, output_path)
 
-    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
+    def draw_and_save(self, frame, dets, f_id, output_path, t_index=6, det_colors=None):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = self.draw_dets(frame, dets, t_index=t_index)
+        frame = self.draw_dets(frame, dets, t_index=t_index, det_colors=det_colors)
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
@@ -246,14 +261,17 @@ class ResultsCollector():
             self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
 
     @staticmethod
-    def draw_dets(frame, dets, t_index=6, text=True):
+    def draw_dets(frame, dets, t_index=6, text=True, det_colors=None, thickness=3):
 
-        for det in dets:
+        for i, det in enumerate(dets):
             track_id = det[t_index]
             color_id = int(track_id) % 15  # 15 is the number of colors in list
-            color = get_color(color_id)
+            if det_colors is not None:
+                color = det_colors[i]
+            else:
+                color = get_color(color_id)
             text_color = get_color(-1)
-            frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
+            frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, thickness=thickness)
             if text:
                 frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
                                               True, 10, 3)
@@ -274,32 +292,47 @@ class ResultsCollector():
 
         return hash
 
-    def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None):
+    def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None,
+                    det_colors=None, zed_frames=None, alignment_results=None):
         for i in range(len(trk_outputs)):
             f_id = batch_id + i
             f_depth = depth[i] if depth is not None else None
             f_windows = trk_windows[i] if trk_windows is not None else None
-            self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows)
+            f_det_colors = det_colors[i] if det_colors is not None else None
+            zed_frame = zed_frames[i] if zed_frames is not None else None
+            f_alignment_results = alignment_results[i] if alignment_results is not None else None
+            self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows,
+                       det_colors=f_det_colors, zed_frame=zed_frame, alignment_results=f_alignment_results)
 
-
-    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
+    def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None, det_colors=None,
+              zed_frame=None, alignment_results=None, alignment_mats=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
             validate_output_path(os.path.join(args.output_folder, 'trk_results'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'))
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'),
+                               det_colors=det_colors)
         if args.debug.det_results:
             validate_output_path(os.path.join(args.output_folder, 'det_results'))
-            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'))
+            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'),
+                               det_colors=det_colors)
         if args.debug.raw_frame:
             validate_output_path(os.path.join(args.output_folder, 'frames'))
             self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
+        if args.debug.raw_frame_zed:
+            validate_output_path(os.path.join(args.output_folder, 'frames_zed'))
+            self.draw_and_save(zed_frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames_zed'))
         if args.debug.depth and depth is not None:
             validate_output_path(os.path.join(args.output_folder, 'depth'))
             self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5)
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5,
+                               det_colors=det_colors)
+        if args.debug.alignment:
+            validate_output_path(os.path.join(args.output_folder, 'alignment'))
+            save_aligned(zed_frame, frame, args.output_folder, f_id, corr=alignment_results[0], sub_folder='alignment',
+                         dets=trk_outputs)
     @staticmethod
     def save_tracker_windows(f_id, args, trk_outputs, trk_windows):
         canvas = np.zeros((args.frame_size[0], args.frame_size[1], 3)).astype(np.uint8)
@@ -545,7 +578,40 @@ class ResultsCollector():
     def dump_state(self, output_path):
 
         write_json(os.path.join(output_path, 'alignment.json'), self.alignment)
-        write_json(os.path.join(output_path, 'jai_zed.json'), self.jai_zed)
+
+    def dump_cv_res(self, output_path: str, depth: int = 0) -> None:
+        """
+        Saves to csv the cv results after min tracks and depth filtering operations
+        Args:
+            output_path (str): output folder path
+            depth (int): max depth for fruits to be counted (0 means no depth filtering)
+
+        Returns:
+
+        """
+        block_folder = os.path.dirname(output_path)
+        row = os.path.basename(output_path)
+        rows, fields = self.get_row_fileds_tracks()
+        track_df = pd.DataFrame(rows, columns=fields)
+        block = block_folder.split('/')[-1]
+        cvs_min_samp = {f"n_unique_track_ids_{i}": [] for i in range(2, 6)}
+        cvs_min_samp_filtered = {f"n_unique_track_ids_filtered_{depth}_{i}": [] for i in range(2, 6)}
+        track_list = [track_df["track_id"].nunique()]
+        uniq, counts = np.unique(track_df["track_id"], return_counts=True)
+        for i in range(2, 6):
+            cvs_min_samp[f"n_unique_track_ids_{i}"].append(len(uniq[counts >= i]))
+        if "depth" in track_df.columns:
+            track_df = track_df[track_df["depth"] < depth]
+            uniq, counts = np.unique(track_df["track_id"], return_counts=True)
+            track_list_filtered = [track_df["track_id"].nunique()]
+            for i in range(2, 6):
+                cvs_min_samp_filtered[f"n_unique_track_ids_filtered_{depth}_{i}"].append(len(uniq[counts >= i]))
+        final_csv_path = os.path.join(output_path, f'{block}_{row}_n_track_ids.csv')
+        final_csv_path_filtered = os.path.join(output_path, f'{block}_{row}_n_track_ids_filtered_{depth}.csv')
+        pd.DataFrame({"row": [row], "n_unique_track_ids": track_list, **cvs_min_samp}).to_csv(final_csv_path)
+        pd.DataFrame({"row": [row],
+                      f"n_unique_track_ids_filtered_{depth}": track_list_filtered, **cvs_min_samp_filtered}) \
+            .to_csv(final_csv_path_filtered)
 
     def dump_results(self, output_path):
         """
@@ -558,6 +624,8 @@ class ResultsCollector():
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
         self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
         self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
+        self.dump_to_csv(os.path.join(output_path, 'percen_seen.csv'), type="percen_seen")
+        # self.dump_cv_res(output_path, depth)
 
     def converted_slice_data(self, sliced_data):
         converted_sliced_data = {}
@@ -577,14 +645,18 @@ class ResultsCollector():
             if len(slice_coor) == 0:
                 continue
             factor = self.jai_width / (zed_coor[1] - zed_coor[0])
-            new_slice_cor = []
-            for slice in slice_coor:
-                if slice < zed_coor[0]:  # outside roi
-                    new_slice_cor.append(10)  # put slice at frame start
+            new_slice_cor = {}
+            for key, slice in slice_coor.items():
+                if key in ['left_clusters', 'right_clusters']:
+                    new_slice_cor[key] = slice
+                elif slice is None:
+                    new_slice_cor[key] = None
+                elif slice < zed_coor[0]:  # outside roi
+                    new_slice_cor[key] = 1  # put slice at frame start
                 elif slice > zed_coor[1]:
-                    new_slice_cor.append(self.jai_width - 10) # put slice at frame end
+                    new_slice_cor[key] = self.jai_width - 1 # put slice at frame end
                 else:
-                    new_slice_cor.append((slice - tx) * factor)
+                    new_slice_cor[key] = (slice - tx) * factor
             converted_sliced_data[jai_frame_id] = new_slice_cor
 
         return converted_sliced_data
@@ -643,6 +715,7 @@ class ResultsCollector():
         """
         if isinstance(jai_zed, str):
             self.jai_zed = read_json(jai_zed)
+            self.jai_zed = {str(int(float(key))): int(float(val)) for key, val in self.jai_zed.items()}
         else:
             self.jai_zed = jai_zed
 
@@ -674,6 +747,17 @@ class ResultsCollector():
         else:
             self.tracks = tracks
 
+    def set_percent_seen(self, percent_seen):
+        """
+        sets percent_seen argument from out source data
+        :param percent_seen: path or file, if path will read json from path, else will set file
+        :return: None
+        """
+        if isinstance(percent_seen, str):
+            self.percent_seen = pd.read_csv(percent_seen).tolist()
+        else:
+            self.percent_seen = percent_seen
+
     def set_self_params(self, read_from, parmas=["alignment", "jai_zed", "detections", "tracks"]):
         """
         sets the paramaters from out source data
@@ -682,13 +766,15 @@ class ResultsCollector():
         :return:
         """
         if "alignment" in parmas:
-            self.set_alignment(os.path.join(read_from, 'alignment.json')) # list of dicts
+            self.set_alignment(os.path.join(read_from, 'alignment.csv')) # list of dicts
         if "jai_zed" in parmas:
             self.set_jai_zed(os.path.join(read_from, 'jai_zed.json')) # dict
         if "detections" in parmas:
             self.set_detections(os.path.join(read_from, 'detections.csv')) # list of lists
         if "tracks" in parmas:
             self.set_tracks(os.path.join(read_from, 'tracks.csv')) # list of lists
+        if "percent_seen" in parmas:
+            self.set_percent_seen(os.path.join(read_from, "percent_seen.csv"))
 
 
 def scale(det_dims, frame_dims):
@@ -786,6 +872,62 @@ def get_slicer_data(slice_path, max_w, tree_id=-1):
     sliced_data = dict(zip(sliced_data["frame_id"].apply(str),
                            tuple(zip(sliced_data["start"].apply(int), sliced_data["end"].apply(int)))))
     return sliced_data
+
+
+def save_loaded_images(zed_frame, jai_frame, f_id, output_fp, crop=[], draw_rec=False):
+    if len(crop) > 0:
+        x1 = crop[0]
+        y1 = crop[1]
+        x2 = crop[2]
+        y2 = crop[3]
+        if not draw_rec:
+            cropped = zed_frame[int(y1):int(y2), int(x1):int(x2)]
+            cropped = cv2.resize(cropped, (480, 640))
+        else:
+            cropped = zed_frame.copy()
+            cropped = cv2.rectangle(cropped, (x1, y1), (x2, y2), (255, 0, 0), 3)
+            cropped = cv2.resize(cropped, (480, 640))
+    else:
+        cropped = cv2.resize(zed_frame, (480, 640))
+
+    jai_frame = cv2.resize(jai_frame, (480, 640))
+
+    canvas = np.zeros((700, 1000, 3), dtype=np.uint8)
+    canvas[10:10 + cropped.shape[0], 10:10 + cropped.shape[1], :] = cropped
+    canvas[10:10 + jai_frame.shape[0], 510:510 + jai_frame.shape[1], :] = jai_frame
+
+    file_name = os.path.join(output_fp, f"frame_{f_id}.jpg")
+    cv2.imwrite(file_name, canvas)
+
+
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV', dets=None):
+    if corr is not None and np.sum(np.isnan(corr)) == 0:
+        zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
+    gx = 680 / jai.shape[1]
+    gy = 960 / jai.shape[0]
+    zed = cv2.resize(zed, (680, 960))
+    jai = cv2.resize(jai, (680, 960))
+
+    if dets is not None:
+        if len(dets) > 0:
+            dets = np.array(dets)
+            dets[:, 0] = dets[:, 0] * gx
+            dets[:, 2] = dets[:, 2] * gx
+            dets[:, 1] = dets[:, 1] * gy
+            dets[:, 3] = dets[:, 3] * gy
+            jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False)
+            zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False)
+
+    canvas = np.zeros((960, 680 * 2, 3))
+    canvas[:, :680, :] = zed
+    canvas[:, 680:, :] = jai
+
+    fp = os.path.join(output_folder, sub_folder)
+    validate_output_path(fp)
+    cv2.imwrite(os.path.join(fp, f"aligned_f{f_id}.jpg"), canvas)
+
+
 
 if __name__ == "__main__":
     slice_data_path = "/home/fruitspec-lab/FruitSpec/Sandbox/DWDB_2023/DWDBCN51_test/200123/DWDBCN51/R13/ZED_1_slice_data.json"

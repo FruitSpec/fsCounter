@@ -94,18 +94,19 @@ def print_lines(params):
     y = int(params['height'] // params['resize_factor'])
 
     if params['data'][params['index']]['start'] is not None:
-        x = params['data'][params['index']]['start']
+        x = int(params['data'][params['index']]['start'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
-        x = params['data'][params['index']]['end']
+        x = int(params['data'][params['index']]['end'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
 
 def print_rectangles(frame, params):
-    left_clusters = params['data'][params['index']]['left_clusters']
-    right_clusters = params['data'][params['index']]['right_clusters']
-
+    left_clusters = params['data'][params['index']].get('left_clusters')
+    right_clusters = params['data'][params['index']].get('right_clusters')
+    if isinstance(left_clusters, type(None)):
+        return frame
     for key, values in left_clusters.items():
         if key != 'count':
             start_point = (values[0], values[1])
@@ -171,7 +172,8 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3):
+def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3,
+                  flip_channels = False):
     """
     this is where the magic happens, palys the video
     """
@@ -211,6 +213,9 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         ret, frame = cam.get_frame(params["index"])
         if ret != True:
             break  # couldn't load frame
+
+        if flip_channels:
+            frame = frame[:,:,::-1]
 
         # preprocess: resize and rotate if needed
         frame, params = preprocess_frame(frame, params)
@@ -316,7 +321,7 @@ def load_json(filepath, output_path):
         data = {}
     return data
 
-def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
+def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536, direction="right"):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -329,14 +334,42 @@ def slice_to_trees_df(data_file, output_path, resize_factor=3, h=2048, w=1536):
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data, border_data = parse_data_to_trees(data)
+    trees_data, border_data = parse_data_to_trees(data, direction)
     df_out = pd.DataFrame([item for sublist in list(trees_data.values()) for item in sublist])
     df_out[["start", "end"]] = df_out[["start", "end"]]/r
     df_out[["start", "end"]] = df_out[["start", "end"]].replace((-1)/r, -1)
     df_out.to_csv(os.path.join(output_path, "all_slices.csv"))
     return df_out
 
-def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w=1536, on_fly=True):
+
+def post_process(slice_data, output_path=None, save_csv=False, save_csv_trees=False, direction="right"):
+
+    trees_data, _ = parse_data_to_trees(slice_data, direction)
+    #hash = {}
+    #for tree_id, frames in trees_data.items():
+    #    for frame in frames:
+    #        if frame['frame_id'] in list(hash.keys()):
+    #            hash[frame['frame_id']].append(frame)
+    #        else:
+    #            hash[frame['frame_id']] = [frame]
+
+    df_all = []
+    for tree_id, tree in trees_data.items():
+        df = pd.DataFrame(data=tree, columns=['frame_id', 'tree_id', 'start', 'end'])
+        df['frame_id'] =df['frame_id'].apply(lambda x: int(float(x)))
+        df = df.fillna(-1)
+        if save_csv_trees:
+            df.to_csv(os.path.join(output_path, f"T{tree_id}_slices.csv"))
+        df_all.append(df)
+
+    df_all = pd.concat(df_all)
+    if save_csv:
+        df_all.to_csv(os.path.join(output_path, f"slices.csv"), index=False)
+
+    return df_all
+
+
+def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -349,7 +382,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         data[int(k)] = v
     data = collections.OrderedDict(sorted(data.items()))
 
-    trees_data, border_data = parse_data_to_trees(data)
+    trees_data, border_data = parse_data_to_trees(data, direction)
 
     if not on_fly:
         cap = cv2.VideoCapture(file_path)
@@ -397,7 +430,7 @@ def slice_to_trees(data_file, file_path, output_path, resize_factor=3, h=2048, w
         return pd.concat(df_all, axis=0), border_df
 
 
-def parse_data_to_trees(data):
+def parse_data_to_trees(data, direction):
     tree_id = 0
     # started_tree = False
     # start_and_end_tree = False
@@ -410,7 +443,7 @@ def parse_data_to_trees(data):
             a = 1
 
         trees = list(trees_data.keys())
-        state = get_state(loc)
+        state = get_state(loc, direction)
 
         if last_state == 0:
             if state == 0:
@@ -612,7 +645,7 @@ def parse_data_to_trees(data):
                 trees_data[tree_id].append(
                     {'frame_id': frame_id, 'tree_id': tree_id, 'start': -1, 'end': loc['end']})
                 # add to next tree
-                trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
+                trees_data[tree_id + 1].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': -1})
                 border_data = update_border_data(border_data, loc, frame_id, tree_id)
             elif state == 5:
                 trees_data[tree_id].append({'frame_id': frame_id, 'tree_id': tree_id, 'start': loc['start'], 'end': loc['end']})
@@ -648,7 +681,15 @@ def update_border_data(border_data, loc, frame_id, tree_id):
 
 
 
-def get_state(loc):
+def get_state(loc, direction):
+    if direction == 'right' or direction == "":
+        state = right_direction_states(loc)
+    else:
+        state = left_direction_states(loc)
+
+    return state
+
+def right_direction_states(loc):
     if loc['start'] is None and loc['end'] is None:
         state = 0
     elif loc['start'] is not None and loc['end'] is not None:
@@ -668,6 +709,47 @@ def get_state(loc):
 
     return state
 
+def left_direction_states(loc):
+    if loc['start'] is None and loc['end'] is None:
+        state = 0
+    elif loc['start'] is not None and loc['end'] is not None:
+        if np.abs(loc['end'] - loc['start']) < 20:
+            if loc['end'] > loc['start']:  # assuming moving right
+                state = 4  # start-end
+            else:
+                state = 3  # end-start
+        elif loc['end'] < loc['start']:
+            state = 5  # whole tree
+        else:
+            state = 6  # start - end
+    elif loc['end'] is not None:
+        state = 2  # end
+    else:
+        state = 1  # start
+
+    return state
+
+def get_all_slicing_and_n_trees():
+    json_paths = []
+    folder_paths = ["/media/fruitspec-lab/cam175/customers/DEWAGD", "/media/fruitspec-lab/cam175/customers/LDCBRA",
+                    "/media/fruitspec-lab/cam175/customers/PROPAL"]
+    for folder_path in folder_paths:
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.endswith('.json') and 'slice_data' in file:
+                    json_path = os.path.join(root, file)
+                    json_paths.append(json_path)
+
+    res = []
+    for json_path in json_paths:
+        try:
+            j_df = slice_to_trees_df(json_path, "/media/fruitspec-lab/easystore/slice_data_test", resize_factor=3,
+                                     h=2048, w=1536)
+            res.append(j_df["tree_id"].max())
+        except:
+            res.append(0)
+    pd.DataFrame({"json_path": json_paths, "n_trees": res}).to_csv(
+        "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
     fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'

@@ -11,6 +11,8 @@ device: cuda
 
 input_size: [1024, 1024]
 batch_size: 4
+len_size: 83
+light_glue: false
 
 detector:
   detector_type: yolox # implemented: yolox, yolov8
@@ -68,6 +70,12 @@ sensor_aligner:
   sy: 0.6652678396871945 # 0.6133919843597263
   roix: 970 #970 #930 #937
   roiy: 1255
+  roiy_83: 1800 #1603
+  roix_83: 1000 #917
+  sx_83: 1.1776077 #0.897
+  sy_83: 1.1976394 #0.896
+  zed_roi_params_83: {y_s: 0, y_e: 1920, x_s: 0, x_e: 1080} # {y_s: 50, y_e: 1920, x_s: 0, x_e: 1080} # jai search region in zed #(143, 90, 0.897, 0.896)
+  apply_zed_shift: false
   debug:
     preprocess: false
     keypoints: false
@@ -75,8 +83,10 @@ sensor_aligner:
     homography: false
 
 frame_loader:
-  mode: sync_mkv # sync_mkv, async,  sync_svo
+  mode: sync_svo # sync_mkv, async,  sync_svo
 
+result_collector:
+  mode: pc_dims_tomato # options: "", depth, pc, pc_dims; suffix tomato is necessery in tomato mode
 
 filters:
   distance:
@@ -92,5 +102,7 @@ filters:
   depth: true # flag for using dynamic depth filter
 
 clusters:
-  min_single_fruit_distance: 150
+  max_single_fruit_dist: 150
+  range_diff_threshold: 0.05
+  max_losses: 5
 

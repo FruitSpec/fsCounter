@@ -104,7 +104,7 @@ class video_wrapper():
             if frame_number is not None:
                 self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
             ret, frame = self.cam.read()
-            if self.channels == 3:
+            if self.channels == 3 and ret:
                 frame = frame[:, :, :3].copy()
 
         if ret:
@@ -242,11 +242,11 @@ class video_wrapper():
         status = cam.open(init_params)
         positional_tracking_parameters = sl.PositionalTrackingParameters()
         cam.enable_positional_tracking(positional_tracking_parameters)
-        detection_parameters = sl.ObjectDetectionParameters()
-        detection_parameters.detection_model = sl.DETECTION_MODEL.CUSTOM_BOX_OBJECTS
-        detection_parameters.enable_tracking = False
-        detection_parameters.enable_mask_output = True
-        cam.enable_object_detection(detection_parameters)
+        #detection_parameters = sl.ObjectDetectionParameters()
+        #detection_parameters.detection_model = sl.DETECTION_MODEL.CUSTOM_BOX_OBJECTS
+        #detection_parameters.enable_tracking = False
+        #detection_parameters.enable_mask_output = True
+        #cam.enable_object_detection(detection_parameters)
         if status != sl.ERROR_CODE.SUCCESS:
             print(repr(status))
             exit()

@@ -1,261 +1,346 @@
 import os
 import numpy as np
-import cv2
-import json
+import cv2 as cv
+import glob
+import matplotlib.pyplot as plt
+import time
+
 
 from vision.tools.video_wrapper import video_wrapper
-from vision.visualization.drawer import draw_highlighted_test, get_color
-from vision.tools.image_stitching import resize_img
 from vision.misc.help_func import validate_output_path
-from vision.tools.sensors_alignment import align_sensors
 
 
-def mouse_callback(event, x, y, flags, params):
-    """
-    draws / cleans bounding box from showing image
-    :param event: click event
-    :param x: x of mouse
-    :param y: y of mouse
-    :param flags:
-    :param params: params for image showing
-    :return:
-    """
+class undistort():
 
-    if event == cv2.EVENT_LBUTTONDOWN:
-        params = on_click(flags, x, y, params)
-        frame = print_dot(params)
-        cv2.imshow(params['headline'], frame)
-    if event == cv2.EVENT_RBUTTONDOWN:
-        params = on_click(flags, x, y, params)
-        frame = print_dot(params)
-        cv2.imshow(params['headline'], frame)
+ def __init__(self, calibration_path):
 
-def on_click(flags, x, y, params):
-    sample_id = params['sample']
-    if x < params['canvas_half_width']:
-        if flags == cv2.EVENT_FLAG_CTRLKEY + cv2.EVENT_RBUTTONDOWN or flags == cv2.EVENT_FLAG_CTRLKEY + cv2.EVENT_LBUTTONDOWN:  # second part is due to bug of cv2
+  file = np.load(calibration_path)
+  self.mtx = file['mtx']
+  self.dist = file['dist']
+  self.rvecs = file['rvecs']
+  self.tvecs = file['tvecs']
 
-            params["data"][sample_id]['left'] = {'x': x - params['zed_offset'], 'y': y}
-    else:
-        if flags == cv2.EVENT_FLAG_CTRLKEY + cv2.EVENT_RBUTTONDOWN  or flags == cv2.EVENT_FLAG_CTRLKEY + cv2.EVENT_LBUTTONDOWN:  # second part is due to bug of cv2
-            params["data"][sample_id]['right'] = {'x': x - params['jai_offset'], 'y': y}
-
-    return params
+ def apply(self, img):
+  return cv.undistort(img, self.mtx, self.dist, None)
 
 
-def print_dot(params):
+ def apply_on_batch(self, batch):
+  output = []
+  for img in batch:
+   output.append(cv.undistort(img, self.mtx, self.dist, None))
 
-    frame = params['frame'].copy()
-    for id_, sample in params['data'].items():
-        left_x = sample['left']['x']
-        left_y = sample['left']['y']
-
-        right_x = sample['right']['x']
-        right_y = sample['right']['y']
-
-        if left_x is not None and left_y is not None:
-            frame = cv2.circle(frame, (left_x + params['zed_offset'], left_y), 3, get_color(id_), 2)
-        if right_x is not None and right_y is not None:
-            frame = cv2.circle(frame, (right_x + params['jai_offset'], right_y), 3, get_color(id_), 2)
-
-    return frame
-
-
-def print_text(frame, params, text=None):
-    if text is None:
-        text = f'Frame {params["index"]}'
-    orange = (48, 130, 245)
-    white = (255, 255, 255)
-
-    size = params['size']
-    text_width = 150
-    start_point = (10, size - 10)
-    frame = draw_highlighted_test(frame, text, start_point, text_width, orange, white, above=True, font_scale=8,
-                                  thickness=2, factor=10, box_h_margin=3)
-
-    return frame
-
-
-def update_index(k, params):
-    """
-    :param k: current key value
-    :param params: run parameters
-    :return: updated run parameters
-    """
-    index = params['index']
-    if k == 122:
-        index = max(index - 1, 0)
-
-    elif k == 115:
-        index = max(index + 100, 0)
-
-    elif k == 120:
-        index = max(index - 100, 0)
-
-    elif k == 32:
-        index = index
-        params['sample'] += 1
-        params = init_data_sample(params)
-
-
-    elif k == 114:  # r key to remove sample
-        samples_ids = list(params['data'].keys())
-        if len(samples_ids) >= 2:
-            del params['data'][samples_ids[-2]]
-        else:
-            del params['data'][samples_ids[0]]
-
-
-    else:
-        index = max(index + 1, 0)
-
-
-    params['index'] = index
-    return params
-
-
-def manual_calibration(zed_filepath, jai_filepath, output_path, data=None, zed_rotate=2, jai_rotate=1, index=0, draw_start=None, draw_end=None, size=960):
-    """
-    this is where the magic happens, palys the video
-    """
-    if data is None:
-        data = {}
-    params = {"zed_filepath": zed_filepath,
-              "jai_filepath": jai_filepath,
-              "output_path": output_path,
-              "data": data,
-              "zed_rotate": zed_rotate,
-              "jai_rotate": jai_rotate,
-              "index": index,
-              "draw_start": draw_start,
-              "draw_end": draw_end,
-              'size': size,
-              'last_kp_des': None,
-              'find_translation': False,
-              'sample': 0}
-
-    headline = f'clip {params["zed_filepath"]}'
-    params['headline'] = headline
-    cv2.namedWindow(headline, cv2.WINDOW_GUI_NORMAL)
-
-    zed_cam = video_wrapper(zed_filepath, zed_rotate)
-    jai_cam = video_wrapper(jai_filepath, jai_rotate)
-    number_of_frames = jai_cam.get_number_of_frames()
-
-    tx = []
-    ty = []
-    # Read until video is completed
-    while True:
-        # Capture frame-by-frame
-        print(params["index"])
-        zed_cam.grab(params["index"])
-        _, zed_frame = zed_cam.get_frame()
-        #jai_cam.grab(params["index"])
-        #_, jai_frame = jai_cam.get_frame()
-        #ret1, zed_frame = zed_cam.get_frame(params["index"])
-        ret, jai_frame = jai_cam.get_frame(params["index"])
-        if not ret and not zed_cam.res:  # couldn't get frames
-        #if not ret and not ret1:  # couldn't get frames
-            break
-        zed_orig = zed_frame.copy()
-        jai_orig = jai_frame.copy()
-        # preprocess: resize and rotate if needed
-        jai_frame, params = preprocess_frame(jai_frame, params)
-        zed_frame, params = preprocess_frame(zed_frame, params)
-
-        #jai_frame = cv2.cvtColor(jai_frame, cv2.COLOR_RGB2GRAY)
-        #zed_frame = cv2.cvtColor(zed_frame, cv2.COLOR_RGB2GRAY)
-
-        canvas_half_width = (max(zed_frame.shape[1], jai_frame.shape[1]) + 50)
-        if len(jai_frame.shape) > 2:
-            canvas = np.zeros((size, canvas_half_width * 2, 3)).astype(np.uint8)
-            canvas[:zed_frame.shape[0], 25:zed_frame.shape[1]+25, :] = zed_frame
-            canvas[:jai_frame.shape[0], canvas_half_width + 25: canvas_half_width + 25 + jai_frame.shape[1], :] = jai_frame
-        else:
-            canvas = np.zeros((size, canvas_half_width * 2)).astype(np.uint8)
-            canvas[:, 25:zed_frame.shape[1] + 25] = zed_frame
-            canvas[:, canvas_half_width + 25: canvas_half_width + 25 + jai_frame.shape[1]] = jai_frame
-        params['frame'] = canvas
-        params['canvas_half_width'] = canvas_half_width
-        params['zed_offset'] = 25
-        params['jai_offset'] = canvas_half_width + 25
-
-
-
-        params = init_data_sample(params)
-        # #params = get_updated_location_in_index(frame, params)
-        #
-        canvas = print_dot(params)
-        #frame = print_text(frame, params)
-
-        cv2.imshow(headline, canvas)
-
-        cv2.setMouseCallback(headline, mouse_callback, params)
-        k = cv2.waitKey()
-        # Press Q on keyboard to  exit
-        if cv2.waitKey(k) & 0xFF == ord('q'):
-            write_json(params)
-            break
-        if k==114:
-            x1, y1, x2, y2 = align_sensors(zed_orig, jai_orig)
-            tx.append(x1)
-            ty.append(y1)
-
-            zed_c = zed_orig[int(y1): int(y2), int(x1): int(x2)]
-            jai_c, params = preprocess_frame(jai_orig, params)
-            zed_c, params = preprocess_frame(zed_c, params)
-
-            canvas_half_width = (max(zed_c.shape[1], jai_c.shape[1]) + 50)
-            canvas1 = np.zeros((size, canvas_half_width * 2, 3)).astype(np.uint8)
-            canvas1[:zed_c.shape[0], 25:zed_c.shape[1] + 25, :] = zed_c
-            canvas1[:jai_c.shape[0], canvas_half_width + 25: canvas_half_width + 25 + jai_c.shape[1], :] = jai_c
-            cv2.imshow(headline, canvas1)
-            k = cv2.waitKey()
-        params = update_index(k, params)
-        write_json(params)
-
-    # When everything done, release the video capture object
-    zed_cam.close()
-    jai_cam.close()
-
-    # Closes all the frames
-    cv2.destroyAllWindows()
-
-def preprocess_frame(frame, params):
-
-    frame, r = resize_img(frame, params['size'])
-    params['frame'] = frame.copy()
-    params['r'] = r
-
-    return frame, params
-
-def init_data_sample(params):
-    sample = params['sample']
-    sample_ids = list(params['data'].keys())
-    if sample not in sample_ids:
-        params['data'][sample] = {'left': {'x': None, 'y': None}, 'right': {'x': None, 'y': None}}
-
-    return params
-
-
-def write_json(params):
-
-    output_file_name = os.path.join(params['output_path'], f'calibration_data.json')
-    with open(output_file_name, 'w') as fp:
-        json.dump(params['data'], fp)
+  return output
 
 
 
 
+
+def get_calibration_params(objpoints, imgpoints, gray):
+ ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
+ return ret, mtx, dist, rvecs, tvecs
+
+
+def plot_2_imgs(img1, img2, title=""):
+ fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(20, 10))
+ ax1.imshow(img1)
+ ax2.imshow(img2)
+ plt.title(title)
+ plt.show()
+def undistord_img(img, mtx, dist, w, h, title=""):
+ newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
+ dst = cv.undistort(img, mtx, dist, None, newcameramtx)
+ x, y, w, h = roi
+ dst = dst[y:y + h, x:x + w]
+ plot_2_imgs(img, dst, title="before                  after" if title == "" else title)
+
+def CannyThreshold(src_gray, low_threshold=0, ratio=3, kernel_size=3):
+
+ img_blur = cv.blur(src_gray, (5,5))
+ detected_edges = cv.Canny(img_blur, low_threshold, low_threshold*ratio, kernel_size)
+ mask = detected_edges != 0
+ dst = src_gray * mask
+ #cv.imshow('res', dst)
+
+ return dst
+
+
+def get_corners(objpoints, imgpoints, img, patternSize, objp, resize=False):
+ if resize:
+  smaller_size_50 = (int(img.shape[1] * 0.5), int(img.shape[0] * 0.5))
+  chees_img = cv.resize(img, smaller_size_50)
+ else:
+  chees_img = img
+ ret, corners = cv.findChessboardCorners(chees_img, (patternSize[0], patternSize[1]), None)
+ # If found, add object points, image points (after refining them)
+ if ret == True:
+  objpoints.append(objp)
+  # corners2 = cv.cornerSubPix(r_gray,corners, (11,11), (-1,-1), criteria)
+  # corners2[:, 0, 0] *= img.shape[1] / smaller_size_50[0]
+  # corners2[:, 0, 1] *= img.shape[0] / smaller_size_50[1]
+
+  if resize:
+    corners[:, 0, 0] *= img.shape[1] / smaller_size_50[0]
+    corners[:, 0, 1] *= img.shape[0] / smaller_size_50[1]
+  imgpoints.append(corners)
+
+ return objpoints, imgpoints, corners, ret
+
+
+def calibrate_lense(video_path, output_path, patternSize = (6,9), start_frame=0, view=False):
+
+ # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
+ objp = np.zeros((1, patternSize[0]*patternSize[1], 3), np.float32)
+ objp[0, :, :2]  = np.mgrid[0:patternSize[0],0:patternSize[1]].T.reshape(-1, 2)
+
+ # Arrays to store object points and image points from all the images.
+ objpoints = [] # 3d point in real world space
+ imgpoints = [] # 2d points in image plane.
+
+
+ rotate = 2 if 'ZED' in video_path else 1
+ treshold = 50 if 'ZED' in video_path else 20
+ cam = video_wrapper(video_path, rotate)
+
+ id_ = 0
+ ret = True
+ while ret:
+  id_ += 1
+  ret, img = cam.get_frame()
+
+  if id_ < start_frame:
+   id_ += 1
+   continue
+
+  if ret:
+   chees_img = img[:,:,0].copy()
+   chees_img[chees_img > treshold] = 255
+   chees_img[chees_img <= treshold] = 0
+
+   print(id_)
+   objpoints, imgpoints, corners, ret_c = get_corners(objpoints, imgpoints, chees_img, patternSize, objp, resize=True)
+   if ret_c:
+     cv.drawChessboardCorners(img, (patternSize[0],patternSize[1]), corners, ret_c)
+
+   if view:
+    smaller_size_50 = (int(img.shape[1] * 0.5), int(img.shape[0] * 0.5))
+    smaller_img = cv.resize(img, smaller_size_50)
+    cv.imshow('img', smaller_img)
+    cv.waitKey(50)
+   last_image = img
+
+ cv.destroyAllWindows()
+
+
+ gray = cv.cvtColor(last_image, cv.COLOR_BGR2GRAY)
+ print('start calibration')
+ ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
+ np.savez(os.path.join(output_path, 'calibration.npz'), mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
+ print('finished calibration')
+
+ s = time.time()
+ dst = cv.undistort(last_image, mtx, dist, None)
+ e = time.time()
+ print(f'undistort time: {e-s}')
+ plot_2_imgs(last_image, dst)
+
+
+def undistort_video(video_path, calibration_path, start_frame=0):
+ undist = undistort(calibration_path)
+
+ rotate = 2 if 'ZED' in video_path else 1
+ cam = video_wrapper(video_path, rotate)
+
+ id_ = 0
+ ret = True
+ while ret:
+  id_ += 1
+  print(id_)
+  if rotate == 2:
+   cam.grab()
+  ret, img = cam.get_frame()
+
+  if id_ < start_frame:
+   id_ += 1
+   continue
+
+  if ret:
+   undist_image = undist.apply(img)
+
+   smaller_size_50 = (int(img.shape[1] * 0.5), int(img.shape[0] * 0.5))
+   smaller_img = cv.resize(img, smaller_size_50)
+   smaller_undist_img = cv.resize(undist_image, smaller_size_50)
+   full_image = np.hstack([smaller_img, smaller_undist_img])
+   cv.imshow('compare', full_image)
+   cv.waitKey(100)
+
+ cv.destroyAllWindows()
+
+def get_cameras_frame(r_id, z_id, cam_z=None, cam_r=None, zed_video=None, rgb_video=None, display=False, single_image_size=(768, 1024)):
+ if cam_z is None and zed_video is not None:
+  rotate_z = 2 if 'ZED' in zed_video else 1
+  cam_z = video_wrapper(zed_video, rotate_z)
+ else:
+  print(f'NO ZED CAM')
+  return None, None
+
+ if cam_r is None and rgb_video is not None:
+  rotate_r = 2 if 'ZED' in rgb_video else 1
+  cam_r = video_wrapper(rgb_video, rotate_r)
+ else:
+  print(f'NO JAI CAM')
+  return None, None
+
+ f_count = 0
+ while f_count < z_id:
+  cam_z.grab()
+  ret_z, frame_z = cam_z.get_frame()
+
+  if not ret_z:
+   print(f'FAILED TO LOAD FRAME {f_id}')
+   return
+  f_count += 1
+
+ f_count = 0
+ while f_count < r_id:
+  ret_r, frame_r = cam_r.get_frame()
+
+  if not ret_r:
+   print(f'FAILED TO LOAD FRAME {f_id}')
+   return
+  f_count += 1
+
+
+ if display:
+  display_side_by_side(frame_z, frame_r, single_image_size)
+
+ return frame_z, frame_r
+
+def display_side_by_side(left, right, single_image_size=(768, 1024)):
+ disp_l = cv.resize(left, single_image_size)
+ disp_r = cv.resize(right, single_image_size)
+
+ canvas = np.hstack([disp_l, disp_r])
+ plt.figure()
+ plt.imshow(canvas)
+ plt.title(f'Side by side')
+ plt.show()
+
+def binary_clip(img, threshold):
+ b_img = img.copy()
+ b_img[b_img > threshold] = 255
+ b_img[b_img <= threshold] = 0
+
+ return b_img
+
+
+def save_to_frames(zed_video, rgb_video, output_path):
+ rotate_z = 2 if 'ZED' in zed_video else 1
+ cam_z = video_wrapper(zed_video, rotate_z)
+
+ rotate_r = 2 if 'ZED' in rgb_video else 1
+ cam_r = video_wrapper(rgb_video, rotate_r)
+
+ ret_z = True
+ f_count = 0
+ while ret_z:
+  cam_z.grab()
+  ret_z, frame_z = cam_z.get_frame()
+  if ret_z:
+   cv.imwrite(os.path.join(output_path, f'zed_f{f_count}.jpg'), frame_z)
+   f_count += 1
+
+ ret_r = True
+ f_count = 0
+ while ret_r:
+  ret_r, frame_r = cam_r.get_frame()
+  if ret_r:
+   cv.imwrite(os.path.join(output_path, f'jai_f{f_count}.jpg'), frame_r)
+   f_count += 1
+
+def get_cameras_ratio_and_location(corners_z, corners_r, z_size=(1920, 1080), r_size=(2048, 1536), pattern_size=(6,9)):
+ z_x_corr = corners_z[:, 0, 0].reshape(pattern_size[1], pattern_size[0])
+ z_y_corr = corners_z[:, 0, 1].reshape(pattern_size[1], pattern_size[0])
+
+ r_x_corr = corners_r[:, 0, 0].reshape(pattern_size[1], pattern_size[0])
+ r_y_corr = corners_r[:, 0, 1].reshape(pattern_size[1], pattern_size[0])
+
+ delta_x_z = np.mean(z_x_corr[:, -1] - z_x_corr[:, 0])
+ delta_x_r = np.mean(r_x_corr[:, -1] - r_x_corr[:, 0])
+
+ z_to_r_x_ratio = delta_x_z / delta_x_r
+
+ delta_y_z = np.mean(z_y_corr[-1, :] - z_y_corr[0, :])
+ delta_y_r = np.mean(r_y_corr[-1, :] - r_y_corr[0, :])
+
+ z_to_r_y_ratio = delta_y_z / delta_y_r
+
+ z_y_roi_in_r = z_size[0] / z_to_r_y_ratio
+ z_x_roi_in_r = z_size[1] / z_to_r_x_ratio
+
+ z_x_corr_in_r_size = z_x_corr / z_to_r_x_ratio
+ z_y_corr_in_r_size = z_y_corr / z_to_r_y_ratio
+
+ tx = np.mean(z_x_corr_in_r_size - r_x_corr)
+ ty = np.mean(z_y_corr_in_r_size - r_y_corr)
+
+ return z_to_r_x_ratio, z_to_r_y_ratio, z_x_roi_in_r, z_y_roi_in_r, tx, ty
+
+def crop_black(image):
+ non_black_coords = np.column_stack(np.where(image[:, :, 0] > 0))
+
+ # Get the cropping coordinates
+ top, left = non_black_coords.min(axis=0)
+ bottom, right = non_black_coords.max(axis=0) + 1
+
+ return image[top:bottom, left:right, :]
 if __name__ == "__main__":
-    #zed_fp = '/home/yotam/FruitSpec/Sandbox/sync_test/ZED_1.svo'
-    #jai_fp = '/home/yotam/FruitSpec/Sandbox/sync_test/Result_RGB_1.mkv'
-    #zed_fp = "/home/yotam/FruitSpec/Sandbox/JAIZED EXPERIMENT BITRATE/FSI_b 51200.mkv"
-    jai_fp = "/home/yotam/FruitSpec/Data/Scan_3011/wetransfer_new-scan_2022-11-30_1639/r2in/Result_RGB_1.mkv"
-    #zed_fp = "/home/yotam/FruitSpec/Sandbox/JAIZED EXPERIMENT BITRATE/ZED_b 20K.svo"
-    zed_fp = "/home/yotam/FruitSpec/Data/Scan_3011/wetransfer_new-scan_2022-11-30_1639/r2in/ZED_1.svo"
+ zed_video = "/media/matans/My Book/FruitSpec/target/wetransfer_target_2023-10-24_1153/target/row_31/1/ZED.mkv"
+ rgb_video = "/media/matans/My Book/FruitSpec/target/wetransfer_target_2023-10-24_1153/target/row_31/1/Result_RGB.mkv"
+ output_path = "/media/matans/My Book/FruitSpec/target/row_31_frames"
+ validate_output_path(output_path)
+ #calibrate_lense(video_path, output_path, start_frame=170, view=True)
 
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/pepper/dual/'
-    validate_output_path(output_path)
-    manual_calibration(zed_fp, jai_fp, output_path, zed_rotate=2, jai_rotate=1)
 
+ calibration_path_r = '/media/matans/My Book/FruitSpec/target/calibration.npz'
+ calibration_path_z = '/media/matans/My Book/FruitSpec/target/zed/calibration.npz'
+ # video_path = '/media/matans/My Book/FruitSpec/target/test/Result_FSI_1.mkv'
+ #video_path = '/media/matans/My Book/FruitSpec/target/test/ZED_1.svo'
+ #undistort_video(zed_video,calibration_path_z,0)
+ f_id = 250
+ undis_r = undistort(calibration_path_r)
+ undis_z = undistort(calibration_path_z)
+ frame_z, frame_r = get_cameras_frame(176, 206, zed_video=zed_video, rgb_video=rgb_video, single_image_size=(768, 1024))
+
+ undis_r = undis_r.apply(frame_r)
+ undis_z = undis_z.apply(frame_z)
+ display_side_by_side(frame_z, frame_r)
+ display_side_by_side(frame_z, undis_r)
+ """ Verify"""
+ undis_z = frame_z
+ #undis_z = crop_black(undis_z)
+
+ binary_z = binary_clip(undis_z[:,:,0], 50)
+ binary_r = binary_clip(undis_r[:,:,0], 30)
+
+ _, _, corners_z, ret_z = get_corners([], [], binary_z, (6, 9), [], resize=True)
+ _, _, corners_r, ret_r = get_corners([], [], binary_r, (6, 9), [], resize=True)
+
+
+ cv.drawChessboardCorners(undis_z, (6, 9), corners_z, ret_z)
+ cv.drawChessboardCorners(undis_r, (6, 9), corners_r, ret_r)
+
+ #display_side_by_side(undis_z, undis_r)
+
+ z_to_r_x_ratio, z_to_r_y_ratio, z_x_roi_in_r, z_y_roi_in_r, tx, ty = get_cameras_ratio_and_location(corners_z, corners_r, z_size=(undis_z.shape[0], undis_z.shape[1]))
+
+ undis_r_crop = undis_r[int(-ty):int(-ty + z_y_roi_in_r), int(-tx): int(-tx + z_x_roi_in_r), :]
+
+ display_side_by_side(undis_z, undis_r_crop)
+
+ print(f'z to r x ratio: {z_to_r_x_ratio}')
+ print(f'z to r y ratio: {z_to_r_y_ratio}')
+ print(f'z x roi: {z_x_roi_in_r}')
+ print(f'z y roi: {z_y_roi_in_r}')
+
+ print('Done')
+ #undistort_video(video_path, calibration_path)
