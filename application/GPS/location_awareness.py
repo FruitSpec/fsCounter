@@ -7,7 +7,7 @@ import sys
 import key_variables as kv
 
 ##! This might prove to be an issue
-sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
+# sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
 
 
 import boto3
