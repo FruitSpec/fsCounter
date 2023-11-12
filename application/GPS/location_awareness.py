@@ -4,7 +4,9 @@ import traceback
 from builtins import staticmethod
 from botocore.config import Config
 import sys
-import key_variables as kv
+
+##! Full location name to ensure bug is not triggered
+import application.GPS.key_variables as kv
 
 ##! This might prove to be an issue
 # sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
