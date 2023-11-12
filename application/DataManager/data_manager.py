@@ -304,7 +304,8 @@ class DataManager(Module):
                     tools.log(f"UPLOAD {filename} - NOT ENOUGH TIME LEFT")
                     return
                 ##! Change the bucket where the file is uploaded
-                DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name_sim, s3_path)
+                ##? Based on the latest update, this needs to be placed to the same location
+                DataManager.s3_client.upload_file(path, data_conf.upload_bucket_name, s3_path)
                 if extension:
                     path_uploaded = path.replace(f".{extension}", f"_uploaded.{extension}")
                     os.rename(path, path_uploaded)
