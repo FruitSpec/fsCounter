@@ -25,6 +25,43 @@ from vision.pipelines.detection_flow import counter_detection
 from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 from vision.tools.camera_calibration import undistort
 
+def convert_dets(dets, M):
+
+    new_dets = []
+    for f_bboxes in dets: # dets is in length of batch
+        new_f_bboxes = []
+        for bbox in f_bboxes:
+            x1 = bbox[0]
+            y1 = bbox[1]
+            x2 = bbox[2]
+            y2 = bbox[3]
+
+            ul = np.array([x1, y1, 1])
+            ur = np.array([x2, y1, 1])
+            bl = np.array([x1, y2, 1])
+            br = np.array([x2, y2, 1])
+
+            corners = np.array([ul, ur, bl, br])
+            transformed_location = np.dot(M, corners.T).T
+
+            min_x = np.min(transformed_location[:, 0])
+            min_y = np.min(transformed_location[:, 1])
+            max_x = np.max(transformed_location[:, 0])
+            max_y = np.max(transformed_location[:, 1])
+
+            new_bb = bbox.copy()
+            new_bb[0] = int(min_x)
+            new_bb[1] = int(min_y)
+            new_bb[2] = int(max_x)
+            new_bb[3] = int(max_y)
+
+            new_f_bboxes.append(new_bb)
+
+        new_dets.append(new_f_bboxes)
+
+    return new_dets
+
+
 def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_file=None, zed_calibration_file=None):
     cfg.batch_size = 1
     print(f'Inferencing on {args.jai.movie_path}\n')
@@ -32,7 +69,7 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_fi
     sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, zed_shift=args.zed_shift, batch_size=cfg.batch_size,
     len_size=cfg.len_size)
     lg = lightglue_infer(cfg, len_size=cfg.len_size)
- #   det = counter_detection(cfg, args)
+    det = counter_detection(cfg, args)
     det_outputs = None
     res = []
     frame_loader = FramesLoader(cfg, args)
@@ -59,7 +96,10 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_fi
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(f_id, zed_shift)
 
         rgb_batch = undistort_jai.apply_on_batch(rgb_batch)
+        jai_batch = undistort_jai.apply_on_batch(jai_batch)
         zed_batch = undistort_zed.apply_on_batch(zed_batch)
+
+        det_outputs = det.detect(jai_batch)
 
         if len(zed_batch) == 0:
             break
@@ -87,7 +127,7 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_fi
                          output_folder,
                          f_id + id_,
                          # corr=alignment_results[id_][0], dets=det_outputs[id_])
-                         corr=alignment_results[id_][0], dets=det_outputs)
+                         corr=alignment_results[id_][0], dets=None)
             save_loaded_images(zed_batch[id_],
                                rgb_batch[id_], f_id + id_, loaded_path, crop)
             save_loaded_images(zed_batch[id_],
@@ -101,9 +141,14 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_fi
         for i in range(cfg.batch_size):
             debug.append({'output_path': output_folder, 'f_id': f_id + i})
 
-        lg_results = lg.align_sensors(zed_batch[0], rgb_batch[0], debug=debug)
-        data += post_process_res([lg_results], f_id, 'lg')
+        #lg_results = lg.align_sensors(zed_batch[0], rgb_batch[0], debug=debug)
+        M, st = lg.align_sensors(zed_batch[0], rgb_batch[0], debug=debug)
+        #data += post_process_res([lg_results], f_id, 'lg')
 
+        rgb_batch[0] = cv2.warpAffine(rgb_batch[0],M, (1080, 1920))
+        converted_dets = convert_dets(det_outputs, M)
+
+        jai_batch[0] = cv2.warpAffine(jai_batch[0], M, (1080, 1920))
 
 
         for id_ in range(cfg.batch_size):
@@ -114,7 +159,14 @@ def run(cfg, args, n_frames=200, start_frame=30, zed_shift=0, jai_calibration_fi
                          output_folder,
                          f_id + id_,
                          #corr=alignment_results[id_][0], dets=det_outputs[id_])
-                         corr=lg_results[0], dets=det_outputs, lense=lg.len_size)
+                         corr=[], dets=converted_dets[id_], lense=lg.len_size)
+            jai_batch[0] = cv2.cvtColor(jai_batch[0], cv2.COLOR_BGR2RGB)
+            save_aligned(zed_batch[id_],
+                         jai_batch[id_][:, :, ::-1],
+                         output_folder,
+                         f_id + id_,
+                         # corr=alignment_results[id_][0], dets=det_outputs[id_])
+                         corr=[], dets=converted_dets[id_], lense=lg.len_size, name='jai_aligned')
             #save_loaded_images(zed_batch[id_],
             #                   jai_batch[id_], f_id + id_, loaded_path, crop)
 
@@ -249,12 +301,11 @@ def estimate_M(kp1, kp2, match, ransac=10):
 
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None, lense=61):
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None, lense=61, name=None):
     if lense != 83:
         if corr is not None and np.sum(np.isnan(corr)) == 0:
             zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
-    else:
-        jai = jai[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+
 
     gx = 680 / jai.shape[1]
     gy = 960 / jai.shape[0]
@@ -267,8 +318,8 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets
         dets[:, 2] = dets[:, 2] * gx
         dets[:, 1] = dets[:, 1] * gy
         dets[:, 3] = dets[:, 3] * gy
-        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
-        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False, thickness=1)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False, thickness=1)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -276,7 +327,11 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets
 
     fp = os.path.join(output_folder, sub_folder)
     validate_output_path(fp)
-    cv2.imwrite(os.path.join(fp, f"aligned_f{f_id}.jpg"), canvas)
+    if name is None:
+        name = os.path.join(fp, f"aligned_f{f_id}.jpg")
+    else:
+        name = os.path.join(fp, f"{name}_f{f_id}.jpg")
+    cv2.imwrite(name, canvas)
 
 
 def zed_slicing_to_jai(slice_data_path, output_folder, rotate=False):
@@ -455,29 +510,30 @@ if __name__ == "__main__":
     #     for scan_number in os.listdir(type_path):
     #         scan_path = os.path.join(type_path, scan_number)
     #         folders.append(scan_path)
-    cfg.frame_loader.mode = "async"
+    #cfg.frame_loader.mode = "async"
     cfg.batch_size = 1
     cfg.len_size = 83
     cfg.sensor_aligner.apply_zed_shift = True
     overwrite = False
     n_frames = 100
-    start_frame = 50
+    start_frame = 90
     zed_shift = 0
-    folders = ["/media/matans/My Book/FruitSpec/target/test"]
+    folders = ["/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/10101010/071123/row_100/1"]
 
     for folder in folders:
         #try:
-        args.zed.movie_path = os.path.join(folder, "ZED_1.svo")
+        args.zed.movie_path = os.path.join(folder, "ZED.svo")
         args.depth.movie_path = os.path.join(folder, "DEPTH.mkv")
-        args.jai.movie_path = os.path.join(folder, "Result_FSI_1.mkv")
-        args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB_1.mkv")
-        args.sync_data_log_path = os.path.join(folder, "jai_zed.json")
-        # args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
+        args.jai.movie_path = os.path.join(folder, "Result_FSI.mkv")
+        args.rgb_jai.movie_path = os.path.join(folder, "Result_RGB.mkv")
+        #args.sync_data_log_path = os.path.join(folder, "jai_zed.json")
+        args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
         scan = os.path.basename(folder)
         row = os.path.basename(os.path.dirname(folder))
         block = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(folder))))
-        args.output_folder = os.path.join(os.path.join("/media/matans/My Book/FruitSpec/target/test_align"),
-                                          f"{block}_{row}_S{scan}")
+        #args.output_folder = os.path.join(os.path.join("/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/10101010/align_2"),
+        #                                  f"{block}_{row}_S{scan}")
+        args.output_folder = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/10101010/align_7"
         validate_output_path(args.output_folder)
 
         run(cfg, args, n_frames, start_frame, zed_shift, jai_calibration_file=jai_calibration_file,zed_calibration_file=zed_calibration_file)

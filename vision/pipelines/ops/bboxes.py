@@ -61,3 +61,39 @@ def cut_zed_in_jai(pictures_dict, cur_coords, rgb=True, image_input=False):
     if rgb:
         pictures_dict["zed_rgb"] = pictures_dict["zed_rgb"][y1:y2, x1:x2, :]
     return pictures_dict
+
+def convert_dets(dets, Ms):
+
+    new_dets = []
+    for f_bboxes, M in zip(dets, Ms): # dets is in length of batch
+        new_f_bboxes = []
+        for bbox in f_bboxes:
+            x1 = bbox[0]
+            y1 = bbox[1]
+            x2 = bbox[2]
+            y2 = bbox[3]
+
+            ul = np.array([x1, y1, 1])
+            ur = np.array([x2, y1, 1])
+            bl = np.array([x1, y2, 1])
+            br = np.array([x2, y2, 1])
+
+            corners = np.array([ul, ur, bl, br])
+            transformed_location = np.dot(M, corners.T).T
+
+            min_x = np.min(transformed_location[:, 0])
+            min_y = np.min(transformed_location[:, 1])
+            max_x = np.max(transformed_location[:, 0])
+            max_y = np.max(transformed_location[:, 1])
+
+            new_bb = bbox.copy()
+            new_bb[0] = int(min_x)
+            new_bb[1] = int(min_y)
+            new_bb[2] = int(max_x)
+            new_bb[3] = int(max_y)
+
+            new_f_bboxes.append(new_bb)
+
+        new_dets.append(new_f_bboxes)
+
+    return new_dets

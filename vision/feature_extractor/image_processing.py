@@ -6,8 +6,10 @@ try:
 except:
     from vision.feature_extractor.vegetation_indexes import num_deno_nan_divide, num_deno_nan_divide_np, ndvi_cuda
 from vision.tools.image_stitching import get_frames_overlap, plot_2_imgs, keep_dets_only
-from cupyx.scipy import ndimage
-import cupy as cp
+#from cupyx.scipy import ndimage
+from scipy import ndimage
+#import cupy as cp
+import numpy as cp
 global fsi_size
 global nir_channel
 global ir975_channel

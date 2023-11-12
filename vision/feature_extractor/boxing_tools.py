@@ -13,8 +13,10 @@ try:
     from tree_size_tools import stable_euclid_dist
 except:
     from vision.feature_extractor.tree_size_tools import stable_euclid_dist
-from cupyx.scipy import ndimage
-import cupy as cp
+#from cupyx.scipy import ndimage
+from scipy import ndimage
+#import cupy as cp
+import numpy as cp
 from scipy.optimize import minimize
 global fsi_size
 global nir_channel

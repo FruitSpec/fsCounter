@@ -7,19 +7,23 @@ from vision.depth.zed.svo_operations import get_distance
 
 def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.5):
     filtered = []
+    d_ids = []
     range_ = []
     for det in dets:
         crop = point_cloud[det[1]: det[3], det[0]:det[2], 2]
         range_.append(get_distance(crop))
 
+    output_range = []
     if range_:  # not empty
         bool_vec = np.array(range_) < threshold
 
         for d_id, bool_val in enumerate(bool_vec):
             if bool_val:
                 filtered.append(dets[d_id])
+                output_range.append(range_[d_id])
+                d_ids.append(d_id)
 
-    return filtered
+    return filtered, output_range, d_ids
 
 
 def filter_by_intersection(dets_outputs, threshold=0.8):
@@ -111,6 +115,19 @@ def filter_by_height(det_outputs, depth, bias=0, y_crop=200):
 
         for d_id, det in enumerate(det_outputs):
             if det[1] > y_threshold:
-                filtered.append(det)
+                filtered.append(d_id)
 
     return filtered
+
+
+def sort_out(trk1, trk2, indices):
+    trk2 = list(trk2)
+
+    indices = sorted(indices, reverse=True)
+    for idx in indices:
+        if idx < len(trk1):
+            trk1.pop(idx)
+        if idx < len(trk2):
+            trk2.pop(idx)
+    trk2 = np.array(trk2)
+    return trk1, trk2

@@ -1,5 +1,6 @@
 import numpy as np
-import cupy as cp
+#import cupy as cp
+import numpy as cp
 
 
 def num_deno_nan_divide(numerator, denominator, return_numpy=True):

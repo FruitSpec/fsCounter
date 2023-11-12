@@ -58,7 +58,7 @@ class lightglue_infer():
         else:
             cropped_zed = zed
         #input_zed = cv2.resize(cropped_zed, int(cropped_zed.shape[1] / self.sx), int(cropped_zed.shape[0] / self.sy)))
-        input_zed = zed
+        input_zed = cropped_zed
 
 
         input_zed, rz = resize_img(input_zed, input_zed.shape[0] // downscale)
@@ -235,41 +235,30 @@ class lightglue_infer():
             return self.get_tx_ty(M, st, rz)
 
         else:
-            rgb_output = cv2.warpAffine(jai_rgb, M, [self.zed_size[1], self.zed_size[0]])
-            #valid_rgb = remove_black_area(rgb_output)
-            h, w, c = jai_rgb.shape
-            corners = np.array([[0, 0, 1], [w, 0, 1], [0, h, 1], [w, h, 1]], dtype=np.float32)
-            transformed_corners = np.dot(M, corners.T).T
-
-            h, w, _ = rgb_output.shape
-            corners1 = np.array([[0, 0, 1], [w, 0, 1], [0, h, 1], [w, h, 1]], dtype=np.float32)
-            transformed_corners1 = np.dot(M, corners1.T).T
-
-            print(transformed_corners)
+            return M, st
 
     def align_on_batch(self, zed_batch, jai_batch, workers=4, debug=None):
-        if False:#len(zed_batch) < 1:
-            corr, tx, ty = align_sensors_cuda(zed_batch[0], jai_batch[0])
-            results = [[corr, tx, ty]]
-        else:
-            zed_input = []
-            jai_input = []
-            streams = []
-            for z, j in zip(zed_batch, jai_batch):
-                if z is not None and j is not None:
-                    zed_input.append(z)
-                    jai_input.append(j)
-                    #streams.append(cv2.cuda_Stream())
-            if debug is None:
-                debug = [None] * self.batch_size
-            results = list(map(self.align_sensors, zed_input, jai_input, debug))
+        zed_input = []
+        jai_input = []
+
+        for z, j in zip(zed_batch, jai_batch):
+            if z is not None and j is not None:
+                zed_input.append(z)
+                jai_input.append(j)
+                #streams.append(cv2.cuda_Stream())
+        if debug is None:
+            debug = [None] * self.batch_size
+        results = list(map(self.align_sensors, zed_input, jai_input, debug))
 
 
-        output = []
+        mats = []
+        stats = []
         for r in results:
-            output.append([r[0], r[1], r[2], r[3]])
+            mats.append(r[0])
+            stats.append(r[1])
 
-        return output
+
+        return mats, stats
 
 
     def batch_translation(self, batch):

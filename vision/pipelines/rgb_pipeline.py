@@ -12,11 +12,11 @@ repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
 
 from vision.pipelines.detection_flow import counter_detection
+from vision.pipelines.ops.fruit_cluster import FruitCluster
 from vision.pipelines.misc.filters import filter_by_distance, filter_by_size, filter_by_height, sort_out
-from vision.tracker.fsTracker.score_func import compute_dist_on_vec
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
-from vision.tools.camera import is_saturated
+from vision.tools.camera import is_sturated
 from vision.tools.color import get_hue, get_tomato_color
 from vision.tools.video_wrapper import video_wrapper
 
@@ -24,8 +24,11 @@ from vision.tools.video_wrapper import video_wrapper
 def run(cfg, args):
     print(f'Inferencing on {args.movie_path}\n')
     detector = counter_detection(cfg, args)
-    results_collector = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
-    translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    results_collector = ResultsCollector(rotate=args.rotate)
+    translation = T(cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+    fs = FruitCluster(cfg.clusters.max_single_fruit_dist,
+                      cfg.clusters.range_diff_threshold,
+                      cfg.clusters.max_losses)
 
     cam = video_wrapper(args.movie_path, args.rotate, args.depth_minimum, args.depth_maximum)
 
@@ -38,7 +41,7 @@ def run(cfg, args):
         pbar.update(1)
         frame, depth, point_cloud = cam.get_zed()
         if not cam.res:  # couldn't get frames
-            # Break the loop
+            #     Break the loop
             break
 
         if is_sturated(frame):
@@ -60,17 +63,19 @@ def run(cfg, args):
         trk_outputs, trk_windows = detector.track(filtered_outputs, tx, ty, f_id, outputs_depth)
 
         # filter by distance:
-        filtered_outputs = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+        filtered_outputs, ranges = filter_by_distance(trk_outputs, point_cloud, cfg.filters.distance.threshold)
+
+        # clutser:
+        filtered_outputs = fs.cluster(filtered_outputs, ranges)
 
         # measure:
         colors, hists_hue = get_colors(filtered_outputs, frame)
-        clusters = get_clusters(filtered_outputs, cfg.clusters.min_single_fruit_distance)
         dimensions = get_dimensions(point_cloud, frame, filtered_outputs, cfg)
-        # dimensions = sl_get_dimensions(trk_outputs, cam)
 
         # collect results:
         results_collector.collect_detections(det_outputs, f_id)
-        frame_results = results_collector.collect_results(filtered_outputs, clusters, dimensions, colors)
+
+        frame_results = results_collector.collect_results(filtered_outputs, dimensions, colors)
 
         if args.debug.is_debug:
             depth = None

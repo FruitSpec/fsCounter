@@ -40,11 +40,9 @@ class ResultsCollector():
         self.mode = mode
 
 
-    def collect_adt(self, trk_outputs, alignment_results, percent_seen, f_id, jai_translation_results=[]):
+    def collect_adt(self, trk_outputs, alignment_results, f_id, jai_translation_results=[]):
         self.collect_tracks(trk_outputs)
-        self.collect_alignment(alignment_results, f_id)
-        if not isinstance(percent_seen, type(None)):
-            self.collect_percent_seen(percent_seen, f_id)
+        #self.collect_alignment(alignment_results, f_id)
         self.collect_jai_translation(jai_translation_results, f_id)
 
     def collect_jai_translation(self, jai_translation_results, f_id):
@@ -292,7 +290,7 @@ class ResultsCollector():
             self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
 
     @staticmethod
-    def draw_dets(frame, dets, t_index=6, text=True, det_colors=None):
+    def draw_dets(frame, dets, t_index=6, text=True, det_colors=None, thickness=3):
 
         for i, det in enumerate(dets):
             track_id = det[t_index]
@@ -302,7 +300,7 @@ class ResultsCollector():
             else:
                 color = get_color(color_id)
             text_color = get_color(-1)
-            frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
+            frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, thickness=thickness)
             if text:
                 frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
                                               True, 10, 3)
@@ -336,7 +334,7 @@ class ResultsCollector():
                        det_colors=f_det_colors, zed_frame=zed_frame, alignment_results=f_alignment_results)
 
     def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None, det_colors=None,
-              zed_frame=None, alignment_results=None):
+              zed_frame=None, alignment_results=None, alignment_mats=None):
         if args.debug.tracker_windows and trk_windows is not None:
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:

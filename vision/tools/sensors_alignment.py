@@ -142,8 +142,8 @@ class SensorAligner:
 
         output = []
         for r in results:
-            self.update_zed_shift(r[1])
-            output.append([r[0], r[1], r[2], self.zed_shift])
+            #self.update_zed_shift(r[1])
+            output.append([r[0], r[1]])
 
         return output
 
