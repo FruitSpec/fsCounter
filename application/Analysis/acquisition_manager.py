@@ -117,12 +117,14 @@ class AcquisitionManager(Module):
             AcquisitionManager.view, AcquisitionManager.transfer_data, AcquisitionManager.pass_clahe_stream,
             AcquisitionManager.debug_mode, AcquisitionManager.alc_true_areas, AcquisitionManager.alc_false_areas
         )
+        tools.log("Acquisition started on C side")
         if from_healthcheck:
             AcquisitionManager.running = running
         else:
             # with AcquisitionManager.healthcheck_lock:
             AcquisitionManager.running = running
         AcquisitionManager.analyzer.start_acquisition()
+        tools.log("Acquisition started on Python side")
 
     @staticmethod
     def stop_acquisition():

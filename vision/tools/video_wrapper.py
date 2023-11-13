@@ -1,5 +1,6 @@
 import cv2
-import pyzed.sl as sl
+#import pyzed.sl as sl
+import numpy as sl
 import numpy as np
 import copy
 
@@ -104,7 +105,7 @@ class video_wrapper():
             if frame_number is not None:
                 self.cam.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
             ret, frame = self.cam.read()
-            if self.channels == 3:
+            if self.channels == 3 and ret:
                 frame = frame[:, :, :3].copy()
 
         if ret:
