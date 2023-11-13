@@ -1,7 +1,7 @@
 import json
 import os
 import cv2
-
+from vision.misc.help_func import validate_output_path
 
 def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, output_dir=None, save=True):
     # Load COCO annotations
@@ -55,12 +55,11 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
         else:
             cv2.imshow('Annotated Image', image)
             cv2.waitKey(0)
+            cv2.destroyAllWindows()
 
-    cv2.destroyAllWindows()
 
-
-coco_file_path = '/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/train_coco.json'
-image_directory = '/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/train2017'
-output_directory = '/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotated_train_images'
-
+coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotations/train_coco_single_class.json'
+image_directory = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/train2017'
+output_directory = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotated_images'
+validate_output_path(output_directory)
 display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)

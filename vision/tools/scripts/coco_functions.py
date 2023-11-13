@@ -1,6 +1,7 @@
 import json
 import os
 from vision.misc.help_func import validate_output_path
+import json
 
 def modify_coco_category_based_on_type_position(original_path: str, output_path: str) -> str:
     """
@@ -126,7 +127,7 @@ def convert_to_single_class(coco_file_path):
 
     # Modify the categories to contain only a single class
     single_class_id = 1
-    data['categories'] = [{"id": single_class_id, "name": "single_class"}]
+    data['categories'] = [{"id": single_class_id, "name": "Fruit"}]
 
     # Update the category_id in the annotations to reference the new single class ID
     for annotation in data['annotations']:
@@ -148,36 +149,102 @@ def convert_to_single_class(coco_file_path):
 
 
 
+def filter_coco_annotations(input_path, output_path, category_id_to_keep, new_category_id):
+    """
+    Filters the COCO annotations to keep only the bounding boxes with a specific category_id
+    and changes that category_id to a new one.
+
+    Parameters:
+    - input_path (str): The file path for the input COCO annotations.
+    - output_path (str): The file path to save the filtered COCO annotations.
+    - category_id_to_keep (int): The original category_id of the bounding boxes to keep.
+    - new_category_id (int): The new category_id to assign to the filtered bounding boxes.
+
+    Returns:
+    - str: The file path to the saved filtered COCO annotations.
+    """
+
+    # Load the COCO annotations from the input file
+    with open(input_path, 'r') as file:
+        coco_data = json.load(file)
+
+    # Filter out annotations that don't match the category_id_to_keep
+    filtered_annotations = [anno for anno in coco_data['annotations']
+                            if anno['category_id'] == category_id_to_keep]
+
+    # Update the category_id in the annotations to the new category_id
+    for anno in filtered_annotations:
+        anno['category_id'] = new_category_id
+
+    # Update the annotations in the COCO data
+    coco_data['annotations'] = filtered_annotations
+
+    # Filter the categories to keep only the one that matches category_id_to_keep
+    # and update its id to the new_category_id
+    filtered_categories = [category for category in coco_data['categories']
+                           if category['id'] == category_id_to_keep]
+    for category in filtered_categories:
+        category['id'] = new_category_id
+
+    # Update the categories in the COCO data
+    coco_data['categories'] = filtered_categories
+
+    # Save the updated COCO data to the output file
+    with open(output_path, 'w') as file:
+        json.dump(coco_data, file, indent=4)
+
+    return output_path
+
+
+
+
+
+
 if __name__ == "__main__":
+    coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotations/train_coco.json'
+    convert_to_single_class(coco_file_path)
+
+
+#########################################################################################################
+    # Define the input and output paths
+    input_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/coco_all_2_classes.json'
+    output_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/coco_1_classe_whole.json'
+
+
+    # Call the function to filter the annotations
+    output_path = filter_coco_annotations(
+        input_file_path,
+        output_file_path,
+        category_id_to_keep=50,
+        new_category_id=0)
 
     #########################################################################
-    path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
+    path_to_json = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/annotations/val_coco.json'
     # change category_id to 0 for all annotations in a COCO annotations file
-    modify_coco_category_id_to_0('/home/lihi/FruitSpec/Data/counter/Apples_train_041023/annotations/instances_val.json',
-                            '/home/lihi/FruitSpec/Data/counter/Apples_train_041023/annotations/instances_val_new.json')
-    #######################################################################
-    # Call the function
-    path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
-    new_file_path = convert_to_single_class(path_to_json)
-    print(f"Modified annotations saved to: {new_file_path}")
-
-    ########################################################################
-    # Count objects in COCO annotations:
-    annotations_file_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/train_coco.json"
-    result = count_objects_in_coco(annotations_file_path)
-    print(result)
-
-    ######################################################################
-    # Modify category based on type_position:
-    coco_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/batch9_frames_h.json"
-    output_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/corrected_jsons/batch9_frames_h.json"
-    validate_output_path(os.path.dirname(output_path))
-    modify_coco_category_based_on_type_position(coco_path, output_path)
-    print("Done!")
-
-    with open(output_path, "r") as file:
-        content = file.readlines()
-
-    content_sample = content[:10]
+    modify_coco_category_id_to_0(path_to_json)
+    # #######################################################################
+    # # Call the function
+    # path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
+    # new_file_path = convert_to_single_class(path_to_json)
+    # print(f"Modified annotations saved to: {new_file_path}")
+    #
+    # ########################################################################
+    # # Count objects in COCO annotations:
+    # annotations_file_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/train_coco.json"
+    # result = count_objects_in_coco(annotations_file_path)
+    # print(result)
+    #
+    # ######################################################################
+    # # Modify category based on type_position:
+    # coco_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/batch9_frames_h.json"
+    # output_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/corrected_jsons/batch9_frames_h.json"
+    # validate_output_path(os.path.dirname(output_path))
+    # modify_coco_category_based_on_type_position(coco_path, output_path)
+    # print("Done!")
+    #
+    # with open(output_path, "r") as file:
+    #     content = file.readlines()
+    #
+    # content_sample = content[:10]
 
     print('done')
