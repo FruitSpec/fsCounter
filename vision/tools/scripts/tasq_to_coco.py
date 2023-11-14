@@ -6,6 +6,8 @@ from vision.tools.scripts.adjust_roboflow import align_iamges
 from vision.misc.help_func import validate_output_path
 from vision.data.COCO_utils import load_coco_file, write_coco_file, create_category_dict
 from vision.tools.utils_general import get_s3_file_paths, download_s3_files
+from vision.misc.help_func import get_data_dir
+import json
 
 
 def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
@@ -45,7 +47,7 @@ def aggraegate_coco_files(folder, output_folder, categories=['fruit'], ver=1):
             ann_id += 1
             annotations.append(new_ann)
         cat = cur_coco['categories']
-    info = {"year": 2022,
+    info = {"year": 2023,
             "version": ver,
             "description": "FruitSpec data from tasq",
             "contributor": "",
@@ -99,8 +101,10 @@ def split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.1):
 
     copy_images(val_images, images_folder, os.path.join(output_folder, 'val2017'))
 
-    write_coco_file(train_coco, os.path.join(output_folder, 'annotations', 'train_coco.json'))
-    write_coco_file(val_coco, os.path.join(output_folder, 'annotations','val_coco.json'))
+    write_coco_file(train_coco, os.path.join(output_folder, 'annotations','train_coco.json'))
+    print(f'Saved: {os.path.join(output_folder, "annotations","train_coco.json")}')
+    write_coco_file(val_coco, os.path.join(output_folder, 'annotations', 'val_coco.json'))
+    print(f'Saved: {os.path.join(output_folder, "annotations", "val_coco.json")}')
 
 def create_subset(subset_images, orig_anns):
 
@@ -161,45 +165,25 @@ if __name__ == "__main__":
     download_aggragate_split(path_s3_json_gt, path_s3_images, output_dir, images_suffix = '.png')
     print('done')
 
-    ###############################################################################################
+    #############################################################
 
-    # # Download GT files from s3:
-    # path_s3_json_gt = 's3://fruitspec.dataset/tagging/VEG JAI/jsons/'
-    # gt_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/all_jsons'
-    # download_s3_files(path_s3_json_gt, output_path=gt_local_dir, string_param='', suffix='.json',
-    #                   skip_existing=True)
-    #
-    # # Download images from s3:
-    # path_s3_images = 's3://fruitspec.dataset/tagging/VEG JAI/images/'
-    # images_local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/all_images'
-    # download_s3_files(path_s3_images, output_path=images_local_dir, string_param='', suffix='.jpg',skip_existing=False)
-    #
-    # output_dir = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI'
-    # coco_path = aggraegate_coco_files(gt_local_dir, output_dir, ['fruit'], 1)
-    #
-    # split_to_train_val(coco_path, images_local_dir, output_dir, val_size=0.15)
-    # print('done')
+    folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923/all_jsons"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923"
+    categories = ['fruit']
+    ver = 1
 
+    aggraegate_coco_files(folder, output_folder, categories, ver)
 
+    coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/coco.json"
+    images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/images"
+    output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623"
+    split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.15)
 
-#########################################################################################################################
+    expected_dims = [2048, 1536]
+    rotation = 'counterclockwise'
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/train2017", expected_dims, rotation)
+    align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017", expected_dims, rotation)
 
-    # folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/coco_files/train"
-    # output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/coco_files/train"
-    # categories = ['fruit']
-    # ver = 1
-    #
-    # coco_path = aggraegate_coco_files(folder, output_folder, categories, ver)
-
-    # coco_fp = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/coco.json"
-    # images_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/all_images"
-    # output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023"
-    # split_to_train_val(coco_fp, images_folder, output_folder, val_size=0.15)
-
-    # expected_dims = [2048, 1536]
-    # rotation = 'counterclockwise'
-    # align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/train2017", expected_dims, rotation)
-    # align_iamges("/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_290623/val2017", expected_dims, rotation)
 
 
 

@@ -43,11 +43,12 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
                 # Draw bbox and annotations
                 x, y, w, h = bbox
                 cv2.rectangle(image, (x, y), (x + w, y + h), color_map[cat_id], line_width)
-                label = f"{cat_name[0]} {ann.get('score', '')}"
+                label = f"{cat_name[0]} {round(ann.get('score', ''),2)}"
                 cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_map[cat_id],
                             line_width)
 
         if save:
+            validate_output_path(output_dir)
             output_path = os.path.join(output_dir, image_info['file_name'])
             cv2.imwrite(output_path, image)
             print (f'Saved: {output_path}')
@@ -55,11 +56,14 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
         else:
             cv2.imshow('Annotated Image', image)
             cv2.waitKey(0)
-            cv2.destroyAllWindows()
 
+    cv2.destroyAllWindows()
 
-coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotations/train_coco_single_class.json'
-image_directory = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/train2017'
-output_directory = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotated_images'
-validate_output_path(output_directory)
-display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)
+if __name__ == "__main__":
+
+    coco_file_path = '/home/lihi/FruitSpec/Data/tasq/tomatos/batch10/150323/5/annotations/coco.json'
+    image_directory = os.path.join(os.path.dirname(coco_file_path), 'frames')
+    output_directory = os.path.join( os.path.dirname(coco_file_path) ,'frames_annotation')
+
+    display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)
+
