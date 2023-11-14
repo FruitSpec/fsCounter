@@ -108,6 +108,7 @@ class AcquisitionManager(Module):
             index_only=from_healthcheck,
             from_gps=from_gps
         )
+        tools.log("FINISED SETTING ACQUISITON PARAMETERS")
         running = AcquisitionManager.jz_recorder.start_acquisition(
             AcquisitionManager.fps, AcquisitionManager.exposure_rgb, AcquisitionManager.exposure_800,
             AcquisitionManager.exposure_975, AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
@@ -118,13 +119,14 @@ class AcquisitionManager(Module):
             AcquisitionManager.debug_mode, AcquisitionManager.alc_true_areas, AcquisitionManager.alc_false_areas,
             AcquisitionManager.output_frames
         )
+        tools.log("ACQUISITON C SIDE STARTED")
         if from_healthcheck:
             AcquisitionManager.running = running
         else:
             # with AcquisitionManager.healthcheck_lock:
             AcquisitionManager.running = running
         AcquisitionManager.analyzer.start_acquisition()
-
+        tools.log("ACQUISITON C SIDE STARTED")
     @staticmethod
     def stop_acquisition():
         AcquisitionManager.analyzer.stop_acquisition()
