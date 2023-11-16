@@ -106,7 +106,7 @@ class GUIInterface(Module):
     @sio.event
     def start_recording(sid, data):
         tools.log(f"CAMERA START RECORDING RECEIVED: {sid}, data {data}")
-        GUIInterface.send_data(ModuleTransferAction.START_ACQUISITION, data, ModulesEnum.Acquisition)
+        GUIInterface.send_data(ModuleTransferAction.START_RECORDING, data, ModulesEnum.Acquisition)
 
     @staticmethod
     @sio.event
@@ -118,7 +118,7 @@ class GUIInterface(Module):
     @sio.event
     def stop_recording(sid, data):
         tools.log(f"CAMERA STOP RECEIVED: {sid}")
-        GUIInterface.send_data(ModuleTransferAction.STOP_ACQUISITION, None, ModulesEnum.Acquisition)
+        GUIInterface.send_data(ModuleTransferAction.STOP_RECORDING, None, ModulesEnum.Acquisition)
 
     @staticmethod
     @sio.event
