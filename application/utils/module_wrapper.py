@@ -59,6 +59,7 @@ class ModuleTransferAction(enum.Enum):
     VIEW_START = "VIEW_START"
     VIEW_STOP = "VIEW_STOP"
     GUI_SET_DEVICE_STATE = "GUI_SET_DEVICE_STATE"
+    GUI_STOP = "GUI_STOP"
 
     def __hash__(self):
         return hash(self.value)

@@ -93,7 +93,8 @@ class AcquisitionManager(Module):
             AcquisitionManager.output_dir, AcquisitionManager.output_clahe_fsi,
             AcquisitionManager.output_equalize_hist_fsi, AcquisitionManager.output_rgb,
             AcquisitionManager.output_800, AcquisitionManager.output_975, AcquisitionManager.output_svo,
-            AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc)
+            AcquisitionManager.output_zed_gray, AcquisitionManager.output_zed_depth, AcquisitionManager.output_zed_pc,
+            AcquisitionManager.output_frames)
 
         AcquisitionManager.recording = recording
         AcquisitionManager.analyzer.start_recording()
