@@ -26,11 +26,11 @@ apple:
   acquisition_parameters:
     FPS: 10
     IntegrationTimeRGB: 1500
-    IntegrationTime800: 2000
-    IntegrationTime975: 5000
+    IntegrationTime800: 1000
+    IntegrationTime975: 3500
 
     # options: 'clahe', 'equalize_hist', 'RGB', '800', '975', 'zed_gray', 'zed_depth', 'zed_pc', 'svo'
-    output_types: ["equalize_hist", "RGB", "zed_gray", "zed_depth"]
+    output_types: ["equalize_hist","clahe", "RGB", "zed_gray", "zed_depth"]
 
     # The image is split into 16 areas such that there are 4 vertical areas and 4 horizontal
     # The vertical areas names are: High, MidHigh, MidLow, Low
