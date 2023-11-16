@@ -236,37 +236,43 @@ class FramesLoader():
 
 
     @staticmethod
-    def get_cameras_sync_data(log_fp):
-        zed_ids = []
-        jai_ids = []
+    def get_sync_from_json(log_fp):
+        jai_zed = read_json(log_fp) #load_json
+        if not len(jai_zed):
+            return list(range(10000)), list(range(10000))
+        zed_frames = [int(float(item)) for item in list(jai_zed.values())]
+        jai_frames = [int(float(item)) for item in list(jai_zed.keys())]
+        add_frames_start = list(range(int(jai_frames[0])))
+        return add_frames_start + zed_frames, add_frames_start + jai_frames
+
+    @staticmethod
+    def get_cameras_sync_data(log_fp, ret_start_index=False):
+        if log_fp.endswith(".json"):
+            return FramesLoader.get_sync_from_json(log_fp)
         log_df = pd.read_csv(log_fp)
         jai_frame_ids = list(log_df['JAI_frame_number'])
         zed_frame_ids = list(log_df['ZED_frame_number'])
 
-        zed_ids, jai_ids = arrange_ids(jai_frame_ids, zed_frame_ids)
-
-        return zed_ids, jai_ids
+        return arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index)
 
 
-def arrange_ids(jai_frame_ids, zed_frame_ids):
+def arrange_ids(jai_frame_ids, zed_frame_ids, return_index=False):
 
     z = np.array(zed_frame_ids)
     j = np.array(jai_frame_ids)
-    # find start index
-    zeros = np.where(z == 0)
-    if isinstance(zeros, tuple):
-        start_index = np.argmin(z)
-    else:
-        start_index = np.max(zeros)
 
-    jai_offset = j[start_index]
+    jai_offset = j[0]
     j -= jai_offset
+    zed_offset = j[0]
+    z -= zed_offset
 
-    output_z = z[start_index + 1:].tolist()
-    output_j = j[start_index: -1].tolist()
+    output_z = z.tolist()
+    output_j = list(range(len(j)))
 
-    output_z.sort()
-    output_j.sort()
+    if return_index:
+
+        start_index = 0 # backward compatible. need to change this
+        return output_z, output_j, start_index
 
     return output_z, output_j
 
