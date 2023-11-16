@@ -149,6 +149,9 @@ class GPSSampler(Module):
                     GPSSampler.analysis_ongoing = True
                 if action == ModuleTransferAction.ANALYSIS_DONE:
                     GPSSampler.analysis_ongoing = False
+            if sender_module == ModulesEnum.GUI:
+                if action == ModuleTransferAction.GUI_STOP:
+                    GPSSampler.gui_stop()
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GPSSampler.send_data(
@@ -340,6 +343,21 @@ class GPSSampler(Module):
             return True
         else:
             return False
+
+
+    @staticmethod
+    def gui_stop():
+
+        GPSSampler.last_step_out = datetime.now()
+
+        if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
+            GPSSampler.send_data(
+                action=ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
+                data=GPSSampler.jaized_log_dict,
+                receiver=ModulesEnum.DataManager
+            )
+
+        GPSSampler.init_jaized_log_dict()
 
     @staticmethod
     def get_row_state(angular_velocity_x, lat, long, imu_timestamp, gps_timestamp, depth_score):
