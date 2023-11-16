@@ -263,7 +263,7 @@ def arrange_ids(jai_frame_ids, zed_frame_ids, return_index=False):
 
     jai_offset = j[0]
     j -= jai_offset
-    zed_offset = j[0]
+    zed_offset = z[0]
     z -= zed_offset
 
     output_z = z.tolist()
