@@ -4,7 +4,7 @@
 
 import os
 
-from yolox.exp import Exp as MyExp
+from vision.detector.yolo_x.yolox.exp import Exp as MyExp
 
 
 class Exp(MyExp):
@@ -23,7 +23,7 @@ class Exp(MyExp):
         self.train_ann = "instances_train.json"
         self.val_ann = "instances_val.json"
 
-        self.num_classes = 3
+        self.num_classes = 1
 
         # -------------- training config --------------------- #
         self.warmup_epochs = 5
@@ -36,6 +36,7 @@ class Exp(MyExp):
         self.ema = True
         self.weight_decay = 5e-4
         self.momentum = 0.9
+        self.save_history_ckpt = False   # If set to False, yolox will only save latest and best ckpt.
 
         # --------------- transform config ----------------- #
         self.degrees = 10.0
@@ -49,3 +50,4 @@ class Exp(MyExp):
 
         self.data_num_workers = 4
         self.eval_interval = 1
+        self.train_interval = 1

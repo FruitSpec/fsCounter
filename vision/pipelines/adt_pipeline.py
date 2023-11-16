@@ -8,8 +8,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pickle
-
-from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
+from vision.misc.help_func import get_repo_dir, load_json, validate_output_path, get_subpath_from_dir
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -24,6 +23,7 @@ from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_ca
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.pipelines.ops.kp_matching.infer import lightglue_infer
 
 def run(cfg, args, metadata=None, n_frames=None):
 
@@ -62,11 +62,13 @@ def run(cfg, args, metadata=None, n_frames=None):
         # find translation
         translation_results = adt.get_translation(jai_batch, det_outputs)
 
-        # track:
-        trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id)
-
         # depth:
-        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, trk_outputs)
+        depth_results = get_depth_to_bboxes_batch(depth_batch, jai_batch, alignment_results, det_outputs)
+
+        # track:
+        trk_outputs, trk_windows = adt.track(det_outputs, translation_results, f_id, depth_results)
+
+
         trk_outputs = append_to_trk(trk_outputs, depth_results)
 
         #collect results:
@@ -99,6 +101,7 @@ class Pipeline():
         self.detector = counter_detection(cfg, args)
         self.translation = T(cfg.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
         self.sensor_aligner = SensorAligner(cfg=cfg.sensor_aligner, batch_size=cfg.batch_size)
+        #self.sensor_aligner = lightglue_infer(cfg)
         self.batch_size = cfg.batch_size
 
 
@@ -107,7 +110,7 @@ class Pipeline():
             name = self.frames_loader.get_frames.__name__
             s = time.time()
             self.logger.debug(f"Function {name} started")
-            output = self.frames_loader.get_frames(f_id, self.sensor_aligner.zed_shift)
+            output = self.frames_loader.get_frames(f_id)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e-s})
@@ -156,12 +159,12 @@ class Pipeline():
             self.logger.exception("Exception occurred")
             raise
 
-    def track(self, inputs, translations, f_id):
+    def track(self, inputs, translations, f_id, dets_depth=None):
         try:
             name = self.detector.track.__name__
             s = time.time()
             self.logger.debug(f"Function {name} started")
-            output = self.detector.track(inputs, translations, f_id)
+            output = self.detector.track(inputs, translations, f_id, dets_depth)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -206,7 +209,6 @@ class Pipeline():
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
-            self.logger.debug(f"Sensors frame shift {self.sensor_aligner.zed_shift}")
             self.logger.statistics.append({'id': self.logger.iterations, 'func': name, 'time': e - s})
 
             return output
@@ -349,11 +351,15 @@ def append_to_trk(trk_batch_res, results):
 
 
 if __name__ == "__main__":
-    repo_dir = get_repo_dir()
+    repo_dir = get_repo_dir('fsCounter')
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
+
+    cfg.exp_file = os.path.join(repo_dir, get_subpath_from_dir(cfg.exp_file, 'fsCounter', include_dir=False))
+    cfg.ckpt_file = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.ckpt_file, 'FruitSpec', include_dir=False))
+    cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
 
     zed_name = "ZED.mkv"
     depth_name = "DEPTH.mkv" #"DEPTH.mkv"
@@ -361,16 +367,14 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/media/matans/My Book/FruitSpec/tracker/baseline_medharin"
+    output_path = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
     validate_output_path(output_path)
 
-    #rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/FREDIANI/210723"
-    rows_dir = "/media/matans/My Book/FruitSpec/Customers_data/Fowler/daily/BLOCK700/200723"
+    rows_dir = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
 
-    #rows_dir = "/media/matans/My Book/FruitSpec/WASHDE/June_29/"
-    #rows = os.listdir(rows_dir)
-    rows = ["row_4"]
-    #rows = ["row_7"]
+    rows = os.listdir(rows_dir)
+
+
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 

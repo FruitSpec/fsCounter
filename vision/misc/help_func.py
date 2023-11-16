@@ -36,16 +36,30 @@ def scale_dets(det_outputs, scale_):
 
     return dets
 
+def get_subpath_from_dir(path, dir_name, include_dir=True):
+    """
+    Get the subpath from a specified directory within the path.
 
-def get_repo_dir():
-    cwd = os.getcwd()
-    splited = cwd.split('/')
-    ind = splited.index('fsCounter')
-    repo_dir = '/'
-    for s in splited[1:ind + 1]:
-        repo_dir = os.path.join(repo_dir, s)
+    Parameters:
+    - path (str): The full path.
+    - dir_name (str): The directory name to search for in the path.
+    - include_dir (bool): Whether to include the directory in the returned subpath.
 
-    return repo_dir
+    Returns:
+    - str: The subpath from the specified directory onwards, or None if directory not found.
+    """
+    try:
+        # Split the path into parts and find the index of the directory name
+        parts = path.split('/')
+        index = parts.index(dir_name) + (0 if include_dir else 1)
+
+        # Join the parts from the directory name onwards
+        return '/'.join(parts[index:])
+
+    except ValueError:
+        # The directory name is not in the path
+        return None
+
 
 def get_repo_dir(key = 'fsCounter'):
     cwd = os.getcwd()
@@ -56,6 +70,7 @@ def get_repo_dir(key = 'fsCounter'):
         repo_dir = os.path.join(repo_dir, s)
 
     return repo_dir
+
 
 def get_data_dir():
     repo_dir = get_repo_dir()
