@@ -96,6 +96,7 @@ class GPSSampler(Module):
             consts.IMU_angular_velocity: [],
             consts.IMU_linear_acceleration: [],
             consts.row_state: [],
+            consts.is_recording: [],
             consts.GPS_timestamp: [],
             consts.GPS_latitude: [],
             consts.GPS_longitude: [],
@@ -111,30 +112,32 @@ class GPSSampler(Module):
                 if action == ModuleTransferAction.START_GPS:
                     GPSSampler.start_sample_event.set()
                 if action == ModuleTransferAction.JAIZED_TIMESTAMPS:
+                    is_recording, jaized_data = data
+                    if is_recording or conf.debug.constant_jaized:
+                        row_state = GPSSampler.get_row_state(
+                            angular_velocity_x=jaized_data[consts.IMU_angular_velocity][0],
+                            lat=GPSSampler.current_lat,
+                            long=GPSSampler.current_long,
+                            imu_timestamp=jaized_data[consts.ZED_timestamp],
+                            gps_timestamp=GPSSampler.current_timestamp,
+                            depth_score=jaized_data[consts.depth_score]
+                        )
 
-                    row_state = GPSSampler.get_row_state(
-                        angular_velocity_x=data[consts.IMU_angular_velocity][0],
-                        lat=GPSSampler.current_lat,
-                        long=GPSSampler.current_long,
-                        imu_timestamp=data[consts.ZED_timestamp],
-                        gps_timestamp=GPSSampler.current_timestamp,
-                        depth_score=data[consts.depth_score]
-                    )
+                        angular_velocity = jaized_data[consts.IMU_angular_velocity]
+                        linear_acceleration = jaized_data[consts.IMU_linear_acceleration]
 
-                    angular_velocity = data[consts.IMU_angular_velocity]
-                    linear_acceleration = data[consts.IMU_linear_acceleration]
-
-                    GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(data[consts.JAI_frame_number])
-                    GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(data[consts.JAI_timestamp])
-                    GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(data[consts.ZED_frame_number])
-                    GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(data[consts.ZED_timestamp])
-                    GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
-                    GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
-                    GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
-                    GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
-                    GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
-                    GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
-                    GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
+                        GPSSampler.jaized_log_dict[consts.JAI_frame_number].append(jaized_data[consts.JAI_frame_number])
+                        GPSSampler.jaized_log_dict[consts.JAI_timestamp].append(jaized_data[consts.JAI_timestamp])
+                        GPSSampler.jaized_log_dict[consts.ZED_frame_number].append(jaized_data[consts.ZED_frame_number])
+                        GPSSampler.jaized_log_dict[consts.ZED_timestamp].append(jaized_data[consts.ZED_timestamp])
+                        GPSSampler.jaized_log_dict[consts.IMU_angular_velocity].append(angular_velocity)
+                        GPSSampler.jaized_log_dict[consts.IMU_linear_acceleration].append(linear_acceleration)
+                        GPSSampler.jaized_log_dict[consts.row_state].append(row_state)
+                        GPSSampler.jaized_log_dict[consts.is_recording].append(is_recording)
+                        GPSSampler.jaized_log_dict[consts.GPS_timestamp].append(GPSSampler.current_timestamp)
+                        GPSSampler.jaized_log_dict[consts.GPS_latitude].append(GPSSampler.current_lat)
+                        GPSSampler.jaized_log_dict[consts.GPS_longitude].append(GPSSampler.current_long)
+                        GPSSampler.jaized_log_dict[consts.GPS_plot].append(GPSSampler.current_plot)
 
                 if action == ModuleTransferAction.ACQUISITION_CRASH:
                     GPSSampler.start_sample_event.clear()
@@ -146,9 +149,6 @@ class GPSSampler(Module):
                     GPSSampler.analysis_ongoing = True
                 if action == ModuleTransferAction.ANALYSIS_DONE:
                     GPSSampler.analysis_ongoing = False
-            if sender_module == ModulesEnum.GUI:
-                if action == ModuleTransferAction.GUI_STOP:
-                    GPSSampler.gui_stop()
             if sender_module == ModulesEnum.Main:
                 if action == ModuleTransferAction.MONITOR:
                     GPSSampler.send_data(
@@ -183,6 +183,7 @@ class GPSSampler(Module):
         parser = NavParser("", is_file=False)
         ser = init_serial_port()
         GPSSampler.gps_data = []
+
         while not GPSSampler.shutdown_event.is_set():
             is_start_sample = GPSSampler.start_sample_event.wait(10)
             if not is_start_sample:
@@ -302,17 +303,17 @@ class GPSSampler(Module):
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             tools.log(f"STEP IN {GPSSampler.current_plot}")
 
-            # send unsent data to DataManager
-            GPSSampler.send_data(
-                action=ModuleTransferAction.JAIZED_TIMESTAMPS,
-                data=GPSSampler.jaized_log_dict,
-                receiver=ModulesEnum.DataManager
-            )
-            # init jaized_log_dict to be clean before start recording
-            GPSSampler.init_jaized_log_dict()
-
-            GPSSampler.last_step_in = datetime.now()
             if not conf.GUI:  # don't do the following when GUI is used
+                # send unsent data to DataManager
+                GPSSampler.send_data(
+                    action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                    data=GPSSampler.jaized_log_dict,
+                    receiver=ModulesEnum.DataManager
+                )
+                # init jaized_log_dict to be clean before start recording
+                GPSSampler.init_jaized_log_dict()
+
+                GPSSampler.last_step_in = datetime.now()
                 GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
             return True
         else:
