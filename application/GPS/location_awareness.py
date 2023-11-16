@@ -330,21 +330,6 @@ class GPSSampler(Module):
         else:
             return False
 
-
-    @staticmethod
-    def gui_stop():
-
-        GPSSampler.last_step_out = datetime.now()
-
-        if GPSSampler.jaized_log_dict[consts.JAI_frame_number]:
-            GPSSampler.send_data(
-                action=ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP,
-                data=GPSSampler.jaized_log_dict,
-                receiver=ModulesEnum.DataManager
-            )
-
-        GPSSampler.init_jaized_log_dict()
-
     @staticmethod
     def get_row_state(angular_velocity_x, lat, long, imu_timestamp, gps_timestamp, depth_score):
         # GPSSampler.row_detector.detect_row(

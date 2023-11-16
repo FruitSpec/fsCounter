@@ -24,7 +24,7 @@ import speedtest
 
 class DataManager(Module):
     previous_plot, current_plot = consts.global_polygon, consts.global_polygon
-    is_in_plot = False
+    is_recording = False
     current_row = -1
     current_path, current_index = None, -1
     fruits_data = dict()
@@ -93,10 +93,11 @@ class DataManager(Module):
             except:
                 tools.log("JAIZED TIMESTAMP ERROR", logging.ERROR, exc_info=True)
 
-        def start_acquisition():
-            if DataManager.is_in_plot:
-                tools.log("START_ACQUISITION RECEIVED WHILE IN PLOT", log_level=logging.WARNING)
-            DataManager.is_in_plot = True
+        def start_recording():
+            if DataManager.is_recording:
+                tools.log("START_RECORDING RECEIVED WHILE IN PLOT", log_level=logging.WARNING)
+
+            DataManager.is_recording = True
             DataManager.previous_plot = DataManager.current_plot
             DataManager.current_plot = data["plot"]
             DataManager.current_row = data["row"]
@@ -109,11 +110,11 @@ class DataManager(Module):
                 get_index_dir=True
             )
 
-        def stop_acquisition():
-            if not DataManager.is_in_plot:
+        def stop_recording():
+            if not DataManager.is_recording:
                 return
 
-            DataManager.is_in_plot = False
+            DataManager.is_recording = False
 
             filename_csv = f"{consts.jaized_timestamps}.csv"
             jaized_timestamps_csv_path = os.path.join(DataManager.current_path, filename_csv)
@@ -165,9 +166,6 @@ class DataManager(Module):
                     new_nav_df.to_csv(nav_path, header=is_first, index=False, mode='a+')
                 elif action == ModuleTransferAction.JAIZED_TIMESTAMPS:
                     jaized_timestamps()
-                elif action == ModuleTransferAction.JAIZED_TIMESTAMPS_AND_STOP:
-                    jaized_timestamps()
-                    stop_acquisition()
             elif sender_module == ModulesEnum.Analysis:
                 if action == ModuleTransferAction.ANALYZED_DATA:
                     def write_locally(_name):
@@ -223,14 +221,14 @@ class DataManager(Module):
                     is_first = not os.path.exists(data_conf.analyzed_path)
                     analyzed_df.to_csv(data_conf.analyzed_path, header=is_first, index=False, mode="a+")
             elif sender_module == ModulesEnum.Acquisition:
-                if action == ModuleTransferAction.START_ACQUISITION:
-                    start_acquisition()
-                elif action == ModuleTransferAction.STOP_ACQUISITION:
-                    stop_acquisition()
+                if action == ModuleTransferAction.START_RECORDING:
+                    start_recording()
+                elif action == ModuleTransferAction.STOP_RECORDING:
+                    stop_recording()
                 elif action == ModuleTransferAction.ACQUISITION_CRASH:
                     tools.log("HANDLING ACQUISITION CRASH")
 
-                    stop_acquisition()
+                    stop_recording()
 
                     # copy syslog to crash dir
                     if conf.debug.crash_syslog:

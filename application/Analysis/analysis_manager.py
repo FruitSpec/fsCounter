@@ -30,6 +30,12 @@ class AnalysisManager:
     def start_acquisition(self):
         self._batcher.start_acquisition()
 
+    def start_recording(self):
+        self._batcher.start_recording()
+
+    def stop_recording(self):
+        self._batcher.stop_recording()
+
     def stop_acquisition(self):
         self._batcher.stop_acquisition()
 

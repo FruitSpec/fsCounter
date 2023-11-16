@@ -1,4 +1,4 @@
-kml_bucket_name: "fruitspec-prod-caliper"
+kml_bucket_name: "fruitspec-intgr-caliper"
 s3_kml_file_name: "Blocks.kml"
 GPS_device_name: "/dev/ttyUSB1"
 kml_path: "/home/mic-730ai/Desktop/Blocks.kml"
