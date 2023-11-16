@@ -301,6 +301,16 @@ class GPSSampler(Module):
         if GPSSampler.last_step_out + timedelta(seconds=GPS_conf.minimal_time_in_state) < datetime.now():
             # GPSSampler.row_detector = RowDetector(GPS_conf.kml_path, GPSSampler.current_plot)
             tools.log(f"STEP IN {GPSSampler.current_plot}")
+
+            # send unsent data to DataManager
+            GPSSampler.send_data(
+                action=ModuleTransferAction.JAIZED_TIMESTAMPS,
+                data=GPSSampler.jaized_log_dict,
+                receiver=ModulesEnum.DataManager
+            )
+            # init jaized_log_dict to be clean before start recording
+            GPSSampler.init_jaized_log_dict()
+
             GPSSampler.last_step_in = datetime.now()
             if not conf.GUI:  # don't do the following when GUI is used
                 GPSSampler.send_data(ModuleTransferAction.ENTER_PLOT, GPSSampler.current_plot, ModulesEnum.Acquisition)
