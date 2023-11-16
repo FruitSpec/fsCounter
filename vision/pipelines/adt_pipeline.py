@@ -367,10 +367,10 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
+    output_path = "/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123"
     validate_output_path(output_path)
 
-    rows_dir = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
+    rows_dir = "/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123"
 
     rows = os.listdir(rows_dir)
 
