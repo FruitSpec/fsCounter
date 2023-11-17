@@ -2,61 +2,27 @@ import cv2
 import pandas as pd
 import json
 import os
-
+from tqdm import tqdm
+from vision.tools.utils_general import find_subdirs_with_file
 
 class TaggingPipeline:
-    def __init__(self, video_path, tracks_csv_path, output_dir, video_identifier, rotate_option=None,
-                 frames_interval=10):
-        self.video_path = video_path
-        self.tracks_csv_path = tracks_csv_path
+    """
+    A utility for processing videos and tracking data to extract frames and compile annotations into a COCO-format JSON.
+
+    Usage:
+        - Initialize with paths to video folders and output directory.
+        - Run the pipeline specifying whether to save frames and/or update COCO JSON.
+        - Outputs frames and a COCO JSON with annotations for object detection models.
+
+    The video_identifier is created from the last five subdirectories of the video's path.
+    """
+
+    def __init__(self, videos_folder, output_dir, rotate_option=None, frames_interval=10):
+        self.videos_folder = videos_folder
         self.output_dir = output_dir
-        self.video_identifier = video_identifier
         self.rotate_option = rotate_option
         self.frames_interval = frames_interval
-
-    @staticmethod
-    def validate_output_path(path):
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-    def frames_idx(self, frames_amount):
-        return [x for x in range(frames_amount) if x % self.frames_interval == 0]
-
-    def load_video(self):
-        cap = cv2.VideoCapture(self.video_path)
-        if not cap.isOpened():
-            print("Error opening video stream or file")
-            return None
-        return cap
-
-    def rotate_frame(self, frame):
-        if self.rotate_option == 'clockwise':
-            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-        elif self.rotate_option == 'counter_clockwise':
-            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        return frame
-
-    def save_frames(self, cap, frames_idx_list):
-        frame_save_path = os.path.join(self.output_dir, 'frames')
-        self.validate_output_path(frame_save_path)
-
-        for frame_id in frames_idx_list:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
-            ret, frame = cap.read()
-            if ret:
-                frame = self.rotate_frame(frame)
-                frame_file_path = os.path.join(frame_save_path, f"{self.video_identifier}_frame_{frame_id}.jpg")
-                cv2.imwrite(frame_file_path, frame)
-                print(f'Saved: {frame_file_path}')
-            else:
-                print(f"Failed to capture frame {frame_id}")
-
-    def filter_tracks_by_frame_ids(self, frames_idx_list):
-        tracking_results = pd.read_csv(self.tracks_csv_path)
-        return tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
-
-    def tracks_to_coco_json(self, df):
-        coco_format = {
+        self.coco_format = {
             "images": [],
             "annotations": [],
             "categories": [{
@@ -65,79 +31,122 @@ class TaggingPipeline:
                 "supercategory": "none"
             }]
         }
+        self.annotation_counter = 1  # Initialize annotation ID counter
 
-        image_ids = set()
+    @staticmethod
+    def validate_output_path(path):
+        if not os.path.exists(path):
+            os.makedirs(path)
 
+    @staticmethod
+    def frames_idx(frames_amount, frames_interval):
+        return [x for x in range(frames_amount) if x % frames_interval == 0]
+
+    def rotate_frame(self, frame):
+        if self.rotate_option == 'clockwise':
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        elif self.rotate_option == 'counter_clockwise':
+            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return frame
+
+    def process_video(self, video_path, tracks_csv_path, video_identifier, save_frames, update_coco):
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print(f"Error opening video stream or file: {video_path}")
+            return
+
+        tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frames_idx_list = self.frames_idx(tot_frames, self.frames_interval)
+        frame_save_path = os.path.join(self.output_dir, 'frames')
+        self.validate_output_path(frame_save_path)
+
+        # Save frames with a progress bar
+        if save_frames:
+            for frame_id in tqdm(frames_idx_list, unit="frame"):
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
+                ret, frame = cap.read()
+                if ret:
+                    frame = self.rotate_frame(frame)
+                    frame_file_path = os.path.join(frame_save_path, f"{video_identifier}_frame_{frame_id}.jpg")
+                    cv2.imwrite(frame_file_path, frame)
+                else:
+                    print(f"Failed to capture frame {frame_id}")
+
+        cap.release()
+
+        # Process tracks and update COCO JSON with a progress bar
+        if update_coco:
+            tracking_results = pd.read_csv(tracks_csv_path)
+            filtered_tracks = tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
+            self.update_coco_json(filtered_tracks, video_identifier)
+
+
+    def update_coco_json(self, df, video_identifier):
         for _, row in df.iterrows():
             image_id = int(row['frame_id'])
-            if image_id not in image_ids:
+            image_file_name = f"{video_identifier}_frame_{image_id}.jpg"
+
+            # Only add the image if it's not already in the coco_format
+            if not any(image['file_name'] == image_file_name for image in self.coco_format['images']):
                 image = {
                     "id": image_id,
                     "width": None,  # Width is not available in the provided data
                     "height": None,  # Height is not available in the provided data
-                    "file_name": f"{self.video_identifier}_frame_{image_id}.jpg"
+                    "file_name": image_file_name
                 }
-                coco_format["images"].append(image)
-                image_ids.add(image_id)
+                self.coco_format["images"].append(image)
 
             annotation = {
-                "id": len(coco_format["annotations"]) + 1,
+                "id": self.annotation_counter,
                 "image_id": image_id,
                 "category_id": 1,
                 "bbox": [row['x1'], row['y1'], row['x2'] - row['x1'], row['y2'] - row['y1']],
                 "area": (row['x2'] - row['x1']) * (row['y2'] - row['y1']),
                 "iscrowd": 0,
-                "segmentation": [],  # Segmentation is not available
-                "score": row['obj_conf']  # Assuming obj_conf is the confidence score
+                "segmentation": [],
+                "score": row['obj_conf']
             }
-            coco_format["annotations"].append(annotation)
+            self.coco_format["annotations"].append(annotation)
+            self.annotation_counter += 1  # Increment the annotation ID counter
 
-        return json.dumps(coco_format, indent=2)
-
-    def save_coco_json(self, coco_json):
-        self.validate_output_path(self.output_dir)
-        output_path_coco = os.path.join(self.output_dir, f"coco_{self.video_identifier}.json")
+    def save_coco_json(self):
+        output_path_coco = os.path.join(self.output_dir, 'coco_dataset.json')
         with open(output_path_coco, 'w') as file:
-            file.write(coco_json)
+            json.dump(self.coco_format, file, indent=2)
         print(f'Saved: {output_path_coco}')
 
-    def run(self, save_frames=True, save_coco=True):
-        cap = self.load_video()
-        if cap is None:
-            return
+    def run(self, save_frames=True, update_coco=True, video_name = 'Result_FSI.mkv'):
 
-        tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        frames_idx_list = self.frames_idx(tot_frames)
+        subdirs = find_subdirs_with_file(self.videos_folder, file_name = video_name, return_dirs=True, single_file=False)
+        for subdir in subdirs:
 
-        if save_frames:
-            self.save_frames(cap, frames_idx_list)
+            video_path = os.path.join(subdir, video_name)
+            tracks_csv_path = os.path.join(subdir, 'tracks.csv')
+            video_identifier = '_'.join(subdir.split(os.sep)[-5:])
 
-        if save_coco:
-            filtered_tracks_df = self.filter_tracks_by_frame_ids(frames_idx_list)
-            coco_json = self.tracks_to_coco_json(filtered_tracks_df)
-            self.save_coco_json(coco_json)
+            self.process_video(video_path, tracks_csv_path, video_identifier, save_frames, update_coco)
 
-        cap.release()
-        print('Pipeline execution completed')
+        if update_coco:
+            self.save_coco_json()
 
 
 if __name__ == '__main__':
 
-
-    VIDEO_PATH = '/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123/row_1/1/Result_FSI.mkv'
-    TRACKS_CSV_PATH ='/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123/row_1/1/tracks.csv'
+    VIDEOS_FOLDER = '/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123'
     OUTPUT_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/DeleteMe/'
-    VIDEO_IDENTIFIER = 'video_identifier'
     ROTATE = 'counter_clockwise'
 
 
     pipeline = TaggingPipeline(
-        video_path=VIDEO_PATH,
-        tracks_csv_path=TRACKS_CSV_PATH,
-        output_dir=OUTPUT_DIR,
-        video_identifier=VIDEO_IDENTIFIER,
+        videos_folder = VIDEOS_FOLDER,
+        output_dir= OUTPUT_DIR,
         rotate_option=ROTATE)
 
-    pipeline.run(save_frames=True, save_coco=True)
+    pipeline.run(save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv')
+    pipeline.run(save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')
+
+    print('Done')
+
+
 
 
