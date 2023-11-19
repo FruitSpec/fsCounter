@@ -82,7 +82,7 @@ def get_s3_file_paths(s3_path, string_param=None, suffix='.json', include_bucket
     return files
 
 
-def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', skip_existing=True):
+def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', skip_existing=True, save_flat=False):
     """
     Downloads S3 files matching the specified criteria and maintains the folder structure locally.
 
@@ -94,14 +94,13 @@ def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', s
         suffix (str, optional): The suffix of the file names to consider. Defaults to '.json'.
         skip_existing (bool, optional): Whether to skip downloading a file if it already exists locally.
                                         Defaults to False.
+        save_flat (bool, optional): Whether to save the files in a flat structure (no subfolders).
     """
     s3 = boto3.client('s3')
     bucket_name, prefix = s3_full_path_to_bucket_and_prefix(s3_path)
-    local_folder = os.path.basename(prefix)
-    local_output_path = os.path.join(output_path, local_folder)
-
-    # Create the local output path if it doesn't exist
-    os.makedirs(local_output_path, exist_ok=True)
+    if not save_flat:
+        local_output_path = os.path.join(output_path, os.path.basename(prefix))
+        os.makedirs(local_output_path, exist_ok=True)
 
     paginator = s3.get_paginator('list_objects_v2')
     operation_parameters = {'Bucket': bucket_name, 'Prefix': prefix}
@@ -111,9 +110,14 @@ def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', s
             for obj in page['Contents']:
                 key = obj['Key']
                 if key.endswith(suffix) and (string_param is None or string_param in key):
-                    local_file_path = os.path.join(local_output_path, (key.replace(prefix.lstrip('/'), '')).strip('/'))
-                    local_file_dir = os.path.dirname(local_file_path)
-                    os.makedirs(local_file_dir, exist_ok=True)  # Create local directories if they don't exist
+                    if save_flat:
+                        local_file_path = os.path.join(output_path, os.path.basename(key))
+                    else:
+                        local_file_path = os.path.join(local_output_path, (key.replace(prefix.lstrip('/'), '')).strip('/'))
+
+
+
+                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)  # Create local directories if they don't exist
                     if skip_existing and os.path.exists(local_file_path):
                         print(f"Skipped: {local_file_path} (File already exists)")
                     else:
