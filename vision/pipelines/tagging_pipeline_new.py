@@ -3,7 +3,10 @@ import pandas as pd
 import json
 import os
 from tqdm import tqdm
-from vision.tools.utils_general import find_subdirs_with_file
+from vision.tools.utils_general import find_subdirs_with_file, download_s3_files
+from vision.misc.help_func import get_subpath_from_dir
+import shutil
+import random
 
 class TaggingPipeline:
     """
@@ -23,10 +26,11 @@ class TaggingPipeline:
         self.rotate_option = rotate_option
         self.frames_interval = frames_interval
         self.coco_format = {
+            "videos": [],
             "images": [],
             "annotations": [],
             "categories": [{
-                "id": 1,
+                "id": 1,            #todo
                 "name": "object",
                 "supercategory": "none"
             }]
@@ -68,7 +72,11 @@ class TaggingPipeline:
                 if ret:
                     frame = self.rotate_frame(frame)
                     frame_file_path = os.path.join(frame_save_path, f"{video_identifier}_frame_{frame_id}.jpg")
-                    cv2.imwrite(frame_file_path, frame)
+                    success = cv2.imwrite(frame_file_path, frame)
+                    if not success:
+                        print(f"Failed to save frame {frame_id}")
+                    else:
+                        print(f"Saved {frame_file_path}")
                 else:
                     print(f"Failed to capture frame {frame_id}")
 
@@ -80,14 +88,19 @@ class TaggingPipeline:
             filtered_tracks = tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
             self.update_coco_json(filtered_tracks, video_identifier)
 
-
     def update_coco_json(self, df, video_identifier):
+        self.coco_format["videos"].append(video_identifier)
         for _, row in df.iterrows():
-            image_id = int(row['frame_id'])
-            image_file_name = f"{video_identifier}_frame_{image_id}.jpg"
+            frame_id = int(row['frame_id'])
+            image_file_name = f"{video_identifier}_frame_{frame_id}.jpg"
 
-            # Only add the image if it's not already in the coco_format
-            if not any(image['file_name'] == image_file_name for image in self.coco_format['images']):
+            # Check if the image has already been added by looking up the file name
+            existing_image = next(
+                (image for image in self.coco_format["images"] if image['file_name'] == image_file_name), None)
+
+            if not existing_image:
+                # If the image doesn't exist, increment the image_id counter and add the image
+                image_id = len(self.coco_format["images"]) + 1
                 image = {
                     "id": image_id,
                     "width": None,  # Width is not available in the provided data
@@ -95,7 +108,11 @@ class TaggingPipeline:
                     "file_name": image_file_name
                 }
                 self.coco_format["images"].append(image)
+            else:
+                # If the image exists, use the existing image_id
+                image_id = existing_image["id"]
 
+            # Add the annotation with the image_id
             annotation = {
                 "id": self.annotation_counter,
                 "image_id": image_id,
@@ -129,21 +146,110 @@ class TaggingPipeline:
         if update_coco:
             self.save_coco_json()
 
+    def split_data_and_images(self, split_ratio=0.8, seed = 42):
+        """
+        Splits the data into training and testing sets based on the provided split ratio,
+        moves the corresponding images to train/test subdirectories, and saves the coco json files.
+
+        :param split_ratio: A float representing the ratio of the split; default is 0.8 for 80% train, 20% test.
+        """
+
+        # Set seed, Shuffle images before splitting
+        random.seed(seed)
+        random.shuffle(self.coco_format['images'])
+
+        # Calculate the split index
+        split_index = int(len(self.coco_format['images']) * split_ratio)
+
+        # Split the images into training and testing
+        train_images = self.coco_format['images'][:split_index]
+        test_images = self.coco_format['images'][split_index:]
+
+        # Correspondingly split annotations based on the split images
+        train_annotations = [ann for ann in self.coco_format['annotations'] if
+                             ann['image_id'] in [img['id'] for img in train_images]]
+        test_annotations = [ann for ann in self.coco_format['annotations'] if
+                            ann['image_id'] in [img['id'] for img in test_images]]
+
+        # Create two separate coco_format dictionaries for train and test
+        train_coco = {
+            "images": train_images,
+            "annotations": train_annotations,
+            "categories": self.coco_format['categories']
+        }
+        test_coco = {
+            "images": test_images,
+            "annotations": test_annotations,
+            "categories": self.coco_format['categories']
+        }
+
+        # Create train/test subdirectories for images
+        train_images_dir = os.path.join(self.output_dir, 'train_images')
+        test_images_dir = os.path.join(self.output_dir, 'test_images')
+        self.validate_output_path(train_images_dir)
+        self.validate_output_path(test_images_dir)
+
+        # Move the corresponding images to train/test subdirectories
+        for img in train_images:
+            shutil.move(os.path.join(self.output_dir, 'frames', img['file_name']),
+                        os.path.join(train_images_dir, img['file_name']))
+            print (f'Moved {img["file_name"]} to {train_images_dir}')
+
+        for img in test_images:
+            shutil.move(os.path.join(self.output_dir, 'frames', img['file_name']),
+                        os.path.join(test_images_dir, img['file_name']))
+            print (f'Moved {img["file_name"]} to {test_images_dir}')
+
+        # Save the coco_format JSON files
+        train_coco_path = os.path.join(self.output_dir, 'train_annotations', 'coco_annotations.json')
+        test_coco_path = os.path.join(self.output_dir, 'test_annotations', 'coco_annotations.json')
+
+        self.validate_output_path(os.path.dirname(train_coco_path))
+        self.validate_output_path(os.path.dirname(test_coco_path))
+
+        with open(train_coco_path, 'w') as f:
+            json.dump(train_coco, f, indent=2)
+
+        with open(test_coco_path, 'w') as f:
+            json.dump(test_coco, f, indent=2)
+
+        print(f'Saved train annotations to {train_coco_path}')
+        print(f'Saved test annotations to {test_coco_path}')
+
+        return train_coco_path, test_coco_path
+
 
 if __name__ == '__main__':
 
-    VIDEOS_FOLDER = '/home/lihi/FruitSpec/Data/CLAHE_FSI/MANDAR/MEIRAVVA/091123'
-    OUTPUT_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/DeleteMe/'
+    # Download files from S3:
+    S3_PATHS_LIST = ['s3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/151123/', 's3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/151123/']
+    OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/'
+    LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
+    OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'Tagging_Pipeline_Outputs')
     ROTATE = 'counter_clockwise'
 
+    for S3_PATH in S3_PATHS_LIST:
 
-    pipeline = TaggingPipeline(
-        videos_folder = VIDEOS_FOLDER,
-        output_dir= OUTPUT_DIR,
-        rotate_option=ROTATE)
+        # Download files from S3:
+        block_name = get_subpath_from_dir(S3_PATH, dir_name ="ISRAEL", include_dir=False)
+        ROWS_FOLDER_LOCAL = os.path.join(OUTPUT_DATA_DIR, block_name)
+        #download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
 
-    pipeline.run(save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv')
-    pipeline.run(save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')
+    ###############################################################################################################################################
+    # Get a list of all rows dir paths (where there are tracks.csv files):
+    # Its is done like that (and not directly on all downloaded files from s3) because that we need to manually remove unwanted rows
+    local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
+    local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs]))
+    for ROWS_FOLDER_LOCAL in local_rows_dirs:
+        pipeline = TaggingPipeline(
+            videos_folder = ROWS_FOLDER_LOCAL,
+            output_dir= OUTPUT_RESULTS_DIR,
+            rotate_option=ROTATE)
+
+        pipeline.run(save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
+        pipeline.run(save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')  # Save frames from new FSI (CLAHE)
+
+    pipeline.split_data_and_images(split_ratio=0.85)
 
     print('Done')
 

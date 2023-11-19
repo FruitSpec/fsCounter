@@ -1,5 +1,12 @@
 import os
 import boto3
+from botocore.exceptions import ClientError
+import logging
+
+import boto3
+import os
+from botocore.exceptions import ClientError
+
 
 def variable_exists(var_name):
     '''
@@ -39,7 +46,7 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
             raise ValueError(f"Multiple files found\n{subdirs_with_file}. Expected a single file.")
         else: return subdirs_with_file
 
-    else: return subdirs_with_file[0] # if there is only one file
+    else: return subdirs_with_file[0] if single_file else subdirs_with_file # if there is only one file
 
 ########   S3 UTILS
 
@@ -82,16 +89,15 @@ def get_s3_file_paths(s3_path, string_param=None, suffix='.json', include_bucket
     return files
 
 
-def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', skip_existing=True, save_flat=False):
+def download_s3_files(s3_path, output_path, string_param=None, skip_existing=True, save_flat=False):
     """
     Downloads S3 files matching the specified criteria and maintains the folder structure locally.
 
     Args:
         s3_path (str): The full S3 path, e.g., 's3://bucket-name/prefix/'.
         output_path (str): The local output path to save the files.
-        string_param (str, optional): The specific string parameter to match in the file paths.
-                                     Defaults to None. Example: string_param='slice_data' (files that contain this string)
-        suffix (str, optional): The suffix of the file names to consider. Defaults to '.json'.
+        string_param (str | list, optional): The specific string or list of strings to match in the file paths.
+                                             Defaults to None. Example: string_param='slice_data' (files that contain this string)
         skip_existing (bool, optional): Whether to skip downloading a file if it already exists locally.
                                         Defaults to False.
         save_flat (bool, optional): Whether to save the files in a flat structure (no subfolders).
@@ -109,28 +115,31 @@ def download_s3_files(s3_path, output_path, string_param=None, suffix='.json', s
         if 'Contents' in page:
             for obj in page['Contents']:
                 key = obj['Key']
-                if key.endswith(suffix) and (string_param is None or string_param in key):
-                    if save_flat:
-                        local_file_path = os.path.join(output_path, os.path.basename(key))
-                    else:
-                        local_file_path = os.path.join(local_output_path, (key.replace(prefix.lstrip('/'), '')).strip('/'))
+                # Check if string_param is a list and if any of the strings in the list are in the key
+                if isinstance(string_param, list):
+                    if not any(s_param in key for s_param in string_param):
+                        continue
+                elif string_param and string_param not in key:
+                    continue
+
+                # Determine local file path
+                if save_flat:
+                    local_file_path = os.path.join(output_path, os.path.basename(key))
+                else:
+                    local_file_path = os.path.join(local_output_path, (key.replace(prefix.lstrip('/'), '')).strip('/'))
+
+                # Create local directories if they don't exist
+                os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+
+                # Skip or download the file
+                if skip_existing and os.path.exists(local_file_path):
+                    print(f"Skipped: {local_file_path} (File already exists)")
+                else:
+                    s3.download_file(bucket_name, key, local_file_path)
+                    print(f"Downloaded: {local_file_path}")
 
 
 
-                    os.makedirs(os.path.dirname(local_file_path), exist_ok=True)  # Create local directories if they don't exist
-                    if skip_existing and os.path.exists(local_file_path):
-                        print(f"Skipped: {local_file_path} (File already exists)")
-                    else:
-                        s3.download_file(bucket_name, key, local_file_path)
-                        print(f"Downloaded: {local_file_path}")
-
-
-from botocore.exceptions import ClientError
-import logging
-
-import boto3
-import os
-from botocore.exceptions import ClientError
 
 def upload_to_s3(file_name, full_path_s3_dir):
     """
