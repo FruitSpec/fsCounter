@@ -7,7 +7,7 @@ import threading
 import queue
 #from cython_bbox import bbox_overlaps as bbox_ious
 
-#@jit(nopython=True, cache=True, nogil=True)
+@jit(nopython=True, cache=True, nogil=True)
 def compute_ratios(trk_windows: np.array, dets: np.array) -> np.array:
     trk_area = (trk_windows[:, 2] - trk_windows[:, 0]) * (trk_windows[:, 3] - trk_windows[:, 1])
     det_area = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
@@ -272,7 +272,7 @@ def get_intersection(bboxes1, bboxes2):  # matches
     return inter_aera
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def calc_intersection(bboxes1: np.array, bboxes2: np.array):
     x11, y11, x12, y12 = bbox_to_coordinate_vectors(bboxes1)
     x21, y21, x22, y22 = bbox_to_coordinate_vectors(bboxes2)
@@ -320,7 +320,7 @@ def get_union(bboxes1, bboxes2, intersection):
     return union
 
 
-@jit(nopython=True)
+@jit(nopython=True, cache=True, nogil=True)
 def bbox_to_coordinate_vectors(bboxes):
     x1_vec = bboxes[:, 0].copy()
     y1_vec = bboxes[:, 1].copy()

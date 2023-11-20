@@ -16,15 +16,25 @@ class FruitCluster():
         self.range_diff_threshold = range_diff_threshold
         self.max_losses = max_losses
 
+    def cluster_batch(self, trk_outputs, ranges_batch):
+        outputs = []
+        clusters_output = []
+        for trk_results, ranges in zip(trk_outputs, ranges_batch):
+            output, cluster_ids = self.cluster(trk_results, ranges)
+            outputs.append(output)
+            clusters_output.append(cluster_ids)
+
+        return outputs, clusters_output
+
     def cluster(self, trk_results, ranges):
         if len(trk_results) == 0:
-            return []
+            return [], []
 
         trk_results = np.array(trk_results)
         dist = compute_dist_on_vec(trk_results, trk_results)
         diff = compute_diff_on_vec(ranges)
 
-        t_ids = np.array([trk[-2] for trk in trk_results])
+        t_ids = np.array([trk[6] for trk in trk_results])
         neighbors = []
         for t_dist, t_diff in zip(dist, diff):
             dist_bool = t_dist < self.max_single_fruit_dist
@@ -78,11 +88,13 @@ class FruitCluster():
 
         # add class id in results output
         output = trk_results.tolist().copy()
+        cluster_ids = []
         for trk in output:
             cluster_id = trk_to_cluster[trk[6]]
             trk.append(cluster_id)
+            cluster_ids.append(cluster_id)
 
-        return output
+        return output, cluster_ids
 
 def compute_dist_on_vec(trk_windows, dets):
 
@@ -103,11 +115,15 @@ def compute_dist_on_vec(trk_windows, dets):
 
     sqaured_diff_y = np.power((trk_y.T - det_y), 2)
 
-    return np.sqrt(sqaured_diff_x + sqaured_diff_y)
+    sqaured_diff = sqaured_diff_x + sqaured_diff_y
+
+    return np.sqrt(sqaured_diff.astype(np.float32))
 
 
 def compute_diff_on_vec(vec):
-
+    tf = np.isinf(vec)
+    vec = np.array(vec)
+    vec[tf] = 20 # value in meters --> very far
     vec = np.expand_dims(vec, axis=0)
     diff = vec.T - vec
 

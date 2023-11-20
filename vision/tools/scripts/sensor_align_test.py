@@ -222,9 +222,10 @@ def estimate_M(kp1, kp2, match, ransac=10):
 
 
 
-def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None):
-    if corr is not None and np.sum(np.isnan(corr)) == 0:
-        zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
+def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets=None, lense=61, name=None):
+    if lense != 83:
+        if corr is not None and np.sum(np.isnan(corr)) == 0:
+            zed = zed[int(corr[1]):int(corr[3]), int(corr[0]):int(corr[2]), :]
 
     gx = 680 / jai.shape[1]
     gy = 960 / jai.shape[0]
@@ -237,8 +238,8 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets
         dets[:, 2] = dets[:, 2] * gx
         dets[:, 1] = dets[:, 1] * gy
         dets[:, 3] = dets[:, 3] * gy
-        jai = ResultsCollector.draw_dets(jai, dets, t_index=7, text=False)
-        zed = ResultsCollector.draw_dets(zed, dets, t_index=7, text=False)
+        jai = ResultsCollector.draw_dets(jai, dets, t_index=6, text=False, thickness=1)
+        zed = ResultsCollector.draw_dets(zed, dets, t_index=6, text=False, thickness=1)
 
     canvas = np.zeros((960, 680*2, 3))
     canvas[:, :680, :] = zed
@@ -246,12 +247,11 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets
 
     fp = os.path.join(output_folder, sub_folder)
     validate_output_path(fp)
-    cv2.imwrite(os.path.join(fp, f"aligned_f{f_id}.jpg"), canvas)
-
-
-
-
-
+    if name is None:
+        name = os.path.join(fp, f"aligned_f{f_id}.jpg")
+    else:
+        name = os.path.join(fp, f"{name}_f{f_id}.jpg")
+    cv2.imwrite(name, canvas)
 
 
 def zed_slicing_to_jai(slice_data_path, output_folder, rotate=False):

@@ -4,6 +4,17 @@ import numpy as np
 from vision.tracker.fsTracker.score_func import get_intersection
 from vision.depth.zed.svo_operations import get_distance
 
+def batch_filter_by_distance(dets, point_cloud, threshold=1):
+    output_filtered = []
+    output_ranges = []
+    ids = []
+    for frame_dets, frame_pc in zip(dets, point_cloud):
+        filtered, ranges, d_ids = filter_by_distance(frame_dets, frame_pc, threshold)
+        output_filtered.append(filtered)
+        output_ranges.append(ranges)
+        ids.append(d_ids)
+
+    return output_filtered, output_ranges, ids
 
 def filter_by_distance(dets, point_cloud, threshold=1, percentile=0.4, factor=2.5):
     filtered = []

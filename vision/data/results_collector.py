@@ -165,6 +165,12 @@ class ResultsCollector():
         elif type == "percen_seen":
             fields = ["frame", "percent_seen", "percent_h_seen", "percent_seen_top", "no_tree_indicator", "full_tree"]
             rows = self.percent_seen
+        elif type == "jai_syngenta":
+            fields = ["x1", "y1", "x2", "y2", "conf", "class_pred", "track_id", "track_depth", "frame_id", "cluster_id", "color"]
+            rows = self.tracks
+        elif type == "zed_syngenta":
+            fields = ["x1", "y1", "x2", "y2", "conf", "class_pred", "track_id", "track_depth", "frame_id", "x_ceter", "y_center", "depth", "width", "height", "cluster_id", "color"]
+            rows = self.tracks
         else:
             fields = self.tracks_header
             rows = self.tracks
@@ -310,12 +316,11 @@ class ResultsCollector():
             self.save_tracker_windows(f_id, args, trk_outputs, trk_windows)
         if args.debug.tracker_results:
             validate_output_path(os.path.join(args.output_folder, 'trk_results'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'),
-                               det_colors=det_colors)
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'trk_results'))
+
         if args.debug.det_results:
             validate_output_path(os.path.join(args.output_folder, 'det_results'))
-            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'),
-                               det_colors=det_colors)
+            self.draw_and_save(frame.copy(), det_outputs, f_id, os.path.join(args.output_folder, 'det_results'))
         if args.debug.raw_frame:
             validate_output_path(os.path.join(args.output_folder, 'frames'))
             self.draw_and_save(frame.copy(), [], f_id, os.path.join(args.output_folder, 'frames'))
@@ -327,7 +332,14 @@ class ResultsCollector():
             self.draw_and_save(depth.copy(), [], f_id, os.path.join(args.output_folder, 'depth'))
         if args.debug.clusters:
             validate_output_path(os.path.join(args.output_folder, 'clusters'))
-            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -5,
+            self.draw_and_save(frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'clusters'), -2)
+        if args.debug.colors:
+            validate_output_path(os.path.join(args.output_folder, 'colors'))
+            if zed_frame is not None:
+                colors_frame = zed_frame
+            else:
+                colors_frame = frame
+            self.draw_and_save(colors_frame.copy(), trk_outputs, f_id, os.path.join(args.output_folder, 'colors'), -1,
                                det_colors=det_colors)
         if args.debug.alignment:
             validate_output_path(os.path.join(args.output_folder, 'alignment'))
@@ -622,9 +634,9 @@ class ResultsCollector():
         self.dump_state(output_path)
         self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
-        self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
-        self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
-        self.dump_to_csv(os.path.join(output_path, 'percen_seen.csv'), type="percen_seen")
+        #self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
+        #self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
+        #self.dump_to_csv(os.path.join(output_path, 'percen_seen.csv'), type="percen_seen")
         # self.dump_cv_res(output_path, depth)
 
     def converted_slice_data(self, sliced_data):

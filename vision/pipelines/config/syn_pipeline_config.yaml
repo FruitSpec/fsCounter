@@ -3,7 +3,7 @@ len_size: 83
 light_glue: true
 jai:
   exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_and_mixup.py
-  ckpt_file: /home/matans/Documents/fruitspec/Weights/tomatos_jai/best_ckpt.pth
+  ckpt_file: /home/matans/Documents/fruitspec/Weights/tomatos_jai/1Class_FSI_Nov_12_23/best_ckpt.pth
   device: cuda
   input_size: [1024, 1024]
   batch_size: 4
@@ -11,9 +11,9 @@ jai:
   calibration_path: /media/matans/My Book/FruitSpec/target/calibration.npz
 
   detector:
-    confidence: 0.381
-    nms: 0.65
-    num_of_classes: 2
+    confidence: 0.6
+    nms: 0.45
+    num_of_classes: 1
     fp16: true
     fuse: false
     trt: false
@@ -25,11 +25,25 @@ jai:
   tracker:
     minimal_max_distance: 10
     major: 1.5 #3
-    minor: 0.75 #2.5
-    max_losses: 5  # 10
-    score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]
-    match_type:  inter #center #
-    det_area: 0.7
+    minor: 1 #2.5
+    close_frame: 0.9
+    ranges:
+      close:
+        dist: 1.2
+        major: 2.2 #1.5 #2
+        minor: 1.2 #0.8 #1.2
+      far:
+        dist: 3.2
+        major: 1.2 # 1.1
+        minor: 0.4 # 0.65
+      mid:
+        dist: 2 # not in use
+        major: 1.5 #1.5
+        minor: 0.8 #0.8
+    max_losses: 3  # 10
+    score_weights: [ 0.25, 1.0, 0.25, 0.75 ]  # [0.25, 1.0, 0.25, 1]
+    match_type: inter #center #
+    det_area: 1
     translation_size: 640
     compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
     debug: false
@@ -44,9 +58,9 @@ zed:
   calibration_path: /media/matans/My Book/FruitSpec/target/zed/calibration.npz
 
   detector:
-    confidence: 0.381
-    nms: 0.65
-    num_of_classes: 2
+    confidence: 0.6
+    nms: 0.45
+    num_of_classes: 1
     fp16: true
     fuse: false
     trt: false
@@ -58,11 +72,25 @@ zed:
   tracker:
     minimal_max_distance: 10
     major: 1.5 #3
-    minor: 0.75 #2.5
-    max_losses: 5  # 10
-    score_weights: [ 0.25, 1.0, 0.25, 0.0 ]  # [0.25, 1.0, 0.25, 1]
+    minor: 1 #2.5
+    close_frame: 0.9
+    ranges:
+      close:
+        dist: 1.2
+        major: 2.2 #1.5 #2
+        minor: 1.2 #0.8 #1.2
+      far:
+        dist: 3.2
+        major: 1.2 # 1.1
+        minor: 0.4 # 0.65
+      mid:
+        dist: 2 # not in use
+        major: 1.5 #1.5
+        minor: 0.8 #0.8
+    max_losses: 10  # 10
+    score_weights: [ 0.25, 1.0, 0.25, 0.75 ]  # [0.25, 1.0, 0.25, 1]
     match_type: inter #center #
-    det_area: 0.7
+    det_area: 1
     translation_size: 640
     compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
     debug: false
@@ -103,7 +131,7 @@ result_collector:
 
 filters:
   distance:
-    threshold: 1
+    threshold: 1.25
   duplicates:
     iou_threshold: 0.6
   size:

@@ -41,20 +41,20 @@ rgb_jai:
 frame_size: [2048, 1536]
 
 debug:
-  tracker_windows: false
-  tracker_results: false
-  det_results: false
+  tracker_windows: true
+  tracker_results: true
+  det_results: true
   raw_frame: false
   depth: false
+  clusters: false
+  colors: true
   tracker: None
   trees: false
   features: false
-  align_graph: true
-  clusters: false
+  align_graph: false
+  alignment: false
   run_type: RGB_siftv1_kp_equalize # align graph naming
-
-
-
+  raw_frame_zed: false
 
 adt_debugger:
   scan_type: "multi_scans"

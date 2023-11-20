@@ -12,7 +12,7 @@ from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fin
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
 from vision.visualization.drawer import draw_rectangle
-
+from vision.pipelines.ops.frame_loader import arrange_ids
 
 def mouse_callback(event, x, y, flags, params):
     """
@@ -172,13 +172,15 @@ def update_index(k, params):
     return params
 
 
-def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3,
+def manual_slicer(filepath, output_path, data=None, jz_file=None, rotate=0, index=0, draw_start=None, draw_end=None, resize_factor=3,
                   flip_channels = False):
     """
     this is where the magic happens, palys the video
     """
     if data is None:
         data = load_json(filepath, output_path)
+        jz = pd.read_csv(jz_file)
+        zed_frames, jai_frames = arrange_ids(jz['JAI_frame_number'], jz['ZED_frame_number'])
     params = {"filepath": filepath,
               "output_path": output_path,
               "data": data,
@@ -209,7 +211,11 @@ def manual_slicer(filepath, output_path, data=None, rotate=0, index=0, draw_star
         # Capture frame-by-frame
         print(params["index"])
         if cam.mode == 'svo':
-            cam.grab(params["index"])
+            if params["index"] < len(zed_frames):
+                frame_id = zed_frames[params["index"]]
+            else:
+                frame_id = zed_frames[-1]
+            cam.grab(frame_id)
         ret, frame = cam.get_frame(params["index"])
         if ret != True:
             break  # couldn't load frame
@@ -369,7 +375,7 @@ def post_process(slice_data, output_path=None, save_csv=False, save_csv_trees=Fa
     return df_all
 
 
-def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3, h=2048, w=1536, on_fly=True):
+def slice_to_trees(data_file, file_path, output_path, direction='right', resize_factor=3, h=2048, w=1536, on_fly=True):
     size_h = int(h // resize_factor)
     size_w = int(w // resize_factor)
     size = max(size_h, size_w)
@@ -430,7 +436,7 @@ def slice_to_trees(data_file, file_path, output_path, direction, resize_factor=3
         return pd.concat(df_all, axis=0), border_df
 
 
-def parse_data_to_trees(data, direction):
+def parse_data_to_trees(data, direction='right'):
     tree_id = 0
     # started_tree = False
     # start_and_end_tree = False
@@ -752,12 +758,18 @@ def get_all_slicing_and_n_trees():
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
-    fp = '/media/yotam/Extreme SSD/syngenta trail/tomato/100123/window_trial/20_10_pre/ZED_1.svo'
-    output_path = '/home/yotam/FruitSpec/Sandbox/Syngenta/testing'
+    fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/ZED.svo'
+    #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
+    jz_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/jaized_timestamps.csv"
+    output_path = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/zed/'
     validate_output_path(output_path)
-    manual_slicer(fp, output_path, rotate=2)
+    rotate = 1 if 'FSI' in fp.split('/')[-1] else 2
+    manual_slicer(fp, output_path, jz_file=jz_file,rotate=rotate)
 
-    data_file = "/home/fruitspec-lab-3/FruitSpec/Sandbox/Syngenta/testing/ZED_1_slice_data.json"
-    #slice_to_trees(data_file, None, None, h=1920, w=1080)
-
+    #data_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/zed/ZED_slice_data.json"
+    data_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/jai/Result_FSI_slice_data.json"
+    h = 2048 if 'FSI' in data_file.split('/')[-1] else 1920 # 2048
+    w = 1536 if 'FSI' in data_file.split('/')[-1] else 1080 # 1536
+    #trees, borders = slice_to_trees(data_file, jz_file="", None, h=h, w=w)
+    print('Done')
 

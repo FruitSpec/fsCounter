@@ -174,9 +174,9 @@ class video_wrapper():
             ci = self.cam.get_camera_information()
             # camera is rotated - width is height
             if self.to_rotate:
-                height = ci.camera_configuration.camera_resolution.width
+                height = ci.camera_configuration.resolution.width
             else:
-                height = ci.camera_configuration.camera_resolution.height
+                height = ci.camera_configuration.resolution.height
         else:
             if self.to_rotate:
                 height = self.cam.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -190,9 +190,9 @@ class video_wrapper():
             ci = self.cam.get_camera_information()
             # camera is rotated - height is width
             if self.to_rotate:
-                width = ci.camera_configuration.camera_resolution.height
+                width = ci.camera_configuration.resolution.height
             else:
-                width = ci.camera_configuration.camera_resolution.width
+                width = ci.camera_configuration.resolution.width
         else:
             if self.to_rotate:
                 width = self.cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -236,7 +236,7 @@ class video_wrapper():
         init_params.depth_stabilization = True
         runtime = sl.RuntimeParameters()
         runtime.confidence_threshold = 100
-        runtime.sensing_mode = sl.SENSING_MODE.STANDARD
+        #runtime.sensing_mode = sl.SENSING_MODE.STANDARD
         # runtime.sensing_mode = sl.SENSING_MODE.FILL   # fill nan
         cam = sl.Camera()
         status = cam.open(init_params)

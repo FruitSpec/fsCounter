@@ -18,18 +18,21 @@ from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
 from vision.pipelines.detection_flow import counter_detection
 from vision.data.results_collector import ResultsCollector
 from vision.tools.translation import translation as T
-from vision.depth.slicer.slicer_flow import post_process
-from vision.pipelines.ops.simulator import get_n_frames, write_metadata, get_frame_drop
-from vision.pipelines.ops.frame_loader import FramesLoader
-from vision.pipelines.misc.filters import filter_by_distance
 from vision.data.fs_logger import Logger
-from vision.feature_extractor.boxing_tools import xyz_center_of_box
 from concurrent.futures import ThreadPoolExecutor
-from vision.feature_extractor.tree_size_tools import stable_euclid_dist, get_pix_size
-from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai, convert_dets
+
+from vision.depth.slicer.slicer_flow import post_process
+from vision.pipelines.ops.simulator import get_n_frames, write_metadata
+from vision.pipelines.ops.frame_loader import FramesLoader
+from vision.pipelines.ops.measure import stable_euclid_dist, get_pix_size
+from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.pipelines.ops.bboxes import xyz_center_of_box, convert_dets, match_by_intersection
 from vision.pipelines.ops.kp_matching.infer import lightglue_infer
-from vision.tools.color import get_tomato_color
 from vision.pipelines.ops.fruit_cluster import FruitCluster
+from vision.pipelines.misc.filters import batch_filter_by_distance
+from vision.tools.color import get_tomato_color
+from vision.pipelines.misc.debug_helpers import save_aligned
+
 
 
 
@@ -51,9 +54,14 @@ def debug_tracks_pc(jai_batch, trk_outputs, f_id):
 
 def run(cfg, args, metadata=None, n_frames=None):
     adt = Pipeline(cfg, args)
-    results_collector_jai = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
-    results_collector_zed = ResultsCollector(rotate=args.rotate, mode=cfg.result_collector.mode)
-    results_collector_zed.
+    results_collector_jai = ResultsCollector(rotate=args.rotate)
+    results_collector_zed = ResultsCollector(rotate=args.rotate)
+
+    jai_args = args.copy()
+    jai_args.output_folder = os.path.join(args.output_folder, 'jai')
+    zed_args = args.copy()
+    zed_args.output_folder = os.path.join(args.output_folder, 'zed')
+
 
     print(f'Inferencing on {args.jai.movie_path}\n')
 
@@ -74,6 +82,8 @@ def run(cfg, args, metadata=None, n_frames=None):
         pbar.update(adt.batch_size)
         zed_batch, pc_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
+
+
         jai_batch = adt.undistort_jai.apply_on_batch(jai_batch)
         rgb_batch = adt.undistort_jai.apply_on_batch(rgb_batch)
         zed_batch = adt.undistort_zed.apply_on_batch(zed_batch)
@@ -88,65 +98,103 @@ def run(cfg, args, metadata=None, n_frames=None):
         zed_det_outputs = adt.detector_zed.detect(zed_batch)
 
         # find translation
-        jai_translation_results = adt.get_translation(jai_batch, jai_det_outputs)
-        zed_translation_results = adt.get_translation(zed_batch, zed_det_outputs)
+        # debug
+        jai_debug = []
+        jai_output_path = os.path.join(jai_args.output_folder, 'translation')
+        validate_output_path(jai_output_path)
+        for id_ in range(len(jai_batch)):
+            jai_debug.append({'output_path': jai_output_path, 'f_id': f_id + id_})
+
+        zed_debug = []
+        zed_output_path = os.path.join(zed_args.output_folder, 'translation')
+        validate_output_path(zed_output_path)
+        for id_ in range(len(zed_batch)):
+            zed_debug.append({'output_path': zed_output_path, 'f_id': f_id + id_})
+
+        jai_translation_results = adt.jai_translation.batch_translation(jai_batch, jai_det_outputs, jai_debug)
+        zed_translation_results = adt.zed_translation.batch_translation(zed_batch, zed_det_outputs, zed_debug)
 
         # track:
-        # trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id]
+        # trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id]
         jai_trk_outputs, jai_trk_windows = adt.detector_jai.track(jai_det_outputs, jai_translation_results, f_id)
         zed_trk_outputs, zed_trk_windows = adt.detector_zed.track(zed_det_outputs, zed_translation_results, f_id)
 
-        # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id, x_ceter, y_center, depth, width, height]
+        # measure:
+        # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height]
         zed_trk_outputs = adt.get_xyzs_dims(pc_batch, zed_trk_outputs)
 
-
-
         # filter by distance:
-
         # filter jai detections:
         jai_conv_trk_outputs = convert_dets(jai_trk_outputs, mats)
-        jai_conv_filtered_outputs, jai_ranges, jai_dets_ids = filter_by_distance(jai_conv_trk_outputs,
-                                                                                 pc_batch,
-                                                                                 cfg.filters.distance.threshold)
-        jai_filtered_outputs = reduce_filtered(jai_trk_outputs, jai_dets_ids)
+        jai_conv_filtered_outputs, jai_ranges, jai_dets_ids = batch_filter_by_distance(jai_conv_trk_outputs,
+                                                                                       pc_batch,
+                                                                                       cfg.filters.distance.threshold)
+        jai_filtered_outputs = batch_reduce_filterd(jai_trk_outputs, jai_dets_ids)
 
         # filter zed detections:
-        zed_filtered_outputs, zed_ranges, zed_dets_ids = filter_by_distance(zed_trk_outputs, pc_batch, cfg.filters.distance.threshold)
+        zed_filtered_outputs, zed_ranges, zed_dets_ids = batch_filter_by_distance(zed_trk_outputs, pc_batch, cfg.filters.distance.threshold)
 
-        # clutser:
-        # jai trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id, cluster_id]
-        jai_filtered_outputs = adt.cluster.cluster(jai_filtered_outputs, jai_ranges)
+        # cluster:
+        # jai trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, cluster_id]
+        if f_id == 92:
+            a = 1
+        jai_filtered_outputs, clusters = adt.cluster.cluster_batch(jai_filtered_outputs, jai_ranges)
 
+        # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height, cluster_id]
+        zed_filtered_outputs = add_clusters_to_zed_outputs(zed_filtered_outputs, jai_conv_filtered_outputs, clusters)
+        jai_conv_filtered_outputs = list(map(add_result_to_track, jai_conv_filtered_outputs, clusters))
+
+        if f_id > 120:
+            a = 1
         # color
-        # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id, x_ceter, y_center, depth, width, height, color]
+        # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height, cluster_id, color]
         zed_filtered_outputs, zed_tomato_colors, zed_tomato_colors_viz = get_colors(zed_batch,
                                                                                zed_filtered_outputs)
-        jai_conv_filtered_outputs, jai_tomato_colors, jai_tomato_colors_viz = get_colors(zed_batch,
-                                                                                         jai_conv_filtered_outputs)
+        #jai_conv_filtered_outputs, jai_tomato_colors, jai_tomato_colors_viz = get_colors(zed_batch,
+        #                                                                                 jai_conv_filtered_outputs)
+
+        jai_filtered_outputs, jai_tomato_colors, jai_tomato_colors_viz = get_colors(rgb_batch,
+                                                                                         jai_filtered_outputs)
 
         # jai trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id, cluster_id, color]
-        jai_filtered_outputs = list(map(add_colors_to_track(jai_filtered_outputs, jai_tomato_colors)))
+        #jai_filtered_outputs = list(map(add_result_to_track, jai_filtered_outputs, jai_tomato_colors))
 
         # collect results:
         results_collector_jai.collect_adt(jai_filtered_outputs, mats, f_id, jai_translation_results)
         results_collector_zed.collect_adt(zed_filtered_outputs, mats, f_id, jai_translation_results)
 
-        results_collector_zed.debug_batch(f_id, args, zed_filtered_outputs, zed_det_outputs, [img[:, :, ::-1] for img in rgb_batch],
-                                      None, zed_trk_windows, zed_tomato_colors_viz, zed_frames=zed_batch,
-                                         alignment_results=None)
+        #results_collector_zed.debug_batch(f_id, args, zed_filtered_outputs, zed_det_outputs, [img[:, :, ::-1] for img in rgb_batch],
+        #                              None, zed_trk_windows, zed_tomato_colors_viz, zed_frames=zed_batch,
+        #                                 alignment_results=None)
 
        # results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
-        jai_args = args.copy()
-        jai_args.output_folder = os.path.join(args.output_folder, 'jai')
+
         validate_output_path(jai_args.output_folder)
         results_collector_jai.debug_batch(batch_id=f_id, args=jai_args, trk_outputs=jai_filtered_outputs, det_outputs=jai_det_outputs,
-                                          frames=jai_batch, depth=None, trk_windows=jai_trk_windows, det_colors=jai_tomato_colors_viz)
+                                          frames=jai_batch, depth=None, trk_windows=jai_trk_windows, det_colors=jai_tomato_colors_viz,
+                                          zed_frames=rgb_batch)
 
-        zed_args = args.copy()
-        zed_args.output_folder = os.path.join(args.output_folder, 'zed')
+
         validate_output_path(zed_args.output_folder)
         results_collector_zed.debug_batch(batch_id=f_id, args=zed_args, trk_outputs=zed_filtered_outputs, det_outputs=zed_det_outputs,
                                           frames=zed_batch, depth=None, trk_windows=zed_trk_windows, det_colors=zed_tomato_colors_viz)
+
+
+        conv_jai_batch = []
+        for img, M in zip(jai_batch, mats):
+            conv_image = cv2.warpAffine(img, M, (zed_batch[0].shape[1], zed_batch[0].shape[0]))
+            conv_jai_batch.append(conv_image)
+        conv_rgb_batch = []
+        for img, M in zip(rgb_batch, mats):
+            conv_image = cv2.warpAffine(img, M, (zed_batch[0].shape[1], zed_batch[0].shape[0]))
+            conv_rgb_batch.append(conv_image)
+
+        #save_batch_aligned(zed_batch, conv_jai_batch, args.output_folder, f_id, sub_folder='color', dets=jai_conv_filtered_outputs, lense=83,
+                           #name='color', index_=-1)
+        save_batch_aligned(zed_batch, conv_rgb_batch, args.output_folder, f_id, sub_folder='clusters', dets=jai_conv_filtered_outputs, lense=83,
+                           name='clusters', index_=-1)
+
+
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -155,9 +203,9 @@ def run(cfg, args, metadata=None, n_frames=None):
     adt.frames_loader.close_cameras()
     adt.dump_log_stats(args)
 
-    update_metadata(metadata, args)
-    results_collector_jai.dump_feature_extractor(jai_args.output_folder)
-    results_collector_zed.dump_feature_extractor(zed_args.output_folder)
+    results_collector_jai.dump_to_csv(os.path.join(jai_args.output_folder, 'tracks.csv'), type="jai_syngenta")
+    results_collector_zed.dump_to_csv(os.path.join(zed_args.output_folder, 'tracks.csv'), type="zed_syngenta")
+
     return results_collector_jai, results_collector_zed
 
 
@@ -173,7 +221,10 @@ class Pipeline():
         self.cluster = FruitCluster(cfg.clusters.max_single_fruit_dist,
                                     cfg.clusters.range_diff_threshold,
                                     cfg.clusters.max_losses)
-        self.translation = T(cfg.jai.batch_size, cfg.translation.translation_size, cfg.translation.dets_only, cfg.translation.mode)
+        self.jai_translation = T(cfg.jai.batch_size, cfg.translation.translation_size, cfg.translation.dets_only,
+                                 cfg.translation.mode)
+        self.zed_translation = T(cfg.zed.batch_size, cfg.translation.translation_size, cfg.translation.dets_only,
+                                 cfg.translation.mode)
         self.sensor_aligner = lightglue_infer(cfg, len_size=cfg.len_size)
         self.batch_size = cfg.batch_size
         self.len_size = cfg.len_size
@@ -232,12 +283,12 @@ class Pipeline():
             self.logger.exception("Exception occurred")
             raise
 
-    def get_translation(self, frames, det_outputs):
+    def get_translation(self, frames, det_outputs, debug=None):
         try:
             name = self.translation.get_translation.__name__
             s = time.time()
             self.logger.debug(f"Function {name} started")
-            output = self.translation.batch_translation(frames, det_outputs)
+            output = self.translation.batch_translation(frames, det_outputs, debug)
             self.logger.debug(f"Function {name} ended")
             e = time.time()
             self.logger.debug(f"Function {name} execution time {e - s:.3f}")
@@ -512,18 +563,33 @@ def get_trks_colors(img, trk_outputs):
     colors = []
 
     for trk in trk_outputs:
+        out_of_view = False
+        h, w = img.shape[:2]
         trk_bbox = trk[:4]
         x1, y1, x2, y2 = trk_bbox
-        x1, y1 = max(x1, 0), max(y1, 0)
-        h, w = img.shape[:2]
-        x2, y2 = min(x2, w - 1), min(y2, h - 1)
-        colors.append(get_tomato_color(img[y1:y2, x1:x2]))
+        if x1 < 0 or x1 > w:
+            out_of_view = True
+        if x2 < 0 or x2 > w:
+            out_of_view = True
+        if y1 < 0 or y1 > h:
+            out_of_view = True
+        if y2 < 0 or y2 > h:
+            out_of_view = True
+
+        if out_of_view:
+            colors.append(-1)
+        else:
+            x1, y1 = max(x1, 0), max(y1, 0)
+
+            x2, y2 = min(x2, w - 1), min(y2, h - 1)
+            colors.append(get_tomato_color(img[y1:y2, x1:x2]))
     return colors
 
 
-def add_colors_to_track(trk_output, tomato_color):
-    for i in range(len(tomato_color)):
-        trk_output[i].append(tomato_color[i])
+def add_result_to_track(trk_output, results):
+    if trk_output:
+        for id_, result in enumerate(results):
+            trk_output[id_].append(result)
     return trk_output
 
 
@@ -534,10 +600,15 @@ def tomato_color_class_to_rgb(colors):
     2:(0,125,255), # orange
     3:(128,0,128), # purpule
     4:(0,255,255), # yellow
-    5:(0,255,0)} # green
+    5:(0,255,0), # green
+    -1:(0, 0 ,0)} # black - outside FOV
     for color in colors:
         colors_out.append(colors_dict[color])
     return colors_out
+
+def batch_reduce_filterd(dets, keep_ids):
+
+    return list(map(reduce_filtered, dets, keep_ids))
 
 def reduce_filtered(dets, keep_ids):
     filtered_dets = []
@@ -553,16 +624,63 @@ def get_colors(batch, trk_outputs):
 
     tomato_colors = list(map(get_trks_colors, batch, trk_outputs))
     tomato_colors_viz = list(map(tomato_color_class_to_rgb, tomato_colors))
-    trk_outputs = list(map(add_colors_to_track, trk_outputs, tomato_colors))
+    trk_outputs = list(map(add_result_to_track, trk_outputs, tomato_colors))
 
     return trk_outputs, tomato_colors, tomato_colors_viz
 
+def add_clusters_to_zed_outputs(zed_filtered_outputs, jai_conv_filtered_outputs, clusters):
+    outputs = []
+    for zed_output, jai_output, frame_clusters in zip(zed_filtered_outputs, jai_conv_filtered_outputs, clusters):
+        if zed_output and jai_output:
+            zed_bboxes = np.array(zed_output)[:, :4]
+            jai_bboxes = np.array(jai_output)[:, :4]
+
+            matches = match_by_intersection(zed_bboxes, jai_bboxes)
+            zed_bboxes_output = []
+            for zed_bboxes_id in range(matches.shape[0]):
+                if np.sum(matches[zed_bboxes_id, :]): # there is a match
+                    cluster_index = np.argmax(matches[zed_bboxes_id, :])
+                    cluster_id = frame_clusters[cluster_index]
+                else:
+                    cluster_id = -1
+                zed_output[zed_bboxes_id].append(cluster_id)
+            outputs.append(zed_output.copy())
+
+    return outputs
 
 
 
+def save_batch_aligned(zed_batch, jai_batch, output_folder, f_id, sub_folder='FOV', dets=None, lense=61, name=None, index_=-1):
+
+    for i in range(len(zed_batch)):
+        if dets is not None:
+            c_dets = dets[i]
+        else:
+            c_dets = None
+
+        save_aligned(zed_batch[i], jai_batch[i], output_folder, f_id + i, sub_folder=sub_folder, dets=c_dets, lense=lense, name=name,
+                     index_=index_)
 
 
+def get_color_masks(jai_image, dets, threshold=130):
 
+    bboxes = np.array(dets)[:, :4]
+    hsv = cv2.cvtColor(jai_image, cv2.COLOR_RGB2HSV)
+    masks = []
+
+    for bbox in bboxes:
+        masks.append(seg_bbox(hsv, bbox, threshold))
+
+    return masks
+
+def seg_bbox(hsv_jai_image, bbox, threshold=130):
+
+    cropped = hsv_jai_image[bbox[1]:bbox[3], bbox[0]:bbox[2], 0]
+    cropped_mask = cropped.copy()
+    cropped_mask[cropped < threshold] = 0
+    cropped_mask[cropped >= threshold] = 1
+
+    return cropped_mask
 
 
 
@@ -580,11 +698,10 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/media/matans/My Book/FruitSpec/Syngenta/flow_test"
-    # output_path = "/home/matans/Documents/fruitspec/sandbox/tracker/depth/Fowler_FREDIANI_210723_row7_depth_piv1"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/flow_test_depth_threshold_2"
     validate_output_path(output_path)
 
-    rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/10101010/071123"
+    rows_dir = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123"
 
     rows = os.listdir(rows_dir)
     # rows = ["row_4"]
@@ -602,4 +719,4 @@ if __name__ == "__main__":
         validate_output_path(args.output_folder)
 
         rc_j, rc_z = run(cfg, args)
-        rc_j.dump_feature_extractor(args.output_folder)
+        #rc_j.dump_feature_extractor(args.output_folder)

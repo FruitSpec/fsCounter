@@ -42,7 +42,7 @@ def get_tomato_color(rgb_crop):
     """
     if not len(rgb_crop):
         return 0
-    hsv = cv2.cvtColor(rgb_crop.astype(np.uint8), cv2.COLOR_BGR2HSV)
+    hsv = cv2.cvtColor(rgb_crop.astype(np.uint8), cv2.COLOR_RGB2HSV)
     hue, sat, val = cv2.split(hsv.copy())
     hist_vals, hist_bins = np.histogram(hue, bins=100)
     mode_hue = hist_bins[np.argmax(hist_vals)]

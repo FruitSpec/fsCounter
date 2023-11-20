@@ -1,4 +1,5 @@
 import numpy as np
+from numba import jit
 
 def depth_center_of_box(image, box, nir=None, swir_975=None):
     """
@@ -97,3 +98,65 @@ def convert_dets(dets, Ms):
         new_dets.append(new_f_bboxes)
 
     return new_dets
+
+def match_by_intersection(bboxes1, bboxes2):
+
+    intersections = []
+
+    inetr_area = get_intersection(bboxes1, bboxes2)
+    if len(inetr_area) > 0:
+        intersections = inetr_area > 0
+
+    return intersections
+
+def get_intersection(bboxes1: np.array, bboxes2: np.array):  # matches
+    inter_aera = []
+
+    if len(bboxes1) > 0 and len(bboxes2) > 0:
+        inter_aera = calc_intersection(np.array(bboxes1)[:, :4], np.array(bboxes2)[:, :4])
+
+    return inter_aera
+
+
+def calc_intersection(bboxes1: np.array, bboxes2: np.array):
+    x11, y11, x12, y12 = bbox_to_coordinate_vectors(bboxes1)
+    x21, y21, x22, y22 = bbox_to_coordinate_vectors(bboxes2)
+
+    xA = np.maximum(x11, np.transpose(x21))
+    yA = np.maximum(y11, np.transpose(y21))
+    xB = np.minimum(x12, np.transpose(x22))
+    yB = np.minimum(y12, np.transpose(y22))
+    inter_aera = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+
+    return inter_aera
+
+def bbox_to_coordinate_vectors(bboxes):
+    x1_vec = bboxes[:, 0].copy()
+    y1_vec = bboxes[:, 1].copy()
+    x2_vec = bboxes[:, 2].copy()
+    y2_vec = bboxes[:, 3].copy()
+
+    x1_vec = np.expand_dims(x1_vec, axis=1)
+    y1_vec = np.expand_dims(y1_vec, axis=1)
+    x2_vec = np.expand_dims(x2_vec, axis=1)
+    y2_vec = np.expand_dims(y2_vec, axis=1)
+
+    return x1_vec, y1_vec, x2_vec, y2_vec
+
+
+def xyz_center_of_box(image, box):
+    """
+    returns xyz for the fruit
+    :param image: xyz image
+    :param box: box to cut
+    :param nir: infra red image
+    :param swir_975: 975 image
+    :return:
+    """
+    cut_box = cut_center_of_box(image, box)
+    if not np.nansum(cut_box):
+        return np.nan, np.nan, np.nan
+    x_median = np.nanmedian(cut_box[:, :, 0])
+    y_median = np.nanmedian(cut_box[:, :, 1])
+    z_median = np.nanmedian(cut_box[:, :, 2])
+    return x_median, y_median, z_median

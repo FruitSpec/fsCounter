@@ -63,14 +63,15 @@ class translation():
     def batch_match(self, batch, detections, workers=4, debug=None):
         batch_preproc_, r_ = self.preprocess_batch(batch, detections, workers=workers)
 
-        batch_last_frames = [self.last_frame]
+        batch_last_frames = [self.last_frame.copy() if self.last_frame is not None else None]
         for i in range(len(batch) - 1):
-            batch_last_frames.append(batch_preproc_[i])
+            batch_last_frames.append(batch_preproc_[i].copy())
         if debug is None:
             debug = [None] * self.batch_size
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
             results = list(executor.map(self.find_match_translation, batch_last_frames, batch_preproc_, r_, debug))
+
 
         self.last_frame = batch_preproc_[-1].copy()
 
@@ -159,11 +160,10 @@ class translation():
 
 
 
-    def find_frame_translation(self, frame, r):
+    def find_frame_translation(self, frame, r, debug=None):
 
         if self.mode == 'match':
-            tx, ty = self.find_match_translation(self.last_frame, frame, r)
-            self.last_frame = frame.copy()
+            tx, ty = self.find_match_translation(self.last_frame, frame, r, debug=debug)
         elif self.mode == 'keypoints':
             tx, ty, kp, des = self.find_keypoint_translation(frame, r, last_kp=self.last_kp, last_des=self.last_des)
             self.last_kp = kp

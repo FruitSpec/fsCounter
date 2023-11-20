@@ -559,6 +559,7 @@ def get_zed_roi(tx, ty, roi, origin, zed_size):
 
 
 
+
 if __name__ == "__main__":
     align_folder("/media/fruitspec-lab/easystore/JAIZED_CaraCara_301122/R6/frames", use_fine=False,
                  zed_roi_params=dict(x_s=0, x_e=1080, y_s=310, y_e=1670), zed_shift=0)

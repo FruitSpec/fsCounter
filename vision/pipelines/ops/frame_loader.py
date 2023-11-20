@@ -1,5 +1,7 @@
 import os
 import time
+
+import cv2
 import numpy as np
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
@@ -183,6 +185,9 @@ class FramesLoader():
         self.jai_last_id = jai_last_id
         self.rgb_jai_last_id = rgb_jai_last_id
 
+        BGR2RGB = [cv2.COLOR_BGR2RGB] * len(rgb_jai_batch)
+        rgb_jai_batch = list(map(cv2.cvtColor, rgb_jai_batch, BGR2RGB))
+
         return zed_batch, pc_batch, jai_batch, rgb_jai_batch
 
     def get_frames_batch_sync_mkv(self, f_id):
@@ -260,7 +265,6 @@ class FramesLoader():
 
         return arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index)
 
-        return zed_ids, jai_ids
 
 def arrange_ids(jai_frame_ids, zed_frame_ids, return_index=False):
 
