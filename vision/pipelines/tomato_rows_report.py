@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
-from vision.misc.help_func import  safe_read_csv, post_process_slice_df
+from vision.misc.help_func import safe_read_csv, post_process_slice_df
 from vision.tools.manual_slicer import slice_to_trees_df
 
 
