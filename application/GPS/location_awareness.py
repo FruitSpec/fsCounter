@@ -172,20 +172,22 @@ class GPSSampler(Module):
 
         if(kv.sim_status==True):
             ##! Check if the machine is in Sim_Mode
-            def init_serial_port():
-                while not GPSSampler.shutdown_event.is_set():
-                    try:
-                        _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
-                        _ser.flushOutput()
-                        _ser.flushInput()
-                        tools.log(f"SERIAL PORT INIT - SUCCESS")
-                        return _ser
-                    except (serial.SerialException, TimeoutError) as e:
-                        tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
-                        time.sleep(5)
-                    except Exception:
-                        tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
-                        time.sleep(5)
+
+            ##? Serial Port initialization function is disabled in Sim Mode
+            # def init_serial_port():
+            #     while not GPSSampler.shutdown_event.is_set():
+            #         try:
+            #             _ser = serial.Serial(GPS_conf.GPS_device_name, timeout=1, )
+            #             _ser.flushOutput()
+            #             _ser.flushInput()
+            #             tools.log(f"SERIAL PORT INIT - SUCCESS")
+            #             return _ser
+            #         except (serial.SerialException, TimeoutError) as e:
+            #             tools.log(f"SERIAL PORT ERROR - RETRYING IN 5...", logging.WARNING)
+            #             time.sleep(5)
+            #         except Exception:
+            #             tools.log(f"UNKNOWN SERIAL PORT ERROR - RETRYING IN 5...", logging.ERROR, exc_info=True)
+            #             time.sleep(5)
 
             tools.log("START")
             err_count = sample_count = 0
@@ -195,6 +197,7 @@ class GPSSampler(Module):
 
             ##! SIm usage, only if the value passess
             try:
+                ##? This should be mounted from the very start at the main function
                 df = pd.read_csv('/home/mic-730ai/fruitspec/fsCounter/application/GPS/4_081123.nav')
             except Exception as f:
                 ##! In any case just declare a new one
