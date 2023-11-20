@@ -9,13 +9,13 @@ output_path: "/home/mic-730ai/Desktop"
 file_prefix: 0
 use_feather: false
 request_timeout: 10
-service_endpoint: "https://counter-api.intgr.fruitspec.com/api/post_block"
+service_endpoint: "https://counter-api.fruitspec.com/api/post_block"
 upload_bucket_name: fruitspec-temp-counter
 timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
 date_format: "%d%m%y"
-routine_delete_time_hours: 96
-max_disk_occupancy: 90
-min_disk_occupancy: 40
+routine_delete_time_hours: 72
+max_disk_occupancy: 70
+min_disk_occupancy: 35
 storage_cleanup_min_files: 3
 storage_cleanup_size_threshold: 100
 minimum_bandwidth_in_kbps: 10
