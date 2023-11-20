@@ -32,6 +32,7 @@ from vision.pipelines.adt_pipeline import Pipeline, update_metadata
 from vision.tools.color import get_tomato_color
 from vision.pipelines.ops.simulator import update_arg_with_metadata
 from vision.pipelines.ops.kp_matching.infer import lightglue_infer
+from vision.pipelines.tomato_classification_whole_partial.classification_whole_partial_tomato_functions import classify_whole_partial
 
 
 def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
@@ -61,6 +62,10 @@ def run(cfg, args, metadata=None, n_frames=None, zed_shift=0, f_id=0):
         # alignment_results = [lg.align_sensors(zed_batch[0], rgb_batch[0])]
         # detect:
         det_outputs = adt.detect(jai_batch)
+
+        if cfg.detector.classic_full_partial_classification: # Overwrite classification results
+            det_outputs = classify_whole_partial(jai_batch, det_outputs, f_id = f_id, kmeans_segment = False, save = False, output_dir =os.path.join( args.output_folder,'classic_cv_annotated_img_26_10_23'))
+
         # find translation
         translation_results = adt.get_translation(jai_batch, det_outputs)
         # track:
@@ -203,6 +208,7 @@ if __name__ == "__main__":
     cfg.detector.max_detections = 300
     cfg.detector.num_of_classes = 2
     cfg.sensor_aligner.apply_zed_shift = True
+    cfg.detector.classic_full_partial_classification = False
     overwrite = False
     f_id = 0
     for folder in folders:
