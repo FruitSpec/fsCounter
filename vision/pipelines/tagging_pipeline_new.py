@@ -20,8 +20,7 @@ class TaggingPipeline:
     The video_identifier is created from the last five subdirectories of the video's path.
     """
 
-    def __init__(self, videos_folder, output_dir, rotate_option=None, frames_interval=10):
-        self.videos_folder = videos_folder
+    def __init__(self, output_dir, rotate_option=None, frames_interval=10):
         self.output_dir = output_dir
         self.rotate_option = rotate_option
         self.frames_interval = frames_interval
@@ -66,7 +65,7 @@ class TaggingPipeline:
 
         # Save frames with a progress bar
         if save_frames:
-            for frame_id in tqdm(frames_idx_list, unit="frame"):
+            for frame_id in frames_idx_list:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
                 ret, frame = cap.read()
                 if ret:
@@ -132,8 +131,9 @@ class TaggingPipeline:
             json.dump(self.coco_format, file, indent=2)
         print(f'Saved: {output_path_coco}')
 
-    def run(self, save_frames=True, update_coco=True, video_name = 'Result_FSI.mkv'):
+    def run(self, videos_folder, save_frames=True, update_coco=True, video_name = 'Result_FSI.mkv'):
 
+        self.videos_folder = videos_folder
         subdirs = find_subdirs_with_file(self.videos_folder, file_name = video_name, return_dirs=True, single_file=False)
         for subdir in subdirs:
 
@@ -249,14 +249,12 @@ if __name__ == '__main__':
     # Its is done like that (and not directly on all downloaded files from s3) because that we need to manually remove unwanted rows
     local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
     local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs])) # get rows paths
-    for ROWS_FOLDER_LOCAL in local_rows_dirs:
-        pipeline = TaggingPipeline(
-            videos_folder = ROWS_FOLDER_LOCAL,
-            output_dir= OUTPUT_RESULTS_DIR,
-            rotate_option=ROTATE)
 
-        pipeline.run(save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
-        pipeline.run(save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')  # Save frames from new FSI (CLAHE)
+    pipeline = TaggingPipeline(output_dir=OUTPUT_RESULTS_DIR,rotate_option=ROTATE)
+
+    for ROWS_FOLDER_LOCAL in tqdm(local_rows_dirs):
+        pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
+        pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')  # Save frames from new FSI (CLAHE)
 
     pipeline.split_data_and_images(split_ratio=0.85)
 
