@@ -139,7 +139,7 @@ class TaggingPipeline:
 
             video_path = os.path.join(subdir, video_name)
             tracks_csv_path = os.path.join(subdir, 'tracks.csv')
-            video_identifier = '_'.join(subdir.split(os.sep)[-5:])
+            video_identifier = '_'.join(subdir.split(os.sep)[-6:])
 
             self.process_video(video_path, tracks_csv_path, video_identifier, save_frames, update_coco)
 
@@ -222,7 +222,16 @@ class TaggingPipeline:
 if __name__ == '__main__':
 
     # Download files from S3:
-    S3_PATHS_LIST = ['s3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/151123/', 's3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/151123/']
+    S3_PATHS_LIST = ['s3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/091123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/091123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/121123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/151123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/RAUSTENB/161123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/DEMOLTMX/161123/',
+                     's3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/151123/',
+                     's3://fruitspec.dataset/object-detection/JAI/SAXXXX/APPLEX/']
+
+
     OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/'
     LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
     OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'Tagging_Pipeline_Outputs')
@@ -231,15 +240,15 @@ if __name__ == '__main__':
     for S3_PATH in S3_PATHS_LIST:
 
         # Download files from S3:
-        block_name = get_subpath_from_dir(S3_PATH, dir_name ="ISRAEL", include_dir=False)
+        block_name = get_subpath_from_dir(S3_PATH, dir_name ="JAI", include_dir=False)
         ROWS_FOLDER_LOCAL = os.path.join(OUTPUT_DATA_DIR, block_name)
-        #download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
+        download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
 
     ###############################################################################################################################################
     # Get a list of all rows dir paths (where there are tracks.csv files):
     # Its is done like that (and not directly on all downloaded files from s3) because that we need to manually remove unwanted rows
     local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
-    local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs]))
+    local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs])) # get rows paths
     for ROWS_FOLDER_LOCAL in local_rows_dirs:
         pipeline = TaggingPipeline(
             videos_folder = ROWS_FOLDER_LOCAL,
