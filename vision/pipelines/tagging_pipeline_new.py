@@ -59,6 +59,8 @@ class TaggingPipeline:
             return
 
         tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        height  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frames_idx_list = self.frames_idx(tot_frames, self.frames_interval)
         frame_save_path = os.path.join(self.output_dir, 'frames')
         self.validate_output_path(frame_save_path)
@@ -85,9 +87,9 @@ class TaggingPipeline:
         if update_coco:
             tracking_results = pd.read_csv(tracks_csv_path)
             filtered_tracks = tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
-            self.update_coco_json(filtered_tracks, video_identifier)
+            self.update_coco_json(filtered_tracks, video_identifier, width=width, height=height)
 
-    def update_coco_json(self, df, video_identifier):
+    def update_coco_json(self, df, video_identifier, width, height):
         self.coco_format["videos"].append(video_identifier)
         for _, row in df.iterrows():
             frame_id = int(row['frame_id'])
@@ -102,8 +104,8 @@ class TaggingPipeline:
                 image_id = len(self.coco_format["images"]) + 1
                 image = {
                     "id": image_id,
-                    "width": None,  # Width is not available in the provided data
-                    "height": None,  # Height is not available in the provided data
+                    "width": width,  # Width is not available in the provided data
+                    "height": height,  # Height is not available in the provided data
                     "file_name": image_file_name
                 }
                 self.coco_format["images"].append(image)
@@ -242,7 +244,7 @@ if __name__ == '__main__':
         # Download files from S3:
         block_name = get_subpath_from_dir(S3_PATH, dir_name ="JAI", include_dir=False)
         ROWS_FOLDER_LOCAL = os.path.join(OUTPUT_DATA_DIR, block_name)
-        download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
+        #download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
 
     ###############################################################################################################################################
     # Get a list of all rows dir paths (where there are tracks.csv files):
