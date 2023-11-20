@@ -6,8 +6,8 @@ crop: citrus
 collect_data: true
 debug:
   # if 'is_active' is set to 'False' then all other values are automatically set to 'False' as well.
-  is_active: False
-  crash_syslog: True
-  mtu_log: True
-  jtop_log: True
-  constant_jaized: False
+  is_active: true
+  crash_syslog: false
+  mtu_log: false
+  jtop_log: false
+  constant_jaized: true
