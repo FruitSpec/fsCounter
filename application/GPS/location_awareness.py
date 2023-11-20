@@ -5,8 +5,7 @@ from builtins import staticmethod
 from botocore.config import Config
 import sys
 
-##! Full location name to ensure bug is not triggered
-import application.GPS.key_variables as kv
+
 
 ##! This might prove to be an issue
 # sys.path.append('C:\\Users\\USER\\Desktop\\FruitSpec\\GPSSimulator\\fsCounter')
@@ -29,6 +28,7 @@ from application.GPS.GPS_locator import GPSLocator
 from application.utils.settings import set_logger
 from application.GPS.led_settings import LedSettings, LedColor
 import pandas as pd
+import json
 
 
 class GPSSampler(Module):
@@ -169,8 +169,19 @@ class GPSSampler(Module):
 
     @staticmethod
     def sample_gps():
-
-        if(kv.sim_status==True):
+        simHolder = ""
+        file_name = ""
+        ##! Open the file and read the data inside
+        try:
+            with open('/home/mic-730ai/fruitspec/fsCounter/application/GPS/key_variable.json', 'r') as file:
+                loaded_data = json.load(file)
+                simHolder = loaded_data['SimStatus']
+                file_name = loaded_data['name']
+        except Exception as e:
+            print(e)
+            print("Exiting now")
+            exit(1)
+        if(simHolder.casefold()=="Y".casefold()):
             ##! Check if the machine is in Sim_Mode
 
             ##? Serial Port initialization function is disabled in Sim Mode
@@ -197,8 +208,7 @@ class GPSSampler(Module):
 
             ##! SIm usage, only if the value passess
             try:
-                ##? This should be mounted from the very start at the main function
-                df = pd.read_csv('/home/mic-730ai/fruitspec/fsCounter/application/GPS/4_081123.nav')
+                df = pd.read_csv('/home/mic-730ai/fruitspec/fsCounter/application/GPS/' + file_name)
             except Exception as f:
                 ##! In any case just declare a new one
                 df = pd.DataFrame()

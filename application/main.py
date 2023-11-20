@@ -13,7 +13,9 @@ import psutil
 import shutil
 import time
 import sys
-import GPS.key_variables as kv
+
+
+import json
 
 sys.path.append("/home/mic-730ai/fruitspec/fsCounter/application")
 
@@ -352,12 +354,36 @@ def main():
     global manager, communication_queue, process_monitor_events
 
     ##! Ensure that the system runs in Sim Mode
-    response = input("Do you want to run this in Sim Mode? (Y/N)")
-    if(response.casefold() == 'Y'.casefold()):
-        kv.sim_status = True
-        kv.file_name = input("Please enter the name of the file (Eg: filename.nav)")
-        print("\nPlease ensure that the file is in the same GPS directory!")
+    response = input("Do you want to run this in Sim Mode? (Y/N): ")
+    try:
+        if(response.casefold() == 'Y'.casefold()):
+            #! Get file Data
+            name = input("Enter the name of the file, with the extension: ")
 
+            ##! Open JSON to log the data
+            ##TODO : Mount the Data properly, seems like the data is not being mounted
+            with open('/home/mic-730ai/fruitspec/fsCounter/application/GPS/key_variables.json', 'r') as file:
+                loaded_data = json.load(file)
+                print('File read')
+                loaded_data['name'] = name
+                loaded_data['SimStatus'] = response
+
+            ##! Write the data
+            ##TODO : Mount the Data properly, seems like the data is not being mounted
+            with open('/home/mic-730ai/fruitspec/fsCounter/application/GPS/key_variables.json', 'w') as file:
+                json.dump(loaded_data, file)
+        else:
+            dataHolder = {
+                    'name' : '',
+                    'SimStatus' : 'N'
+                }
+            ##TODO : Mount the Data properly, seems like the data is not being mounted
+            with open('/home/mic-730ai/fruitspec/fsCounter/application/GPS/key_variables.json', 'w') as file:
+                    json.dump(dataHolder, file)
+    except Exception as e:
+        print(e)
+        print("Exiting Due to error, cannot continue as this would snowball")
+        exit(1)
 
     try:
         startup_count = int(sys.argv[1])
