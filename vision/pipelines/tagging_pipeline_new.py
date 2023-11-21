@@ -53,12 +53,15 @@ class TaggingPipeline:
         return frame
 
     def process_video(self, video_path, tracks_csv_path, video_identifier, save_frames, update_coco):
+
+        tracking_results = pd.read_csv(tracks_csv_path)
+        tot_frames = int(tracking_results['frame_id'].max())
+
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             print(f"Error opening video stream or file: {video_path}")
             return
 
-        tot_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         height  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         width = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frames_idx_list = self.frames_idx(tot_frames, self.frames_interval)
@@ -85,7 +88,7 @@ class TaggingPipeline:
 
         # Process tracks and update COCO JSON with a progress bar
         if update_coco:
-            tracking_results = pd.read_csv(tracks_csv_path)
+
             filtered_tracks = tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
             self.update_coco_json(filtered_tracks, video_identifier, width=width, height=height)
 
@@ -234,7 +237,7 @@ if __name__ == '__main__':
                      's3://fruitspec.dataset/object-detection/JAI/SAXXXX/APPLEX/']
 
 
-    OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/'
+    OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI'
     LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
     OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'Tagging_Pipeline_Outputs')
     ROTATE = 'counter_clockwise'
@@ -252,7 +255,7 @@ if __name__ == '__main__':
     local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
     local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs])) # get rows paths
 
-    pipeline = TaggingPipeline(output_dir=OUTPUT_RESULTS_DIR,rotate_option=ROTATE)
+    pipeline = TaggingPipeline(output_dir=OUTPUT_RESULTS_DIR,rotate_option=ROTATE, frames_interval=10)
 
     for ROWS_FOLDER_LOCAL in tqdm(local_rows_dirs):
         pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
