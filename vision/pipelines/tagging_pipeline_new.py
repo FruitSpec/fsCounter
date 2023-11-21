@@ -24,16 +24,6 @@ class TaggingPipeline:
         self.output_dir = output_dir
         self.rotate_option = rotate_option
         self.frames_interval = frames_interval
-        self.coco_format = {
-            "videos": [],
-            "images": [],
-            "annotations": [],
-            "categories": [{
-                "id": 1,            #todo
-                "name": "object",
-                "supercategory": "none"
-            }]
-        }
         self.annotation_counter = 1  # Initialize annotation ID counter
 
     @staticmethod
@@ -54,8 +44,8 @@ class TaggingPipeline:
 
     def process_video(self, video_path, tracks_csv_path, video_identifier, save_frames, update_coco):
 
-        tracking_results = pd.read_csv(tracks_csv_path)
-        tot_frames = int(tracking_results['frame_id'].max())
+        self.tracking_results = pd.read_csv(tracks_csv_path)
+        tot_frames = int(self.tracking_results['frame_id'].max())
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
@@ -89,11 +79,28 @@ class TaggingPipeline:
         # Process tracks and update COCO JSON with a progress bar
         if update_coco:
 
-            filtered_tracks = tracking_results[tracking_results['frame_id'].isin(frames_idx_list)]
+            filtered_tracks = self.tracking_results[self.tracking_results['frame_id'].isin(frames_idx_list)]
             self.update_coco_json(filtered_tracks, video_identifier, width=width, height=height)
 
     def update_coco_json(self, df, video_identifier, width, height):
+
+        # get classes from tracs.csv file:
+        class_ids = self.tracking_results['class_conf'].unique().astype(int).tolist()
+
+        self.coco_format = {
+            "videos": [],
+            "images": [],
+            "annotations": [],
+            "categories": [
+                {
+                    "id": class_id,  # Use the provided class_id directly
+                    "name": f"class_{class_id}",  # Name can be customized as needed
+                    "supercategory": "none"
+                } for class_id in class_ids  # Iterate over the provided class IDs
+            ]
+        }
         self.coco_format["videos"].append(video_identifier)
+
         for _, row in df.iterrows():
             frame_id = int(row['frame_id'])
             image_file_name = f"{video_identifier}_frame_{frame_id}.jpg"
@@ -247,7 +254,7 @@ if __name__ == '__main__':
         # Download files from S3:
         block_name = get_subpath_from_dir(S3_PATH, dir_name ="JAI", include_dir=False)
         ROWS_FOLDER_LOCAL = os.path.join(OUTPUT_DATA_DIR, block_name)
-        #download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
+        download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
 
     ###############################################################################################################################################
     # Get a list of all rows dir paths (where there are tracks.csv files):
