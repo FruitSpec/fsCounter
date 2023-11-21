@@ -63,9 +63,11 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
 
 if __name__ == "__main__":
 
-    coco_file_path = '/home/lihi/FruitSpec/Data/CLAHE_FSI/DeleteMe/coco_video_identifier.json'
-    image_directory = os.path.join(os.path.dirname(coco_file_path), 'all_images')
-    output_directory = os.path.join( os.path.dirname(coco_file_path) ,'frames_annotation')
+    coco_file_path = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/test_annotations/coco_annotations.json'
+    image_directory = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/test_images'
+    #image_directory = os.path.join(os.path.dirname(coco_file_path), 'all_images')
+    # output_directory = os.path.join( os.path.dirname(coco_file_path) ,'frames_annotations')
+    output_directory = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/tagged_images'
 
     display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)
 

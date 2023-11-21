@@ -239,7 +239,7 @@ if __name__ == '__main__':
 
     OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI'
     LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
-    OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'Tagging_Pipeline_Outputs')
+    OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'batch_14_tasq')
     ROTATE = 'counter_clockwise'
 
     for S3_PATH in S3_PATHS_LIST:
