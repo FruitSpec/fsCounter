@@ -54,13 +54,14 @@ class TaggingPipeline:
 
         height  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         width = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        frames_idx_list = self.frames_idx(tot_frames, self.frames_interval)
+        if not hasattr(self, 'frames_idx_list'): # If frames_idx_list doesn't exist, create it
+            self.frames_idx_list = self.frames_idx(tot_frames, self.frames_interval)
         frame_save_path = os.path.join(self.output_dir, 'frames')
         self.validate_output_path(frame_save_path)
 
         # Save frames with a progress bar
         if save_frames:
-            for frame_id in frames_idx_list:
+            for frame_id in self.frames_idx_list:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
                 ret, frame = cap.read()
                 if ret:
@@ -79,7 +80,7 @@ class TaggingPipeline:
         # Process tracks and update COCO JSON with a progress bar
         if update_coco:
 
-            filtered_tracks = self.tracking_results[self.tracking_results['frame_id'].isin(frames_idx_list)]
+            filtered_tracks = self.tracking_results[self.tracking_results['frame_id'].isin(self.frames_idx_list)]
             self.update_coco_json(filtered_tracks, video_identifier, width=width, height=height)
 
     def update_coco_json(self, df, video_identifier, width, height):
