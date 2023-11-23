@@ -156,8 +156,8 @@ class TaggingPipeline:
 
             self.process_video(video_path, tracks_csv_path, video_identifier, save_frames, update_coco)
 
-        # if update_coco:   #todo uncomment
-        #     self.save_coco_json(data = self.coco_format, file_path = os.path.join(self.output_dir, 'coco_dataset.json') )
+        if update_coco:
+            self.save_coco_json(data = self.coco_format, file_path = os.path.join(self.output_dir, 'coco_dataset.json') )
 
     def _handle_previous_data(self, current_coco, path_previous_coco, images_dir_previous, images_dir_current):
 
