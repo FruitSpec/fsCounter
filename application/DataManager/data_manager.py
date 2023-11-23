@@ -81,13 +81,13 @@ class DataManager(Module):
                 data["row"] = [DataManager.current_row] * input_length
                 data["folder_index"] = [DataManager.current_index] * input_length
 
-                jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
-                jaized_timestamp_total_log_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
                 jaized_timestamp_log_df = pd.DataFrame(data)
+                if DataManager.current_path is not None:
+                    jaized_timestamp_path = os.path.join(DataManager.current_path, f"{consts.jaized_timestamps}.csv")
+                    _is_first = not os.path.exists(jaized_timestamp_path)
+                    jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
 
-                _is_first = not os.path.exists(jaized_timestamp_path)
-                jaized_timestamp_log_df.to_csv(jaized_timestamp_path, mode='a+', header=_is_first, index=False)
-
+                jaized_timestamp_total_log_path = tools.get_file_path(tools.FileTypes.jaized_timestamps)
                 _is_first = not os.path.exists(jaized_timestamp_total_log_path)
                 jaized_timestamp_log_df.to_csv(jaized_timestamp_total_log_path, mode='a+', header=_is_first, index=False)
             except:
