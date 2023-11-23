@@ -59,7 +59,6 @@ class TaggingPipeline:
         frame_save_path = os.path.join(self.output_dir, 'frames')
         self.validate_output_path(frame_save_path)
 
-        # Save frames with a progress bar
         if save_frames:
             for frame_id in self.frames_idx_list:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_id)
@@ -186,11 +185,13 @@ class TaggingPipeline:
 
         # Create two separate coco_format dictionaries for train and test
         train_coco = {
+            "videos": self.coco_format['videos'],
             "images": train_images,
             "annotations": train_annotations,
             "categories": self.coco_format['categories']
         }
         test_coco = {
+            "videos": self.coco_format['videos'],
             "images": test_images,
             "annotations": test_annotations,
             "categories": self.coco_format['categories']
@@ -246,6 +247,7 @@ if __name__ == '__main__':
 
 
     OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI'
+    #OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/ISRAEL'
     LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
     OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'batch_14_tasq')
     ROTATE = 'counter_clockwise'
