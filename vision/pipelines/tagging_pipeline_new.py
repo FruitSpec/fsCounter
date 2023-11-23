@@ -7,6 +7,7 @@ from vision.tools.utils_general import find_subdirs_with_file, download_s3_files
 from vision.misc.help_func import get_subpath_from_dir
 import shutil
 import random
+from datetime import datetime
 
 class TaggingPipeline:
     """
@@ -137,11 +138,11 @@ class TaggingPipeline:
             self.coco_format["annotations"].append(annotation)
             self.annotation_counter += 1  # Increment the annotation ID counter
 
-    def save_coco_json(self):
-        output_path_coco = os.path.join(self.output_dir, 'coco_dataset.json')
-        with open(output_path_coco, 'w') as file:
-            json.dump(self.coco_format, file, indent=2)
-        print(f'Saved: {output_path_coco}')
+    def save_coco_json(self, data, file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w') as file:
+            json.dump(data, file, indent=2)
+        print(f'Saved: {file_path}')
 
     def run(self, videos_folder, save_frames=True, update_coco=True, video_name = 'Result_FSI.mkv'):
 
@@ -155,10 +156,36 @@ class TaggingPipeline:
 
             self.process_video(video_path, tracks_csv_path, video_identifier, save_frames, update_coco)
 
-        if update_coco:
-            self.save_coco_json()
+        # if update_coco:   #todo uncomment
+        #     self.save_coco_json(data = self.coco_format, file_path = os.path.join(self.output_dir, 'coco_dataset.json') )
 
-    def split_data_and_images(self, split_ratio=0.8, seed = 42):
+    def _handle_previous_data(self, current_coco, path_previous_coco, images_dir_previous, images_dir_current):
+
+        with open(path_previous_coco, 'r') as f:
+            previous_coco = json.load(f)
+
+        # copy all '.jpg' files from previous images dir to current images dir:
+        for file in os.listdir(images_dir_previous):
+            if file.endswith('.jpg'):
+                shutil.copy(os.path.join(images_dir_previous, file), images_dir_current)
+                print(f'Copied: {images_dir_current}/{file}')
+        print (f'Copied all images from {images_dir_previous} to {images_dir_current}')
+
+        # Update coco with previous data:
+        current_coco['annotations'] += previous_coco['annotations']
+        current_coco['images'] += previous_coco['images']
+        current_coco['videos'] += previous_coco['videos']
+
+        return current_coco
+
+    def move_images(self, image_list, source_dir, dest_dir):
+        self.validate_output_path(dest_dir)
+        for img in image_list:
+            shutil.move(os.path.join(source_dir, img['file_name']),
+                        os.path.join(dest_dir, img['file_name']))
+            print(f'Moved {img["file_name"]} to {dest_dir}')
+
+    def split_data_and_images(self, split_ratio=0.8, seed = 42, path_previous_coco_train = None, path_previous_coco_test = None, path_previous_images_train = None, path_previous_images_test = None):
         """
         Splits the data into training and testing sets based on the provided split ratio,
         moves the corresponding images to train/test subdirectories, and saves the coco json files.
@@ -174,61 +201,55 @@ class TaggingPipeline:
         split_index = int(len(self.coco_format['images']) * split_ratio)
 
         # Split the images into training and testing
-        train_images = self.coco_format['images'][:split_index]
-        test_images = self.coco_format['images'][split_index:]
+        train_images_list = self.coco_format['images'][:split_index]
+        test_images_list = self.coco_format['images'][split_index:]
 
         # Correspondingly split annotations based on the split images
         train_annotations = [ann for ann in self.coco_format['annotations'] if
-                             ann['image_id'] in [img['id'] for img in train_images]]
+                             ann['image_id'] in [img['id'] for img in train_images_list]]
         test_annotations = [ann for ann in self.coco_format['annotations'] if
-                            ann['image_id'] in [img['id'] for img in test_images]]
+                            ann['image_id'] in [img['id'] for img in test_images_list]]
 
         # Create two separate coco_format dictionaries for train and test
         train_coco = {
-            "videos": self.coco_format['videos'],
-            "images": train_images,
+            "videos": self.coco_format['videos'].copy(),
+            "images": train_images_list,
             "annotations": train_annotations,
             "categories": self.coco_format['categories']
         }
         test_coco = {
-            "videos": self.coco_format['videos'],
-            "images": test_images,
+            "videos": self.coco_format['videos'].copy(),
+            "images": test_images_list,
             "annotations": test_annotations,
             "categories": self.coco_format['categories']
         }
 
         # Create train/test subdirectories for images
-        train_images_dir = os.path.join(self.output_dir, 'train_images')
-        test_images_dir = os.path.join(self.output_dir, 'test_images')
-        self.validate_output_path(train_images_dir)
-        self.validate_output_path(test_images_dir)
+        train_images_dir = os.path.join(self.output_dir, 'train2017')
+        test_images_dir = os.path.join(self.output_dir, 'val2017')
+        self.move_images(image_list = train_images_list, source_dir = os.path.join(self.output_dir, 'frames'), dest_dir = os.path.join(self.output_dir, 'train2017'))
+        self.move_images(image_list = test_images_list, source_dir = os.path.join(self.output_dir, 'frames'), dest_dir = os.path.join(self.output_dir, 'val2017'))
 
-        # Move the corresponding images to train/test subdirectories
-        for img in train_images:
-            shutil.move(os.path.join(self.output_dir, 'frames', img['file_name']),
-                        os.path.join(train_images_dir, img['file_name']))
-            print (f'Moved {img["file_name"]} to {train_images_dir}')
+        # Add the annotations and images from the previous train/test data:
+        if path_previous_coco_train and path_previous_coco_test and path_previous_images_train and path_previous_images_test:
 
-        for img in test_images:
-            shutil.move(os.path.join(self.output_dir, 'frames', img['file_name']),
-                        os.path.join(test_images_dir, img['file_name']))
-            print (f'Moved {img["file_name"]} to {test_images_dir}')
+            train_coco = self._handle_previous_data(current_coco = train_coco,
+                                              path_previous_coco = path_previous_coco_train,
+                                              images_dir_previous = path_previous_images_train,
+                                              images_dir_current = train_images_dir)
+
+            test_coco = self._handle_previous_data(current_coco = test_coco,
+                                              path_previous_coco = path_previous_coco_test,
+                                              images_dir_previous = path_previous_images_test,
+                                              images_dir_current = test_images_dir)
 
         # Save the coco_format JSON files
-        train_coco_path = os.path.join(self.output_dir, 'train_annotations', 'coco_annotations.json')
-        test_coco_path = os.path.join(self.output_dir, 'test_annotations', 'coco_annotations.json')
+        today_date = datetime.now().strftime("%d%m%Y")
+        train_coco_path = os.path.join(self.output_dir, 'annotations', f'coco_train_{today_date}.json')
+        test_coco_path = os.path.join(self.output_dir, 'annotations', f'coco_test_{today_date}.json')
 
-        self.validate_output_path(os.path.dirname(train_coco_path))
-        self.validate_output_path(os.path.dirname(test_coco_path))
-
-        with open(train_coco_path, 'w') as f:
-            json.dump(train_coco, f, indent=2)
-
-        with open(test_coco_path, 'w') as f:
-            json.dump(test_coco, f, indent=2)
-
-        print(f'Saved train annotations to {train_coco_path}')
-        print(f'Saved test annotations to {test_coco_path}')
+        self.save_coco_json(data=train_coco, file_path = train_coco_path)
+        self.save_coco_json(data=test_coco, file_path = test_coco_path)
 
         return train_coco_path, test_coco_path
 
@@ -246,10 +267,10 @@ if __name__ == '__main__':
                      's3://fruitspec.dataset/object-detection/JAI/SAXXXX/APPLEX/']
 
 
-    OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI'
-    #OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/ISRAEL'
+    #OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI'
+    OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI'
     LIST_OF_FILES_TO_DOWNLOAD = ['tracks.csv', 'Result_FSI.mkv', 'FSI_CLAHE.mkv']
-    OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'batch_14_tasq')
+    OUTPUT_RESULTS_DIR = os.path.join(OUTPUT_DATA_DIR, 'debug_train_test_mandar')
     ROTATE = 'counter_clockwise'
 
     for S3_PATH in S3_PATHS_LIST:
@@ -257,11 +278,14 @@ if __name__ == '__main__':
         # Download files from S3:
         block_name = get_subpath_from_dir(S3_PATH, dir_name ="JAI", include_dir=False)
         ROWS_FOLDER_LOCAL = os.path.join(OUTPUT_DATA_DIR, block_name)
-        download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
+        #download_s3_files(S3_PATH, ROWS_FOLDER_LOCAL, string_param= LIST_OF_FILES_TO_DOWNLOAD, skip_existing=True, save_flat=False)
 
     ###############################################################################################################################################
     # Get a list of all rows dir paths (where there are tracks.csv files):
     # Its is done like that (and not directly on all downloaded files from s3) because that we need to manually remove unwanted rows
+
+    OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/ISRAEL/MANDAR'
+
     local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
     local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs])) # get rows paths
 
@@ -271,7 +295,13 @@ if __name__ == '__main__':
         pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
         pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')  # Save frames from new FSI (CLAHE)
 
-    pipeline.split_data_and_images(split_ratio=0.85)
+    # split data to train and test, and update existing dataset:
+    train_images_dir_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/train2017'
+    test_images_dir_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/val2017'
+    train_coco_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/annotations/coco_train_20231123.json'
+    test_coco_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/annotations/coco_test_20231123.json'
+
+    pipeline.split_data_and_images(split_ratio=0.85, seed = 42, path_previous_coco_train = train_coco_prev, path_previous_coco_test = test_coco_prev, path_previous_images_train = train_images_dir_prev, path_previous_images_test = test_images_dir_prev)
 
     print('Done')
 
