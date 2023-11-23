@@ -308,19 +308,29 @@ class MaxLinearRegressor(LinearRegression):
         return np.array([max(p, 0) for p in predicted_values])
 
 
-def run_LROCV_by_block(df_f, cv_col = "cv1", fit_intercept=False):
+def run_LROCV(df_f, cv_col="cv1", type_col="block_name", cross_val='row', fit_intercept=False, return_res=False):
     df = df_f.reset_index(drop=True).copy()
-    for block in df["block_name"].unique():
-        logic_vec = df["block_name"] == block
+    for block in df[type_col].unique():
+        logic_vec = df[type_col] == block
         if not isinstance(cv_col, list):
             X = df[logic_vec][[cv_col]].reset_index(drop=True)
         else:
             X = df[logic_vec][cv_col].reset_index(drop=True)
         y = df[logic_vec]["F"].reset_index(drop=True)
         model = LinearRegression(fit_intercept=fit_intercept)
-        print(cross_validate_with_mean(model, X, y, groups=df[logic_vec]["row"].reset_index(drop=True)))
+        print(cross_validate_with_mean(model, X, y, groups=df[logic_vec][cross_val].reset_index(drop=True)))
         model.fit(X, y)
         print(model.coef_)
+        if return_res:
+            res_mean, res_std, tree_mean, tree_std, all_preds = cross_validate_with_mean(model, X, y,
+                                                                                         groups=df[logic_vec][
+                                                                                             cross_val].reset_index(
+                                                                                             drop=True),
+                                                                                         ret_all_res=return_res)
+
+            return model.coef_, res_mean, res_std, tree_mean, tree_std, all_preds
+        else:
+            return model.coef_
 
 
 def run_LBOCV_by_block(df_f, cv_col="cv1", fit_intercept=False):

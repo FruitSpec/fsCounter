@@ -151,6 +151,12 @@ def update_index(k, params):
     if k == 122:
         index = max(index - 1, 0)
 
+    if k == 97:
+        index = max(index - 10, 0)
+
+    if k == 100:
+        index += 10
+
     if k == 99:
         index += 1
 
@@ -179,6 +185,7 @@ def manual_slicer(filepath, output_path, data=None, jz_file=None, rotate=0, inde
     """
     if data is None:
         data = load_json(filepath, output_path)
+    if jz_file is not None:
         jz = pd.read_csv(jz_file)
         zed_frames, jai_frames = arrange_ids(jz['JAI_frame_number'], jz['ZED_frame_number'])
     params = {"filepath": filepath,
@@ -759,10 +766,10 @@ def get_all_slicing_and_n_trees():
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
-    fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/ZED.svo'
+    fp = '/media/matans/My Book/FruitSpec/Apples_SA/Block_3/row_444/1/Result_FSI.mkv' # Result_FSI.mkv # FSI_CLAHE.mkv
     #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
-    jz_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/jaized_timestamps.csv"
-    output_path = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/zed/'
+    jz_file = None
+    output_path = '/media/matans/My Book/FruitSpec/Apples_SA/Block_3/row_444/1'
     validate_output_path(output_path)
     rotate = 1 if 'FSI' in fp.split('/')[-1] else 2
     manual_slicer(fp, output_path, jz_file=jz_file,rotate=rotate)

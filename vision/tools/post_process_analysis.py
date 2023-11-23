@@ -94,6 +94,7 @@ def count_trees_fruits(tracks_df, slices_df, block=None, row=None, frame_width=1
     slices_df["end"] = slices_df["end"].replace(-1, int(frame_width - 1))
 
     uniq_trees = slices_df["tree_id"].unique()
+    trees_tracks = {}
     for i, tree_id in enumerate(uniq_trees):
 
         tree_tracks, tracker_results, tree_slices = get_tree_slice_track(tree_id, slices_df, tracks_df,
@@ -110,13 +111,14 @@ def count_trees_fruits(tracks_df, slices_df, block=None, row=None, frame_width=1
             tree_data[f"{cv_threshold}"] = count
 
         row_results.append(tree_data)
+        trees_tracks[tree_id] = tree_tracks
 
-    return row_results
+    return row_results, trees_tracks
 
 
 def count_fruits(tracks, min_samp):
     uniq, counts = np.unique(tracks["track_id"], return_counts=True)
-    valid_tracks = uniq[counts > min_samp]
+    valid_tracks = uniq[counts >= min_samp]
     tracks_cleaned = tracks[np.isin(tracks["track_id"], valid_tracks)]
     count = len(np.unique(tracks_cleaned["track_id"]))
 
@@ -124,22 +126,37 @@ def count_fruits(tracks, min_samp):
 
 def get_block_count(block_path):
     block_counts = []
+    row_tracks = {}
 
     block = block_path.split('/')[-1]
-    block_rows = os.listdir(block_path)
-    for row in block_rows:
-        row_path = os.path.join(block_path, row)
-        if not os.path.isdir(row_path):
+    block_dates = os.listdir(block_path)
+
+    for date in block_dates:
+        date_path = os.path.join(block_path, date)
+        if not os.path.isdir(date_path):
             continue
-        row_path = os.path.join(row_path, '1')
-        if not os.path.exists(row_path):
-            continue
+        row_list = os.listdir(date_path)
 
-        tracks_path = os.path.join(row_path, 'tracks.csv')
-        slice_json_path = os.path.join(row_path, 'Result_FSI_slice_data.json')
-        tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
-        trees_counts = count_trees_fruits(tracks_df, slices_df, block, row)
+        for row in row_list:
+            row_path = os.path.join(date_path, row)
+            if not os.path.isdir(row_path):
+                continue
+            row_path = os.path.join(row_path, '1')
+            if not os.path.exists(row_path):
+                continue
 
-        block_counts += trees_counts
+            tracks_path = os.path.join(row_path, 'tracks.csv')
+            slice_json_path = os.path.join(row_path, 'Result_FSI_slice_data.json')
+            tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
+            trees_counts, trees_tracks = count_trees_fruits(tracks_df, slices_df, block, row)
 
-    return block_counts
+            block_counts += trees_counts
+            row_tracks[row] = trees_tracks
+
+    return block_counts, row_tracks
+
+
+if __name__ == "__main__":
+
+    fp = "/media/matans/My Book/FruitSpec/Apples_SA/block 13/block 13"
+    get_block_count(fp)

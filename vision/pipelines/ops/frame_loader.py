@@ -16,10 +16,10 @@ class FramesLoader():
         self.zed_cam, self.rgb_jai_cam, self.jai_cam, self.depth_cam = init_cams(args, self.mode)
         self.batch_size = cfg.batch_size
         self.len_size = cfg.len_size
-        self.zed_last_id = 0
-        self.depth_last_id = 0
-        self.jai_last_id = 0
-        self.rgb_jai_last_id = 0
+        self.zed_last_id = -1
+        self.depth_last_id = -1
+        self.jai_last_id = -1
+        self.rgb_jai_last_id = -1
 
         if self.mode in ['sync_svo', 'sync_mkv']:
             self.sync_zed_ids, self.sync_jai_ids = self.get_cameras_sync_data(args.sync_data_log_path)
@@ -271,18 +271,21 @@ def arrange_ids(jai_frame_ids, zed_frame_ids, return_index=False):
     z = np.array(zed_frame_ids)
     j = np.array(jai_frame_ids)
     # find start index
-    zeros = np.where(z == 0)
-    if isinstance(zeros, tuple):
-        start_index = np.argmin(z)
-    else:
-        start_index = np.max(zeros)
+    # zeros = np.where(z == 0)
+    # if isinstance(zeros, tuple):
+    #     start_index = np.argmin(z)
+    # else:
+    #     start_index = np.max(zeros)
 
-    jai_offset = j[start_index]
+    jai_offset = j[0]
     j -= jai_offset
 
-    output_z = z[start_index + 1:].tolist()
-    output_j = j[start_index: -1].tolist()
-    output_j = list(range(len(output_j)))
+    zed_offset = z[0]
+    z -= zed_offset
+
+    output_z = z.tolist()
+    #output_j = j.tolist()
+    output_j = list(range(len(j)))
 
     output_z.sort()
 
