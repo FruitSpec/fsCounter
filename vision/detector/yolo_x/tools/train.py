@@ -128,9 +128,9 @@ if __name__ == "__main__":
     configure_module()
     args = make_parser().parse_args()
 
-    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_mixup.py"
+    args.exp_file = "/home/fruitspec-lab-3/FruitSpec/Code/Lihi2/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_mixup.py"
     args.batch_size = 16
-    args.experiment_name = 'detector_apples_train_120923_40_epoch_mosaic1_hsv1'
+    args.experiment_name = 'citrus_22_11_23_CLAHE_auto_tagging_lr_1_32'
     args.name = "yolox_tiny"  # "yolox_s"
     args.fp16 = True
     args.ckpt = '/home/fruitspec-lab-3/FruitSpec/weights/pre_trained/yolox_tiny.pth'
