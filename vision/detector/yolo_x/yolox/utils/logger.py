@@ -392,6 +392,10 @@ class WandbLogger(object):
         iou_thrs = list(params.iouThrs)
         recall_list = list(params.recThrs)
         cat_ids = list(params.catIds)
+        #######
+        if min(cat_ids) == 1:                    # fixed a bug if cat_ids start at 1 and not 0. todo - check if not disturbing other things
+            cat_ids = [cat_id - 1 for cat_id in cat_ids]
+        #######
         iou_ind = iou_thrs.index(iou)
 
         res_len = len(recall_list)
