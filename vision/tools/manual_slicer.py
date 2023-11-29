@@ -766,10 +766,11 @@ def get_all_slicing_and_n_trees():
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
-    fp = '/media/matans/My Book/FruitSpec/Apples_SA/Block_3/row_444/1/Result_FSI.mkv' # Result_FSI.mkv # FSI_CLAHE.mkv
+    path = '/media/matans/My Book/FruitSpec/Grapes_SA/1XXXXXX4/281123/row_3/1'
+    fp = os.path.join(path, 'Result_FSI.mkv') # Result_FSI.mkv # FSI_CLAHE.mkv
     #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
     jz_file = None
-    output_path = '/media/matans/My Book/FruitSpec/Apples_SA/Block_3/row_444/1'
+    output_path = path
     validate_output_path(output_path)
     rotate = 1 if 'FSI' in fp.split('/')[-1] else 2
     manual_slicer(fp, output_path, jz_file=jz_file,rotate=rotate)
