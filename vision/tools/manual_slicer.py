@@ -12,7 +12,7 @@ from vision.tools.image_stitching import get_fine_keypoints, resize_img, get_fin
 from vision.tools.video_wrapper import video_wrapper
 from vision.misc.help_func import validate_output_path
 from vision.visualization.drawer import draw_rectangle
-
+from vision.pipelines.ops.frame_loader import arrange_ids
 
 def mouse_callback(event, x, y, flags, params):
     """
@@ -94,18 +94,19 @@ def print_lines(params):
     y = int(params['height'] // params['resize_factor'])
 
     if params['data'][params['index']]['start'] is not None:
-        x = params['data'][params['index']]['start']
+        x = int(params['data'][params['index']]['start'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 0), 2)
     if params['data'][params['index']]['end'] is not None:
-        x = params['data'][params['index']]['end']
+        x = int(params['data'][params['index']]['end'])
         frame = cv2.line(frame, (x, 0), (x, y), (255, 0, 255), 2)
 
     return frame
 
 def print_rectangles(frame, params):
-    left_clusters = params['data'][params['index']]['left_clusters']
-    right_clusters = params['data'][params['index']]['right_clusters']
-
+    left_clusters = params['data'][params['index']].get('left_clusters')
+    right_clusters = params['data'][params['index']].get('right_clusters')
+    if isinstance(left_clusters, type(None)):
+        return frame
     for key, values in left_clusters.items():
         if key != 'count':
             start_point = (values[0], values[1])
@@ -149,6 +150,12 @@ def update_index(k, params):
 
     if k == 122:
         index = max(index - 1, 0)
+
+    if k == 97:
+        index = max(index - 10, 0)
+
+    if k == 100:
+        index += 10
 
     if k == 99:
         index += 1
