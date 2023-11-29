@@ -395,7 +395,7 @@ class WandbLogger(object):
         #######
         if min(cat_ids) == 1:                    # fixed a bug if cat_ids start at 1 and not 0. todo - check if not disturbing other things
             cat_ids = [cat_id - 1 for cat_id in cat_ids]
-        #######
+        #####
         iou_ind = iou_thrs.index(iou)
 
         res_len = len(recall_list)
@@ -439,6 +439,57 @@ class WandbLogger(object):
 
         pr_table = self.eval_to_table(eval, iou)
         self.run.log({"pr_table": pr_table})
+
+    def log_f1_table(self, eval, iou=0.5):
+
+        # Convert eval metrics to a pandas DataFrame
+        df = self.eval_to_df(eval, iou)
+
+        # Calculate F1 scores
+        df['f1'] = 2 * (df['precision'] * df['recall']) / (df['precision'] + df['recall'] + 1e-16)
+
+        # Round to three decimal places
+        df = df.round(3)
+
+        # Make sure we don't exceed wandb's maximum row limit
+        if len(df) > self.wandb.Table.MAX_ROWS:
+            self.wandb.termwarn(
+                "wandb uses only %d data points to create the plots." % self.wandb.Table.MAX_ROWS
+            )
+            df = sklearn_utils.resample(
+                df,
+                replace=False,
+                n_samples=self.wandb.Table.MAX_ROWS,
+                random_state=42,
+                stratify=df["class"]
+            ).sort_values(["score"])
+
+        # Log the F1 table including 'score'
+        f1_table = self.wandb.Table(dataframe=df)
+        self.run.log({"f1_table": f1_table})
+
+        # Find the score with best f1:
+        max_f1_index = df['f1'].idxmax()
+        best_score = df.loc[max_f1_index, 'score']
+        best_f1 = df.loc[max_f1_index, 'f1']
+
+        # Prepare the data for plotting
+        score_values = df['score'].tolist()  # Score values
+        f1_scores = df['f1'].tolist()  # F1 score values
+
+        # Log the F1 plot
+        self.run.log({
+            "f1_curve": self.wandb.plot.line_series(
+                xs=[score_values],  # Score values wrapped in a list
+                ys=[f1_scores],  # F1 score values wrapped in a list
+                keys=["F1 Score"],
+                title=f"F1 vs Conf Threshold. Best conf {best_score}",
+                xname="Confidence threshold"
+            )
+        })
+
+        # Print the best score and corresponding F1 score
+        print(f"Best F1 Score: {best_f1} at Confidence threshold: {best_score}")
 
 
     def log_train_artifact(self, artifact_name, weights_file_path, exp_path, run_log_path):

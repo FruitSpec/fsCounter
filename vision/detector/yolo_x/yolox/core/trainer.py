@@ -202,6 +202,7 @@ class Trainer:
                 model, self.evaluator, self.is_distributed, output_eval=True
             )
         self.wandb_logger.log_pr_table(eval)
+        self.wandb_logger.log_f1_table(eval, iou=0.5)
         self.wandb_logger.log_train_artifact(self.args.name,
                                              weights_file_path=self.get_best_ckpt(),
                                              exp_path=self.args.exp_file,

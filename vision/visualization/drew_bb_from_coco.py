@@ -45,7 +45,10 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
                 # Draw bbox and annotations
                 x, y, w, h = bbox
                 cv2.rectangle(image, (x, y), (x + w, y + h), color_map[cat_id], line_width)
-                label = f"{cat_name[0]} {round(ann.get('score', ''),2)}"
+                if "score" in ann:
+                    label = f"{cat_name[0]} {round(ann.get('score', ''),2)}"
+                else:
+                    label = f"{cat_name[0]} id{cat_id}"
                 cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_map[cat_id],
                             line_width)
 
@@ -63,11 +66,11 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
 
 if __name__ == "__main__":
 
-    coco_file_path = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/test_annotations/coco_annotations.json'
-    image_directory = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/test_images'
-    #image_directory = os.path.join(os.path.dirname(coco_file_path), 'all_images')
+    coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/all_jsons/15.11_14.39__batch11.json'
+    image_directory =r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/all_images'
+    # image_directory = os.path.join(os.path.dirname(coco_file_path), 'all_images')
     # output_directory = os.path.join( os.path.dirname(coco_file_path) ,'frames_annotations')
-    output_directory = '/home/lihi/FruitSpec/Data/CLAHE_FSI/Tagging_Pipeline_Outputs/tagged_images'
+    output_directory = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/debbug'
 
     display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)
 
