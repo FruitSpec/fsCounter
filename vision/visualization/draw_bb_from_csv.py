@@ -11,7 +11,7 @@ from vision.data.results_collector import ResultsCollector
 
 
 
-def validate_from_files(tracks, cfg, args, alignment=None, jai_only=False, data_index=7):
+def validate_from_files(tracks, cfg, args, alignment=None, jai_only=False, data_index=6):
     print('arranging data')
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
@@ -70,12 +70,20 @@ def save_aligned(zed, jai, output_folder, f_id, corr=None, sub_folder='FOV',dets
 
 
 def track_to_det(tracks_df):
+    col_names = list(tracks_df.columns)
+    if 'frame_id' in col_names:
+        frame_id = 'frame_id'
+    elif 'frame' in col_names:
+        frame_id = 'frame'
+    else:
+        print('Data Error')
+        return
     dets = {}
     for i, row in tracks_df.iterrows():
-        if row['frame_id'] in list(dets.keys()):
-            dets[int(row['frame_id'])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0])
+        if row[frame_id] in list(dets.keys()):
+            dets[int(row[frame_id])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], row['track_id'], int(row[frame_id])])
         else:
-            dets[int(row['frame_id'])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row['frame_id']), 0]]
+            dets[int(row[frame_id])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], row['track_id'], int(row[frame_id])]]
 
 
     return dets
@@ -91,6 +99,28 @@ def get_alignment_hash(alignment):
 
     return hash
 
+def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id):
+    repo_dir = get_repo_dir()
+    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
+    cfg = OmegaConf.load(repo_dir + pipeline_config)
+    args = OmegaConf.load(repo_dir + runtime_config)
+
+    args.sync_data_log_path = os.path.join(row_path, "jaized_timestamps.csv")
+    args.jai.movie_path = os.path.join(row_path, 'Result_FSI.mkv')
+    args.zed.movie_path = os.path.join(row_path, 'ZED.mkv')
+    args.depth.movie_path = os.path.join(row_path, 'DEPTH.mkv')
+    args.rgb_jai.movie_path = os.path.join(row_path, 'Result_RGB.mkv')
+
+    data_index = 6  # which column to use to detrmine bbox color
+    args.output_folder = os.path.join(row_path, 'trees', str(tree_id))
+    validate_output_path(args.output_folder)
+    print(f'saving data into: {args.output_folder}')
+    validate_from_files(tracks=tree_tracks, cfg=cfg, args=args, alignment=None, jai_only=True, data_index=data_index)
+
+    print('Done')
+
+
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
@@ -99,19 +129,20 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/home/fruitspec-lab-3/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723/row_2/1"
+    folder = "/media/matans/My Book/FruitSpec/Apples_SA/block_13/block_13/row_8888/1"
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
-    args.jai.movie_path = os.path.join(folder, 'Result_FSI.mkv')
+    #args.jai.movie_path = os.path.join(folder, 'Result_FSI.mkv')
+    args.jai.movie_path = os.path.join(folder, 'FSI_CLAHE.mkv')
     args.zed.movie_path = os.path.join(folder, 'ZED.mkv')
-    args.depth.movie_path = os.path.join(folder, 'ZED_Y.mkv')
+    args.depth.movie_path = os.path.join(folder, 'DEPTH.mkv')
     args.rgb_jai.movie_path = os.path.join(folder, 'Result_RGB.mkv')
     tracks_p = os.path.join(folder, "tracks.csv")
     alignment_p = os.path.join(folder, "alignment.csv")
 
     tracks = pd.read_csv(tracks_p)
     alignment = pd.read_csv(alignment_p)
-    data_index = 7 # which column to use to detrmine bbox color
-    args.output_folder = "/home/fruitspec-lab-3/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723/row_2/1/adt_yoloX"
+    data_index = 6 # which column to use to detrmine bbox color
+    args.output_folder = "/media/matans/My Book/FruitSpec/Apples_SA/block_13/block_13/row_8888/1/new_fsi"
     validate_output_path(args.output_folder)
     validate_from_files(tracks=tracks, cfg=cfg, args=args, alignment=alignment, jai_only=True, data_index=data_index)
 
