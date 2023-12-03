@@ -20,11 +20,11 @@ class Exp(MyExp):
         self.max_detections = 300
 
         # Define yourself dataset path
-        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato_FSI_train_260923"
-        self.train_ann = "train_coco_single_class.json"
-        self.val_ann = "val_coco_single_class.json"
+        self.data_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/auto_tagging_old_fsi/citrus_20_11_23/Tagging_Pipeline_Outputs"
+        self.train_ann = "coco_train.json"
+        self.val_ann = "coco_val.json"
 
-        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/Counter/tomatoes'
+        self.output_dir = '/home/fruitspec-lab-3/FruitSpec/Sandbox/CLAHE_FSI/auto_tagging_old_fsi/'
         self.num_classes = 1
 
         # -------------- training config --------------------- #
@@ -62,8 +62,8 @@ class Exp(MyExp):
 
 
         self.data_num_workers = 4
-        self.eval_interval = 1
-        self.train_interval = 1
+        self.eval_interval = 10
+        self.train_interval = 10
 
         # -----------------  testing config ------------------ #
         # confidence threshold during evaluation/test,
