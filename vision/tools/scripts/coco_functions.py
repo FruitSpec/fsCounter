@@ -2,6 +2,11 @@ import json
 import os
 from vision.misc.help_func import validate_output_path
 import json
+import pickle
+from shapely.geometry import box
+from tqdm import tqdm
+
+
 
 def modify_coco_category_based_on_type_position(original_path: str, output_path: str) -> str:
     """
@@ -197,10 +202,155 @@ def filter_coco_annotations(input_path, output_path, category_id_to_keep, new_ca
 
 
 
+def calculate_intersection_over_smaller_area(box_a, box_b):
+    """
+    Calculate the intersection area as a percentage of the smaller bounding box's area.
+    """
+    a = box(box_a[0], box_a[1], box_a[0] + box_a[2], box_a[1] + box_a[3])
+    b = box(box_b[0], box_b[1], box_b[0] + box_b[2], box_b[1] + box_b[3])
+    intersection_area = a.intersection(b).area
+    smaller_area = min(a.area, b.area)
+    return intersection_area / smaller_area if smaller_area != 0 else 0
 
+def screen_coco_file(input_path, output_path):
+    with open(input_path, 'r') as file:
+        data = json.load(file)
 
+    annotations = data['annotations']
+    to_remove = set()
+
+    for i in tqdm(range(len(annotations)), desc="Processing Annotations"):
+        ann_a = annotations[i]
+        for j in range(len(annotations)):
+            if i != j and ann_a['image_id'] == annotations[j]['image_id']:
+                ann_b = annotations[j]
+                intersection_ratio = calculate_intersection_over_smaller_area(ann_a['bbox'], ann_b['bbox'])
+                if intersection_ratio > 0.9:
+                    # Remove the larger box
+                    area_a = ann_a['bbox'][2] * ann_a['bbox'][3]
+                    area_b = ann_b['bbox'][2] * ann_b['bbox'][3]
+                    larger_ann = i if area_a > area_b else j
+                    to_remove.add(larger_ann)
+
+    # Remove the identified annotations
+    filtered_annotations = [ann for i, ann in enumerate(annotations) if i not in to_remove]
+    data['annotations'] = filtered_annotations
+
+    with open(output_path, 'w') as file:
+        json.dump(data, file)
+
+def grounding_dino_to_coco(pkl_file_path, output_json_path):
+    # Load the pkl file
+    with open(pkl_file_path, 'rb') as file:
+        dino_results = pickle.load(file)
+
+    # Prepare the COCO format dictionary
+    coco_format = {
+        "images": [],
+        "annotations": [],
+        "categories": []
+    }
+
+    category_set = set()
+    annotation_id = 1
+
+    for image_name, data in dino_results.items():
+        # Add image info
+        image_id = len(coco_format["images"]) + 1
+        coco_format["images"].append({
+            "id": image_id,
+            "width": data["size"][1],
+            "height": data["size"][0],
+            "file_name": image_name  # Include image name
+        })
+
+        # Convert and add each bbox
+        for box, label in zip(data["boxes"], data["labels"]):
+            # Convert tensor to list and from [x_center, y_center, width, height] to [x, y, width, height]
+            box = box.tolist()
+            x_center, y_center, width, height = box
+            x = (x_center - width / 2) * data["size"][1]  # De-normalize and convert to top-left x
+            y = (y_center - height / 2) * data["size"][0]  # De-normalize and convert to top-left y
+            norm_width = width * data["size"][1]  # De-normalized width
+            norm_height = height * data["size"][0]  # De-normalized height
+            area = norm_width * norm_height  # Area of the bbox
+
+            # Extract label and confidence
+            label, confidence = label.split('(')
+            confidence = float(confidence[:-1])  # Remove the closing parenthesis and convert to float
+
+            # Check if the category already exists
+            if label not in category_set:
+                category_set.add(label)
+                coco_format["categories"].append({
+                    "id": len(category_set) - 1,  # Subtract 1 here
+                    "name": label
+                })
+
+            # Find the category ID
+            category_id = next((category["id"] for category in coco_format["categories"] if category["name"] == label), None)
+
+            # Add annotation
+            coco_format["annotations"].append({
+                "id": annotation_id,
+                "image_id": image_id,
+                "category_id": category_id,
+                "bbox": [x, y, norm_width, norm_height],
+                "area": area,  # Include the area of the bbox
+                "score": confidence
+            })
+
+            annotation_id += 1
+
+    # Write the COCO format data to a JSON file
+    with open(output_json_path, 'w') as json_file:
+        json.dump(coco_format, json_file, indent=4)
+
+    return output_json_path
+
+def remove_absent_images_from_coco(coco_file_path, images_dir_path, output_coco_file_path):
+    # Load the COCO file
+    with open(coco_file_path, 'r') as file:
+        coco_data = json.load(file)
+
+    # Get the set of image filenames in the images directory
+    present_images = set(os.listdir(images_dir_path))
+
+    # Filter out images not present in the directory
+    filtered_images = [img for img in coco_data['images'] if img['file_name'] in present_images]
+
+    # Update the COCO data
+    coco_data['images'] = filtered_images
+
+    # Save the updated COCO file
+    with open(output_coco_file_path, 'w') as file:
+        json.dump(coco_data, file)
+
+# Example usage
 
 if __name__ == "__main__":
+
+    modify_coco_category_id_to_0(r'/home/lihi/FruitSpec/Data/grapes/Dino_SA_and_GT_US_031223/train_coco.json')
+    modify_coco_category_id_to_0(r'/home/lihi/FruitSpec/Data/grapes/Dino_SA_and_GT_US_031223/val_coco.json')
+
+    #####################################################3
+    PATH_INPUT_COCO = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/coco_v2.json'
+    PATH_OUTPUT_COCO = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/coco_v3.json'
+    PATH_IMAGES_DIR = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/tagged_v2'
+    remove_absent_images_from_coco(PATH_INPUT_COCO, PATH_IMAGES_DIR, PATH_OUTPUT_COCO )
+
+    ###########################################################3
+    PATH_INPUT_COCO = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/coco_v1.json'
+    PATH_OUTPUT_COCO = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/coco_v2.json'
+    screen_coco_file(PATH_INPUT_COCO, PATH_OUTPUT_COCO)
+    ##########################################################################
+
+    PKL_PATH = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/dets.pkl'
+    OUTPUT_PATH = r'/home/lihi/FruitSpec/Data/grapes/grapes_dino_dataset/coco_v1.json'
+    grounding_dino_to_coco(PKL_PATH, OUTPUT_PATH)
+
+
+ ###########################################################################################################
     coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotations/train_coco.json'
     convert_to_single_class(coco_file_path)
 
