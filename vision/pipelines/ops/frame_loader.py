@@ -260,8 +260,9 @@ class FramesLoader():
         if log_fp.endswith(".json"):
             return FramesLoader.get_sync_from_json(log_fp)
         log_df = pd.read_csv(log_fp)
-        jai_frame_ids = list(log_df['JAI_frame_number'])
-        zed_frame_ids = list(log_df['ZED_frame_number'])
+        q_df = log_df.query('is_recording == True')
+        jai_frame_ids = list(q_df['JAI_frame_number'])
+        zed_frame_ids = list(q_df['ZED_frame_number'])
 
         return arrange_ids(jai_frame_ids, zed_frame_ids, ret_start_index)
 

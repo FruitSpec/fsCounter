@@ -54,11 +54,8 @@ def debug_tracks_pc(jai_batch, trk_outputs, f_id):
 
 def run(cfg, args, metadata=None, n_frames=None):
     adt = Pipeline(cfg, args)
-    results_collector_jai = ResultsCollector(rotate=args.rotate)
     results_collector_zed = ResultsCollector(rotate=args.rotate)
 
-    jai_args = args.copy()
-    jai_args.output_folder = os.path.join(args.output_folder, 'jai')
     zed_args = args.copy()
     zed_args.output_folder = os.path.join(args.output_folder, 'zed')
 
@@ -82,41 +79,22 @@ def run(cfg, args, metadata=None, n_frames=None):
         pbar.update(adt.batch_size)
         zed_batch, pc_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
-
-
-        jai_batch = adt.undistort_jai.apply_on_batch(jai_batch)
-        rgb_batch = adt.undistort_jai.apply_on_batch(rgb_batch)
-        zed_batch = adt.undistort_zed.apply_on_batch(zed_batch)
-        pc_batch = adt.undistort_zed.apply_on_batch(pc_batch)
-
-        mats, stats = adt.sensor_aligner.align_on_batch(zed_batch, rgb_batch)
-
-
         # detect:
         # det: [x1, y1, x2, y2, obj_conf, class_conf, class_pred]
-        jai_det_outputs = adt.detector_jai.detect(jai_batch)
         zed_det_outputs = adt.detector_zed.detect(zed_batch)
 
         # find translation
         # debug
-        jai_debug = []
-        jai_output_path = os.path.join(jai_args.output_folder, 'translation')
-        validate_output_path(jai_output_path)
-        for id_ in range(len(jai_batch)):
-            jai_debug.append({'output_path': jai_output_path, 'f_id': f_id + id_})
-
         zed_debug = []
         zed_output_path = os.path.join(zed_args.output_folder, 'translation')
         validate_output_path(zed_output_path)
         for id_ in range(len(zed_batch)):
             zed_debug.append({'output_path': zed_output_path, 'f_id': f_id + id_})
 
-        jai_translation_results = adt.jai_translation.batch_translation(jai_batch, jai_det_outputs, jai_debug)
         zed_translation_results = adt.zed_translation.batch_translation(zed_batch, zed_det_outputs, zed_debug)
 
         # track:
         # trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id]
-        jai_trk_outputs, jai_trk_windows = adt.detector_jai.track(jai_det_outputs, jai_translation_results, f_id)
         zed_trk_outputs, zed_trk_windows = adt.detector_zed.track(zed_det_outputs, zed_translation_results, f_id)
 
         # measure:
@@ -124,76 +102,32 @@ def run(cfg, args, metadata=None, n_frames=None):
         zed_trk_outputs = adt.get_xyzs_dims(pc_batch, zed_trk_outputs)
 
         # filter by distance:
-        # filter jai detections:
-        jai_conv_trk_outputs = convert_dets(jai_trk_outputs, mats)
-        jai_conv_filtered_outputs, jai_ranges, jai_dets_ids = batch_filter_by_distance(jai_conv_trk_outputs,
-                                                                                       pc_batch,
-                                                                                       cfg.filters.distance.threshold)
-        jai_filtered_outputs = batch_reduce_filterd(jai_trk_outputs, jai_dets_ids)
 
         # filter zed detections:
         zed_filtered_outputs, zed_ranges, zed_dets_ids = batch_filter_by_distance(zed_trk_outputs, pc_batch, cfg.filters.distance.threshold)
 
         # cluster:
-        # jai trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, cluster_id]
-        if f_id == 92:
-            a = 1
-        jai_filtered_outputs, clusters = adt.cluster.cluster_batch(jai_filtered_outputs, jai_ranges)
 
         # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height, cluster_id]
-        zed_filtered_outputs = add_clusters_to_zed_outputs(zed_filtered_outputs, jai_conv_filtered_outputs, clusters)
-        jai_conv_filtered_outputs = list(map(add_result_to_track, jai_conv_filtered_outputs, clusters))
+        zed_filtered_outputs, clusters = adt.cluster.cluster_batch(zed_filtered_outputs, zed_ranges)
 
-        if f_id > 120:
-            a = 1
+
+
+
+
+
         # color
         # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height, cluster_id, color]
         zed_filtered_outputs, zed_tomato_colors, zed_tomato_colors_viz = get_colors(zed_batch,
                                                                                zed_filtered_outputs)
-        #jai_conv_filtered_outputs, jai_tomato_colors, jai_tomato_colors_viz = get_colors(zed_batch,
-        #                                                                                 jai_conv_filtered_outputs)
 
-        jai_filtered_outputs, jai_tomato_colors, jai_tomato_colors_viz = get_colors(rgb_batch,
-                                                                                         jai_filtered_outputs)
-
-        # jai trk: [x1, y1, x2, y2, conf, class_pred, track_id, frame_id, cluster_id, color]
-        #jai_filtered_outputs = list(map(add_result_to_track, jai_filtered_outputs, jai_tomato_colors))
 
         # collect results:
-        results_collector_jai.collect_adt(jai_filtered_outputs, mats, f_id, jai_translation_results)
-        results_collector_zed.collect_adt(zed_filtered_outputs, mats, f_id, jai_translation_results)
-
-        #results_collector_zed.debug_batch(f_id, args, zed_filtered_outputs, zed_det_outputs, [img[:, :, ::-1] for img in rgb_batch],
-        #                              None, zed_trk_windows, zed_tomato_colors_viz, zed_frames=zed_batch,
-        #                                 alignment_results=None)
-
-       # results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
-
-        validate_output_path(jai_args.output_folder)
-        results_collector_jai.debug_batch(batch_id=f_id, args=jai_args, trk_outputs=jai_filtered_outputs, det_outputs=jai_det_outputs,
-                                          frames=jai_batch, depth=None, trk_windows=jai_trk_windows, det_colors=jai_tomato_colors_viz,
-                                          zed_frames=rgb_batch)
-
+        results_collector_zed.collect_adt(zed_filtered_outputs, [], f_id, zed_translation_results)
 
         validate_output_path(zed_args.output_folder)
         results_collector_zed.debug_batch(batch_id=f_id, args=zed_args, trk_outputs=zed_filtered_outputs, det_outputs=zed_det_outputs,
                                           frames=zed_batch, depth=None, trk_windows=zed_trk_windows, det_colors=zed_tomato_colors_viz)
-
-
-        conv_jai_batch = []
-        for img, M in zip(jai_batch, mats):
-            conv_image = cv2.warpAffine(img, M, (zed_batch[0].shape[1], zed_batch[0].shape[0]))
-            conv_jai_batch.append(conv_image)
-        conv_rgb_batch = []
-        for img, M in zip(rgb_batch, mats):
-            conv_image = cv2.warpAffine(img, M, (zed_batch[0].shape[1], zed_batch[0].shape[0]))
-            conv_rgb_batch.append(conv_image)
-
-        #save_batch_aligned(zed_batch, conv_jai_batch, args.output_folder, f_id, sub_folder='color', dets=jai_conv_filtered_outputs, lense=83,
-                           #name='color', index_=-1)
-        save_batch_aligned(zed_batch, conv_rgb_batch, args.output_folder, f_id, sub_folder='clusters', dets=jai_conv_filtered_outputs, lense=83,
-                           name='clusters', index_=-1)
-
 
 
         f_id += adt.batch_size
@@ -203,10 +137,9 @@ def run(cfg, args, metadata=None, n_frames=None):
     adt.frames_loader.close_cameras()
     adt.dump_log_stats(args)
 
-    results_collector_jai.dump_to_csv(os.path.join(jai_args.output_folder, 'tracks.csv'), type="jai_syngenta")
     results_collector_zed.dump_to_csv(os.path.join(zed_args.output_folder, 'tracks.csv'), type="zed_syngenta")
 
-    return results_collector_jai, results_collector_zed
+    return results_collector_zed
 
 
 class Pipeline():
@@ -698,7 +631,7 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/flow_test_data_291123"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_2"
     validate_output_path(output_path)
 
     rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
@@ -718,5 +651,5 @@ if __name__ == "__main__":
 
         validate_output_path(args.output_folder)
 
-        rc_j, rc_z = run(cfg, args)
+        rc_z = run(cfg, args)
         #rc_j.dump_feature_extractor(args.output_folder)

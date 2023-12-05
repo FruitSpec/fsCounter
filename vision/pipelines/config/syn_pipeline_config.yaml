@@ -131,7 +131,7 @@ result_collector:
 
 filters:
   distance:
-    threshold: 1.25
+    threshold: 3
   duplicates:
     iou_threshold: 0.6
   size:

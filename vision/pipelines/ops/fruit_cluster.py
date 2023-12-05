@@ -50,7 +50,19 @@ class FruitCluster():
                 cluster_found = False
                 for n in t_id_neighbors:
                     if n in c.track_ids:
+                        # how many neighbors are in cluster
+                        # if len(c.track_ids) > 2:
+                        #     cluster_match = 0
+                        #     for id_in_cluster in c.track_ids:
+                        #         for t_n in t_id_neighbors:
+                        #             if id_in_cluster == t_n:
+                        #                 cluster_match += 1
+                        # else:
+                        #     cluster_match = 2
+
+                        #if cluster_match >= 2:
                         id_found = True
+
                         for t_n in t_id_neighbors:
                             cluster_found = True
                             trk_to_cluster[t_n] = c.cluster_id

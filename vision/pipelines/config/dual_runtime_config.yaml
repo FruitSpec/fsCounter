@@ -44,9 +44,9 @@ debug:
   tracker_windows: true
   tracker_results: true
   det_results: true
-  raw_frame: false
+  raw_frame: true
   depth: false
-  clusters: false
+  clusters: true
   colors: true
   tracker: None
   trees: false

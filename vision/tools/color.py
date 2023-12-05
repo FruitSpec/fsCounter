@@ -42,25 +42,25 @@ def get_tomato_color(rgb_crop):
     """
     if not len(rgb_crop):
         return 0
-    hsv = cv2.cvtColor(rgb_crop.astype(np.uint8), cv2.COLOR_RGB2HSV)
+    hsv = cv2.cvtColor(rgb_crop.astype(np.uint8), cv2.COLOR_BGR2HSV)
     hue, sat, val = cv2.split(hsv.copy())
     hist_vals, hist_bins = np.histogram(hue, bins=100)
     mode_hue = hist_bins[np.argmax(hist_vals)]
-    if mode_hue < 10:
-        return 1
-    if mode_hue < 17.5:
-        return 2
-    if mode_hue < 45:
+    if mode_hue < 10 or mode_hue > 170 :
+        return 1 # red
+    if mode_hue < 20:
+        return 2 # orange
+    if mode_hue < 30:
         w, h = rgb_crop.shape[:2]
         w_025 = int(w/4)
         h_025 = int(h/4)
         hue_cut = hue[h_025:-h_025, w_025:-w_025]
         mean_hue_cut, median_hue_cut = np.nanmean(hue_cut), np.nanmedian(hue_cut)
         if median_hue_cut * 1.15 > mean_hue_cut: # low "skew"
-            return 4
+            return 4 # yellow
         else:
-            return 3
-    return 5
+            return 3 #
+    return 5 # green
 
 
 def get_hue(det_crop, saturation_threshold=50):
