@@ -766,7 +766,7 @@ def get_all_slicing_and_n_trees():
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
-    path = '/media/matans/My Book/FruitSpec/Apples_SA/039ROYA0/221123/row_555/1'
+    path = '/media/matans/My Book/FruitSpec/Apples_SA/036FUJIO/241123/row_666/1'
     fp = os.path.join(path, 'Result_FSI.mkv') # Result_FSI.mkv # FSI_CLAHE.mkv
     #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
     jz_file = None
