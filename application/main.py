@@ -163,7 +163,7 @@ def storage_cleanup():
     def rewrite_not_deleted(path):
         nonlocal deleted_df
         try:
-            df = pd.read_csv(path)
+            df = pd.read_csv(path, dtype='str')
         except (FileNotFoundError, IOError):
             return
 

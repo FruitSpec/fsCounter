@@ -184,8 +184,12 @@ class AlternativeFlow(Module):
                 traceback.print_exc()
         try:
             analyzed = pd.read_csv(data_conf.analyzed_path, dtype=str)
+            tools.log("ANALYZED FILES READ")
         except (FileNotFoundError, PermissionError):
+            tools.log("ANALYZED FILES NOT READ")
             analyzed = pd.DataFrame()
+        except Exception:
+            traceback.print_exc()
         return collected, analyzed
 
 
