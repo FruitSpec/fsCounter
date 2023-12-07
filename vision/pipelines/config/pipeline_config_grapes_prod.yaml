@@ -29,27 +29,11 @@ classes:
 
 tracker:
   minimal_max_distance: 10
-  major: 1.8 #3
-  minor: 1 #2.5
+  major: 1.5 #3
+  minor: 1.2 #2.5
   close_frame: 0.9
-  ranges:
-    close:
-      dist: 1.2 # below
-      major: 1.8 # dev - 1.5
-      minor: 0.7 #1.2 #0.8 #1.2
-    far:
-      dist: 3.2 #above
-      major: 1.2 # 1.1
-      minor: 0.4 # 0.65
-    mid:
-      dist: 2 # not in use
-      major: 1.8 # dev - 1.5
-      minor: 0.7 #0.8
-
-
-
   max_losses: 3  # 10
-  score_weights: [0.25, 1.0, 0.25, 0.75]  # [0.25, 1.0, 0.25, 1]
+  score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center #
   det_area: 1
   translation_size: 640
