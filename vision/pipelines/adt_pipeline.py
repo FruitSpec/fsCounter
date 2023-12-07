@@ -10,8 +10,7 @@ import time
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 import pickle
-
-from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
+from vision.misc.help_func import get_repo_dir, load_json, validate_output_path, get_subpath_from_dir
 
 repo_dir = get_repo_dir()
 sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -39,9 +38,9 @@ def run(cfg, args, metadata=None, shutdown_event=None):
 
     f_id = 0
 
-    #pbar = tqdm(total=n_frames)
-    while f_id < n_frames and not shutdown_event.is_set():
-        #pbar.update(adt.batch_size)
+    pbar = tqdm(total=n_frames)
+    while f_id < n_frames: #and not shutdown_event.is_set():
+        pbar.update(adt.batch_size)
         zed_batch, depth_batch, jai_batch, rgb_batch = adt.get_frames(f_id)
 
 
@@ -75,8 +74,7 @@ def run(cfg, args, metadata=None, shutdown_event=None):
         results_collector.collect_tracks(trk_outputs)
         results_collector.collect_alignment(alignment_results, f_id)
         results_collector.collect_jai_translation(translation_results, f_id)
-
-#        results_collector.draw_and_save(jai_frame, trk_outputs, f_id, args.output_folder)
+        results_collector.debug_batch(f_id, args, trk_outputs, det_outputs, jai_batch, None, trk_windows)
 
         f_id += adt.batch_size
         adt.logger.iterations += 1
@@ -352,13 +350,48 @@ def append_to_trk(trk_batch_res, results):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    pipeline_config = "/vision/pipelines/config/pipeline_config_grapes_prod.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    validate_output_path(args.output_folder)
-    #copy_configs(pipeline_config, runtime_config, args.output_folder)
+    cfg.exp_file = os.path.join(repo_dir, get_subpath_from_dir(cfg.exp_file, 'fsCounter', include_dir=False))
+    cfg.ckpt_file = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.ckpt_file, 'FruitSpec', include_dir=False))
+    cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
 
-    rc = run(cfg, args)
-    rc.dump_feature_extractor(args.output_folder)
+    zed_name = "ZED.mkv"
+    depth_name = "DEPTH.mkv" #"DEPTH.mkv"
+    fsi_name = "Result_FSI.mkv"
+    rgb_name = "Result_RGB.mkv"
+    time_stamp = "jaized_timestamps.csv"
+
+    rows_dirs = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4/281123',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2/281123',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/7XXXXXX2/281123',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/8XXXXXX3/281123']
+
+    for rows_dir in rows_dirs:
+
+        #rows_dir = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2/281123"
+
+        output_path = rows_dir
+        validate_output_path(output_path)
+
+        rows = os.listdir(rows_dir)
+        #rows = ['row_5']
+
+
+        for row in rows:
+            row_folder = os.path.join(rows_dir, row, '1')
+
+            args.output_folder = os.path.join(output_path, row, '1')
+            args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+            args.zed.movie_path = os.path.join(row_folder, zed_name)
+            args.depth.movie_path = os.path.join(row_folder, depth_name)
+            args.jai.movie_path = os.path.join(row_folder, fsi_name)
+            args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+
+            validate_output_path(args.output_folder)
+
+            rc = run(cfg, args)
+            rc.dump_results(args.output_folder)

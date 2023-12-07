@@ -8,7 +8,6 @@ import collections
 
 
 from vision.visualization.drawer import draw_rectangle, draw_text, draw_highlighted_test, get_color
-from vision.depth.zed.svo_operations import get_dimensions
 from vision.misc.help_func import validate_output_path, load_json, write_json, read_json
 from vision.depth.slicer.slicer_flow import post_process
 from vision.tools.video_wrapper import video_wrapper
@@ -246,7 +245,8 @@ class ResultsCollector():
         for id_ in range(len(batch_frame)):
             self.draw_and_save(batch_frame[id_], batch_dets[id_], f_id + id_, output_path)
 
-    def draw_dets(self, frame, dets, t_index=6):
+    @staticmethod
+    def draw_dets(frame, dets, t_index=6, text=True):
 
         for det in dets:
             track_id = det[t_index]
@@ -254,8 +254,9 @@ class ResultsCollector():
             color = get_color(color_id)
             text_color = get_color(-1)
             frame = draw_rectangle(frame, (int(det[0]), int(det[1])), (int(det[2]), int(det[3])), color, 3)
-            frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
-                                          True, 10, 3)
+            if text:
+                frame = draw_highlighted_test(frame, f'ID:{int(track_id)}', (det[0], det[1]), frame.shape[1], color, text_color,
+                                              True, 10, 3)
 
         return frame
 
@@ -272,6 +273,14 @@ class ResultsCollector():
                 id_list.append(det[-1])
 
         return hash
+
+    def debug_batch(self, batch_id, args, trk_outputs, det_outputs, frames, depth=None, trk_windows=None):
+        for i in range(len(trk_outputs)):
+            f_id = batch_id + i
+            f_depth = depth[i] if depth is not None else None
+            f_windows = trk_windows[i] if trk_windows is not None else None
+            self.debug(f_id, args, trk_outputs[i], det_outputs[i], frames[i], depth=f_depth, trk_windows=f_windows)
+
 
     def debug(self, f_id, args, trk_outputs, det_outputs, frame, depth=None, trk_windows=None):
         if args.debug.tracker_windows and trk_windows is not None:
@@ -531,7 +540,7 @@ class ResultsCollector():
         write_json(os.path.join(output_path, 'alignment.json'), self.alignment)
         write_json(os.path.join(output_path, 'jai_zed.json'), self.jai_zed)
 
-    def dump_feature_extractor(self, output_path):
+    def dump_results(self, output_path):
         """
         this function is a wrapper for dumping data to files for the feature extraction pipline
         :param output_path: where to output to
@@ -540,7 +549,8 @@ class ResultsCollector():
         self.dump_state(output_path)
         self.dump_to_csv(os.path.join(output_path, 'detections.csv'))
         self.dump_to_csv(os.path.join(output_path, 'tracks.csv'), type="tracks")
-        self.dump_to_csv(os.path.join(output_path, 'jai_cors_in_zed.csv'), type="alignment")
+        self.dump_to_csv(os.path.join(output_path, 'alignment.csv'), type="alignment")
+        self.dump_to_csv(os.path.join(output_path, 'jai_translations.csv'), type="jai_translations")
 
     def converted_slice_data(self, sliced_data):
         converted_sliced_data = {}

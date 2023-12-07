@@ -2,7 +2,7 @@ import os
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from skimage import measure
+#from skimage import measure
 from concurrent.futures import ThreadPoolExecutor
 
 def keep_dets_only(frame, detections, margin = 0.5):
