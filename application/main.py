@@ -167,7 +167,7 @@ def storage_cleanup():
         except (FileNotFoundError, IOError):
             return
 
-        not_deleted_df = pd.merge(df, deleted_df, how='left', indicator=True,
+        not_deleted_df = pd.merge(df, deleted_df.astype(str), how='left', indicator=True,
                                   on=["customer_code", "plot_code", "scan_date", "row", "folder_index"])
 
         not_deleted_df = not_deleted_df[not_deleted_df['_merge'] == 'left_only']
