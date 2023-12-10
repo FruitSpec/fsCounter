@@ -87,7 +87,7 @@ zed:
         dist: 2 # not in use
         major: 1.5 #1.5
         minor: 0.8 #0.8
-    max_losses: 10  # 10
+    max_losses: 5  # 10
     score_weights: [ 0.25, 1.0, 0.25, 0.75 ]  # [0.25, 1.0, 0.25, 1]
     match_type: inter #center #
     det_area: 1

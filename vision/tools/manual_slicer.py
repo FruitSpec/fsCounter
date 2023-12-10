@@ -183,10 +183,12 @@ def manual_slicer(filepath, output_path, data=None, jz_file=None, rotate=0, inde
     """
     this is where the magic happens, palys the video
     """
+    zed_frames = None
     if data is None:
         data = load_json(filepath, output_path)
     if jz_file is not None:
         jz = pd.read_csv(jz_file)
+        jz = jz.query('is_recording == True')
         zed_frames, jai_frames = arrange_ids(jz['JAI_frame_number'], jz['ZED_frame_number'])
     params = {"filepath": filepath,
               "output_path": output_path,
@@ -206,7 +208,8 @@ def manual_slicer(filepath, output_path, data=None, jz_file=None, rotate=0, inde
     cv2.namedWindow(headline, cv2.WINDOW_GUI_NORMAL)
 
     cam = video_wrapper(filepath, rotate=rotate)
-    number_of_frames = cam.get_number_of_frames()
+    if cam.mode == 'svo' and zed_frames is None:
+        zed_frames = list(range(cam.get_number_of_frames()))
     width = cam.get_width()
     height = cam.get_height()
 
@@ -766,10 +769,10 @@ def get_all_slicing_and_n_trees():
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
 if __name__ == "__main__":
-    path = '/media/matans/My Book/FruitSpec/Grapes_SA/1XXXXXX4/281123/row_3/1'
-    fp = os.path.join(path, 'Result_FSI.mkv') # Result_FSI.mkv # FSI_CLAHE.mkv
+    path = '/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123/row_1/1'
+    fp = os.path.join(path, 'ZED.svo') # Result_FSI.mkv # FSI_CLAHE.mkv
     #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
-    jz_file = None
+    jz_file = '/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123/row_1/1/jaized_timestamps.csv' #None
     output_path = path
     validate_output_path(output_path)
     rotate = 1 if 'FSI' in fp.split('/')[-1] else 2

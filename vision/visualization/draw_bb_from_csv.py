@@ -11,13 +11,13 @@ from vision.data.results_collector import ResultsCollector
 
 
 
-def validate_from_files(tracks, cfg, args, alignment=None, jai_only=False, data_index=7):
+def validate_from_files(tracks, cfg, args, alignment=None, dets_only=False, data_index=6, is_zed=False):
     print('arranging data')
     dets = track_to_det(tracks)
     jai_frames = list(dets.keys())
     if alignment is not None:
         a_hash = get_alignment_hash(alignment)
-    elif not jai_only:
+    elif not dets_only:
         print('Not enough alignment data to draw alignment results')
         return
 
@@ -26,9 +26,13 @@ def validate_from_files(tracks, cfg, args, alignment=None, jai_only=False, data_
 
     for id_ in tqdm(jai_frames):
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
-        if jai_only:
+        if dets_only:
+            if is_zed:
+                frame = zed_batch[0]
+            else:
+                frame = jai_batch[0]
             rc = ResultsCollector()
-            jai = rc.draw_dets(frame = jai_batch[0], dets = dets[id_], t_index=data_index)
+            jai = rc.draw_dets(frame = frame, dets = dets[id_], t_index=data_index)
             fp = os.path.join(args.output_folder, 'Dets')
             validate_output_path(fp)
 
@@ -81,9 +85,9 @@ def track_to_det(tracks_df):
     dets = {}
     for i, row in tracks_df.iterrows():
         if row[frame_id] in list(dets.keys()):
-            dets[int(row[frame_id])].append([row['x1'], row['y1'], row['x2'], row['y2'], row['obj_conf'], row['class_conf'], int(row[frame_id]), 0])
+            dets[int(row[frame_id])].append(row.values.tolist())
         else:
-            dets[int(row[frame_id])] = [[row['x1'], row['y1'], row['x2'], row['y1'], row['obj_conf'], row['class_conf'], int(row[frame_id]), 0]]
+            dets[int(row[frame_id])] = [row.values.tolist()]
 
 
     return dets
@@ -99,7 +103,7 @@ def get_alignment_hash(alignment):
 
     return hash
 
-def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id):
+def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id, is_zed=False, data_index=6, output_folder=None):
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
@@ -108,15 +112,23 @@ def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id):
 
     args.sync_data_log_path = os.path.join(row_path, "jaized_timestamps.csv")
     args.jai.movie_path = os.path.join(row_path, 'Result_FSI.mkv')
-    args.zed.movie_path = os.path.join(row_path, 'ZED.mkv')
+    args.zed.movie_path = os.path.join(row_path, 'ZED.svo')
     args.depth.movie_path = os.path.join(row_path, 'DEPTH.mkv')
     args.rgb_jai.movie_path = os.path.join(row_path, 'Result_RGB.mkv')
 
-    data_index = 6  # which column to use to detrmine bbox color
-    args.output_folder = os.path.join(row_path, 'trees', str(tree_id))
+    if output_folder is None:
+        args.output_folder = os.path.join(row_path, 'trees', str(tree_id))
+    else:
+        args.output_folder = output_folder
     validate_output_path(args.output_folder)
     print(f'saving data into: {args.output_folder}')
-    validate_from_files(tracks=tree_tracks, cfg=cfg, args=args, alignment=None, jai_only=True, data_index=data_index)
+    validate_from_files(tracks=tree_tracks,
+                        cfg=cfg,
+                        args=args,
+                        alignment=None,
+                        dets_only=True,
+                        data_index=data_index,
+                        is_zed=is_zed)
 
     print('Done')
 

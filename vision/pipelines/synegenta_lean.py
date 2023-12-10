@@ -631,7 +631,7 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_2"
+    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5"
     validate_output_path(output_path)
 
     rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"

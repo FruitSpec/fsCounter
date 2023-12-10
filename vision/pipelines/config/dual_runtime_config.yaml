@@ -15,8 +15,8 @@ zed:
   movie_path: /home/mic-730ai/fruitspec/test_data/ZED_1.svo
   frame_size: [1920, 1080]
   rotate: 2 #0: no rotate, 1: rotate countercloclwise, 2: rotate clockwise
-  depth_minimum: 1 # 1 counter
-  depth_maximum: 8 # 8 counter
+  depth_minimum: 0.1 # 1 counter
+  depth_maximum: 5 # 8 counter
   #channels: 1
   channels: 3
 

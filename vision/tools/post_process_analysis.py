@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import pandas as pd
+from sklearn.mixture import GaussianMixture
 from vision.misc.help_func import safe_read_csv, post_process_slice_df
 from vision.tools.manual_slicer import slice_to_trees_df
 
@@ -154,6 +155,37 @@ def get_block_count(block_path):
             row_tracks[row] = trees_tracks
 
     return block_counts, row_tracks
+
+
+def coarse_filter_depth(tracks_df, depth_threshold=2):
+    tracks_depth = tracks_df.groupby('track_id').depth.mean()
+
+    depth = tracks_depth.values.tolist()
+    valid_depth = np.array(depth) < depth_threshold
+
+    tracks_ids = np.array(tracks_depth.keys())
+    valid_tracks = tracks_ids[valid_depth]
+
+    tracks_updated = []
+    df_columns = list(tracks_df.columns)
+    for id_, track in tracks_df.iterrows():
+        if track['track_id'] in valid_tracks:
+            tracks_updated.append(track.values.tolist())
+
+    tracks_updated = pd.DataFrame(data=tracks_updated, columns=df_columns)
+
+    return tracks_updated
+
+def fine_filter_depth(tracks_df):
+    data = np.array(tracks_df.depth.values).reshape(-1, 1)
+    gm = GaussianMixture(n_components=2, random_state=0).fit(data)
+    arg_ = np.argmin(gm.means_)
+    depth_class = gm.predict(data)
+    tf = depth_class == arg_
+    #tracks_updated = tracks_df[np.logical_not(depth_class)]
+    tracks_updated = tracks_df[tf]
+
+    return tracks_updated
 
 
 if __name__ == "__main__":
