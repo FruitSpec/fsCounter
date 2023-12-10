@@ -121,7 +121,7 @@ def get_selection_error(factors_dict, block_df):
 
 if __name__ == "__main__":
 
-    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis_res/nms005_windows_'
+    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/conf04_nms005_windows1_2-1_5'
 
     metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
 
@@ -175,6 +175,11 @@ if __name__ == "__main__":
     res_all_df.rename(columns={'index': 'variable'}, inplace=True)
     res_all_df['factor'] = res_all_df['variable'].apply(
         lambda x: factors_combined_dict[x]['factor'][0] if x in factors_combined_dict else None)
+
+    res_all_df.to_csv(os.path.join(OUTPUT_PATH, 'results_all_blocks_but_7.csv'))
+    res_concatenated_df.to_csv(os.path.join(OUTPUT_PATH, 'results_each_block.csv'))
+    blocks_df.to_csv(os.path.join(OUTPUT_PATH, 'all_blocks.csv'))
+
 
 
     print ('ok')
