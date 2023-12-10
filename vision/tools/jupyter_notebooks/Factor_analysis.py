@@ -139,6 +139,20 @@ if __name__ == "__main__":
         costumer = block_path.split('/')[-2]
         block_df, row_tracks = block_analysis(block_path, metadata_path, block_)
 
+        for index, row in block_df.iterrows():
+            row_to_drow = row['row']
+            tree_id = row['tree_id']
+            date = '281123'
+            tree_tracks = row_tracks[row_to_drow][tree_id]
+            #######################
+            #remove tracks in depth
+            tree_tracks = tree_tracks[tree_tracks['depth'] <= 3] # todo added depth fillering
+            ######################
+            draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, '1'),
+                                     tree_id)
+
+            print ('ok')
+
         # row_to_drow = 'row_5'
         # tree_id = 1
         # date = '281123'
