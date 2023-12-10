@@ -16,7 +16,7 @@ batch_size: 4
 detector:
   detector_type: yolox # implemented: yolox, yolov8
   confidence: 0.4
-  nms: 0.05
+  nms: 0.45
   num_of_classes: 1
   max_detections: 300
   fp16: true
@@ -29,8 +29,8 @@ classes:
 
 tracker:
   minimal_max_distance: 10
-  major: 1.5 #3
-  minor: 1.2 #2.5
+  major: 1.5 #1.8
+  minor: 1.2 #1
   close_frame: 0.9
   max_losses: 3  # 10
   score_weights: [0.25, 1.0, 0.25, 0.0]  # [0.25, 1.0, 0.25, 1]

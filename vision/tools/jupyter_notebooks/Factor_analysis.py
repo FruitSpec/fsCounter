@@ -119,46 +119,67 @@ def get_selection_error(factors_dict, block_df):
 
 ###########################
 
+if __name__ == "__main__":
+
+    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/conf04_nms005_windows1_2-1_5'
+
+    metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
+
+    blocks_list = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/7XXXXXX2',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/8XXXXXX3']
+
+    blocks_df = pd.DataFrame()
+    res_concatenated_df = pd.DataFrame()
+    for block_path in blocks_list:
+
+        #block_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2"
+        block_ = block_path.split('/')[-1]
+        costumer = block_path.split('/')[-2]
+        block_df, row_tracks = block_analysis(block_path, metadata_path, block_)
+
+        # row_to_drow = 'row_5'
+        # tree_id = 1
+        # date = '281123'
+        # draw_tree_bb_from_tracks(row_tracks[row_to_drow][tree_id], os.path.join(block_path, date, row_to_drow, '1'), tree_id)
+        #
+        #
+        # plt.bar(block_df['row'], block_df['F/cv1'])
+        # plt.xlabel('Tree')
+        # plt.ylabel('F/CV1')
+        # plt.show()
+        #
+        # plot_F_cv(block_df, 1, add_xy_line=False)
 
 
-metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
+        factors_dict = linear_model_selection(block_df, selection_cols=['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'], type_col="block", cross_val='row')
 
-block_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2"
-block_ = '5XXXXXX2'
-block_5_df, row_tracks_13 = block_analysis(block_path, metadata_path, block_)
+        res, block_df = get_selection_error(factors_dict, block_df)
+        res_df = pd.DataFrame.from_dict(res, orient='index').reset_index()
+        res_df.rename(columns={'index': 'variable'}, inplace=True)
+        res_df.insert(0, 'block', block_)
+        res_df['factor'] = res_df['variable'].apply(
+            lambda x: factors_dict[x]['factor'][0] if x in factors_dict else None)
 
-# row_to_drow = 'row_5'
-# tree_id = 1
-# date = '281123'
-#draw_tree_bb_from_tracks(row_tracks_13[row_to_drow][tree_id], os.path.join(block_path, date, row_to_drow, '1'), tree_id)
+        blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
+        res_concatenated_df = pd.concat([res_concatenated_df, res_df.copy()], ignore_index=True)
+
+    blocks_df.insert(0, 'costumer', costumer)
+    # Remove block 7:
+    blocks_df = blocks_df[blocks_df['block'] != '7XXXXXX2']
+    factors_combined_dict = linear_model_selection(blocks_df, selection_cols=['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'],
+                                          type_col="costumer", cross_val="block")
+    res_all, blocks_df = get_selection_error(factors_combined_dict, blocks_df)
+    res_all_df = pd.DataFrame.from_dict(res_all, orient='index').reset_index()
+    res_all_df.rename(columns={'index': 'variable'}, inplace=True)
+    res_all_df['factor'] = res_all_df['variable'].apply(
+        lambda x: factors_combined_dict[x]['factor'][0] if x in factors_combined_dict else None)
+
+    res_all_df.to_csv(os.path.join(OUTPUT_PATH, 'results_all_blocks_but_7.csv'))
+    res_concatenated_df.to_csv(os.path.join(OUTPUT_PATH, 'results_each_block.csv'))
+    blocks_df.to_csv(os.path.join(OUTPUT_PATH, 'all_blocks.csv'))
 
 
-# plt.bar(block_5_df['row'], block_5_df['F/cv1'])
-# plt.xlabel('Tree')
-# plt.ylabel('F/CV1')
-# plt.show()
-#
-# plot_F_cv(block_5_df, 1, add_xy_line=False)
 
-
-factors_5_dict = linear_model_selection(block_5_df, selection_cols=['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'], type_col="block", cross_val='row')
-
-res, block_5_df = get_selection_error(factors_5_dict, block_5_df)
-res_df = pd.DataFrame.from_dict(res, orient='index').reset_index()
-res_df.rename(columns={'index': 'variable'}, inplace=True)
-
-#################333
-import re
-
-Path = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX'
-pattern = re.compile(r'^\d')
-entries = os.listdir(Path)
-
-# Filter out the folders that start with a digit and get their full paths
-folders = [os.path.join(Path, entry) for entry in entries
-           if os.path.isdir(os.path.join(Path, entry)) and pattern.match(entry)]
-
-for block in folders:
-    print (block)
-
-print('ok')
+    print ('ok')
