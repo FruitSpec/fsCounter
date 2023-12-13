@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 
 def safe_nanmean(arr):
@@ -75,7 +77,7 @@ def get_box_corners(box):
     return t, b, l, r
 
 
-def stable_euclid_dist(point_cloud, bbox, buffer=1):
+def stable_euclid_dist(point_cloud, bbox, measure_percentile=0.1, ):
     """
     calculates euclidian width and height of the bounfing box
     :param point_cloud: point_cloud map produced by zed
@@ -84,26 +86,68 @@ def stable_euclid_dist(point_cloud, bbox, buffer=1):
     :return: width, height
     """
     min_x, max_x, min_y, max_y, med_x, med_y = min_max_finites(point_cloud, bbox)
-    if med_x + buffer+1 > point_cloud.shape[1]:
-        buffer = point_cloud.shape[1] - med_x-1
-    if med_x-buffer < 0:
-        buffer = med_x
-    if med_y + buffer+1 > point_cloud.shape[0]:
-        buffer = point_cloud.shape[0] - med_y-1
-    if med_y-buffer < 0:
-        buffer = med_y
-    point_left = point_cloud[med_y-buffer:med_y+buffer+1, min_x][:, :3]
-    point_right = point_cloud[med_y-buffer:med_y+buffer+1, max_x][:, :3]
-    point_top = point_cloud[min_y, med_x-buffer:med_x + buffer+1][:, :3]
-    point_bottom = point_cloud[max_y, med_x-buffer:med_x + buffer+1][:, :3]
-    axis = 0 if buffer == 0 else 1
+    x_all_nonfinite = False
+    y_all_nonfinite = False
+    if min_x == 0 and max_x == 1:
+        x_all_nonfinite = True
+    if min_y == 0 and max_y == 1:
+        y_all_nonfinite = True
 
+    if not x_all_nonfinite:
+        height = bbox[1][1] - bbox[0][1]
+        y_range = max(int(height * measure_percentile) // 2, 1)
 
-    h_dist = np.sqrt(np.nansum(np.power(point_left - point_right, 2), axis=axis))
-    v_dist = np.sqrt(np.nansum(np.power(point_top - point_bottom, 2), axis=axis))
-    valid_h_dist = h_dist[np.where(h_dist > 0)]
-    valid_v_dist = v_dist[np.where(v_dist > 0)]
-    return safe_nanmean(valid_h_dist), safe_nanmean(valid_v_dist)
+        point_left = point_cloud[med_y - y_range:med_y + y_range + 1, min_x:min_x + 2, :3]
+        point_right = point_cloud[med_y - y_range:med_y + y_range + 1, max_x - 2:max_x, :3]
+
+        is_left_valid = validate_point(point_left)
+        is_right_valid = validate_point(point_right)
+
+        if is_left_valid and is_right_valid:
+            mean_point_left = np.nanmean(point_left.reshape(-1, 3), axis=0)
+            mean_point_right = np.nanmean(point_right.reshape(-1, 3), axis=0)
+
+            h_dist = np.sqrt(np.nansum(np.power(mean_point_left - mean_point_right, 2)))
+
+        else:
+            h_dist = np.nan
+    else:
+        h_dist = np.nan
+
+    if not y_all_nonfinite:
+        width = bbox[1][0] - bbox[0][0]
+        x_range = max(int(width * measure_percentile) // 2, 1)
+        point_top = point_cloud[min_y: min_y + 2, med_x-x_range:med_x + x_range+1, :3]
+        point_bottom = point_cloud[max_y - 2: max_y, med_x-x_range:med_x + x_range+1, :3]
+        is_top_valid = validate_point(point_top)
+        is_bottom_valid = validate_point(point_bottom)
+
+        if is_top_valid and is_bottom_valid:
+            mean_point_top = np.nanmean(point_top.reshape(-1, 3), axis=0)
+            mean_point_bottom = np.nanmean(point_bottom.reshape(-1, 3), axis=0)
+
+            v_dist = np.sqrt(np.nansum(np.power(mean_point_top - mean_point_bottom, 2)))
+
+        else:
+            v_dist = np.nan
+    else:
+        v_dist = np.nan
+
+    return h_dist, v_dist
+
+def validate_point(point):
+    valid = False
+
+    if point.size != 0: # empty
+
+        point = point.reshape(-1, 3)
+
+        how_many_nan_vec = np.sum(np.isnan(point), axis=1)
+
+        if min(how_many_nan_vec) == 0: # at least 1 row is valid
+            valid = True
+
+    return valid
 
 
 def get_pix_size_of_box(depth, box, fx=1065.98388671875, fy=1065.98388671875,

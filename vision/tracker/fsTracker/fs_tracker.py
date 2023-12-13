@@ -106,7 +106,8 @@ class FsTracker():
                                                                           track_depth)
 
         """ update adapdive distance"""
-        self.not_coupled_ratio = len(not_coupled_dets) / len(detections)
+        if len(detections) > 0:
+            self.not_coupled_ratio = len(not_coupled_dets) / len(detections)
         self.update_adaptive_distance()
 
         """ remove lost tracks"""

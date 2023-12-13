@@ -116,8 +116,8 @@ class Track:
                 self.bbox[3],
                 self.score,
                 self.cls,
-                self.track_id,
-                self.depth]
+                self.track_id]
+
 
     def copy(self):
         return copy.deepcopy(self)

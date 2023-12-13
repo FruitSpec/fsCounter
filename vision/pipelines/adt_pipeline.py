@@ -357,28 +357,29 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    cfg.exp_file = os.path.join(repo_dir, get_subpath_from_dir(cfg.exp_file, 'fsCounter', include_dir=False))
-    cfg.ckpt_file = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.ckpt_file, 'FruitSpec', include_dir=False))
-    cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
+    #cfg.exp_file = os.path.join(repo_dir, get_subpath_from_dir(cfg.exp_file, 'fsCounter', include_dir=False))
+    #cfg.ckpt_file = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.ckpt_file, 'FruitSpec', include_dir=False))
+    #cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
 
     zed_name = "ZED.mkv"
     depth_name = "DEPTH.mkv" #"DEPTH.mkv"
-    fsi_name = "Result_FSI.mkv"
+    fsi_name = "FSI_CLAHE.mkv" #"Result_FSI.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    output_path = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
-    validate_output_path(output_path)
+    #output_path = "/media/matans/My Book/FruitSpec/FSI/Final_exp/DEMOLTMX/301123"
+    #validate_output_path(output_path)
 
-    rows_dir = "/home/lihi/FruitSpec/Data/customers/MOTCHA/RAISTENB/060723"
+    rows_dir = "/home/matans/Documents/fruitspec/sandbox/New_FSI_exp/full_data/DEMOLTMX/301123"
 
-    rows = os.listdir(rows_dir)
+    #rows = os.listdir(rows_dir)
+    rows = ['row_1', 'row_2']
 
 
     for row in rows:
         row_folder = os.path.join(rows_dir, row, '1')
 
-        args.output_folder = os.path.join(output_path, row)
+        args.output_folder = row_folder #os.path.join(output_path, row)
         args.sync_data_log_path = os.path.join(row_folder, time_stamp)
         args.zed.movie_path = os.path.join(row_folder, zed_name)
         args.depth.movie_path = os.path.join(row_folder, depth_name)

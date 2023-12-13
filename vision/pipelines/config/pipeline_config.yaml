@@ -1,7 +1,7 @@
 # config.yaml
-exp_file: /home/fruitspec-lab-3/FruitSpec/Code/Lihi/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_and_mixup.py
 
-ckpt_file: /home/lihi/FruitSpec/weights/counter/Apples_1_29_June_23/best_ckpt.pth  #yolox
+ckpt_file: /home/matans/Documents/fruitspec/Weights/New_FSI_autotagging/best_ckpt.pth  #yolox
 
 #ckpt_file: /home/matans/Documents/fruitspec/weights/v8/best.pt
 
@@ -44,14 +44,14 @@ tracker:
       minor: 0.4 # 0.65
     mid:
       dist: 2 # not in use
-      major: 1.5 #1.5
-      minor: 0.8 #0.8
+      major: 1.4 #1.5
+      minor: 1 #0.8
   max_losses: 3  # 10
   score_weights: [0.25, 1.0, 0.25, 0.75]  # [0.25, 1.0, 0.25, 1]
   match_type:  inter #center #
   det_area: 1
   translation_size: 640
-  compile_data_path: /home/lihi/FruitSpec/weights/tracker_init.pkl
+  compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
   debug: false
 
 

@@ -57,7 +57,8 @@ def run(cfg, args, metadata=None, n_frames=None):
     results_collector_zed = ResultsCollector(rotate=args.rotate)
 
     zed_args = args.copy()
-    zed_args.output_folder = os.path.join(args.output_folder, 'zed')
+    #zed_args.output_folder = os.path.join(args.output_folder, 'zed')
+    zed_args.output_folder =args.output_folder
 
 
     print(f'Inferencing on {args.jai.movie_path}\n')
@@ -419,7 +420,7 @@ def get_xyz_to_bboxes(xyz_frame, dets, pc=False, dims=False,
                 det += list(stable_euclid_dist(xyz_frame, box))
             else: # pix size algorithm
                 # extract pixel size
-                size_pix_x, size_pix_y = get_pix_size(det[-1], [int(num) for num in dets[:4]])
+                size_pix_x, size_pix_y = get_pix_size(det[-1], [int(num) for num in det[:4]])
                 det += [np.nanmedian(size_pix_x),
                         np.nanmedian(size_pix_y)]
     return dets
@@ -636,20 +637,24 @@ if __name__ == "__main__":
 
     rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
 
-    #rows = os.listdir(rows_dir)
-    rows = ["row_1"]
+    rows = os.listdir(rows_dir)
 
     for row in rows:
-        row_folder = os.path.join(rows_dir, row, '1')
+        row_folder = os.path.join(rows_dir, row)
+        if not os.path.isdir(row_folder):
+            continue
+        sections = os.listdir(row_folder)
+        for section in sections:
+            row_folder = os.path.join(rows_dir, row, section)
 
-        args.output_folder = os.path.join(output_path, row)
-        args.sync_data_log_path = os.path.join(row_folder, time_stamp)
-        args.zed.movie_path = os.path.join(row_folder, zed_name)
-        args.depth.movie_path = os.path.join(row_folder, depth_name)
-        args.jai.movie_path = os.path.join(row_folder, fsi_name)
-        args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+            args.output_folder = row_folder # os.path.join(output_path, row)
+            args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+            args.zed.movie_path = os.path.join(row_folder, zed_name)
+            args.depth.movie_path = os.path.join(row_folder, depth_name)
+            args.jai.movie_path = os.path.join(row_folder, fsi_name)
+            args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-        validate_output_path(args.output_folder)
+            validate_output_path(args.output_folder)
 
-        rc_z = run(cfg, args)
+            rc_z = run(cfg, args)
         #rc_j.dump_feature_extractor(args.output_folder)

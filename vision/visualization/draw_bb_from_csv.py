@@ -141,7 +141,7 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
 
-    folder = "/media/matans/My Book/FruitSpec/Apples_SA/block_13/block_13/row_8888/1"
+    folder = "/home/matans/Documents/fruitspec/sandbox/New_FSI_exp/full_data/DEMOLTMX/301123/row_1/1"
     args.sync_data_log_path = os.path.join(folder, "jaized_timestamps.csv")
     #args.jai.movie_path = os.path.join(folder, 'Result_FSI.mkv')
     args.jai.movie_path = os.path.join(folder, 'FSI_CLAHE.mkv')
@@ -154,8 +154,8 @@ if __name__ == "__main__":
     tracks = pd.read_csv(tracks_p)
     alignment = pd.read_csv(alignment_p)
     data_index = 6 # which column to use to detrmine bbox color
-    args.output_folder = "/media/matans/My Book/FruitSpec/Apples_SA/block_13/block_13/row_8888/1/new_fsi"
+    args.output_folder = os.path.join(folder, "new_fsi")
     validate_output_path(args.output_folder)
-    validate_from_files(tracks=tracks, cfg=cfg, args=args, alignment=alignment, jai_only=True, data_index=data_index)
+    validate_from_files(tracks=tracks, cfg=cfg, args=args, alignment=alignment, dets_only=True, data_index=data_index)
 
     print('Done')

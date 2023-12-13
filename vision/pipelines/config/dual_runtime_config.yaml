@@ -43,11 +43,11 @@ frame_size: [2048, 1536]
 debug:
   tracker_windows: true
   tracker_results: true
-  det_results: true
-  raw_frame: true
+  det_results: false
+  raw_frame: false
   depth: false
-  clusters: true
-  colors: true
+  clusters: false
+  colors: false
   tracker: None
   trees: false
   features: false
