@@ -326,10 +326,45 @@ def remove_absent_images_from_coco(coco_file_path, images_dir_path, output_coco_
     with open(output_coco_file_path, 'w') as file:
         json.dump(coco_data, file)
 
+
+def add_category_to_coco_file(file_path, category_name, category_id=0):
+    """
+    Adds a category to the detections in a COCO file where 'category_id' is absent.
+
+    :param file_path: Path to the COCO file.
+    :param category_name: Name of the category to be added.
+    :param category_id: ID of the category to be added (default is 0).
+    :return: None. The function modifies the file in-place.
+    """
+    try:
+        # Load the COCO file
+        with open(file_path, 'r') as file:
+            coco_data = json.load(file)
+
+        # Add category_id to each annotation
+        for annotation in coco_data['annotations']:
+            annotation['category_id'] = category_id
+
+        # Add category information
+        coco_data['categories'] = [{'id': category_id, 'name': category_name}]
+
+        # Save the modified COCO file
+        with open(file_path, 'w') as file:
+            json.dump(coco_data, file, indent=4)
+        print (f"Saved: {file_path}")
+
+    except Exception as e:
+        print (f"An error occurred: {e}")
+
+
 # Example usage
 
 if __name__ == "__main__":
 
+    file_path = r'/home/lihi/FruitSpec/Data/grapes/training_data/grapes_batch15_051224/batch15_output.json'
+    add_category_to_coco_file(file_path, category_name = 'grapes', category_id=0)
+
+    #######################################################
     modify_coco_category_id_to_0(r'/home/lihi/FruitSpec/Data/grapes/Dino_SA_and_GT_US_031223/train_coco.json')
     modify_coco_category_id_to_0(r'/home/lihi/FruitSpec/Data/grapes/Dino_SA_and_GT_US_031223/val_coco.json')
 
