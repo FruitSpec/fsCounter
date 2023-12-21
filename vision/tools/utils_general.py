@@ -48,6 +48,30 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
 
     else: return subdirs_with_file[0] if single_file else subdirs_with_file # if there is only one file
 
+def find_subdirs_with_string(dir_path, search_string):
+    """
+    Search for subdirectories containing a specific string within a given directory path.
+
+    Parameters:
+    dir_path (str): The directory path in which to search.
+    search_string (str): The string to search for in the subdirectory names.
+
+    Returns:
+    list: A list of paths to subdirectories containing the search string.
+    """
+    matching_subdirs = []
+    # Walk through the directory
+    for root, dirs, files in os.walk(dir_path):
+        # Check each subdirectory in the current root
+        for dir in dirs:
+            # If the search string is in the subdirectory name
+            if search_string in dir:
+                # Construct the full path and add to the list
+                full_path = os.path.join(root, dir)
+                matching_subdirs.append(full_path)
+
+    return matching_subdirs
+
 ########   S3 UTILS
 
 def s3_full_path_to_bucket_and_prefix(s3_path):

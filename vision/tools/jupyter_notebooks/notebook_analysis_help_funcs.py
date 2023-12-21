@@ -83,6 +83,8 @@ def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret
     else:
         kf = KFold(n_splits=cv, random_state=random_state, shuffle=True)
         iterable_kf = kf.split(X)
+
+    cv_counter = 1
     for train_index, test_index in iterable_kf:
         if not use_pandas:
             x_train, x_test, y_train, y_test = X[train_index], X[test_index], y[train_index], y[test_index]
@@ -108,8 +110,9 @@ def cross_validate_with_mean(model=None, X=None, y=None, cv=10, groups=None, ret
         y_pred_sum = np.nansum(y_pred) if not sum_as_mean else np.nanmean(y_pred)
         acc = np.abs(y_true_sum-y_pred_sum)/y_true_sum
         all_preds[test_index] = y_pred
-        print(F"true: {y_true_sum},    pred: {y_pred_sum}. ({acc*100 :.2f} %) {test_group}" )
-    print(np.mean(tree_res), np.std(tree_res))
+        print(F"CV {cv_counter},  true: {y_true_sum},  pred: {y_pred_sum},  % error({acc*100 :.2f} %)  val group: {test_group}" )
+        cv_counter +=1
+    print(f'Mean {np.mean(tree_res)}, STD {np.std(tree_res)}')
     if ret_all_res:
         return np.mean(results), np.std(results), np.mean(tree_res), np.std(tree_res), all_preds
     if ret_preds:
@@ -266,21 +269,25 @@ def get_n_tracks_full_cv(tracks_path, max_depth=5):
         uniq[counts > 4]), n_dets, n_dropped
 
 
-def plot_F_cv(df, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True,
+def plot_F_cv(df, output_dir, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True,
               y="F", order=1):
     if col == "":
         col = f"cv{min_samp}"
     max_val = np.min(np.max(df[[col, y]].values, axis=0))
+
     plt.figure(figsize=figsize)
     ax = sns.lmplot(data=df, x=col, y=y, hue=hue)
     sns.regplot(data=df, x=col, y=y, scatter_kws={'s': 2}, order=order, ci=0, ax=ax.axes[0, 0],
                 x_ci=0, color="black", line_kws={"ls": "--"}, scatter=False)
     if add_xy_line:
         plt.plot([0, max_val], [0, max_val], color='grey')
+
     plt.xlim(0, np.max(df[col] * 1.1))  # Adjust x-axis limits
     plt.ylim(0, np.max(df[y] * 1.1))  # Adjust y-axis limits
     plt.title(title)
-    plt.show()
+    plt.savefig(os.path.join(output_dir, 'f_to_cv1_scatter.png'))
+    print(f"Saved: {os.path.join(output_dir, 'f_to_cv1_scatter.png')}")
+    #plt.show()
 
 
 def get_model_res(df, cv=1, include_fruits=True, include_interaction=True, group_col="block_name",
@@ -309,8 +316,10 @@ class MaxLinearRegressor(LinearRegression):
 
 
 def run_LROCV(df_f, cv_col="cv1", type_col="block_name", cross_val='row', fit_intercept=False, return_res=False):
+
     df = df_f.reset_index(drop=True).copy()
     for block in df[type_col].unique():
+        print(cv_col, block)
         logic_vec = df[type_col] == block
         if not isinstance(cv_col, list):
             X = df[logic_vec][[cv_col]].reset_index(drop=True)
@@ -318,9 +327,11 @@ def run_LROCV(df_f, cv_col="cv1", type_col="block_name", cross_val='row', fit_in
             X = df[logic_vec][cv_col].reset_index(drop=True)
         y = df[logic_vec]["F"].reset_index(drop=True)
         model = LinearRegression(fit_intercept=fit_intercept)
-        print(cross_validate_with_mean(model, X, y, groups=df[logic_vec][cross_val].reset_index(drop=True)))
+
+        cross_validate_with_mean(model, X, y, groups=df[logic_vec][cross_val].reset_index(drop=True))
+        #print(f'Cross Validation with mean {cross_validate_with_mean(model, X, y, groups=df[logic_vec][cross_val].reset_index(drop=True))}')
         model.fit(X, y)
-        print(model.coef_)
+        print(f'Coefficient: {model.coef_}')
         if return_res:
             res_mean, res_std, tree_mean, tree_std, all_preds = cross_validate_with_mean(model, X, y,
                                                                                          groups=df[logic_vec][

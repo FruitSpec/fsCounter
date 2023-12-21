@@ -121,7 +121,7 @@ def get_selection_error(factors_dict, block_df):
 
 if __name__ == "__main__":
 
-    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/conf04_nms005_windows1_2-1_5'
+    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/conf04_nms005_windows1_2-1_5_cvd3_0047'
 
     metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
 
@@ -139,19 +139,19 @@ if __name__ == "__main__":
         costumer = block_path.split('/')[-2]
         block_df, row_tracks = block_analysis(block_path, metadata_path, block_)
 
-        for index, row in block_df.iterrows():
-            row_to_drow = row['row']
-            tree_id = row['tree_id']
-            date = '281123'
-            tree_tracks = row_tracks[row_to_drow][tree_id]
-            #######################
-            #remove tracks in depth
-            tree_tracks = tree_tracks[tree_tracks['depth'] <= 3] # todo added depth fillering
-            ######################
-            draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, '1'),
-                                     tree_id)
-
-            print ('ok')
+        # for index, row in block_df.iterrows():
+        #     row_to_drow = row['row']
+        #     tree_id = row['tree_id']
+        #     date = '281123'
+        #     tree_tracks = row_tracks[row_to_drow][tree_id]
+        #     #######################
+        #     #remove tracks in depth
+        #     tree_tracks = tree_tracks[tree_tracks['depth'] <= 3] # todo added depth fillering
+        #     ######################
+        #     draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, '1'),
+        #                              tree_id)
+        #
+        #     print ('ok')
 
         # row_to_drow = 'row_5'
         # tree_id = 1
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         # plt.ylabel('F/CV1')
         # plt.show()
         #
-        # plot_F_cv(block_df, 1, add_xy_line=False)
+        #plot_F_cv(block_df, 1, add_xy_line=False)
 
 
         factors_dict = linear_model_selection(block_df, selection_cols=['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'], type_col="block", cross_val='row')
@@ -178,6 +178,8 @@ if __name__ == "__main__":
 
         blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
         res_concatenated_df = pd.concat([res_concatenated_df, res_df.copy()], ignore_index=True)
+
+    blocks_df.to_csv(os.path.join(OUTPUT_PATH, 'all_blocks.csv'))
 
     blocks_df.insert(0, 'costumer', costumer)
     # Remove block 7:

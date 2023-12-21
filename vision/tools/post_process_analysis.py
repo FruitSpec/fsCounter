@@ -130,6 +130,7 @@ def get_block_count(block_path):
 
     block = block_path.split('/')[-1]
     block_dates = os.listdir(block_path)
+    block_dates = [item for item in block_dates if item.isdigit()]
 
     for date in block_dates:
         date_path = os.path.join(block_path, date)
@@ -138,6 +139,7 @@ def get_block_count(block_path):
         row_list = os.listdir(date_path)
 
         for row in row_list:
+
             row_path = os.path.join(date_path, row)
             if not os.path.isdir(row_path):
                 continue
