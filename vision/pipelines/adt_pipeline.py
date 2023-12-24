@@ -25,6 +25,7 @@ from vision.pipelines.ops.simulator import get_n_frames, write_metadata, init_ca
 from vision.pipelines.ops.frame_loader import FramesLoader
 from vision.data.fs_logger import Logger
 from vision.pipelines.ops.bboxes import depth_center_of_box, cut_zed_in_jai
+from vision.tools.utils_general import file_exists
 
 def run(cfg, args, metadata=None, shutdown_event=None):
 
@@ -350,8 +351,8 @@ def append_to_trk(trk_batch_res, results):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    #pipeline_config = "/vision/pipelines/config/pipeline_config_grapes_prod.yaml"
-    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
+    pipeline_config = "/vision/pipelines/config/pipeline_config_grapes_prod.yaml"
+    #pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
@@ -366,17 +367,8 @@ if __name__ == "__main__":
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    rows_dirs = [#'/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/01GOLDE0/081223',
-                 # '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/02GRANN0/081223',
-                 # '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/11KIKUX0/081223',
-                 # '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/15LOUTE0_lgs/121223',
-                 # '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/15LOUTE0_sd/121223',
-                 # '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/017GOLD0_17a_gd/121223',
-                  '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/20BRAES0_bstar/131223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/20BRAES0_fuji/131223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/20BRAES0_gd/131223',
+    rows_dirs = [ '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2/211223'
                  ]
-    #rows_dirs = [r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/valam/3XXXXXX4/211223']
 
     for rows_dir in rows_dirs:
         print('##############################################################################################')
@@ -397,6 +389,8 @@ if __name__ == "__main__":
             args.depth.movie_path = os.path.join(row_folder, depth_name)
             args.jai.movie_path = os.path.join(row_folder, fsi_name)
             args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+
+            file_exists([args.sync_data_log_path, args.zed.movie_path, args.depth.movie_path, args.depth.movie_path, args.jai.movie_path, args.rgb_jai.movie_path])
 
             #validate_output_path(args.output_folder)
 

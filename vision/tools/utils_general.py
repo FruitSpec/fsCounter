@@ -11,6 +11,21 @@ def variable_exists(var_name):
         return False
     else:
         return True
+
+def file_exists(file_paths):
+    """
+    Checks if the given file or files exist at the specified path or paths.
+    file_paths can be either a path, or a list of paths
+    """
+    # If a single file path is provided, convert it to a list
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+
+    # Check each file path
+    for path in file_paths:
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"File not found at path: {path}")
+
     
 def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file=True):
     """
