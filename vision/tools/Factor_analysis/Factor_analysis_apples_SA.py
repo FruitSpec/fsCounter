@@ -20,6 +20,7 @@ from vision.tools.jupyter_notebooks.notebook_analysis_help_funcs import *
 from vision.tools.post_process_analysis import read_tracks_and_slices, get_block_count
 from vision.visualization.draw_bb_from_csv import draw_tree_bb_from_tracks
 from vision.misc.help_func import validate_output_path
+from vision.tools.utils_general import find_subdirs_with_file
 
 def concat_to_meta(block_meta, df):
     df_col = list(block_meta.columns)
@@ -102,6 +103,8 @@ def block_analysis(block_path, metadata_path, block_):
     block_counts_df = pd.DataFrame(block_counts, columns=['tree_id', 'block', 'row', '1', '2','3'])
     meta_data = pd.read_csv(metadata_path)
     block_meta = meta_data.query(f'block == "{block_}"')
+
+
     block_df = concat_to_meta(block_meta, block_counts_df)
     block_df['F/cv1'] = block_df['F'] / block_df['cv1']
     block_df= add_ratios(block_df)
@@ -141,9 +144,21 @@ def draw_tree_bb_for_block(block_path, block_df, dir='1', screen_depth=False):
 if __name__ == "__main__":
 
 
-    metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/Data_files/data_meta_2023-12-21_11-33-42.csv"
+    # path_customer = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA"
+    # factors_paths = find_subdirs_with_file(folder_path = path_customer, file_name='factors.csv', return_dirs=False, single_file=False)
+    #
+    # df_summary = pd.DataFrame()
+    # for factors_path in factors_paths:
+    #     f_df = pd.read_csv(factors_path, index_col=0)
+    #     f_df = f_df[f_df['variable']=='dcv1']
 
-    block_path = '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/01GOLDE0' #os.path.dirname(date_path)
+
+    ###############################################################################################
+    # metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/Data_files/data_meta_2023-12-21_11-33-42.csv"
+    # block_path ='/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks/02GRANN0'
+    metadata_path = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Data_files/data_meta_grapes_SA_Dec_23.csv'
+    block_path = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/3XXXXXX4' #os.path.dirname(date_path)
+
     OUTPUT_PATH = os.path.join(block_path, 'Factor_analysis') # os.path.join(date_path, 'Factor_analysis')
 
 
