@@ -24,10 +24,6 @@ def analyze_section(section_df, debug=None):
 
     section_report = {'clusters': len(picked_clusters),
                       'total_fruit': len(tracks_to_color),
-                      'width mean': np.mean(tracks_width),
-                      'width std': np.std(tracks_width),
-                      'height mean': np.mean(tracks_height),
-                      'height std': np.std(tracks_height),
                       'bin_1': color_bins[1],
                       'bin_2': color_bins[2],
                       'bin_3': color_bins[3],
@@ -41,7 +37,7 @@ def analyze_section(section_df, debug=None):
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
                                  data_index=debug['cluster_col'], output_folder=debug['cluster_output'])
 
-    return section_report
+    return section_report, tracks_width, tracks_height
 
 
 
@@ -199,11 +195,11 @@ def get_tracks_width_and_height(tracks_df, upper_filter=0.09, lower_filter=0.04)
     tracks_width = picked_df.groupby('track_id').width.mean()
     tracks_height = picked_df.groupby('track_id').height.mean()
 
-    tracks_width = tracks_width[tracks_width < upper_filter].copy()
-    tracks_width = tracks_width[tracks_width > lower_filter].copy()
+    #tracks_width = tracks_width[tracks_width < upper_filter].copy()
+    #tracks_width = tracks_width[tracks_width > lower_filter].copy()
 
-    tracks_height = tracks_height[tracks_height < upper_filter].copy()
-    tracks_height = tracks_height[tracks_height > lower_filter].copy()
+    #tracks_height = tracks_height[tracks_height < upper_filter].copy()
+    #tracks_height = tracks_height[tracks_height > lower_filter].copy()
 
     return tracks_width, tracks_height
 
@@ -225,6 +221,19 @@ def get_color_bins(tracks_to_color):
 
     return color_bins
 
+def convert_dist(data, mu_orig, std_orig, mu_target, std_target):
+
+    z_score = (data - mu_orig) / std_orig
+    converted_data = z_score * std_target + mu_target
+
+    return converted_data
+
+def apply_model(width, height, coef, intercept):
+
+    return width * coef[0] + height * coef[1] + intercept
+
+
+
 
 
 if __name__ == '__main__':
@@ -232,11 +241,24 @@ if __name__ == '__main__':
     folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
     #tracks = '/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5/row_1/zed'
     #tracks_path = os.path.join(tracks, 'tracks.csv')
-    to_debug = True
+    to_debug = False
+    model_coef = [4.25467987, 2.40293413]
+    model_intercept = -271.53407231486557
 
+    gt_width_mean = 66.64207831325301
+    gt_width_std = 6.524271084973641
+    gt_height_mean = 54.35472891566266
+    gt_height_std = 6.012594102523396
+
+    counter_width_mean = 67.55363882906708
+    counter_width_std = 12.210693006488093
+    counter_height_mean = 67.61603085290156
+    counter_height_std = 10.08302167961458
 
     rows = os.listdir(folder_path)
     res = []
+    width = []
+    height = []
     for row in rows:
         row_path = os.path.join(folder_path, row)
         if not os.path.isdir(row_path):
@@ -262,10 +284,42 @@ if __name__ == '__main__':
                          'cluster_col': -3,
                          'cluster_output': os.path.join(rep_path, 'tree_cluster')
                          }
-            section_results = analyze_section(section_df, debug)
+            else:
+                debug = None
+
+            section_results, tracks_width, tracks_height = analyze_section(section_df, debug)
+
+            width = np.array(tracks_width) * 1000 # convert to mm
+            height = np.array(tracks_height) * 1000 # convert to mm
+
+            conv_width = convert_dist(width,
+                                      counter_width_mean,
+                                      counter_width_std,
+                                      gt_width_mean,
+                                      gt_width_std)
+            print(f'{row}, {rep} width samples: {len(conv_width)}')
+
+            conv_height = convert_dist(height,
+                                      counter_height_mean,
+                                      counter_height_std,
+                                      gt_height_mean,
+                                      gt_height_std)
+
+            print(f'{row}, {rep} height samples: {len(conv_height)}')
+
+            mean_width = np.nanmean(conv_width)
+            mean_height = np.nanmean(conv_height)
+
+            weight = apply_model(mean_width, mean_height, model_coef, model_intercept)
 
             section_results['row'] = row
             section_results['rep'] = rep
+            section_results['width mean'] = mean_width
+            section_results['width std'] = np.std(conv_width)
+            section_results['height mean'] = mean_height
+            section_results['height std'] = np.std(conv_height)
+            section_results['weight mean'] = np.mean(weight)
+            section_results['weight std'] = np.std(weight)
 
             res.append(section_results)
 

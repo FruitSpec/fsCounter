@@ -1,6 +1,7 @@
 import os
 import sys
 import cv2
+import matplotlib.pyplot as plt
 from omegaconf import OmegaConf
 from tqdm import tqdm
 import numpy as np
@@ -11,6 +12,15 @@ import pickle
 
 from vision.tools.camera_calibration import undistort
 from vision.misc.help_func import get_repo_dir, load_json, validate_output_path
+
+from vision.tools.scripts.test_efficientSAM import model_predict
+sys.path.append('/home/matans/Documents/fruitspec/Code/Matan/EfficientSAM')
+
+from efficient_sam.build_efficient_sam import build_efficient_sam_vitt, build_efficient_sam_vits, \
+        build_efficient_sam
+from squeeze_sam.build_squeeze_sam import build_squeeze_sam, build_squeeze_sam_base
+
+
 
 # repo_dir = get_repo_dir()
 # sys.path.append(os.path.join(repo_dir, 'vision', 'detector', 'yolo_x'))
@@ -55,6 +65,10 @@ def debug_tracks_pc(jai_batch, trk_outputs, f_id):
 def run(cfg, args, metadata=None, n_frames=None):
     adt = Pipeline(cfg, args)
     results_collector_zed = ResultsCollector(rotate=args.rotate)
+
+    #sam = get_sam()
+    sam = build_squeeze_sam_base(
+        '/home/matans/Documents/fruitspec/Code/Matan/EfficientSAM/weights/squeeze_sam.pt').eval()
 
     zed_args = args.copy()
     #zed_args.output_folder = os.path.join(args.output_folder, 'zed')
@@ -111,7 +125,17 @@ def run(cfg, args, metadata=None, n_frames=None):
 
         # zed trk: [x1, y1, x2, y2, conf, class_pred, track_id, track_depth, frame_id, x_ceter, y_center, depth, width, height, cluster_id]
         zed_filtered_outputs, clusters = adt.cluster.cluster_batch(zed_filtered_outputs, zed_ranges)
+        mask_path = os.path.join(zed_args.output_folder, 'seg1')
+        validate_output_path(mask_path)
+        i = 0
+        for dets, zed_image in zip(zed_filtered_outputs, zed_batch):
+            zed_image = cv2.cvtColor(zed_image, cv2.COLOR_BGR2RGB)
+            input_bboxes, input_labels = prepreocess_dets_for_sam(dets)
+            mask = model_predict(zed_image, input_bboxes, input_labels, sam)
 
+            plt.imshow(mask)
+            plt.savefig(os.path.join(mask_path, f'seg_frame_{f_id + i}.jpg'))
+            i += 1
 
 
 
@@ -148,7 +172,7 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
-        self.detector_jai = counter_detection(cfg.jai, args)
+        self.detector_jai = None#counter_detection(cfg.jai, args)
         self.detector_zed = counter_detection(cfg.zed, args)
         self.undistort_jai = undistort(cfg.jai.calibration_path)
         self.undistort_zed = undistort(cfg.zed.calibration_path)
@@ -513,9 +537,9 @@ def get_trks_colors(img, trk_outputs):
         if out_of_view:
             colors.append(-1)
         else:
-            x1, y1 = max(x1, 0), max(y1, 0)
+            x1, y1 = int(max(x1, 0)), int(max(y1, 0))
 
-            x2, y2 = min(x2, w - 1), min(y2, h - 1)
+            x2, y2 = int(min(x2, w - 1)), int(min(y2, h - 1))
             colors.append(get_tomato_color(img[y1:y2, x1:x2]))
     return colors
 
@@ -616,6 +640,40 @@ def seg_bbox(hsv_jai_image, bbox, threshold=130):
 
     return cropped_mask
 
+def prepreocess_dets_for_sam(dets):
+    input_bboxes = []
+    input_labels = []
+    cur_label = 2
+    for i in range(len(dets)):
+        bbox = dets[i]
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        offset_w = w // 4
+        offset_h = h // 4
+        x1 = bbox[0] + offset_w
+        x2 = bbox[2] - offset_w
+        y1 = bbox[1] + offset_h
+        y2 = bbox[3] - offset_h
+        input_bboxes.append([[x1, y1], [x2, y2]])
+        input_labels.append([cur_label, cur_label])
+        cur_label += 1
+
+    input_bboxes = np.array(input_bboxes)
+
+    input_labels = np.array(input_labels)
+
+    return input_bboxes, input_labels
+
+def get_sam():
+    checkpoint = "/home/matans/Documents/fruitspec/Code/Matan/EfficientSAM/weights/efficient_sam_vitt.pt"
+
+    sam_ = build_efficient_sam(encoder_patch_embed_dim=192,
+                                                   encoder_num_heads=3,
+                                                   checkpoint=checkpoint
+                                                   )
+    sam_.eval()
+
+    return sam_
 
 
 if __name__ == "__main__":
