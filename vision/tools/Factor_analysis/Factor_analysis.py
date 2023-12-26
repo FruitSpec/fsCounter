@@ -19,6 +19,7 @@ sys.path.append(get_repo_dir())
 from vision.tools.jupyter_notebooks.notebook_analysis_help_funcs import *
 from vision.tools.post_process_analysis import read_tracks_and_slices, get_block_count
 from vision.visualization.draw_bb_from_csv import draw_tree_bb_from_tracks
+from vision.misc.help_func import validate_output_path
 
 
 def concat_to_meta(block_meta, df):
@@ -30,11 +31,14 @@ def concat_to_meta(block_meta, df):
         block = sample['block'].lower()
         row = sample['row'].lower()
         tree_id = int(sample['tree_id'])
-        # print(f'block == "{block}" and row == "{row}" and tree_id == {tree_id}')
+        print(f'block == "{block}" and row == "{row}" and tree_id == {tree_id}')
         q_data = df.query(f'block == "{block}" and row == "{row}" and tree_id == {tree_id}')
         new_sample = sample.to_list()
         for i in range(1, 4):
-            new_sample.append(q_data[str(i)].values[0])
+            if len(q_data) == 0:
+                new_sample.append(-1)
+            else:
+                new_sample.append(q_data[str(i)].values[0])
         new_data.append(new_sample)
 
     df_col += ['cv1', 'cv2', 'cv3']
@@ -57,6 +61,8 @@ def get_block_ratio(block_df, row_tracks, y_threshold=800, depth=3):
     for id_, sample in block_df.iterrows():
         row = sample['row'].lower()
         tree_id = int(sample['tree_id'])
+        if not tree_id in list(row_tracks[row].keys()):
+            continue
         tree_df = row_tracks[row][tree_id]
 
         d_tree_df = tree_df.query(f'depth <= {depth}')
@@ -121,14 +127,14 @@ def get_selection_error(factors_dict, block_df):
 
 if __name__ == "__main__":
 
-    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/conf04_nms005_windows1_2-1_5_cvd3_0047'
+    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/additional_plots'
 
-    metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
+    metadata_path = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Data_files/data_meta_grapes_SA_Dec_23_updated.csv"
+    #"/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/counting/data_meta.csv"
 
-    blocks_list = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/7XXXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/8XXXXXX3']
+    blocks_list = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/9XXXXXX3',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/3XXXXXX4']
 
     blocks_df = pd.DataFrame()
     res_concatenated_df = pd.DataFrame()
@@ -139,19 +145,19 @@ if __name__ == "__main__":
         costumer = block_path.split('/')[-2]
         block_df, row_tracks = block_analysis(block_path, metadata_path, block_)
 
-        # for index, row in block_df.iterrows():
-        #     row_to_drow = row['row']
-        #     tree_id = row['tree_id']
-        #     date = '281123'
-        #     tree_tracks = row_tracks[row_to_drow][tree_id]
-        #     #######################
-        #     #remove tracks in depth
-        #     tree_tracks = tree_tracks[tree_tracks['depth'] <= 3] # todo added depth fillering
-        #     ######################
-        #     draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, '1'),
-        #                              tree_id)
-        #
-        #     print ('ok')
+        for index, row in block_df.iterrows():
+            row_to_drow = row['row']
+            tree_id = row['tree_id']
+            date = '211223'
+            tree_tracks = row_tracks[row_to_drow][tree_id]
+            #######################
+            #remove tracks in depth
+            tree_tracks = tree_tracks[tree_tracks['depth'] <= 3] # todo added depth fillering
+            ######################
+            draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, '1'),
+                                     tree_id)
+
+            print ('ok')
 
         # row_to_drow = 'row_5'
         # tree_id = 1
@@ -179,11 +185,12 @@ if __name__ == "__main__":
         blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
         res_concatenated_df = pd.concat([res_concatenated_df, res_df.copy()], ignore_index=True)
 
+    validate_output_path(OUTPUT_PATH)
     blocks_df.to_csv(os.path.join(OUTPUT_PATH, 'all_blocks.csv'))
 
     blocks_df.insert(0, 'costumer', costumer)
     # Remove block 7:
-    blocks_df = blocks_df[blocks_df['block'] != '7XXXXXX2']
+    #blocks_df = blocks_df[blocks_df['block'] != '7XXXXXX2']
     factors_combined_dict = linear_model_selection(blocks_df, selection_cols=['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'],
                                           type_col="costumer", cross_val="block")
     res_all, blocks_df = get_selection_error(factors_combined_dict, blocks_df)
