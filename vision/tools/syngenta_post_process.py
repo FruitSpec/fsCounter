@@ -254,23 +254,25 @@ if __name__ == '__main__':
             tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
 
             row_results, trees_tracks = count_trees_fruits(tracks_df, slices_df, frame_width=1080)
-            section_df = trees_tracks[1]
-            if to_debug:
-                validate_output_path(os.path.join(rep_path, 'tree_cluster'))
-                debug = {'path': rep_path,
-                         'tree_id': 1,
-                         'picked_col': -1,
-                         'cluster_col': -5,
-                         'cluster_output': os.path.join(rep_path, 'tree_cluster')
-                         }
-            else:
-                debug = None
-            section_results = analyze_section(section_df, debug)
+            trees = list(trees_tracks.keys())
+            for t in trees:
+                section_df = trees_tracks[t]
+                if to_debug:
+                    validate_output_path(os.path.join(rep_path, 'tree_cluster'))
+                    debug = {'path': rep_path,
+                             'tree_id': t,
+                             'picked_col': -1,
+                             'cluster_col': -5,
+                             'cluster_output': os.path.join(rep_path, 'tree_cluster')
+                             }
+                else:
+                    debug = None
+                section_results = analyze_section(section_df, debug)
 
-            section_results['row'] = row
-            section_results['rep'] = rep
+                section_results['row'] = row
+                section_results['rep'] = rep
 
-            res.append(section_results)
+                res.append(section_results)
 
 
     results = pd.DataFrame(res, columns=list(section_results.keys()))
