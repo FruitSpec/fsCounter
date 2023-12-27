@@ -148,10 +148,10 @@ class Pipeline():
     def __init__(self, cfg, args):
         self.logger = Logger(args)
         self.frames_loader = FramesLoader(cfg, args)
-        self.detector_jai = counter_detection(cfg.jai, args)
+        #self.detector_jai = counter_detection(cfg.jai, args)
         self.detector_zed = counter_detection(cfg.zed, args)
-        self.undistort_jai = undistort(cfg.jai.calibration_path)
-        self.undistort_zed = undistort(cfg.zed.calibration_path)
+        #self.undistort_jai = undistort(cfg.jai.calibration_path)
+        #self.undistort_zed = undistort(cfg.zed.calibration_path)
         self.cluster = FruitCluster(cfg.clusters.max_single_fruit_dist,
                                     cfg.clusters.range_diff_threshold,
                                     cfg.clusters.max_losses)
@@ -513,9 +513,9 @@ def get_trks_colors(img, trk_outputs):
         if out_of_view:
             colors.append(-1)
         else:
-            x1, y1 = max(x1, 0), max(y1, 0)
+            x1, y1 = int(max(x1, 0)), int(max(y1, 0))
 
-            x2, y2 = min(x2, w - 1), min(y2, h - 1)
+            x2, y2 = int(min(x2, w - 1)), int(min(y2, h - 1))
             colors.append(get_tomato_color(img[y1:y2, x1:x2]))
     return colors
 
@@ -635,10 +635,10 @@ if __name__ == "__main__":
     output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5"
     validate_output_path(output_path)
 
-    rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
+    rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
 
     rows = os.listdir(rows_dir)
-
+    failed = []
     for row in rows:
         row_folder = os.path.join(rows_dir, row)
         if not os.path.isdir(row_folder):
@@ -654,7 +654,17 @@ if __name__ == "__main__":
             args.jai.movie_path = os.path.join(row_folder, fsi_name)
             args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
+            # if not os.path.exists(args.sync_data_log_path):
+            #     continue
+
             validate_output_path(args.output_folder)
 
-            rc_z = run(cfg, args)
+            try:
+                rc_z = run(cfg, args)
+            except:
+                print(f'failed to analyze: {args.zed.movie_path}')
+                failed.append(args.zed.movie_path)
         #rc_j.dump_feature_extractor(args.output_folder)
+
+    print('failed:')
+    print(failed)

@@ -169,7 +169,7 @@ class ResultsCollector():
             fields = ["x1", "y1", "x2", "y2", "conf", "class_pred", "track_id", "track_depth", "frame_id", "cluster_id", "color"]
             rows = self.tracks
         elif type == "zed_syngenta":
-            fields = ["x1", "y1", "x2", "y2", "conf", "class_pred", "track_id", "track_depth", "frame_id", "x_ceter", "y_center", "depth", "width", "height", "cluster_id", "color"]
+            fields = ["x1", "y1", "x2", "y2", "conf", "class_pred", "track_id", "frame_id", "x_ceter", "y_center", "depth", "width", "height", "cluster_id", "color"]
             rows = self.tracks
         else:
             fields = self.tracks_header

@@ -229,7 +229,8 @@ def get_color_bins(tracks_to_color):
 
 if __name__ == '__main__':
     #row = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123/row_1/1"
-    folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
+    #folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/291123"
+    folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
     #tracks = '/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5/row_1/zed'
     #tracks_path = os.path.join(tracks, 'tracks.csv')
     to_debug = True
@@ -259,9 +260,11 @@ if __name__ == '__main__':
                 debug = {'path': rep_path,
                          'tree_id': 1,
                          'picked_col': -1,
-                         'cluster_col': -3,
+                         'cluster_col': -5,
                          'cluster_output': os.path.join(rep_path, 'tree_cluster')
                          }
+            else:
+                debug = None
             section_results = analyze_section(section_df, debug)
 
             section_results['row'] = row
