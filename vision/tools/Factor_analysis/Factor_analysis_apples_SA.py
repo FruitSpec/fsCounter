@@ -35,7 +35,10 @@ def concat_to_meta(block_meta, df):
         q_data = df.query(f'block == "{block}" and row == "{row}" and tree_id == {tree_id}')
         new_sample = sample.to_list()
         for i in range(1, 4):
-            new_sample.append(q_data[str(i)].values[0])
+            if len(q_data) == 0:
+                new_sample.append(-1)
+            else:
+                new_sample.append(q_data[str(i)].values[0])
         new_data.append(new_sample)
 
     df_col += ['cv1', 'cv2', 'cv3']
@@ -58,6 +61,8 @@ def get_block_ratio(block_df, row_tracks, y_threshold=800, depth=3):
     for id_, sample in block_df.iterrows():
         row = sample['row'].lower()
         tree_id = int(sample['tree_id'])
+        if not tree_id in list(row_tracks[row].keys()):
+            continue
         tree_df = row_tracks[row][tree_id]
 
         d_tree_df = tree_df.query(f'depth <= {depth}')
@@ -98,17 +103,15 @@ def linear_model_selection(data, selection_cols=["cv1"], type_col="block", cross
     return factors
 
 
-def block_analysis(block_path, metadata_path, block_):
+def block_analysis(block_path, metadata_path, block_, depth=3):
     block_counts, row_tracks = get_block_count(block_path)
     block_counts_df = pd.DataFrame(block_counts, columns=['tree_id', 'block', 'row', '1', '2','3'])
     meta_data = pd.read_csv(metadata_path)
     block_meta = meta_data.query(f'block == "{block_}"')
-
-
     block_df = concat_to_meta(block_meta, block_counts_df)
     block_df['F/cv1'] = block_df['F'] / block_df['cv1']
-    block_df= add_ratios(block_df)
-    block_df = get_block_ratio(block_df, row_tracks)
+    block_df = add_ratios(block_df)
+    block_df = get_block_ratio(block_df, row_tracks, depth=depth)
 
     return block_df, row_tracks
 
@@ -144,13 +147,30 @@ def draw_tree_bb_for_block(block_path, block_df, dir='1', screen_depth=False):
 if __name__ == "__main__":
 
 
-    # path_customer = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA"
-    # factors_paths = find_subdirs_with_file(folder_path = path_customer, file_name='factors.csv', return_dirs=False, single_file=False)
-    #
-    # df_summary = pd.DataFrame()
-    # for factors_path in factors_paths:
-    #     f_df = pd.read_csv(factors_path, index_col=0)
-    #     f_df = f_df[f_df['variable']=='dcv1']
+    factors_dir = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA"
+
+    def factors_summary_table(factors_dir, variable = 'dcv1'):
+        factors_paths = find_subdirs_with_file(folder_path = factors_dir, file_name='factors.csv', return_dirs=False, single_file=False)
+
+        df_summary = pd.DataFrame()
+        for factors_path in factors_paths:
+            f_df = pd.read_csv(factors_path, index_col=0)
+            f_df = f_df[f_df['variable'] == variable]
+            df_summary = pd.concat([df_summary, f_df], ignore_index=True)
+
+        average_row = df_summary.select_dtypes(include=[np.number]).mean().to_dict()
+        average_row['block'] = 'Mean'
+        average_row['variable'] = variable
+        df_summary = df_summary.append(average_row, ignore_index=True)
+
+        output_path = os.path.join(factors_dir, 'Factors_analysis', 'factors_summary.csv')
+        validate_output_path(os.path.dirname(output_path))
+        df_summary.to_csv(output_path)
+        print (f' Saved: {output_path}')
+        return df_summary
+
+    factors_summary_table(factors_dir, variable='dcv1')
+    print ('ok')
 
 
     ###############################################################################################

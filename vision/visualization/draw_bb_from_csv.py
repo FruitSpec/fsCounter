@@ -99,7 +99,7 @@ def get_alignment_hash(alignment):
 
     return hash
 
-def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id):
+def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id, data_index=6):
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
@@ -112,7 +112,7 @@ def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id):
     args.depth.movie_path = os.path.join(row_path, 'DEPTH.mkv')
     args.rgb_jai.movie_path = os.path.join(row_path, 'Result_RGB.mkv')
 
-    data_index = 6  # which column to use to detrmine bbox color
+    #data_index = 6  # which column to use to detrmine bbox color
     args.output_folder = os.path.join(row_path, 'trees', str(tree_id))
     validate_output_path(args.output_folder)
     print(f'saving data into: {args.output_folder}')
