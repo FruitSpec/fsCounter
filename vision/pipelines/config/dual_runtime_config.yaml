@@ -41,12 +41,12 @@ rgb_jai:
 frame_size: [2048, 1536]
 
 debug:
-  tracker_windows: true
-  tracker_results: true
+  tracker_windows: false
+  tracker_results: false
   det_results: false
   raw_frame: false
   depth: false
-  clusters: false
+  clusters: true
   colors: false
   tracker: None
   trees: false

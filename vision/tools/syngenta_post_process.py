@@ -58,7 +58,7 @@ def get_picked_in_section(section_df, min_samp=3):
     tracks_updated = fine_filter_depth(tracks_updated)
 
     """ curate cluster"""
-    tracks_updated, curated_clusters = curate_clusters(tracks_updated)
+    tracks_updated = curate_clusters(tracks_updated)
 
     """ get picked clusters"""
     tracks_updated, tracks_to_color = argmax_tracks_colors(tracks_updated)
@@ -97,7 +97,155 @@ def get_clusters_average_depth(tracks_df):
     return cluster_depth
 
 
-def curate_clusters(tracks_df):
+def curate_clusters(tracks_df, dist_center_threshold=150):
+    tracks_to_clusters = get_tracks_to_cluster(tracks_df)
+
+    tracks_df['center_x'] = (tracks_df['x1'] + tracks_df['x2']) / 2
+    tracks_df['center_y'] = (tracks_df['y1'] + tracks_df['y2']) / 2
+
+    for t_id, clusters in tracks_to_clusters.items():
+        if len(clusters) == 2:
+            first_cluster = clusters[0]
+            second_cluster = clusters[1]
+            
+            if first_cluster == 292 or second_cluster == 292:
+                a = 1
+
+            first_df = tracks_df[tracks_df['cluster_id'] == first_cluster].copy()
+            first_frames = first_df.frame.unique()
+
+            second_df = tracks_df[tracks_df['cluster_id'] == second_cluster].copy()
+            second_frames = second_df.frame.unique()
+
+            if len(first_frames) == 0 or len(second_frames) == 0:
+                continue
+
+            mutual_frames = []
+            for f_id in first_frames:
+                if f_id in second_frames:
+                    mutual_frames.append(f_id)
+           
+            if len(mutual_frames) == 0:  # no overlap
+                # merge to first cluster
+                tracks_df.loc[tracks_df['cluster_id'] == second_cluster, 'cluster_id'] = first_cluster  
+           
+            else:  # there is overlap.
+
+
+                first_df_overlap = first_df[np.isin(first_df["frame"], mutual_frames)]
+                second_df_overlap = second_df[np.isin(second_df["frame"], mutual_frames)]
+
+
+                f_tracks = np.unique(first_df_overlap['track_id'])
+                s_tracks = np.unique(second_df_overlap['track_id'])
+
+                # at least one small cluster
+                if len(f_tracks) <= 2 or len(s_tracks) <= 2:
+                    dist = get_clusters_distance(first_df_overlap, second_df_overlap)
+                    if dist <= dist_center_threshold:  # distance below threshold merge clusters
+                        if len(f_tracks) <= len(s_tracks):
+                            cluster_to_merge = first_cluster
+                            cluster_to_update = second_cluster
+                        else:
+                            cluster_to_merge = second_cluster
+                            cluster_to_update = first_cluster
+                        tracks_df.loc[tracks_df['cluster_id'] == cluster_to_merge, 'cluster_id'] = cluster_to_update
+
+                # too big - remove joined
+                else:
+                    stats = {}
+                    for f_id in mutual_frames:
+                        f_frame_df = first_df[first_df['frame'] == f_id]
+                        s_frame_df = second_df[second_df['frame'] == f_id]
+
+                        f_frame_tracks = f_frame_df['track_id'].to_list()
+                        s_frame_tracks = s_frame_df['track_id'].to_list()
+
+                        verified_t_ids = []
+                        stats_ids = list(stats.keys())
+                        for t_id in f_frame_tracks:
+                            if t_id in verified_t_ids:
+                                continue
+                            if t_id not in stats_ids:
+                                stats[t_id] = {first_cluster: 0, second_cluster: 0}
+
+                            track_df = f_frame_df[f_frame_df['track_id'] == t_id]
+                            f_dist, s_dist = get_track_dist_to_clusters(track_df, first_df, second_df, t_id)
+
+                            if f_dist < s_dist:
+                                stats[t_id][first_cluster] += 1
+                            else:
+                                stats[t_id][second_cluster] += 1
+
+                            # row_to_update = tracks_df[(tracks_df['track_id'] == t_id) & (tracks_df['frame'] == f_id)]
+                            # if not row_to_update.empty:
+                            #     tracks_df.loc[(tracks_df['track_id'] == t_id) & (tracks_df['frame'] == f_id), 'cluster_id'] = cluster_to_merge
+                            verified_t_ids.append(t_id)
+
+                        stats_ids = list(stats.keys())
+                        for t_id in s_frame_tracks:
+                            if t_id in verified_t_ids:
+                                continue
+
+                            if t_id not in stats_ids:
+                                stats[t_id] = {first_cluster: 0, second_cluster: 0}
+
+                            track_df = s_frame_df[s_frame_df['track_id'] == t_id]
+                            f_dist, s_dist = get_track_dist_to_clusters(track_df, first_df, second_df, t_id)
+
+                            if f_dist < s_dist:
+                                stats[t_id][first_cluster] += 1
+                            else:
+                                stats[t_id][second_cluster] += 1
+
+                            # row_to_update = tracks_df[(tracks_df['track_id'] == t_id) & (tracks_df['frame'] == f_id)]
+                            # if not row_to_update.empty:
+                            #     tracks_df.loc[(tracks_df['track_id'] == t_id) & (
+                            #                 tracks_df['frame'] == f_id), 'cluster_id'] = cluster_to_merge
+                            verified_t_ids.append(t_id)
+
+
+                    for t_id, counts in stats.items():
+                        clusters_ids = list(counts.keys())
+                        best_cluster = clusters_ids[0] if counts[clusters_ids[0]] > counts[clusters_ids[1]] else clusters_ids[1]
+                        tracks_df.loc[tracks_df['track_id'] == t_id, 'cluster_id'] = int(best_cluster)
+                    # verify purity and consistency
+                    # first_df = tracks_df.query(f'cluster_id == {first_cluster}')
+                    # second_df = tracks_df.query(f'cluster_id == {second_cluster}')
+                    #
+                    # f_tracks_full = first_df['track_id'].unique()
+                    # s_tracks_full = second_df['track_id'].unique()
+                    #
+                    # for t_id in f_tracks_full:
+                    #     if t_id in s_tracks_full:
+                    #         tracks_df.loc[tracks_df['track_id'] == t_id, 'cluster_id'] = first_cluster
+         
+    return tracks_df
+
+def get_track_dist_to_clusters(track_df, first_df, second_df, t_id):
+    track_center_x = track_df.center_x.to_numpy()[0]
+    track_center_y = track_df.center_y.to_numpy()[0]
+
+    f_frame_tracks_exclusive = first_df[first_df['track_id'] != t_id]
+    f_cluster_center_x = f_frame_tracks_exclusive.center_x.mean()
+    f_cluster_center_y = f_frame_tracks_exclusive.center_y.mean()
+
+    s_frame_tracks_exclusive = second_df[second_df['track_id'] != t_id]
+    s_cluster_center_x = s_frame_tracks_exclusive.center_x.mean()
+    s_cluster_center_y = s_frame_tracks_exclusive.center_y.mean()
+
+    f_delta_x = np.abs(f_cluster_center_x - track_center_x)
+    s_delta_x = np.abs(s_cluster_center_x - track_center_x)
+
+    f_delta_y = np.abs(f_cluster_center_y - track_center_y)
+    s_delta_y = np.abs(s_cluster_center_y - track_center_y)
+
+    f_dist = np.sqrt(np.power(f_delta_x, 2) + np.power(f_delta_y, 2))
+    s_dist = np.sqrt(np.power(s_delta_x, 2) + np.power(s_delta_y, 2))
+
+    return f_dist, s_dist
+
+def get_tracks_to_cluster(tracks_df):
     tracks_to_clusters = dict()
     for id_, track in tracks_df.iterrows():
         found_track_ids = list(tracks_to_clusters.keys())
@@ -108,43 +256,26 @@ def curate_clusters(tracks_df):
                 tracks_to_clusters[track_id].append(cluster_id)
         else:
             tracks_to_clusters[track_id] = [cluster_id]
+            
+    return tracks_to_clusters
 
-    tracks_df['center_x'] = (tracks_df['x1'] + tracks_df['x2']) / 2
-    tracks_df['center_y'] = (tracks_df['y1'] + tracks_df['y2']) / 2
-    curated = []
-    for t_id, clusters in tracks_to_clusters.items():
-        if len(clusters) == 2:
-            first_cluster = clusters[0]
-            second_cluster = clusters[1]
+def get_clusters_distance(first_df, second_df):
 
-            if first_cluster in curated or second_cluster in curated:
-                continue
+    f_x_centers = first_df.groupby('frame').center_x.mean()
+    f_y_centers = first_df.groupby('frame').center_y.mean()
 
-            first_df = tracks_df.query(f'cluster_id == {first_cluster}')
-            first_frames = first_df.frame.unique()
+    s_x_centers = second_df.groupby('frame').center_x.mean()
+    s_y_centers = second_df.groupby('frame').center_y.mean()
 
-            second_df = tracks_df.query(f'cluster_id == {second_cluster}')
-            second_frames = second_df.frame.unique()
+    f_y = np.array(f_y_centers)
+    f_x = np.array(f_x_centers)
 
-            frame_delta = second_frames[0] - first_frames[-1]
-            if frame_delta > 0:  # no overlap
-                tracks_df.loc[tracks_df['cluster_id'] == second_cluster, 'cluster_id'] = first_cluster
-                curated.append(first_cluster)
-                curated.append(second_cluster)
+    s_y = np.array(s_y_centers)
+    s_x = np.array(s_x_centers)
 
-            else: # there is overlap. see when cluster center changes
-                f_y_centers = first_df.groupby('frame').center_y.mean()
+    dist = np.mean(np.sqrt(np.power(f_y - s_y, 2) + np.power(f_x - s_x, 2)))
 
-                s_y_centers = second_df.groupby('frame').center_y.mean()
-
-                f_y = np.array(f_y_centers)
-                f_y_std = np.std(f_y)
-
-                s_y = np.array(s_y_centers)
-                s_y_std = np.std(s_y)
-
-
-    return tracks_df, curated
+    return dist
 
 def argmax_tracks_colors(tracks_df):
     track_ids = list(tracks_df['track_id'].unique())
@@ -237,6 +368,7 @@ if __name__ == '__main__':
 
 
     rows = os.listdir(folder_path)
+    rows = ['row_1']
     res = []
     for row in rows:
         row_path = os.path.join(folder_path, row)
@@ -250,7 +382,7 @@ if __name__ == '__main__':
 
             if not os.path.exists(slice_json_path):
                 continue
-
+            #try:
             tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
 
             row_results, trees_tracks = count_trees_fruits(tracks_df, slices_df, frame_width=1080)
@@ -273,7 +405,8 @@ if __name__ == '__main__':
                 section_results['rep'] = rep
 
                 res.append(section_results)
-
+            #except:
+            #    print(f'failed to run {rep_path}')
 
     results = pd.DataFrame(res, columns=list(section_results.keys()))
     results.to_csv(os.path.join(folder_path, 'results.csv'))

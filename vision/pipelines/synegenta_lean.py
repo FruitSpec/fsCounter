@@ -153,6 +153,8 @@ class Pipeline():
         #self.undistort_jai = undistort(cfg.jai.calibration_path)
         #self.undistort_zed = undistort(cfg.zed.calibration_path)
         self.cluster = FruitCluster(cfg.clusters.max_single_fruit_dist,
+                                    cfg.clusters.x_dist_threshold,
+                                    cfg.clusters.y_dist_threshold,
                                     cfg.clusters.range_diff_threshold,
                                     cfg.clusters.max_losses)
         self.jai_translation = T(cfg.jai.batch_size, cfg.translation.translation_size, cfg.translation.dets_only,
@@ -631,6 +633,7 @@ if __name__ == "__main__":
     fsi_name = "Result_FSI.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
+    slice_data = "ZED_slice_data.json"
 
     output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5"
     validate_output_path(output_path)
@@ -638,6 +641,7 @@ if __name__ == "__main__":
     rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
 
     rows = os.listdir(rows_dir)
+    #rows = ['row_1']
     failed = []
     for row in rows:
         row_folder = os.path.join(rows_dir, row)
@@ -654,16 +658,17 @@ if __name__ == "__main__":
             args.jai.movie_path = os.path.join(row_folder, fsi_name)
             args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-            # if not os.path.exists(args.sync_data_log_path):
-            #     continue
+            if not os.path.exists(os.path.join(row_folder, slice_data)):
+                 continue
 
             validate_output_path(args.output_folder)
 
+            #rc_z = run(cfg, args)
             try:
-                rc_z = run(cfg, args)
+                 rc_z = run(cfg, args)
             except:
-                print(f'failed to analyze: {args.zed.movie_path}')
-                failed.append(args.zed.movie_path)
+                 print(f'failed to analyze: {args.zed.movie_path}')
+                 failed.append(args.zed.movie_path)
         #rc_j.dump_feature_extractor(args.output_folder)
 
     print('failed:')

@@ -85,8 +85,8 @@ zed:
         minor: 0.4 # 0.65
       mid:
         dist: 2 # not in use
-        major: 1.5 #1.5
-        minor: 0.8 #0.8
+        major: 1.3 #1.5
+        minor: 1 #0.8
     max_losses: 5  # 10
     score_weights: [ 0.25, 1.0, 0.25, 0.75 ]  # [0.25, 1.0, 0.25, 1]
     match_type: inter #center #
@@ -144,6 +144,8 @@ filters:
 
 clusters:
   max_single_fruit_dist: 150
-  range_diff_threshold: 0.05
+  x_dist_threshold: 90
+  y_dist_threshold: 100
+  range_diff_threshold: 0.10
   max_losses: 5
 

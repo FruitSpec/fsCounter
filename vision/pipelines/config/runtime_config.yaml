@@ -16,7 +16,7 @@ debug:
   raw_frame: false
   depth: false
   tracker: None
-  clusters: false
+  clusters: true
   hue_histogram: false
-  annotate: true
+  annotate: false
 

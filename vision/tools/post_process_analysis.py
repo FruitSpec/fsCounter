@@ -42,7 +42,8 @@ def tracker_df_2_dict(tracker_results_frame):
     return dict(zip(tracker_results_frame["track_id"], points))
 
 
-def get_tree_slice_track(tree_id, slices_df,tracks_df, depth_filter=False, min_samp_filter=False, min_samples = 2):
+def get_tree_slice_track(tree_id, slices_df,tracks_df, max_depth=None, min_samp_filter=False, reorder_tracks=True,
+                         min_samples = 2):
     """
     Gets the tree slice and track data for the given tree ID.
 
@@ -60,16 +61,21 @@ def get_tree_slice_track(tree_id, slices_df,tracks_df, depth_filter=False, min_s
     if min_samp_filter:
         unique_tracks, counts = np.unique(tree_tracks["track_id"], return_counts=True)
         tree_tracks = tree_tracks[np.isin(tree_tracks["track_id"], unique_tracks[counts >= min_samples])]
-    # if depth_filter:
-    #     tree_tracks = tree_tracks[tree_tracks["depth"] < self.max_depth]
-    unique_tracks, counts = np.unique(tree_tracks["track_id"], return_counts=True)
-    new_ids = dict(zip(unique_tracks, range(len(unique_tracks))))
-    mapped_ids = tree_tracks["track_id"].map(new_ids).values
-    tree_tracks.loc[:, "track_id"] = mapped_ids
+
+    if max_depth is not None:
+         tree_tracks = tree_tracks[tree_tracks["depth"] < max_depth]
+
+    if reorder_tracks:
+        unique_tracks, counts = np.unique(tree_tracks["track_id"], return_counts=True)
+        new_ids = dict(zip(unique_tracks, range(len(unique_tracks))))
+        mapped_ids = tree_tracks["track_id"].map(new_ids).values
+        tree_tracks.loc[:, "track_id"] = mapped_ids
+
     tracker_results = {}
     for frame in tracks_df["frame"].unique():
         tracker_results_frame = tree_tracks[tree_tracks["frame"] == frame]
         tracker_results[frame] = tracker_df_2_dict(tracker_results_frame)
+
     return tree_tracks, tracker_results, tree_slices
 
 
@@ -99,8 +105,8 @@ def count_trees_fruits(tracks_df, slices_df, block=None, row=None, frame_width=1
     for i, tree_id in enumerate(uniq_trees):
 
         tree_tracks, tracker_results, tree_slices = get_tree_slice_track(tree_id, slices_df, tracks_df,
-                                                                         depth_filter=False,
-                                                                         min_samp_filter=False)
+                                                                         min_samp_filter=False,
+                                                                         reorder_tracks=False)
 
         tree_data = {"tree_id": tree_id}
         if block is not None:
