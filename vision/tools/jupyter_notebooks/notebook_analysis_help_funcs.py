@@ -269,7 +269,7 @@ def get_n_tracks_full_cv(tracks_path, max_depth=5):
         uniq[counts > 4]), n_dets, n_dropped
 
 
-def plot_F_cv(df, output_dir, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True,
+def plot_F_cv(df, output_dir = None, min_samp="", hue=None, title="", col="", figsize=(10, 6), add_xy_line=True,
               y="F", order=1):
     if col == "":
         col = f"cv{min_samp}"
@@ -285,9 +285,11 @@ def plot_F_cv(df, output_dir, min_samp="", hue=None, title="", col="", figsize=(
     plt.xlim(0, np.max(df[col] * 1.1))  # Adjust x-axis limits
     plt.ylim(0, np.max(df[y] * 1.1))  # Adjust y-axis limits
     plt.title(title)
-    plt.savefig(os.path.join(output_dir, 'f_to_cv1_scatter.png'))
-    print(f"Saved: {os.path.join(output_dir, 'f_to_cv1_scatter.png')}")
-    #plt.show()
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, 'f_to_cv1_scatter.png'))
+        print(f"Saved: {os.path.join(output_dir, 'f_to_cv1_scatter.png')}")
+    else:
+        plt.show()
 
 
 def get_model_res(df, cv=1, include_fruits=True, include_interaction=True, group_col="block_name",
