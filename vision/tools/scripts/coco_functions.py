@@ -453,22 +453,7 @@ def plot_bbox_area_histogram(coco_path):
     plt.show()
 
 if __name__ == "__main__":
-    coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240102_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/annotations/coco_train_31122023.json'
-    images_dir_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240102_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/train2017'
-    output_coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240102_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/annotations/coco_train_31122023_WITHOUT_APPLES.json'
-    remove_absent_images_from_coco(coco_file_path, images_dir_path, output_coco_file_path)
-    #########################################33
 
-    #plot_bbox_area_histogram('/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D231231_01-Citrus_FSI_CLAHE_batch12_14/annotations/batch14.json')
-    ############################################################
-    # coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch14/export_batch14.json'
-    #
-    # coco_inspector = COCOInspector(coco_file_path, images_dir = '', output_dir= '')
-    # coco_inspector.count_annotations()
-    # coco_inspector.convert_all_category_ids_to_0()
-    # coco_inspector.count_annotations()
-    # coco_inspector.save()
-    ################################################################33
 
     coco_file_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch14/export_batch14_20231231_230732.json'
     images_dir = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch14/all_images'
@@ -495,24 +480,19 @@ if __name__ == "__main__":
         path_previous_images_test=path_previous_images_test
     )
 
+    plot_bbox_area_histogram('/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D231231_01-Citrus_FSI_CLAHE_batch12_14/annotations/batch14.json')
+
+
     ##################################################################################
     images_dir_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch12/all_images'
     coco_file_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch12/batch_12_class0.json'
     output_coco_file_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch12/batch_12_class0_reduced.json'
     remove_absent_images_from_coco(coco_file_path, images_dir_path, output_coco_file_path)
-#########################################################################
-    coco_file_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/batch12/batch_12.json'
-    modify_coco_category_id_to_0(coco_file_path)
-########################################################################
-    # coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/FSI/annotations/train_coco.json'
-    # convert_to_single_class(coco_file_path)
 
-
-#########################################################################################################
+    #########################################################################################################
     # Define the input and output paths
     input_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/coco_all_2_classes.json'
     output_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/syngenta/coco_1_classe_whole.json'
-
 
     # Call the function to filter the annotations
     output_path = filter_coco_annotations(
@@ -521,33 +501,3 @@ if __name__ == "__main__":
         category_id_to_keep=50,
         new_category_id=0)
 
-    #########################################################################
-    path_to_json = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Apples_train_051023/annotations/val_coco.json'
-    # change category_id to 0 for all annotations in a COCO annotations file
-    modify_coco_category_id_to_0(path_to_json)
-    # #######################################################################
-    # # Call the function
-    # path_to_json = r'/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/val_coco.json'
-    # new_file_path = convert_to_single_class(path_to_json)
-    # print(f"Modified annotations saved to: {new_file_path}")
-    #
-    # ########################################################################
-    # # Count objects in COCO annotations:
-    # annotations_file_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/annotations/train_coco.json"
-    # result = count_objects_in_coco(annotations_file_path)
-    # print(result)
-    #
-    # ######################################################################
-    # # Modify category based on type_position:
-    # coco_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/batch9_frames_h.json"
-    # output_path = "/home/lihi/FruitSpec/Data/counter/Tomato_FSI_train_260923/all_jsons/corrected_jsons/batch9_frames_h.json"
-    # validate_output_path(os.path.dirname(output_path))
-    # modify_coco_category_based_on_type_position(coco_path, output_path)
-    # print("Done!")
-    #
-    # with open(output_path, "r") as file:
-    #     content = file.readlines()
-    #
-    # content_sample = content[:10]
-
-    print('done')
