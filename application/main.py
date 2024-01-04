@@ -56,11 +56,11 @@ def storage_cleanup():
             uploaded_df = pd.read_csv(data_conf.uploaded_path, dtype=str).dropna(how="any")
         except (FileNotFoundError, IOError):
             tools.log("ROUTINE CLEANUP DONE")
-            return pd.DataFrame()
+            return pd.DataFrame(dtype=str)
 
         if uploaded_df.empty:
             tools.log("ROUTINE CLEANUP DONE")
-            return pd.DataFrame()
+            return pd.DataFrame(dtype=str)
 
         uploaded_df["total_path"] = uploaded_df.apply(get_total_path, axis=1)
         uploaded_df["creation_date"] = uploaded_df["total_path"].apply(get_creation_date)
@@ -167,7 +167,7 @@ def storage_cleanup():
         except (FileNotFoundError, IOError):
             return
 
-        not_deleted_df = pd.merge(df, deleted_df, how='left', indicator=True,
+        not_deleted_df = pd.merge(df, deleted_df.astype(str), how='left', indicator=True,
                                   on=["customer_code", "plot_code", "scan_date", "row", "folder_index"])
 
         not_deleted_df = not_deleted_df[not_deleted_df['_merge'] == 'left_only']
@@ -185,7 +185,7 @@ def storage_cleanup():
 
     is_first = not os.path.exists(data_conf.deleted_path)
     deleted_df.to_csv(data_conf.deleted_path, mode='a+', header=is_first, index=False)
-    deleted_df = pd.read_csv(data_conf.deleted_path)
+    deleted_df = pd.read_csv(data_conf.deleted_path, dtype=str)
     deleted_df = deleted_df[deleted_df["procedure_type"] == consts.routine]
 
     rewrite_not_deleted(data_conf.collected_path)
