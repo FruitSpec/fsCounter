@@ -351,7 +351,7 @@ def append_to_trk(trk_batch_res, results):
 
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
-    pipeline_config = "/vision/pipelines/config/pipeline_config_grapes_prod.yaml"
+    pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     #pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
@@ -362,17 +362,22 @@ if __name__ == "__main__":
     cfg.tracker.compile_data_path = os.path.join(get_repo_dir('FruitSpec'), get_subpath_from_dir(cfg.tracker.compile_data_path, 'FruitSpec', include_dir=False))
 
     zed_name = "ZED.mkv"
-    depth_name = "DEPTH.mkv" #"DEPTH.mkv"
-    fsi_name = "Result_FSI.mkv"
+    depth_name = "DEPTH.mkv"
+    fsi_name = "FSI_CLAHE.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
-    rows_dirs = [ '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2/211223'
+
+    rows_dirs = [ #'/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/MEIRAVVA/291123',
+                  #'/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/MEIRAVVA/041223',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/DEMOLTMX/301123',
+                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/RAUSTENB/301123',
+                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/SUMMERG0/041223',
+                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/SUMMERG0/291123'
                  ]
 
     for rows_dir in rows_dirs:
         print('##############################################################################################')
-        #rows_dir = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2/281123"
 
         output_path = rows_dir
         # validate_output_path(output_path)
@@ -380,19 +385,31 @@ if __name__ == "__main__":
         rows = os.listdir(rows_dir)
         #rows = ['row_5']
 
-
+        errors = []
         for row in rows:
-            row_folder = os.path.join(rows_dir, row, '1')
-            args.output_folder = os.path.join(output_path, row, '1')
-            args.sync_data_log_path = os.path.join(row_folder, time_stamp)
-            args.zed.movie_path = os.path.join(row_folder, zed_name)
-            args.depth.movie_path = os.path.join(row_folder, depth_name)
-            args.jai.movie_path = os.path.join(row_folder, fsi_name)
-            args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
+            for tree in os.listdir(os.path.join(rows_dir, row)):
+                row_folder = os.path.join(rows_dir, row, tree)
+                args.output_folder = os.path.join(output_path, row, tree)
 
-            file_exists([args.sync_data_log_path, args.zed.movie_path, args.depth.movie_path, args.depth.movie_path, args.jai.movie_path, args.rgb_jai.movie_path])
+                args.sync_data_log_path = os.path.join(row_folder, time_stamp)
+                args.zed.movie_path = os.path.join(row_folder, zed_name)
+                args.depth.movie_path = os.path.join(row_folder, depth_name)
+                args.jai.movie_path = os.path.join(row_folder, fsi_name)
+                args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-            #validate_output_path(args.output_folder)
 
-            rc = run(cfg, args)
-            rc.dump_results(args.output_folder)
+                try:
+                    file_exists([args.sync_data_log_path, args.zed.movie_path, args.depth.movie_path, args.depth.movie_path, args.jai.movie_path, args.rgb_jai.movie_path], raise_error=True)
+
+                    rc = run(cfg, args)
+                    rc.dump_results(args.output_folder)
+
+                except Exception as e:
+                    # Store the error message with the path as the key
+                    errors.append(str(e))
+                    # Optionally, you can also print the error message
+                    print(f"{str(e)}")
+
+    for error_message in errors:
+        print(f"{error_message}")
+    print ('Done')

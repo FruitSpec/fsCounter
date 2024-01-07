@@ -235,7 +235,7 @@ class ResultsCollector():
     def draw_and_save(self, frame, dets, f_id, output_path, t_index=6):
 
         # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = self.draw_dets(frame, dets, t_index=t_index)
+        frame = self.draw_dets(frame, dets, t_index=t_index, text=False) # todo remove text=False
         output_file_name = os.path.join(output_path, f'frame_{f_id}_res.jpg')
         # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         cv2.imwrite(output_file_name, frame)
