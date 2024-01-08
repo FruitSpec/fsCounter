@@ -352,7 +352,6 @@ def append_to_trk(trk_batch_res, results):
 if __name__ == "__main__":
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
-    #pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
     cfg = OmegaConf.load(repo_dir + pipeline_config)
     args = OmegaConf.load(repo_dir + runtime_config)
@@ -363,25 +362,23 @@ if __name__ == "__main__":
 
     zed_name = "ZED.mkv"
     depth_name = "DEPTH.mkv"
-    fsi_name = "FSI_CLAHE.mkv"
+    fsi_name = 'Result_FSI.mkv' #"FSI_CLAHE.mkv"
     rgb_name = "Result_RGB.mkv"
     time_stamp = "jaized_timestamps.csv"
 
 
-    rows_dirs = [ #'/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/MEIRAVVA/291123',
-                  #'/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/MEIRAVVA/041223',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/DEMOLTMX/301123',
-                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/RAUSTENB/301123',
-                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/SUMMERG0/041223',
-                  # '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel/SUMMERG0/291123'
+    rows_dirs = ['/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13b_earlyredone/141223',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13royalbeauty/141223',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/25royalbeauty/151223',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-fuji-pinklady/151223',
+                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/48rosyglow/151223',
+
                  ]
 
     for rows_dir in rows_dirs:
         print('##############################################################################################')
 
         output_path = rows_dir
-        # validate_output_path(output_path)
-
         rows = os.listdir(rows_dir)
         #rows = ['row_5']
 
@@ -399,8 +396,8 @@ if __name__ == "__main__":
 
 
                 try:
-                    file_exists([args.sync_data_log_path, args.zed.movie_path, args.depth.movie_path, args.depth.movie_path, args.jai.movie_path, args.rgb_jai.movie_path], raise_error=True)
-
+                    ex = file_exists([args.sync_data_log_path, args.zed.movie_path, args.depth.movie_path, args.depth.movie_path, args.jai.movie_path, args.rgb_jai.movie_path], raise_error=True)
+                    print (f'files_exist:  {ex}')
                     rc = run(cfg, args)
                     rc.dump_results(args.output_folder)
 
