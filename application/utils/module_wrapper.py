@@ -114,13 +114,20 @@ class ModuleManager:
         try:
             return self.out_qu.get(timeout=1)
         except queue.Empty:
+            tools.log(f"QUEUE IS EMPTY RAISING DATA ERROR", logging.WARNING)
             raise DataError
+        except Exception as e:
+            tools.log(f"COULD NOT RETURN DATA FROM out_qu - {e}", logging.WARNING)
 
     def receive_transferred_data(self, data, sender_module):
         try:
             self.in_qu.put((data, sender_module), timeout=1)
-        except queue.Empty:
+        except queue.Full:
+            tools.log("IN QUEUE IS FULL!", logging.WARNING)
             raise DataError
+        except Exception as e:
+            tools.log(f"COULD NOT PUT DATA into in_qu - {e}", logging.WARNING)
+        
 
     def start(self, is_respawn=False):
         self._process.start()

@@ -268,7 +268,11 @@ def process_monitor(startup_count, startup_time):
                         )
                 except TypeError:
                     pass
+                except Exception as e:
+                    tools.log(f"COULD NOT NOTIFY ON {k}'s DEATH - {e}", logging.WARNING)
+
                 # manager[k].respawn()
+                tools.log(f"RESTARTING APPLICATION", logging.info)
                 restart_application(startup_count, startup_time)
                 return
 
