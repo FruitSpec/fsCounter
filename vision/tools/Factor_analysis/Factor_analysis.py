@@ -279,6 +279,7 @@ def add_preds_errors_sdts(blocks_df, cvs, output_path):
     return blocks_df
 
 def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES = False):
+    validate_output_path(OUTPUT_PATH)
     blocks_df = pd.DataFrame()
     blocks_multi_factors_df = pd.DataFrame()
 
@@ -324,16 +325,17 @@ if __name__ == "__main__":
 
 
 
-    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Data_files/data_meta_grapes_SA_Dec_23_updated_full_outlier_removed.csv"
+    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/Data_files/data_meta_2024-01-08_13-21-59.csv"
 
-    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/3XXXXXX4',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/8XXXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/9XXXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2']
+    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13b_earlyredone',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13royalbeauty',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/25royalbeauty',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-fuji',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-pinklady',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/48rosyglow']
 
-    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/Factors_analysis/'
+    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/Factors_analysis/'
+
     DEPTH_FILTER = 3
     CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
     DRAW_TREES = False
