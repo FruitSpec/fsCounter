@@ -235,7 +235,7 @@ class AcquisitionManager(Module):
                         action=ModuleTransferAction.MONITOR,
                         data=None,
                         receiver=ModulesEnum.Main,
-                        log_option=tools.LogOptions.NONE
+                        log_option=tools.LogOptions.LOG
                     )
                 elif action == ModuleTransferAction.SET_LOGGER:
                     set_logger()

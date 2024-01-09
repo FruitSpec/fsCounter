@@ -243,7 +243,7 @@ def process_monitor(startup_count, startup_time):
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
                 continue
             process_monitor_events[k].clear()
-            send_data_to_module(ModuleTransferAction.MONITOR, None, k)
+            send_data_to_module(ModuleTransferAction.MONITOR, None, k, log_option=tools.LogOptions.LOG)
 
         for k in manager:
             if (not conf.GUI and k == ModulesEnum.GUI) or k == ModulesEnum.Main:
