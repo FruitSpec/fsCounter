@@ -272,7 +272,7 @@ def process_monitor(startup_count, startup_time):
                     tools.log(f"COULD NOT NOTIFY ON {k}'s DEATH - {e}", logging.WARNING)
 
                 # manager[k].respawn()
-                tools.log(f"RESTARTING APPLICATION", logging.info)
+                tools.log(f"RESTARTING APPLICATION", logging.INFO)
                 restart_application(startup_count, startup_time)
                 return
 
