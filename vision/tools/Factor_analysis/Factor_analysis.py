@@ -20,6 +20,7 @@ from vision.tools.jupyter_notebooks.notebook_analysis_help_funcs import *
 from vision.tools.post_process_analysis import read_tracks_and_slices, get_block_count
 from vision.visualization.draw_bb_from_csv import draw_tree_bb_from_tracks
 from vision.misc.help_func import validate_output_path
+from vision.tools.utils_general import file_exists
 
 
 def concat_to_meta(block_meta, df):
@@ -286,6 +287,7 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
     for block_path in BLOCKS_LIST:
 
         block_ = block_path.split('/')[-1]
+        print(f'***  Block {block_}  ***')
         customer = block_path.split('/')[-2]
         block_df, row_tracks = block_analysis(block_path, METADATA_PATH, block_, DEPTH_FILTER)
         blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
@@ -323,23 +325,56 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
 
 if __name__ == "__main__":
 
+    METADATA_PATH = "/home/lihi/FruitSpec/Data/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49.csv"
 
+    # BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4',
+    #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/3XXXXXX4',
+    #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/5XXXXXX2',
+    #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/8XXXXXX3',
+    #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/9XXXXXX3',
+    #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2']
 
-    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/Data_files/data_meta_2024-01-08_13-21-59.csv"
+    # Get the full path of all blocks in the directory:
+    root_path = f'/home/lihi/FruitSpec/Data/SA/CITRUS/CAPESPN'
+    BLOCKS_LIST = []
+    for entry in os.scandir(root_path):
+        if entry.is_dir() and entry.name[0].isdigit():
+            # Construct the full path and add it to the list
+            full_path = entry.path
+            BLOCKS_LIST.append(full_path)
 
-    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13b_earlyredone',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13royalbeauty',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/25royalbeauty',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-fuji',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-pinklady',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/48rosyglow']
-
-    OUTPUT_PATH = r'/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/Factors_analysis/'
-
+    OUTPUT_PATH = os.path.join(root_path, 'Factors_analysis')
     DEPTH_FILTER = 3
     CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
     DRAW_TREES = False
 
-    factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES=False)
+##############################################
+    for block_path in BLOCKS_LIST:
+        block = block_path.split('/')[-1]
+        block_dates = os.listdir(block_path)
+        block_dates = [item for item in block_dates if item.isdigit()]
+
+        for date in block_dates:
+            date_path = os.path.join(block_path, date)
+            if not os.path.isdir(date_path):
+                continue
+            row_list = os.listdir(date_path)
+
+            for row in row_list:
+
+                row_path = os.path.join(date_path, row)
+                if not os.path.isdir(row_path):
+                    continue
+                row_path = os.path.join(row_path, '1')
+                if not os.path.exists(row_path):
+                    continue
+
+                tracks_path = os.path.join(row_path, 'tracks.csv')
+                ex = file_exists(tracks_path, raise_error=False)
+                print (f'{row_path} - TRECKS EXIST: ({ex})')
+
+
+ ###########################################
+    factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES)
 
     print ('Done')

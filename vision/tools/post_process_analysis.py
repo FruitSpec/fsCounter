@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from vision.misc.help_func import safe_read_csv, post_process_slice_df
 from vision.tools.manual_slicer import slice_to_trees_df
+from vision.tools.utils_general import file_exists
 
 def filter_outside_tree_boxes(tree_slices, tree_tracks):
     """
@@ -148,6 +149,7 @@ def get_block_count(block_path):
                 continue
 
             tracks_path = os.path.join(row_path, 'tracks.csv')
+            file_exists(tracks_path, raise_error=True)
             slice_json_path = os.path.join(row_path, 'Result_FSI_slice_data.json')
             tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
             trees_counts, trees_tracks = count_trees_fruits(tracks_df, slices_df, block, row)
