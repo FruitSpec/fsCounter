@@ -325,7 +325,7 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
 
 if __name__ == "__main__":
 
-    METADATA_PATH = "/home/lihi/FruitSpec/Data/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49.csv"
+    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49.csv"
 
     # BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/1XXXXXX4',
     #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/3XXXXXX4',
@@ -335,7 +335,7 @@ if __name__ == "__main__":
     #                '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/14XXXXX2']
 
     # Get the full path of all blocks in the directory:
-    root_path = f'/home/lihi/FruitSpec/Data/SA/CITRUS/CAPESPN'
+    root_path = f'/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN'
     BLOCKS_LIST = []
     for entry in os.scandir(root_path):
         if entry.is_dir() and entry.name[0].isdigit():
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
     DRAW_TREES = False
 
-##############################################
+    ##############################################
     for block_path in BLOCKS_LIST:
         block = block_path.split('/')[-1]
         block_dates = os.listdir(block_path)
@@ -371,7 +371,8 @@ if __name__ == "__main__":
 
                 tracks_path = os.path.join(row_path, 'tracks.csv')
                 ex = file_exists(tracks_path, raise_error=False)
-                print (f'{row_path} - TRECKS EXIST: ({ex})')
+                if not ex:
+                    print (f'{row_path} - TRECKS EXIST: ({ex})')
 
 
  ###########################################
