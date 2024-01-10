@@ -345,7 +345,17 @@ def append_to_trk(trk_batch_res, results):
     return trk_batch_res
 
 
-
+def get_all_rows_dirs(blocks_dir):
+    # Get the full path of all blocks/dates in the directory
+    rows_dirs = []
+    for entry in os.scandir(blocks_dir):
+        if entry.is_dir() and entry.name[0].isdigit():
+            # Construct the full path and add it to the list
+            full_path = entry.path
+            dates = os.listdir(full_path)
+            for date in dates:
+                rows_dirs.append(os.path.join(full_path, date))
+    return rows_dirs
 
 
 
@@ -367,13 +377,16 @@ if __name__ == "__main__":
     time_stamp = "jaized_timestamps.csv"
 
 
-    rows_dirs = ['/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13b_earlyredone/141223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13royalbeauty/141223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/25royalbeauty/151223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-fuji-pinklady/151223',
-                 '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/48rosyglow/151223',
+    # rows_dirs = ['/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13b_earlyredone/141223',
+    #              '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/13royalbeauty/141223',
+    #              '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/25royalbeauty/151223',
+    #              '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/36-fuji-pinklady/151223',
+    #              '/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/Second_clibration_scan/second scan applethwaite/48rosyglow/151223',
+    #              ]
 
-                 ]
+    BLOCKS_DIR = f'/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN'
+
+    rows_dirs = get_all_rows_dirs(BLOCKS_DIR)
 
     for rows_dir in rows_dirs:
         print('##############################################################################################')
@@ -406,6 +419,7 @@ if __name__ == "__main__":
                     errors.append(str(e))
                     # Optionally, you can also print the error message
                     print(f"{str(e)}")
+
 
     for error_message in errors:
         print(f"{error_message}")
