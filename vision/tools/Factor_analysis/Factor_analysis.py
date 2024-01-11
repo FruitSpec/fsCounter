@@ -98,9 +98,12 @@ def linear_model_selection(data, selection_cols=["cv1"], type_col="block", cross
     factors = {}
     for col in selection_cols:
         print (col)
-        factor, res_mean, res_std, tree_mean, tree_std, all_preds = run_LROCV(data, cv_col=col, type_col=type_col,
-                                                                              cross_val=cross_val, return_res=True)
-        factors[col] = {'factor': factor, 'mean_error': res_mean, 'std_error': res_std}
+        if len(data) ==1:  # if there is only one data point, no need for linear regression
+            factors[col] = {'factor': (data['F']/data[col]), 'mean_error': 0, 'std_error': 0}
+        else:
+            factor, res_mean, res_std, tree_mean, tree_std, all_preds = run_LROCV(data, cv_col=col, type_col=type_col,
+                                                                                  cross_val=cross_val, return_res=True)
+            factors[col] = {'factor': factor, 'mean_error': res_mean, 'std_error': res_std}
         if draw_plot:
             create_scatter_plot_with_hue_and_line(data, all_preds, title =f'{col}_at_factor_{round(factor[0], 3)}')
     return factors
@@ -325,9 +328,10 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
 
 if __name__ == "__main__":
 
-    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-11_11-43-49.csv"
+    METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49_new.csv"
 
-    BLOCKS_LIST = [
+    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/5XXXXXX4',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/3XXXXXX5',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/30XXXXX0',
@@ -336,12 +340,10 @@ if __name__ == "__main__":
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/21XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/26XXXXX1',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/15XXXXX3',
-                   #'/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/34XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/22XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/12XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/18XXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3']
 
     # # Get the full path of all blocks in the directory:
@@ -357,9 +359,10 @@ if __name__ == "__main__":
     OUTPUT_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Factors_analysis"
     DEPTH_FILTER = 3
     CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'] #['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
-    DRAW_TREES = False
+    DRAW_TREES = True
 
     ##############################################
+    # check if all trecks.csv files  exist:
     for block_path in BLOCKS_LIST:
         block = block_path.split('/')[-1]
         block_dates = os.listdir(block_path)
