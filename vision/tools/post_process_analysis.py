@@ -78,7 +78,7 @@ def read_tracks_and_slices(tracks_path, slice_json_path):
 
     h = 2048 if 'FSI' in slice_json_path.split('/')[-1] else 1920  # 2048
     w = 1536 if 'FSI' in slice_json_path.split('/')[-1] else 1080  # 1536
-    slices_df = slice_to_trees_df(slice_json_path, h=h, w=w)
+    slices_df = slice_to_trees_df(slice_json_path, h=h, w=w, direction='left')
 
     if "frame_id" in tracks_df.columns:
         tracks_df.rename({"frame_id": "frame"}, axis=1, inplace=True)
