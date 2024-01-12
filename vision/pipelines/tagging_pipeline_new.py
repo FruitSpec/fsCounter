@@ -284,14 +284,23 @@ if __name__ == '__main__':
     # Get a list of all rows dir paths (where there are tracks.csv files):
     # Its is done like that (and not directly on all downloaded files from s3) because that we need to manually remove unwanted rows
 
-    OUTPUT_DATA_DIR = '/home/lihi/FruitSpec/Data/CLAHE_FSI/ISRAEL/MANDAR'
-
+    ROTATE = 'counter_clockwise'
+    #OUTPUT_DATA_DIR = '/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX'
+    OUTPUT_DATA_DIR =r'/home/fruitspec-lab-3/FruitSpec/Data/grapes/SAXXXX/'
+    OUTPUT_RESULTS_DIR = r'/home/fruitspec-lab-3/FruitSpec/Data/tagging/batch15'
     local_rows_dirs = find_subdirs_with_file(OUTPUT_DATA_DIR, file_name = 'tracks.csv', return_dirs=True, single_file=False)
     local_rows_dirs = list(set([x.rsplit('/', 2)[0] for x in local_rows_dirs])) # get rows paths
 
-    pipeline = TaggingPipeline(output_dir=OUTPUT_RESULTS_DIR,rotate_option=ROTATE, frames_interval=10)
+    pipeline = TaggingPipeline(output_dir=OUTPUT_RESULTS_DIR,rotate_option=ROTATE, frames_interval=30)
 
     for ROWS_FOLDER_LOCAL in tqdm(local_rows_dirs):
+        # try:
+        #     pipeline.run(videos_folder=ROWS_FOLDER_LOCAL, save_frames=True, update_coco=True,
+        #                  video_name='Result_FSI.mkv')
+        # except Exception as e:
+        #     print(f"******* Error processing {ROWS_FOLDER_LOCAL}: {e} **********************8")
+        #     continue
+
         pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=False, update_coco=True, video_name = 'Result_FSI.mkv') # Save coco from old FSI
         pipeline.run(videos_folder = ROWS_FOLDER_LOCAL, save_frames=True, update_coco=False, video_name = 'FSI_CLAHE.mkv')  # Save frames from new FSI (CLAHE)
 
@@ -301,7 +310,7 @@ if __name__ == '__main__':
     train_coco_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/annotations/coco_train_20231123.json'
     test_coco_prev = r'/home/lihi/FruitSpec/Data/CLAHE_FSI/debug_train_test_orange/annotations/coco_test_20231123.json'
 
-    pipeline.split_data_and_images(split_ratio=0.85, seed = 42, path_previous_coco_train = train_coco_prev, path_previous_coco_test = test_coco_prev, path_previous_images_train = train_images_dir_prev, path_previous_images_test = test_images_dir_prev)
+    #pipeline.split_data_and_images(split_ratio=0.85, seed = 42, path_previous_coco_train = train_coco_prev, path_previous_coco_test = test_coco_prev, path_previous_images_train = train_images_dir_prev, path_previous_images_test = test_images_dir_prev)
 
     print('Done')
 

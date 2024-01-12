@@ -1,11 +1,10 @@
-import os
-import boto3
+
 from botocore.exceptions import ClientError
 import logging
-
 import boto3
 import os
 from botocore.exceptions import ClientError
+import subprocess
 
 
 def variable_exists(var_name):
@@ -18,7 +17,36 @@ def variable_exists(var_name):
         return False
     else:
         return True
-    
+
+def file_exists(file_paths, raise_error=True):
+    """
+    Checks if the given file or files exist at the specified path or paths.
+    file_paths can be either a path, or a list of paths.
+
+    Args:
+        file_paths (str or list): A single file path or a list of file paths.
+        raise_error (bool): If True, raises an error when a file does not exist.
+
+    Returns:
+        bool: True if all files exist, False if any file does not exist.
+
+    Raises:
+        FileNotFoundError: If any file does not exist and raise_error is True.
+    """
+    # If a single file path is provided, convert it to a list
+    if isinstance(file_paths, str):
+        file_paths = [file_paths]
+
+    # Check each file path
+    for path in file_paths:
+        if not os.path.exists(path):
+            if raise_error:
+                raise FileNotFoundError(f"File not found at path: {path}")
+            else:
+                return False
+    return True
+
+
 def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file=True):
     """
     Find file containing a given substring in a folder.
@@ -47,6 +75,30 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
         else: return subdirs_with_file
 
     else: return subdirs_with_file[0] if single_file else subdirs_with_file # if there is only one file
+
+def find_subdirs_with_string(dir_path, search_string):
+    """
+    Search for subdirectories containing a specific string within a given directory path.
+
+    Parameters:
+    dir_path (str): The directory path in which to search.
+    search_string (str): The string to search for in the subdirectory names.
+
+    Returns:
+    list: A list of paths to subdirectories containing the search string.
+    """
+    matching_subdirs = []
+    # Walk through the directory
+    for root, dirs, files in os.walk(dir_path):
+        # Check each subdirectory in the current root
+        for dir in dirs:
+            # If the search string is in the subdirectory name
+            if search_string in dir:
+                # Construct the full path and add to the list
+                full_path = os.path.join(root, dir)
+                matching_subdirs.append(full_path)
+
+    return matching_subdirs
 
 ########   S3 UTILS
 
@@ -138,7 +190,17 @@ def download_s3_files(s3_path, output_path, string_param=None, skip_existing=Tru
                     s3.download_file(bucket_name, key, local_file_path)
                     print(f"Downloaded: {local_file_path}")
 
+def sync_s3_to_local(s3_path, local_path):
+    try:
+        # Construct the command
+        command = ["aws", "s3", "sync", s3_path, local_path]
 
+        # Run the command
+        subprocess.run(command, check=True)
+
+        print("Sync completed successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred: {e}")
 
 
 def upload_to_s3(file_name, full_path_s3_dir):
@@ -171,6 +233,25 @@ def upload_to_s3(file_name, full_path_s3_dir):
 
 if __name__ == "__main__":
 
+
+    local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel'
+
+    s3_paths = [#'s3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/291123/',
+                's3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/041223/',
+                's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/DEMOLTMX/301123/',
+                's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/RAUSTENB/301123/',
+                's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/291123/',
+                's3://fruitspec.dataset/object-detection/JAI/ISRAEL/ORANGE/SUMMERG0/041223/'
+                ]
+    for s3_path in s3_paths:
+
+        output_dir = s3_path.strip('/').split('/')
+        output_dir = os.path.join(local_dir, output_dir[-2], output_dir[-1])
+        #download_s3_files(s3_path, output_dir, string_param=None, skip_existing=False, save_flat=False)
+        sync_s3_to_local(s3_path, output_dir)
+
+    print ('Done')
+############################################################
     # upload to s3:
     path_s3 = 's3://fruitspec.dataset/Temp Counter/'
     local_path = r'/home/lihi/FruitSpec/code/lihi/fsCounter/vision/lihi_debug_delete_me.py'

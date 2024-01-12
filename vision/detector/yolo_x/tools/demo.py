@@ -23,6 +23,10 @@ from yolox.utils import fuse_model, get_model_info, postprocess, vis
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
+ # image -expn CLAHE_FSI_batch12_14_wo_apples_transfer_v2 --name "yolox_tiny" --path /home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240102_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/val2017
+ # --save_result --exp_file /home/fruitspec-lab-3/FruitSpec/Code/Lihi2/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires_mixup.py
+ # --ckpt /home/fruitspec-lab-3/FruitSpec/Sandbox/CLAHE_FSI/batch12_14_without_apples/CLAHE_FSI_batch12_14_wo_apples_transfer_v2/best_ckpt.pth
+ # --conf 0.369 --nms 0.45 --tsize 1024
 
 def make_parser():
     parser = argparse.ArgumentParser("yoloX Demo!")

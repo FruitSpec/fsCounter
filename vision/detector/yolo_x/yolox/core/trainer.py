@@ -355,6 +355,10 @@ class Trainer:
         update_best_ckpt = ap50_95 > self.best_ap
         self.best_ap = max(self.best_ap, ap50_95)
 
+        # Save weights by best ap50:
+        # update_best_ckpt = ap50 > self.best_ap
+        # self.best_ap = max(self.best_ap, ap50)
+
         if self.rank == 0:
             if self.args.logger == "tensorboard":
                 self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
