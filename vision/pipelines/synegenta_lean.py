@@ -635,10 +635,9 @@ if __name__ == "__main__":
     time_stamp = "jaized_timestamps.csv"
     slice_data = "ZED_slice_data.json"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5"
-    validate_output_path(output_path)
 
-    rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
+    #rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
+    rows_dir = "/home/matans/Documents/fruitspec/sandbox/syngenta/110124"
 
     rows = os.listdir(rows_dir)
     #rows = ['row_1']

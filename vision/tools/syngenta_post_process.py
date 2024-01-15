@@ -15,9 +15,12 @@ from vision.tools.post_process_analysis import read_tracks_and_slices, get_block
 from vision.visualization.draw_bb_from_csv import draw_tree_bb_from_tracks
 
 
-def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=None):
+def analyze_section(section_df, min_samp=3, dist_center_threshold=150, color_break_threshold=0.75, debug=None):
 
-    tracks_updated, picked_clusters, tracks_to_color = get_picked_in_section(section_df, min_samp, dist_center_threshold)
+    tracks_updated, picked_clusters, tracks_to_color = get_picked_in_section(section_df,
+                                                                             min_samp,
+                                                                             dist_center_threshold,
+                                                                             color_break_threshold)
     tracks_width, tracks_height = get_tracks_width_and_height(tracks_updated)
 
     color_bins = get_color_bins(tracks_to_color)
@@ -37,7 +40,7 @@ def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=Non
 
     if debug is not None:
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
-                                 data_index=debug['picked_col'])
+                                 data_index=debug['picked_col'], output_folder=debug['tree_output'])
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
                                  data_index=debug['cluster_col'], output_folder=debug['cluster_output'])
 
@@ -46,7 +49,7 @@ def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=Non
 
 
 
-def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150):
+def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150, color_break_threshold=0.75):
     uniq, counts = np.unique(section_df["track_id"], return_counts=True)
 
     """ filter tracks below threshold"""
@@ -62,7 +65,7 @@ def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150):
 
     """ get picked clusters"""
     tracks_updated, tracks_to_color = argmax_tracks_colors(tracks_updated)
-    tracks_updated, picked_clusters = is_picked(tracks_updated, tracks_to_color)
+    tracks_updated, picked_clusters = is_picked(tracks_updated, tracks_to_color, color_break_threshold)
 
     tracks_to_color = filter_non_picked_tracks(tracks_updated, tracks_to_color)
 
@@ -355,16 +358,18 @@ def apply_model(width, height, coef, intercept):
 
 if __name__ == '__main__':
 
-    folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
-    gt_data_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223/greenhouse_data.csv"
+    folder_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/110124"
+    #gt_data_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223/greenhouse_data.csv"
+    gt_data_path = None
     if gt_data_path is not None:
         gt_df = pd.read_csv(gt_data_path)
     else:
         gt_df = None
 
-    to_debug = False
-    min_samp = 5
+    to_debug = True
+    min_samp = 7
     dist_center_threshold = 200
+    color_break_threshold = 0.9
 
     model_coef = [4.25467987, 2.40293413]
     model_intercept = -271.53407231486557
@@ -389,27 +394,36 @@ if __name__ == '__main__':
         if not os.path.isdir(row_path):
             continue
         repetitions = os.listdir(row_path)
+        row_number = int(row.split('_')[-1])
+        direction = 'right' if row_number % 2 != 0 else 'left'
         for rep in repetitions:
             rep_path = os.path.join(row_path, rep)
             tracks_path = os.path.join(rep_path, 'tracks.csv')
-            slice_json_path = os.path.join(rep_path, 'ZED_slice_data.json')
+            slice_json_path = os.path.join(rep_path, 'zed_slice_data.json')
 
             if not os.path.exists(slice_json_path):
                 continue
             try:
-                tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
+
+                tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path, direction)
 
                 row_results, trees_tracks = count_trees_fruits(tracks_df, slices_df, frame_width=1080)
                 trees = list(trees_tracks.keys())
                 for t in trees:
                     section_df = trees_tracks[t]
                     if to_debug:
-                        validate_output_path(os.path.join(rep_path, 'tree_cluster'))
+                        cluster_path = os.path.join(rep_path, 'tree_cluster_c4_2', str(t))
+                        tree_path = os.path.join(rep_path, 'tree_c4_2', str(t))
+                        validate_output_path(cluster_path)
+                        validate_output_path(tree_path)
+
+
                         debug = {'path': rep_path,
                                  'tree_id': t,
                                  'picked_col': -1,
                                  'cluster_col': -5,
-                                 'cluster_output': os.path.join(rep_path, 'tree_cluster')
+                                 'cluster_output': cluster_path,
+                                 'tree_output': tree_path
                                  }
                     else:
                         debug = None
@@ -419,6 +433,7 @@ if __name__ == '__main__':
                     section_results, tracks_width, tracks_height = analyze_section(section_df,
                                                                                    min_samp=min_samp,
                                                                                    dist_center_threshold=dist_center_threshold,
+                                                                                   color_break_threshold=color_break_threshold,
                                                                                    debug=debug)
 
                     width = np.array(tracks_width) * 1000  # convert to mm
@@ -444,6 +459,14 @@ if __name__ == '__main__':
 
                     weight = apply_model(mean_width, mean_height, model_coef, model_intercept)
 
+                    if gt_df is not None:
+                        gt_data = gt_df.query(f'row == {row_number} and tree == {t}')
+
+                        # section_results['weight GT'] = gt_data['average weight'].values[0]
+                        # section_results['clusters GT'] = gt_data['clusters'].values[0]
+                        section_results['greenhouse'] = gt_data['greenhouse'].values[0]
+                        section_results['plot'] = gt_data['plot'].values[0]
+
                     section_results['row'] = row
                     section_results['rep'] = rep
                     section_results['section'] = t
@@ -454,14 +477,7 @@ if __name__ == '__main__':
                     section_results['weight mean'] = np.mean(weight)
                     #section_results['weight std'] = np.std(weight)
 
-                    if gt_df is not None:
-                        row_number = row.split('_')[-1]
-                        gt_data = gt_df.query(f'row == {row_number} and rep == {rep} and section == {t}')
 
-                        section_results['weight GT'] = gt_data['average weight'].values[0]
-                        section_results['clusters GT'] = gt_data['clusters'].values[0]
-                        section_results['fruits GT'] = gt_data['fruits'].values[0]
-                        section_results['plot GT'] = gt_data['block'].values[0]
 
                     res.append(section_results)
             except:
