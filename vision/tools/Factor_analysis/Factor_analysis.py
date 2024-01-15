@@ -129,8 +129,8 @@ def create_scatter_plot_with_hue_and_line(data, all_preds, title, factor, axes):
     axes.legend()
 
 
-def block_analysis(block_path, metadata_path, block_, depth=3):
-    block_counts, row_tracks = get_block_count(block_path)
+def block_analysis(block_path, metadata_path, block_, depth=3, direction = 'right'):
+    block_counts, row_tracks = get_block_count(block_path, direction = direction)
     block_counts_df = pd.DataFrame(block_counts, columns=['tree_id', 'block', 'row', '1', '2','3'])
     meta_data = pd.read_csv(metadata_path)
     block_meta = meta_data.query(f'block == "{block_}"')
@@ -282,7 +282,7 @@ def add_preds_errors_sdts(blocks_df, cvs, output_path):
 
     return blocks_df
 
-def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES = False):
+def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES = False, direction = 'right'):
     validate_output_path(OUTPUT_PATH)
     blocks_df = pd.DataFrame()
     blocks_multi_factors_df = pd.DataFrame()
@@ -292,7 +292,7 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
         block_ = block_path.split('/')[-1]
         print(f'***  Block {block_}  ***')
         customer = block_path.split('/')[-2]
-        block_df, row_tracks = block_analysis(block_path, METADATA_PATH, block_, DEPTH_FILTER)
+        block_df, row_tracks = block_analysis(block_path, METADATA_PATH, block_, DEPTH_FILTER, direction)
         blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
         if DRAW_TREES:
             draw_tree_bb_for_block(block_path, block_df, row_tracks, dir='1')
@@ -330,7 +330,8 @@ if __name__ == "__main__":
 
     METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49_new.csv"
 
-    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
+    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3',
+                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/5XXXXXX4',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/3XXXXXX5',
@@ -344,7 +345,7 @@ if __name__ == "__main__":
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/22XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/12XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/18XXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3']
+                   ]
 
     # # Get the full path of all blocks in the directory:
     # root_path = f'/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN'
@@ -390,6 +391,6 @@ if __name__ == "__main__":
 
 
  ###########################################
-    factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES)
+    factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES, direction = 'left')
 
     print ('Done')
