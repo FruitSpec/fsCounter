@@ -15,9 +15,12 @@ from vision.tools.post_process_analysis import read_tracks_and_slices, get_block
 from vision.visualization.draw_bb_from_csv import draw_tree_bb_from_tracks
 
 
-def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=None):
+def analyze_section(section_df, min_samp=3, dist_center_threshold=150, color_break_threshold=0.75, debug=None):
 
-    tracks_updated, picked_clusters, tracks_to_color = get_picked_in_section(section_df, min_samp, dist_center_threshold)
+    tracks_updated, picked_clusters, tracks_to_color = get_picked_in_section(section_df,
+                                                                             min_samp,
+                                                                             dist_center_threshold,
+                                                                             color_break_threshold)
     tracks_width, tracks_height = get_tracks_width_and_height(tracks_updated)
 
     color_bins = get_color_bins(tracks_to_color)
@@ -37,7 +40,7 @@ def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=Non
 
     if debug is not None:
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
-                                 data_index=debug['picked_col'])
+                                 data_index=debug['picked_col'], output_folder=debug['tree_output'])
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
                                  data_index=debug['cluster_col'], output_folder=debug['cluster_output'])
 
@@ -46,7 +49,7 @@ def analyze_section(section_df, min_samp=3, dist_center_threshold=150, debug=Non
 
 
 
-def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150):
+def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150, color_break_threshold=0.75):
     uniq, counts = np.unique(section_df["track_id"], return_counts=True)
 
     """ filter tracks below threshold"""
@@ -62,7 +65,7 @@ def get_picked_in_section(section_df, min_samp=3, dist_center_threshold=150):
 
     """ get picked clusters"""
     tracks_updated, tracks_to_color = argmax_tracks_colors(tracks_updated)
-    tracks_updated, picked_clusters = is_picked(tracks_updated, tracks_to_color)
+    tracks_updated, picked_clusters = is_picked(tracks_updated, tracks_to_color, color_break_threshold)
 
     tracks_to_color = filter_non_picked_tracks(tracks_updated, tracks_to_color)
 
@@ -103,103 +106,73 @@ def curate_clusters(tracks_df, dist_center_threshold=150):
     tracks_df['center_x'] = (tracks_df['x1'] + tracks_df['x2']) / 2
     tracks_df['center_y'] = (tracks_df['y1'] + tracks_df['y2']) / 2
 
+    f_ids = np.unique(tracks_df['frame'])
 
-    for t_id, clusters in tracks_to_clusters.items():
-        if len(clusters) == 2:
-            first_cluster = clusters[0]
-            second_cluster = clusters[1]
-            
-            if first_cluster == 292 or second_cluster == 292:
-                a = 1
+    stats = {}
+    for f_id in f_ids:
+        sub_df = tracks_df.query(f'frame == {f_id}')
 
-            first_df = tracks_df[tracks_df['cluster_id'] == first_cluster].copy()
-            first_frames = first_df.frame.unique()
+        frame_clusters = np.unique(sub_df['cluster_id'])
+        number_of_clusters = len(frame_clusters)
+        if number_of_clusters <= 1:
+            continue
 
-            second_df = tracks_df[tracks_df['cluster_id'] == second_cluster].copy()
-            second_frames = second_df.frame.unique()
+        data = []
+        centers = []
+        t_ids = []
+        init_to_c = {}
+        for id_, c in enumerate(frame_clusters):
+            c_df = sub_df.query(f'cluster_id == {c}')
+            c_k_df = c_df.loc[:, ['center_x', 'center_y', 'depth']]
+            c_k_ids = c_df.loc[:, 'track_id']
+            center = c_k_df.mean()
 
-            if len(first_frames) == 0 or len(second_frames) == 0:
-                continue
-
-            mutual_frames = []
-            for f_id in first_frames:
-                if f_id in second_frames:
-                    mutual_frames.append(f_id)
-           
-            if len(mutual_frames) == 0:  # no overlap
-                # merge to first cluster
-                tracks_df.loc[tracks_df['cluster_id'] == second_cluster, 'cluster_id'] = first_cluster  
-           
-            else:  # there is overlap.
+            center['center_x'] = center['center_x'] / 1080
+            center['center_y'] = center['center_y'] / 1920
 
 
-                first_df_overlap = first_df[np.isin(first_df["frame"], mutual_frames)]
-                second_df_overlap = second_df[np.isin(second_df["frame"], mutual_frames)]
+            data.append(c_k_df)
+            centers.append(center)
+            t_ids.append(c_k_ids)
+            init_to_c[id_] = c
+
+        init_arr = pd.concat(centers, ignore_index=True).to_numpy()
+        init_arr = init_arr.reshape([number_of_clusters, 3])
+
+        k_ids = pd.concat(t_ids, ignore_index=True).to_numpy()
+
+        combined_k_df = pd.concat(data, ignore_index=True)
+
+        combined_k_df['center_x'] = combined_k_df['center_x'] / 1080
+        combined_k_df['center_y'] = combined_k_df['center_y'] / 1920
+
+        kmeans = KMeans(n_clusters=number_of_clusters, random_state=0, max_iter=100, init=init_arr, n_init=1)
+        pred = kmeans.fit_predict(combined_k_df.to_numpy())
+
+        stats_ids = list(stats.keys())
+        for id_, t_id in enumerate(k_ids):
+            if t_id not in stats_ids:
+                stats[t_id] = {}
+
+            track_pred = pred[id_]
+            track_pred_cluster = init_to_c[track_pred]
+            cur_clusters = list(stats[t_id].keys())
+            if track_pred_cluster in cur_clusters:
+                stats[t_id][track_pred_cluster] += 1
+            else:
+                stats[t_id][track_pred_cluster] = 1
 
 
-                f_tracks = np.unique(first_df_overlap['track_id'])
-                s_tracks = np.unique(second_df_overlap['track_id'])
-
-                # at least one small cluster
-                if len(f_tracks) <= 2 or len(s_tracks) <= 2:
-                    dist = get_clusters_distance(first_df_overlap, second_df_overlap)
-                    if dist <= dist_center_threshold:  # distance below threshold merge clusters
-                        if len(f_tracks) <= len(s_tracks):
-                            cluster_to_merge = first_cluster
-                            cluster_to_update = second_cluster
-                        else:
-                            cluster_to_merge = second_cluster
-                            cluster_to_update = first_cluster
-                        tracks_df.loc[tracks_df['cluster_id'] == cluster_to_merge, 'cluster_id'] = cluster_to_update
-
-                # too big - remove joined
-                else:
-                    stats = {}
-                    for f_id in mutual_frames:
-                        f_frame_df = first_df[first_df['frame'] == f_id]
-                        s_frame_df = second_df[second_df['frame'] == f_id]
 
 
-                        f_k_df = f_frame_df.loc[:,['center_x', 'center_y', 'depth']]
-                        f_k_ids = f_frame_df.loc[:, 'track_id']
-                        s_k_df = s_frame_df.loc[:, ['center_x', 'center_y', 'depth']]
-                        s_k_ids = s_frame_df.loc[:, 'track_id']
-                        k_ids = pd.concat([f_k_ids, s_k_ids], ignore_index=True).to_numpy()
-
-                        f_k_center = f_k_df.mean()
-                        f_k_center['center_x'] = f_k_center['center_x'] / 1080
-                        f_k_center['center_y'] = f_k_center['center_y'] / 1920
-
-                        s_k_center = s_k_df.mean()
-                        s_k_center['center_x'] = s_k_center['center_x'] / 1080
-                        s_k_center['center_y'] = s_k_center['center_y'] / 1920
-
-                        init_arr = pd.concat([f_k_center, s_k_center], ignore_index=True).to_numpy()
-                        init_arr = init_arr.reshape([2, 3])
-
-                        combined_k_df = pd.concat([f_k_df, s_k_df], ignore_index=True)
-
-                        combined_k_df['center_x'] = combined_k_df['center_x'] / 1080
-                        combined_k_df['center_y'] = combined_k_df['center_y'] / 1920
-
-                        kmeans = KMeans(n_clusters=2, random_state=0, max_iter=100, init=init_arr, n_init=1)
-                        pred = kmeans.fit_predict(combined_k_df.to_numpy())
-
-                        stats_ids = list(stats.keys())
-                        for id_, t_id in enumerate(k_ids):
-                            if t_id not in stats_ids:
-                                stats[t_id] = {first_cluster: 0, second_cluster: 0}
-
-                            if pred[id_] == 0:
-                                stats[t_id][first_cluster] += 1
-                            else:
-                                stats[t_id][second_cluster] += 1
-
-
-                    for t_id, counts in stats.items():
-                        clusters_ids = list(counts.keys())
-                        best_cluster = clusters_ids[0] if counts[clusters_ids[0]] > counts[clusters_ids[1]] else clusters_ids[1]
-                        tracks_df.loc[tracks_df['track_id'] == t_id, 'cluster_id'] = int(best_cluster)
+    for t_id, counts in stats.items():
+        clusters_ids = list(counts.keys())
+        max_count = 0
+        for c in clusters_ids:
+            if counts[c] > max_count:
+                max_count = counts[c]
+                best_cluster = c
+        tracks_df.loc[tracks_df['track_id'] == t_id, 'cluster_id'] = int(best_cluster)
 
          
     return tracks_df
@@ -355,16 +328,17 @@ def apply_model(width, height, coef, intercept):
 
 if __name__ == '__main__':
 
-    folder_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
-    gt_data_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223/greenhouse_data.csv"
+    folder_path = "/home/fruitspec-lab/FruitSpec/Data/Syngenta/110124"
+    gt_data_path = "/home/fruitspec-lab/FruitSpec/Data/Syngenta/almeria_plot_meta.csv"
     if gt_data_path is not None:
         gt_df = pd.read_csv(gt_data_path)
     else:
         gt_df = None
 
-    to_debug = False
-    min_samp = 5
+    to_debug = True
+    min_samp = 7
     dist_center_threshold = 200
+    color_break_threshold = 0.9
 
     model_coef = [4.25467987, 2.40293413]
     model_intercept = -271.53407231486557
@@ -389,27 +363,36 @@ if __name__ == '__main__':
         if not os.path.isdir(row_path):
             continue
         repetitions = os.listdir(row_path)
+        row_number = int(row.split('_')[-1])
+        direction = 'right' if row_number % 2 != 0 else 'left'
         for rep in repetitions:
             rep_path = os.path.join(row_path, rep)
             tracks_path = os.path.join(rep_path, 'tracks.csv')
-            slice_json_path = os.path.join(rep_path, 'ZED_slice_data.json')
+            slice_json_path = os.path.join(rep_path, 'zed_slice_data.json')
 
             if not os.path.exists(slice_json_path):
                 continue
             try:
-                tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path)
+
+                tracks_df, slices_df = read_tracks_and_slices(tracks_path, slice_json_path, direction)
 
                 row_results, trees_tracks = count_trees_fruits(tracks_df, slices_df, frame_width=1080)
                 trees = list(trees_tracks.keys())
                 for t in trees:
                     section_df = trees_tracks[t]
                     if to_debug:
-                        validate_output_path(os.path.join(rep_path, 'tree_cluster'))
+                        cluster_path = os.path.join(rep_path, 'tree_cluster_c4_2', str(t))
+                        tree_path = os.path.join(rep_path, 'tree_c4_2', str(t))
+                        validate_output_path(cluster_path)
+                        validate_output_path(tree_path)
+
+
                         debug = {'path': rep_path,
                                  'tree_id': t,
                                  'picked_col': -1,
                                  'cluster_col': -5,
-                                 'cluster_output': os.path.join(rep_path, 'tree_cluster')
+                                 'cluster_output': cluster_path,
+                                 'tree_output': tree_path
                                  }
                     else:
                         debug = None
@@ -419,6 +402,7 @@ if __name__ == '__main__':
                     section_results, tracks_width, tracks_height = analyze_section(section_df,
                                                                                    min_samp=min_samp,
                                                                                    dist_center_threshold=dist_center_threshold,
+                                                                                   color_break_threshold=color_break_threshold,
                                                                                    debug=debug)
 
                     width = np.array(tracks_width) * 1000  # convert to mm
@@ -444,6 +428,14 @@ if __name__ == '__main__':
 
                     weight = apply_model(mean_width, mean_height, model_coef, model_intercept)
 
+                    if gt_df is not None:
+                        gt_data = gt_df.query(f'row == {row_number} and tree == {t}')
+
+                        # section_results['weight GT'] = gt_data['average weight'].values[0]
+                        # section_results['clusters GT'] = gt_data['clusters'].values[0]
+                        section_results['greenhouse'] = gt_data['greenhouse'].values[0]
+                        section_results['plot'] = gt_data['plot'].values[0]
+
                     section_results['row'] = row
                     section_results['rep'] = rep
                     section_results['section'] = t
@@ -454,14 +446,7 @@ if __name__ == '__main__':
                     section_results['weight mean'] = np.mean(weight)
                     #section_results['weight std'] = np.std(weight)
 
-                    if gt_df is not None:
-                        row_number = row.split('_')[-1]
-                        gt_data = gt_df.query(f'row == {row_number} and rep == {rep} and section == {t}')
 
-                        section_results['weight GT'] = gt_data['average weight'].values[0]
-                        section_results['clusters GT'] = gt_data['clusters'].values[0]
-                        section_results['fruits GT'] = gt_data['fruits'].values[0]
-                        section_results['plot GT'] = gt_data['block'].values[0]
 
                     res.append(section_results)
             except:

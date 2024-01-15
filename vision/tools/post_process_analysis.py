@@ -79,12 +79,12 @@ def get_tree_slice_track(tree_id, slices_df,tracks_df, max_depth=None, min_samp_
     return tree_tracks, tracker_results, tree_slices
 
 
-def read_tracks_and_slices(tracks_path, slice_json_path):
+def read_tracks_and_slices(tracks_path, slice_json_path, direction):
     tracks_df = safe_read_csv(tracks_path)
 
     h = 2048 if 'FSI' in slice_json_path.split('/')[-1] else 1920  # 2048
     w = 1536 if 'FSI' in slice_json_path.split('/')[-1] else 1080  # 1536
-    slices_df = slice_to_trees_df(slice_json_path, h=h, w=w)
+    slices_df = slice_to_trees_df(slice_json_path, h=h, w=w, direction=direction)
 
     if "frame_id" in tracks_df.columns:
         tracks_df.rename({"frame_id": "frame"}, axis=1, inplace=True)

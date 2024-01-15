@@ -635,10 +635,8 @@ if __name__ == "__main__":
     time_stamp = "jaized_timestamps.csv"
     slice_data = "ZED_slice_data.json"
 
-    output_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/lean_flow_test_data_291123_5"
-    validate_output_path(output_path)
 
-    rows_dir = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223"
+    rows_dir = "/home/fruitspec-lab/FruitSpec/Data/Syngenta/110124"
 
     rows = os.listdir(rows_dir)
     #rows = ['row_1']
@@ -658,8 +656,8 @@ if __name__ == "__main__":
             args.jai.movie_path = os.path.join(row_folder, fsi_name)
             args.rgb_jai.movie_path = os.path.join(row_folder, rgb_name)
 
-            if not os.path.exists(os.path.join(row_folder, slice_data)):
-                 continue
+            # if not os.path.exists(os.path.join(row_folder, slice_data)):
+            #      continue
 
             validate_output_path(args.output_folder)
 
