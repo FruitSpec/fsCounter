@@ -25,26 +25,13 @@ def analyze_section(section_df, min_samp=3, dist_center_threshold=150, color_bre
 
     color_bins = get_color_bins(tracks_to_color)
 
-    section_report = {'clusters': len(picked_clusters),
-                      'total_fruit': len(tracks_to_color),
-                      'width mean': np.mean(tracks_width),
-                      'width std': np.std(tracks_width),
-                      'height mean': np.mean(tracks_height),
-                      'height std': np.std(tracks_height),
-                      'bin_1': color_bins[1],
-                      'bin_2': color_bins[2],
-                      'bin_3': color_bins[3],
-                      'bin_4': color_bins[4],
-                      'bin_5': color_bins[5],
-                      }
-
     if debug is not None:
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
                                  data_index=debug['picked_col'], output_folder=debug['tree_output'])
         draw_tree_bb_from_tracks(tracks_updated, debug['path'], debug['tree_id'], is_zed=True,
                                  data_index=debug['cluster_col'], output_folder=debug['cluster_output'])
 
-    return section_report,  tracks_width, tracks_height
+    return picked_clusters, color_bins, tracks_to_color,  tracks_width, tracks_height
 
 
 
@@ -352,22 +339,51 @@ def apply_model(width, height, coef, intercept):
 
     return width * coef[0] + height * coef[1] + intercept
 
+def get_weight_std(conv_width, conv_height, model_coef):
+    var_width = np.var(conv_width)
+    var_height = np.var(conv_height)
+    weight_std = np.sqrt((var_width * np.power(model_coef[0], 2)) + (var_height * np.power(model_coef[1], 2)))
+
+    return weight_std
+
+def create_results_dict(gt_data, tracks_to_color, color_bins, weight, weight_std, conv_width, row, rep):
+
+    plot_results = dict()
+    plot_results['Farm'] = gt_data['Farm'].values[0]
+    plot_results['Plot_name'] = gt_data['Plot_name'].values[0]
+    plot_results['FS_variety'] = gt_data['FS_variety'].values[0]
+    plot_results['count'] = len(tracks_to_color)
+    plot_results['bin_1'] = color_bins[1]
+    plot_results['bin_2'] = color_bins[2]
+    plot_results['bin_3'] = color_bins[3]
+    plot_results['bin_4'] = color_bins[4]
+    plot_results['bin_5'] = color_bins[5]
+    plot_results['total_weight_kg'] = np.round((len(tracks_to_color) * np.mean(weight)) / 1000, 1)  # in kg
+    plot_results['weight_avg_gr'] = np.round(weight, 1)
+    plot_results['weight_std'] = np.round(weight_std, 1)
+    plot_results['size_avg_mm'] = np.round(np.mean(conv_width), 1)
+    plot_results['size_std'] = np.round(np.std(conv_width), 1)
+    plot_results['row'] = row
+    plot_results['rep'] = rep
+
+    return plot_results
+
+
 
 
 
 
 if __name__ == '__main__':
 
-    folder_path = "/home/matans/Documents/fruitspec/sandbox/syngenta/110124"
-    #gt_data_path = "/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223/greenhouse_data.csv"
-    gt_data_path = None
+    folder_path = "/home/fruitspec-lab/FruitSpec/Data/Syngenta/110124"
+    gt_data_path = "/home/fruitspec-lab/FruitSpec/Data/Syngenta/almeria_plot_meta.csv"
     if gt_data_path is not None:
         gt_df = pd.read_csv(gt_data_path)
     else:
         gt_df = None
 
     to_debug = True
-    min_samp = 7
+    min_samp = 3
     dist_center_threshold = 200
     color_break_threshold = 0.9
 
@@ -412,8 +428,8 @@ if __name__ == '__main__':
                 for t in trees:
                     section_df = trees_tracks[t]
                     if to_debug:
-                        cluster_path = os.path.join(rep_path, 'tree_cluster_c4_2', str(t))
-                        tree_path = os.path.join(rep_path, 'tree_c4_2', str(t))
+                        cluster_path = os.path.join(rep_path, 'tree_cluster_c3_2', str(t))
+                        tree_path = os.path.join(rep_path, 'tree_c3_2', str(t))
                         validate_output_path(cluster_path)
                         validate_output_path(tree_path)
 
@@ -430,11 +446,11 @@ if __name__ == '__main__':
 
 
 
-                    section_results, tracks_width, tracks_height = analyze_section(section_df,
-                                                                                   min_samp=min_samp,
-                                                                                   dist_center_threshold=dist_center_threshold,
-                                                                                   color_break_threshold=color_break_threshold,
-                                                                                   debug=debug)
+                    picked_clusters, color_bins, tracks_to_color,  tracks_width, tracks_height = analyze_section(section_df,
+                                                                                                                 min_samp=min_samp,
+                                                                                                                 dist_center_threshold=dist_center_threshold,
+                                                                                                                 color_break_threshold=color_break_threshold,
+                                                                                                                 debug=debug)
 
                     width = np.array(tracks_width) * 1000  # convert to mm
                     height = np.array(tracks_height) * 1000  # convert to mm
@@ -458,24 +474,19 @@ if __name__ == '__main__':
                     mean_height = np.nanmean(conv_height)
 
                     weight = apply_model(mean_width, mean_height, model_coef, model_intercept)
+                    weight_std = get_weight_std(conv_width, conv_height, model_coef)
 
-                    if gt_df is not None:
-                        gt_data = gt_df.query(f'row == {row_number} and tree == {t}')
+                    gt_data = gt_df.query(f'row == {row_number} and tree == {t}')
+                    #gt_data = gt_df.query(f'Plot_name == "{plot_name}"')
 
-                        # section_results['weight GT'] = gt_data['average weight'].values[0]
-                        # section_results['clusters GT'] = gt_data['clusters'].values[0]
-                        section_results['greenhouse'] = gt_data['greenhouse'].values[0]
-                        section_results['plot'] = gt_data['plot'].values[0]
-
-                    section_results['row'] = row
-                    section_results['rep'] = rep
-                    section_results['section'] = t
-                    section_results['width mean'] = mean_width
-                    section_results['width std'] = np.std(conv_width)
-                    section_results['height mean'] = mean_height
-                    section_results['height std'] = np.std(conv_height)
-                    section_results['weight mean'] = np.mean(weight)
-                    #section_results['weight std'] = np.std(weight)
+                    section_results = create_results_dict(gt_data,
+                                                          tracks_to_color,
+                                                          color_bins,
+                                                          weight,
+                                                          weight_std,
+                                                          conv_width,
+                                                          row,
+                                                          rep)
 
 
 
@@ -485,5 +496,5 @@ if __name__ == '__main__':
 
 
     results = pd.DataFrame(res, columns=list(section_results.keys()))
-    results.to_csv(os.path.join(folder_path, 'results.csv'))
+    results.to_csv(os.path.join(folder_path, 'results_a.csv'))
 

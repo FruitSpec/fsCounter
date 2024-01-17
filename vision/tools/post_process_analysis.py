@@ -93,10 +93,14 @@ def read_tracks_and_slices(tracks_path, slice_json_path, direction):
     return tracks_df, slices_df
 
 
-def count_trees_fruits(tracks_df, slices_df, block=None, row=None, frame_width=1536, cv_filter=[1,2,3]):
+def count_trees_fruits(tracks_df, slices_df, block=None, row=None, frame_width=1536, cv_filter=[1,2,3], direction='right'):
     row_results = []
 
     slices_df = post_process_slice_df(slices_df)
+
+    if direction == 'left':
+        slices_df["start"], slices_df["end"] = slices_df["end"], slices_df["start"]
+
     slices_df["start"] = slices_df["start"].replace(-1, 0)
     slices_df["end"] = slices_df["end"].replace(-1, int(frame_width - 1))
 

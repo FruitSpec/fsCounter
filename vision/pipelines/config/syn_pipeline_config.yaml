@@ -49,8 +49,8 @@ jai:
     debug: false
 
 zed:
-  exp_file: /home/matans/Documents/fruitspec/Code/Matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_RGB.py
-  ckpt_file: /home/matans/Documents/fruitspec/Weights/tomato_zed/Nov_12_23_1Class_ZED_RGB/best_ckpt.pth
+  exp_file: /home/fruitspec-lab/FruitSpec/Code/matan/fsCounter/vision/detector/yolo_x/exps/fruitspec/fs_yolox_tiny_lr_hires.py
+  ckpt_file: /home/fruitspec-lab/FruitSpec/weights/Syngenta_RGB_M231231_01/best_ckpt.pth
   device: cuda
   input_size: [ 1024, 1024 ]
   batch_size: 4
@@ -58,7 +58,7 @@ zed:
   calibration_path: /media/matans/My Book/FruitSpec/target/zed/calibration.npz
 
   detector:
-    confidence: 0.6
+    confidence: 0.546
     nms: 0.45
     num_of_classes: 1
     fp16: true
@@ -92,7 +92,7 @@ zed:
     match_type: inter #center #
     det_area: 1
     translation_size: 640
-    compile_data_path: /home/matans/Documents/fruitspec/Code/Matan/tracker_init.pkl
+    compile_data_path: /home/fruitspec-lab/FruitSpec/weights/tracker_init.pkl
     debug: false
 
 translation:

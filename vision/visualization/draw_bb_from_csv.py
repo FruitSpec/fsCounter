@@ -23,6 +23,7 @@ def validate_from_files(tracks, cfg, args, alignment=None, dets_only=False, data
 
     frame_loader = FramesLoader(cfg, args)
     frame_loader.batch_size = 1
+    rc = ResultsCollector()
 
     for id_ in tqdm(jai_frames):
         zed_batch, depth_batch, jai_batch, rgb_batch = frame_loader.get_frames(int(id_), 0)
@@ -31,12 +32,12 @@ def validate_from_files(tracks, cfg, args, alignment=None, dets_only=False, data
                 frame = zed_batch[0]
             else:
                 frame = jai_batch[0]
-            rc = ResultsCollector()
-            jai = rc.draw_dets(frame = frame, dets = dets[id_], t_index=data_index)
+
+            im = rc.draw_dets(frame = frame, dets = dets[id_], t_index=data_index)
             fp = os.path.join(args.output_folder, 'Dets')
             validate_output_path(fp)
 
-            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), jai)
+            cv2.imwrite(os.path.join(fp, f"dets_f{id_}.jpg"), im)
         else:
             save_aligned(zed_batch[0],
                          jai_batch[0],
@@ -103,7 +104,7 @@ def get_alignment_hash(alignment):
 
     return hash
 
-def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id, is_zed=False, data_index=6, output_folder=None):
+def draw_tree_bb_from_tracks(tree_tracks, row_path, tree_id=None, is_zed=False, data_index=6, output_folder=None):
     repo_dir = get_repo_dir()
     pipeline_config = "/vision/pipelines/config/pipeline_config.yaml"
     runtime_config = "/vision/pipelines/config/dual_runtime_config.yaml"
