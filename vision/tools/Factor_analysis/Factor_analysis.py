@@ -105,29 +105,49 @@ def linear_model_selection(data, selection_cols=["cv1"], type_col="block", cross
                                                                                   cross_val=cross_val, return_res=True)
             factors[col] = {'factor': factor, 'mean_error': res_mean, 'std_error': res_std}
         if draw_plot:
-            create_scatter_plot_with_hue_and_line(data, all_preds, title =f'{col}_at_factor_{round(factor[0], 3)}')
+            create_scatter_plot_with_hue_and_line(data, all_preds, title =f'{col}_at_factor_{round(factor[0], 3)}', cvs = selection_cols)
     return factors
 
 
-def create_scatter_plot_with_hue_and_line(data, all_preds, title, factor, axes):
+def create_scatter_plot_with_hue_and_line(data, all_preds, title, factor, axes, cvs):
     unique_blocks = data['block'].unique()
-    for block in unique_blocks:
-        axes.scatter(all_preds[data['block'] == block], data['F'][data['block'] == block], label=f'{block}')
 
-    x = np.linspace(0, data['F'].max(), len(all_preds))
-    y = 1 * x  # slope
-    #axes.plot(x, y, label='perfect pred', color='gray')
+    # Custom color palette
+    custom_palette = [
+        '#1f77b4',  # blue
+        '#ff7f0e',  # orange
+        '#2ca02c',  # green
+        '#d62728',  # red
+        '#9467bd',  # purple
+        '#8c564b',  # brown
+        '#e377c2',  # pink
+        '#7f7f7f',  # gray
+        '#bcbd22',  # olive
+        '#17becf',  # cyan
+        '#393b79',  # dark blue
+        '#000000',  # black
+        '#7FFFD4',  # aquamarine
+        '#ffff00',  # yellow
+        '#F2CC8F'   # dark purple
+        # Add more colors if you have more than 15 blocks
+    ]
+
+    for idx, block in enumerate(unique_blocks):
+        color = custom_palette[idx % len(custom_palette)]  # Cycle through the palette
+        block_data = data[data['block'] == block]
+        axes.scatter(all_preds[block_data.index], block_data['F'], label=f'{block}', color=color)
+
+    max_value = max(data['F'].max(), data[cvs[0]].max(), data[cvs[1]].max())
+    x = np.linspace(0, max_value, len(all_preds))
+    y = x
     axes.plot(x, y * factor, label=f'regression line {round(factor,2)}', color='green')
 
-    max_value = data['F'].max()
     axes.set_xlim(0, max_value + 10)
     axes.set_ylim(0, max_value + 10)
-
     axes.set_xlabel('CV')
     axes.set_ylabel('Fruit')
     axes.set_title(title)
     axes.legend()
-
 
 def block_analysis(block_path, metadata_path, block_, depth=3, direction = 'right'):
     block_counts, row_tracks = get_block_count(block_path, direction = direction)
@@ -151,8 +171,8 @@ def get_selection_error(factors_dict, block_df):
 
 def scatter_plot(blocks_df, cvs = ['cv3','dcv3'], title = 'before_factor'):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))  # Adjust figsize as needed
-    create_scatter_plot_with_hue_and_line(blocks_df, blocks_df[cvs[0]], f"Fruit_vs_{cvs[0]}_{title}", factor = blocks_df[f'factor_{cvs[0]}'][0], axes = ax1)
-    create_scatter_plot_with_hue_and_line(blocks_df, blocks_df[cvs[1]], f"Fruit_vs_{cvs[1]}_{title}", factor = blocks_df[f'factor_{cvs[1]}'][0], axes = ax2)
+    create_scatter_plot_with_hue_and_line(blocks_df, blocks_df[cvs[0]], f"Fruit_vs_{cvs[0]}_{title}", factor = blocks_df[f'factor_{cvs[0]}'][0], axes = ax1, cvs =cvs)
+    create_scatter_plot_with_hue_and_line(blocks_df, blocks_df[cvs[1]], f"Fruit_vs_{cvs[1]}_{title}", factor = blocks_df[f'factor_{cvs[1]}'][0], axes = ax2, cvs =cvs)
     plt.tight_layout()
     fig.savefig(os.path.join(OUTPUT_PATH, f"{title}.png"))
     print(f'Saved: {os.path.join(OUTPUT_PATH, f"{title}.png")}')
@@ -323,14 +343,16 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
     df_blocks_means_results = process_blocks_means_results(blocks_df, output_path = os.path.join(OUTPUT_PATH, 'Factor_Analysis_single_factor_blocks_means.csv'))
 
     # plot all blocks before factor:
-    scatter_plot(blocks_df, cvs = ['cv3','dcv3'], title='before_factor')
+    scatter_plot(blocks_df, cvs = ['cv1','dcv1'], title='scatter_cv1')
+    scatter_plot(blocks_df, cvs=['cv2', 'dcv2'], title='scatter_cv2')
 ###########################
 
 if __name__ == "__main__":
 
     METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49_new.csv"
 
-    BLOCKS_LIST = ['/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3',
+    BLOCKS_LIST = [
+                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/5XXXXXX4',
@@ -358,9 +380,9 @@ if __name__ == "__main__":
 
     # OUTPUT_PATH = os.path.join(root_path, 'Factors_analysis')
     OUTPUT_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Factors_analysis"
-    DEPTH_FILTER = 3
+    DEPTH_FILTER = 7.9
     CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'] #['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
-    DRAW_TREES = True
+    DRAW_TREES = False
 
     ##############################################
     # check if all trecks.csv files  exist:
