@@ -81,7 +81,7 @@ def convert_width_and_height(tracks_updated, upper_filter=0.09, lower_filter=0.0
     return conv_width, conv_height
 
 def save_images(tracks_df, data_path, clu):
-    cluster_path = os.path.join(data_path, 'cluster', clu)
+    cluster_path = os.path.join(data_path, 'manual_cluster', clu)
     validate_output_path(cluster_path)
 
     data_dict = {'path': data_path,
