@@ -768,8 +768,32 @@ def get_all_slicing_and_n_trees():
     pd.DataFrame({"json_path": json_paths, "n_trees": res}).to_csv(
         "/media/fruitspec-lab/easystore/slice_data_test/sliced_trees_summaty.csv")
 
+def convert_mp4_json(json_path, jz_file_path, output_path):
+    if os.path.exists(json_path):
+        with open(json_path, 'r') as f:
+            loaded_data = json.load(f)
+    jz = pd.read_csv(jz_file_path)
+
+    jz = jz.query('is_recording == True')
+    zed_frames, jai_frames = arrange_ids(jz['JAI_frame_number'], jz['ZED_frame_number'])
+
+    new_slices = {}
+    for k, v in loaded_data.items():
+        if int(k) in zed_frames:
+            frame_id = zed_frames.index(int(k))
+            new_slices[str(frame_id)] = v
+
+    with open(os.path.join(output_path, 'orig_zed_slice_data.json'), 'w') as f:
+        json.dump(loaded_data, f)
+
+
+    with open(os.path.join(output_path, json_path.split('/')[-1]), 'w') as f:
+        json.dump(new_slices, f)
+
+
+
 if __name__ == "__main__":
-    path = '/media/matans/My Book/FruitSpec/Syngenta/Calibration_data/141223/row_8/1'
+    path = '/home/fruitspec-lab/FruitSpec/Data/Syngenta/110124/row_1/1'
     fp = os.path.join(path, 'ZED.svo') # Result_FSI.mkv # FSI_CLAHE.mkv
     #fp = '/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/Result_FSI.mkv'
     jz_file = os.path.join(path, 'jaized_timestamps.csv') #None
@@ -777,6 +801,11 @@ if __name__ == "__main__":
     validate_output_path(output_path)
     rotate = 1 if 'FSI' in fp.split('/')[-1] else 2
     manual_slicer(fp, output_path, jz_file=jz_file,rotate=rotate)
+
+    #json_path = '/home/fruitspec-lab/FruitSpec/Data/Syngenta/110124/row_1/1/zed_slice_data.json'
+
+    #convert_mp4_json(json_path, jz_file, path)
+
 
     #data_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/zed/ZED_slice_data.json"
     data_file = "/home/matans/Documents/fruitspec/sandbox/syngenta/Calibration_data/10101010/071123/row_100/1/jai/Result_FSI_slice_data.json"
