@@ -31,6 +31,7 @@ from yolox.utils import (
     setup_logger,
     synchronize
 )
+import matplotlib.pyplot as plt
 
 
 class Trainer:
@@ -59,6 +60,10 @@ class Trainer:
         # metric record
         self.meter = MeterBuffer(window_size=exp.print_interval)
         self.file_name = os.path.join(exp.output_dir, args.experiment_name)
+
+        # AP50 record
+        self.train_ap50s = []  # Initialize list to store training AP50 values
+        self.test_ap50s = []   # Initialize list to store testing AP50
 
         if self.rank == 0:
             os.makedirs(self.file_name, exist_ok=True)
@@ -239,6 +244,8 @@ class Trainer:
         if (self.epoch + 1) % self.exp.train_interval == 0:
             all_reduce_norm(self.model)
             self.evaluate_train()
+        if self.rank == 0:
+            self.plot_ap50()
 
     def before_iter(self):
         pass
@@ -352,6 +359,9 @@ class Trainer:
                 (ap50_95, ap50, summary), predictions = self.exp.eval(
                     evalmodel, self.evaluator, self.is_distributed, return_outputs=True
                 )
+
+        self.test_ap50s.append((self.epoch + 1, ap50))
+
         update_best_ckpt = ap50_95 > self.best_ap
         self.best_ap = max(self.best_ap, ap50_95)
 
@@ -392,6 +402,8 @@ class Trainer:
                 evalmodel, self.train_evaluator, self.is_distributed
             )
 
+        self.train_ap50s.append((self.epoch +1, ap50))
+
         if self.rank == 0:
             if self.args.logger == "tensorboard":
                 self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
@@ -404,6 +416,27 @@ class Trainer:
                 })
                 logger.info("\n" + summary)
         synchronize()
+
+    def plot_ap50(self):
+        if self.train_ap50s and self.test_ap50s:
+            train_epochs, train_ap50s = zip(*self.train_ap50s)
+            test_epochs, test_ap50s = zip(*self.test_ap50s)
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(train_epochs, train_ap50s, label='Train AP50')
+            plt.plot(test_epochs, test_ap50s, label='Val AP50')
+            plt.title('AP50 per Epoch')
+            plt.xlabel('Epoch')
+            plt.ylabel('AP50')
+
+            # Set x-ticks to appear every 10 epochs
+            max_epoch = max(train_epochs[-1], test_epochs[-1])
+            plt.xticks(range(1, max_epoch + 1, 10))
+
+            plt.legend()
+            plt.savefig(os.path.join(self.file_name, 'ap50_per_epoch.png'))
+            print (f"Saved {os.path.join(self.file_name, 'ap50_per_epoch.png')}")
+            #plt.show()
 
     def save_ckpt(self, ckpt_name, update_best_ckpt=False, ap=None):
         if self.rank == 0:
