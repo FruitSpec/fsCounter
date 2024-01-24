@@ -76,7 +76,7 @@ def find_subdirs_with_file(folder_path, file_name, return_dirs=True, single_file
 
     else: return subdirs_with_file[0] if single_file else subdirs_with_file # if there is only one file
 
-def find_subdirs_with_string(dir_path, search_string):
+def find_subdirs_with_string(dir_path, search_string, exact_name = False):
     """
     Search for subdirectories containing a specific string within a given directory path.
 
@@ -92,11 +92,17 @@ def find_subdirs_with_string(dir_path, search_string):
     for root, dirs, files in os.walk(dir_path):
         # Check each subdirectory in the current root
         for dir in dirs:
-            # If the search string is in the subdirectory name
-            if search_string in dir:
-                # Construct the full path and add to the list
-                full_path = os.path.join(root, dir)
-                matching_subdirs.append(full_path)
+            if exact_name:
+                if search_string == dir:
+                    # Construct the full path and add to the list
+                    full_path = os.path.join(root, dir)
+                    matching_subdirs.append(full_path)
+            else:
+                # If the search string is in the subdirectory name
+                if search_string in dir:
+                    # Construct the full path and add to the list
+                    full_path = os.path.join(root, dir)
+                    matching_subdirs.append(full_path)
 
     return matching_subdirs
 
@@ -228,12 +234,48 @@ def upload_to_s3(file_name, full_path_s3_dir):
     print (f"Uploaded: {full_path_s3_dir}")
     return True
 
+def rename_subdirs(dir_path, name_currant, new_name):
+    """
+    Rename the last directory in each path from the list of directory paths.
 
+    Args:
+    dir_paths (list): A list of directory paths.
+    new_name (str): The new name to replace the last directory's name.
+
+    Returns:
+    dict: A dictionary with the original path as key and a tuple as value.
+          The tuple contains a boolean indicating success or failure, and a message.
+    """
+    paths = find_subdirs_with_string(dir_path, name_currant, exact_name = True)
+
+    results = {}
+
+    for path in paths:
+        # Normalize the path and split it
+        normalized_path = os.path.normpath(path)
+        path_parts = normalized_path.split(os.sep)
+        if path_parts and len(path_parts) > 1:
+            # Construct new path
+            new_path = os.path.join(os.sep.join(path_parts[:-1]), new_name)
+            try:
+                # Rename directory
+                os.rename(normalized_path, new_path)
+                results[path] = (True, f"Renamed to {new_path}")
+            except OSError as e:
+                results[path] = (False, f"Failed to rename: {e}")
+        else:
+            results[path] = (False, "Invalid path or path has no directories to rename")
+
+    return results
 
 
 if __name__ == "__main__":
 
+    dir_path = r'/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN'
 
+    results = rename_subdirs(dir_path = dir_path, name_currant = 'trees', new_name ='trees_depth_7_9')
+
+#######################################################################3333
     local_dir = '/home/fruitspec-lab-3/FruitSpec/Data/customers/Israel'
 
     s3_paths = [#'s3://fruitspec.dataset/object-detection/JAI/ISRAEL/MANDAR/MEIRAVVA/291123/',
