@@ -26,6 +26,7 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
     # Go through each image in the dataset
     for image_info in annotations['images']:
         image_path = os.path.join(img_dir, image_info['file_name'])
+        print (image_path)
         image = cv2.imread(image_path)
 
         # Resize image for display if its height is too large
@@ -45,12 +46,14 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
                 # Draw bbox and annotations
                 x, y, w, h = bbox
                 cv2.rectangle(image, (x, y), (x + w, y + h), color_map[cat_id], line_width)
-                if "score" in ann:
-                    label = f"{cat_name[0]} {round(ann.get('score', ''),2)}"
-                else:
-                    label = f"{cat_name[0]} id{cat_id}"
-                cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_map[cat_id],
-                            line_width)
+
+                if len(annotations['categories']) > 1:
+                    if "score" in ann:
+                        label = f"{cat_name[0]} {round(ann.get('score', ''),2)}"
+                    else:
+                        label = f"{cat_name[0]} id{cat_id}"
+                    cv2.putText(image, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color_map[cat_id],
+                                line_width)
 
         if save:
             validate_output_path(output_dir)
@@ -66,11 +69,11 @@ def display_coco_bboxes(coco_file, img_dir, max_height=1000, line_width=1, outpu
 
 if __name__ == "__main__":
 
-    coco_file_path = '/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/all_jsons/15.11_14.39__batch11.json'
-    image_directory =r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/all_images'
+    coco_file_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240121_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/annotations/coco_train.json'
+    image_directory =r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240121_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/train2017'
     # image_directory = os.path.join(os.path.dirname(coco_file_path), 'all_images')
     # output_directory = os.path.join( os.path.dirname(coco_file_path) ,'frames_annotations')
-    output_directory = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/Tomato/FSI/Tomato_FSI_train_261123/new_data_only/debbug'
+    output_directory = r'/home/fruitspec-lab-3/FruitSpec/Data/Counter/CLAHE_FSI/D240121_01-Citrus_FSI_CLAHE_batch12_14_WITHOUT_APPLES/gt_train'
 
     display_coco_bboxes(coco_file_path, image_directory, output_dir=output_directory, save=True)
 
