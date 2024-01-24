@@ -178,7 +178,7 @@ def scatter_plot(blocks_df, cvs = ['cv3','dcv3'], title = 'before_factor'):
     print(f'Saved: {os.path.join(OUTPUT_PATH, f"{title}.png")}')
 
 
-def draw_tree_bb_for_block(block_path, block_df, row_tracks, dir='1'):
+def draw_tree_bb_for_block(block_path, block_df, row_tracks,  depth_filter = 5, dir='1'):
 
     for index, row in block_df.iterrows():
         row_to_drow = row['row']
@@ -188,7 +188,7 @@ def draw_tree_bb_for_block(block_path, block_df, row_tracks, dir='1'):
 
         for date in dates:
             tree_tracks = row_tracks[row_to_drow][tree_id]
-            tree_tracks['track_id'] = np.where(tree_tracks['depth'] <= 3, 1, 0)  # To color depth
+            tree_tracks['track_id'] = np.where(tree_tracks['depth'] <= depth_filter, 1, 0)  # To color depth
 
             draw_tree_bb_from_tracks(tree_tracks, os.path.join(block_path, date, row_to_drow, dir),
                                      tree_id, data_index=6)
@@ -302,6 +302,32 @@ def add_preds_errors_sdts(blocks_df, cvs, output_path):
 
     return blocks_df
 
+def validate_tracks_files_exist(BLOCKS_LIST):
+    for block_path in BLOCKS_LIST:
+        block = block_path.split('/')[-1]
+        block_dates = os.listdir(block_path)
+        block_dates = [item for item in block_dates if item.isdigit()]
+
+        for date in block_dates:
+            date_path = os.path.join(block_path, date)
+            if not os.path.isdir(date_path):
+                continue
+            row_list = os.listdir(date_path)
+
+            for row in row_list:
+
+                row_path = os.path.join(date_path, row)
+                if not os.path.isdir(row_path):
+                    continue
+                row_path = os.path.join(row_path, '1')
+                if not os.path.exists(row_path):
+                    continue
+
+                tracks_path = os.path.join(row_path, 'tracks.csv')
+                ex = file_exists(tracks_path, raise_error=False)
+                if not ex:
+                    print(f'{row_path} - TRECKS EXIST: ({ex})')
+
 def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES = False, direction = 'right'):
     validate_output_path(OUTPUT_PATH)
     blocks_df = pd.DataFrame()
@@ -315,7 +341,7 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
         block_df, row_tracks = block_analysis(block_path, METADATA_PATH, block_, DEPTH_FILTER, direction)
         blocks_df = pd.concat([blocks_df, block_df.copy()], ignore_index=True)
         if DRAW_TREES:
-            draw_tree_bb_for_block(block_path, block_df, row_tracks, dir='1')
+            draw_tree_bb_for_block(block_path, block_df, row_tracks, DEPTH_FILTER, dir='1')
 
         # plt.bar(block_df['row'], block_df['F/cv1'])
         # plt.xlabel('Tree')
@@ -345,27 +371,28 @@ def factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, 
     # plot all blocks before factor:
     scatter_plot(blocks_df, cvs = ['cv1','dcv1'], title='scatter_cv1')
     scatter_plot(blocks_df, cvs=['cv2', 'dcv2'], title='scatter_cv2')
-###########################
+
+
 
 if __name__ == "__main__":
 
     METADATA_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Data_files/data_meta_2024-01-10_11-43-49_new.csv"
 
     BLOCKS_LIST = [
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/11XXXXX3',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/17XXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/5XXXXXX4',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/3XXXXXX5',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/30XXXXX0',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/31XXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/13XXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/21XXXXX0',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/26XXXXX1',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/15XXXXX3',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/34XXXXX0',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/22XXXXX2',
-                   '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/12XXXXX2',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/39XXXXX0',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/5XXXXXX4',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/3XXXXXX5',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/30XXXXX0',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/31XXXXX3',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/13XXXXX2',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/21XXXXX0',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/26XXXXX1',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/15XXXXX3',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/34XXXXX0',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/22XXXXX2',
+                   # '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/12XXXXX2',
                    '/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/18XXXXX3',
                    ]
 
@@ -377,42 +404,16 @@ if __name__ == "__main__":
     #         # Construct the full path and add it to the list
     #         full_path = entry.path
     #         BLOCKS_LIST.append(full_path)
-
     # OUTPUT_PATH = os.path.join(root_path, 'Factors_analysis')
-    OUTPUT_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Factors_analysis"
-    DEPTH_FILTER = 7.9
-    CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3'] #['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
+
+    OUTPUT_PATH = "/home/fruitspec-lab-3/FruitSpec/Data/customers/SA/CITRUS/CAPESPN/Factors_analysis_blocks17_18_depth_5)"
+    DEPTH_FILTER = 5
+
+    CVS = ['cv1', 'dcv1', 'cv2', 'dcv2', 'cv3', 'dcv3']
     DRAW_TREES = False
 
-    ##############################################
-    # check if all trecks.csv files  exist:
-    for block_path in BLOCKS_LIST:
-        block = block_path.split('/')[-1]
-        block_dates = os.listdir(block_path)
-        block_dates = [item for item in block_dates if item.isdigit()]
+    validate_tracks_files_exist(BLOCKS_LIST)
 
-        for date in block_dates:
-            date_path = os.path.join(block_path, date)
-            if not os.path.isdir(date_path):
-                continue
-            row_list = os.listdir(date_path)
-
-            for row in row_list:
-
-                row_path = os.path.join(date_path, row)
-                if not os.path.isdir(row_path):
-                    continue
-                row_path = os.path.join(row_path, '1')
-                if not os.path.exists(row_path):
-                    continue
-
-                tracks_path = os.path.join(row_path, 'tracks.csv')
-                ex = file_exists(tracks_path, raise_error=False)
-                if not ex:
-                    print (f'{row_path} - TRECKS EXIST: ({ex})')
-
-
- ###########################################
     factor_analysis(METADATA_PATH, BLOCKS_LIST, OUTPUT_PATH, DEPTH_FILTER, CVS, DRAW_TREES, direction = 'left')
 
     print ('Done')
