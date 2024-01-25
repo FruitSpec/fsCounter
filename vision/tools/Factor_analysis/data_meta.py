@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 from vision.tools.utils_general import find_subdirs_with_string
 from vision.misc.help_func import validate_output_path
-
+import re
 
 def create_dataframe_from_paths(paths):
     """
@@ -49,7 +49,8 @@ def create_dataframe_from_paths(paths):
         'F': Fs
     })
 
-    df = df.sort_values(by=['block', 'row'])
+    df['row_int'] = df['row'].apply(lambda s: int(re.search(r'\d+', s).group()))
+    df = df.sort_values(by=['block', 'row_int'])
 
     return df
 
@@ -81,5 +82,5 @@ def generate_data_meta_template(blocks_path, trees_in_row = 1, save = False):
 
 
 if __name__ == "__main__":
-    blocks_path = r'/home/fruitspec-lab-3/FruitSpec/Data/Apples/SA/bks'
+    blocks_path = r'/home/fruitspec-lab-3/FruitSpec/Data/ground_oranges/Israel'
     df = generate_data_meta_template(blocks_path, trees_in_row = 2, save = True)
